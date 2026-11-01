@@ -265,6 +265,11 @@ export default function TaskConfirmCard({
             }}
           >
             {videoAction.viewing ? t('task.viewing') : t('task.viewCamera')}
+            {/* The other label, hidden, holds the width: a narrower button lets
+                the note re-wrap beside it, which moves Approve and Deny. */}
+            <span style={{ display: 'block', height: 0, overflow: 'hidden', visibility: 'hidden' }}>
+              {videoAction.viewing ? t('task.viewCamera') : t('task.viewing')}
+            </span>
           </button>
           {/* Beside the button when it fits. The countdown sentence keeps its
               space at zero, so the note's height does not change. */}
@@ -369,9 +374,11 @@ function StillCaption({ entry, now, noteShown }) {
   const { t } = useTranslation();
   const time = formatClock(confirmAgeSec(entry, now));
   return (
-    <div style={{ marginTop: 4, fontSize: 11, color: colors.textDim, fontVariantNumeric: 'tabular-nums' }}>
-      <div data-testid="still-caption" data-age={time}>{t('task.stillCaption', { id: entry.taskId, time })}</div>
-      <div data-testid="still-age-note" style={{ visibility: noteShown ? 'visible' : 'hidden' }}>
+    <div style={{ marginTop: 4, fontSize: 11, fontVariantNumeric: 'tabular-nums' }}>
+      <div data-testid="still-caption" data-age={time} style={{ color: colors.text }}>
+        {t('task.stillCaption', { id: entry.taskId, time })}
+      </div>
+      <div data-testid="still-age-note" style={{ color: colors.textDim, visibility: noteShown ? 'visible' : 'hidden' }}>
         {t('task.stillAgeNote')}
       </div>
     </div>

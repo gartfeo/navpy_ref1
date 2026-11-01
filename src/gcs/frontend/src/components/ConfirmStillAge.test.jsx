@@ -3,6 +3,7 @@ import { render, act, fireEvent, within } from '@testing-library/react';
 import TaskConfirmCard, { ConfirmStill } from './TaskConfirmCard';
 import ConfirmCardList from './ConfirmCardList';
 import useTaskConfirmation from '../hooks/useTaskConfirmation';
+import { colors } from '../styles';
 
 // Todo 71 (gcs_still_age.md): the still's age and POI. The caption's words are
 // the point here, so this file resolves the real English strings instead of
@@ -19,8 +20,11 @@ vi.mock('react-i18next', async () => {
   };
 });
 
+const t0 = 1_000_000;
+
 beforeEach(() => {
   vi.useFakeTimers({ toFake: ['Date', 'setInterval', 'clearInterval'] });
+  vi.setSystemTime(t0);
 });
 
 const advance = (ms) => act(() => { vi.advanceTimersByTime(ms); });
@@ -122,11 +126,15 @@ describe('pending card: the caption', () => {
     expect(getByText('POI #42')).toBeInTheDocument();
     expect(getByTestId('still-caption')).toHaveTextContent('POI #42 ·');
   });
+
+  it('draws the age line brighter than the note under it', () => {
+    const { getByTestId } = render(hostedCard(entryAt(t0, { imageB64: IMAGE }), { now: t0 }));
+    expect(getByTestId('still-caption')).toHaveStyle({ color: colors.text });
+    expect(getByTestId('still-age-note')).toHaveStyle({ color: colors.textDim });
+  });
 });
 
 describe('pending card: the empty box by phase', () => {
-  const t0 = 1_000_000;
-
   it('says the image is not in once the countdown reaches zero, and at fired', () => {
     const { getByText, queryByText, rerender } = render(hostedCard(entryAt(t0), { now: t0 + 29_000 }));
     expect(getByText('Waiting for image')).toBeInTheDocument();
@@ -151,7 +159,6 @@ describe('pending card: the empty box by phase', () => {
 });
 
 describe('pending card: the age and the countdown', () => {
-  const t0 = 1_000_000;
   const shown = (view) => ({
     age: view.getByTestId('still-caption').dataset.age,
     countdown: view.getByTestId('confirm-countdown-1').dataset.time,
@@ -162,12 +169,14 @@ describe('pending card: the age and the countdown', () => {
   };
 
   it('add up to the wait at every offset while the round is unfired', () => {
+    const onDeny = vi.fn();
     for (const offset of [0, 1, 999, 1000, 1001, 1500, 7250, 29_000, 29_999]) {
-      const view = render(hostedCard(entryAt(t0), { now: t0 + offset }));
+      const view = render(hostedCard(entryAt(t0), { now: t0 + offset, onDeny }));
       const { age, countdown } = shown(view);
       expect(seconds(age) + seconds(countdown), `offset ${offset}`).toBe(WAIT_SEC);
       view.unmount();
     }
+    expect(onDeny).not.toHaveBeenCalled();
   });
 
   it('after expiry the countdown holds at zero and the age keeps rising', () => {
@@ -253,8 +262,6 @@ describe('pending card: rounds', () => {
 });
 
 describe('pending card: nothing moves when the image arrives (decision 6)', () => {
-  const t0 = 1_000_000;
-
   it('the picture has one height with and without the image', () => {
     const empty = render(hostedCard(entryAt(t0), { now: t0 }));
     const boxHeight = empty.getByText('Waiting for image').style.height;
@@ -278,7 +285,6 @@ describe('pending card: nothing moves when the image arrives (decision 6)', () =
 });
 
 describe('pending card: View camera note', () => {
-  const t0 = 1_000_000;
   const videoAction = { viewing: false, onView: NO_OP };
   const countdownSentence = (view) => view.getByText('The countdown keeps running.');
 

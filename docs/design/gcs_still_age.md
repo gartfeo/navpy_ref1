@@ -1,7 +1,9 @@
 # GCS: the confirm still's age and POI (todo 71)
 
 Status: v3. Codex round 1 "rework", round 2 "approve with changes" (both round 2
-points taken in here). The owner approved all six decisions (2026-11-01).
+points taken in here). The owner approved all six decisions (2026-11-01). The final
+review added View camera's one width (under Change) and the movements that stay
+(decision 6).
 Mock: `docs/design/gcs_still_age_mock.html` (static drawing at the real host
 sizes). Fit is checked live; jsdom has no layout.
 
@@ -86,9 +88,14 @@ Decisions for the owner, with the recommendation first.
    px per card during the empty period, the size the card reaches anyway once the
    image is in; in the 173 px RC list with two approved rows, about 50 px is left to
    scroll in, as today, so Approve and Deny are further down that scroll. Other choice:
-   keep the 60 px box and the jump. One movement stays, from the merged cue design: the
-   header's countdown words can wrap onto a second line at zero, when the operator's
-   time is over anyway.
+   keep the 60 px box and the jump. Two movements stay. View camera's row shows only
+   while the UAV has a stream, so when its last stream goes or a first one comes during
+   a round, the row goes or comes and moves Approve, Deny and the cards below: 57 px in
+   English and 94 px in Armenian at width 320 (todo 166). The other, from the merged cue
+   design: the header's countdown words can wrap onto a second line at zero, when the
+   operator's time is over anyway (with the app's font at width 320, on the first card,
+   19 px once fired in English and 36 px from zero in Armenian; at most 19 px and 36 px
+   over the fonts and widths measured; a second card moves 38 px and 72 px).
 
 The caption also appears on the opened still of an approved round (`ConfirmStill`),
 where the same question comes up before a Cancel task. `ConfirmCardList` is not
@@ -135,7 +142,14 @@ Under `src/gcs/frontend/src`:
 - `components/TaskConfirmCard.jsx`: a `StillCaption`, the box's words by phase, the
   fixed picture height (decision 6), the note's POI sentence and its hidden countdown
   sentence by phase (with a 120 px flex basis, so the note sits beside the button when
-  it fits and under it when not), `ConfirmStill`'s caption and tick.
+  it fits and under it when not), `ConfirmStill`'s caption and tick. The age line is
+  `colors.text` and the note under it `colors.textDim`, as in the mock. View camera
+  holds one width for both labels: the other label stays inside the button, hidden,
+  with no fixed pixel width. Otherwise the button's width decides the note's side and
+  line count, so the label switch moves Approve, Deny and the cards below. It holds the
+  width, not the height: with fonts scaled 1.7 to 2 times (at 1.7 only in a list with a
+  scrollbar), the Armenian label wraps past the button's 44 px minimum at width 320 and a
+  press moves Approve 14-22 px.
 - `locales/en.json`, `locales/hy.json`: add `task.stillCaption`, `task.stillAgeNote`,
   `task.noImage`, `task.viewCameraPoiNote`; `task.viewCameraNote` ends its sentence now
   that it follows another; drop the dots from `task.waitingForImage`. hy for the owner
@@ -161,6 +175,8 @@ Not edited: `App.jsx`, `TopBar.jsx`, `MonitoringSidebar.jsx`, `styles.js`,
   both caption lines exist in both states.
 - vitest: View camera's note names the POI, and its countdown sentence is hidden but
   still rendered once the round is due or fired.
+- vitest: View camera keeps the other label inside the button, hidden, in both states,
+  with no fixed width; the age line is brighter than the note.
 - vitest: `ConfirmStill` shows the caption, ticks on its own, and stops its timer when
   closed.
 - Reducer: `confirmImage` records `imageAt` only for the matching task and round, and
@@ -176,3 +192,9 @@ Not edited: `App.jsx`, `TopBar.jsx`, `MonitoringSidebar.jsx`, `styles.js`,
   scroll. In the 173 px RC list with two approved rows, one pending round and an opened
   still, and through an image arrival: pending Approve and Deny reachable by scrolling
   and hit-testable.
+- Browser, no stack (the real `ConfirmCardList` in headless Chromium; en and hy, 13 font
+  settings, six widths from 280 to 400, tall and short lists, two cards): Approve on both
+  cards, the button's width and the row's height stay the same within a phase, with no
+  UAV or the first card's UAV being viewed (also the second card's UAV at live and
+  fired). The image's arrival was measured in the live phase only. Result 2026-11-01:
+  0 px in every measured case; before the one-width rule, Approve moved by up to 37 px.
