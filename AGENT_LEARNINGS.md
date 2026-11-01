@@ -1687,3 +1687,30 @@
 - PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
   character of a commit subject. Write commit-message files with
   `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.
+
+## Stale receipt at 606 m (2026-10-31)
+
+- A freshness trip does not prove the clock or the limit is wrong. Compare every
+  reader's clock over the same seconds first: here all read 10.25-10.30x, so the
+  readers fell behind and the trip was correct.
+- A clock anchor of +-11 s gave flat, identical "lag" on all readers: it was the
+  clock's rate varying. A 5 s local minimum still reads about 125 ms high when the
+  rate is 2.5% off. For a limit on receipt, read gaps between accepted poses and
+  between detector polls: they need no clock model. Lag on NavPy and GCS alike is
+  either an artefact or both starving; do not read it alone.
+- Do not assume one stall of the limit's size caused a trip. Flight A tripped the
+  100 ms limit with stalls of 40-67 ms: the limit covers the whole path to the command.
+- An A/B driver must check what it moved. The first run changed only the venv
+  launcher's process (it said "kids 7420"); walk all descendants and print the count.
+- A CPU share expiring during an experiment invalidated its last phases (3 s lag).
+  Check the backend log for "CPU share ... ended" before reading a late phase.
+- Analysis scripts that read 4 GB of logs are load too; one ran at 0.95 core during
+  a measurement. Filter by time with `rows()` from a windowed reader, and wait for
+  the run to end.
+- In a worktree `python` on PATH may be the system Python: a full suite run gave
+  10 false failures (no jsbsim, headless OpenCV). Run `.venv\Scripts\python.exe`.
+- Python edit scripts with triple quotes in a Bash heredoc failed to parse and ran
+  nothing. Use the Edit tool; check one thing before a batch depends on it.
+- Readers timing arrival cannot alone show a producer kept time. Use what the producer
+  cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
+  and after and compare them at the event (`producer_test.py`). Codex caught this gap.

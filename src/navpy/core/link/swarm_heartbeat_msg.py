@@ -9,8 +9,10 @@ The SwarmHeartbeatMsg is critical for:
 Expected rate: 1Hz
 TTL: 5000ms
 
-The ``state`` byte carries SwarmNodeState: whether the node can take part in
-a task auction (docs/design/swarm-task-assignment-ack.md, "Busy UAVs").
+Bit 0 of the ``state`` byte carries SwarmNodeState: whether the node can
+take part in a task auction (docs/design/swarm-task-assignment-ack.md, "Busy
+UAVs"). Bits 1-7 carry nav's display phase and last outcome for the GCS
+(core/flow/nav_display.py, docs/design/gcs_mission_phase.md).
 """
 
 from enum import IntEnum
@@ -27,7 +29,7 @@ from navpy.core.link.types import MsgType
 
 
 class SwarmNodeState(IntEnum):
-    """Heartbeat state codes; receivers treat any non-zero code as BUSY.
+    """Heartbeat state bit 0; ``from_code`` ignores the display bits 1-7.
 
     BUSY: the node holds another UAV's task or flies a final approach.
     """
@@ -37,7 +39,7 @@ class SwarmNodeState(IntEnum):
 
     @classmethod
     def from_code(cls, code: int) -> "SwarmNodeState":
-        return cls.FREE if code == cls.FREE else cls.BUSY
+        return cls.BUSY if code & cls.BUSY else cls.FREE
 
 
 @register_msg()
@@ -47,7 +49,7 @@ class SwarmHeartbeatMsg(MsgABC):
 
     Contains:
     - sender_id: The sending node's system ID
-    - state: SwarmNodeState code (FREE=0, BUSY=1)
+    - state: bit 0 SwarmNodeState (FREE=0, BUSY=1), bits 1-7 display
     - boot_id, msg_seq, time_ms, ttl_ms: Via meta field (required for this message)
 
     The time_ms field in meta is used by receivers to compute clock offset.

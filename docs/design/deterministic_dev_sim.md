@@ -94,7 +94,7 @@ So `stress` draws N from 4-12: 4 reproduces todo 65, 12 is just above the mean d
 | `hw` seed 1, budget off | mean 3.3, median 2, p99 27-28, max 33-34 | mean 5.3, p99 78, max 84 |
 | `stress` seed 1, budget off (line rate on) | mean 3.15, max 6 | mean 3.7, max 18 |
 
-So `stress` draws B from 4-16 (4 is just above the NavPy mean, 16 near the router's `stress` peak) and b from 1-8. `stress` seed 1 with the budget off fails the gap gates on UAV 1 (median gap 0.231 s, longest 0.62 s) and a roll step on UAV 3 (54.6 deg); with B 4, b 8 all three pass their gates, since batching saves the reader's handoffs under the CPU cap. The CPU budget counts handoffs, not work, so a batching reader looks cheaper than it is (todo 152). With the budget on in every seed, `stress` seed 40 (cap 4) no longer reproduced todo 65 (all dock; `.logs/dds-step6/stress40_pon1`), so `stress` keeps the default: on in half the seeds, off at seeds 1 and 40.
+So `stress` draws B from 4-16 (4 is just above the NavPy mean, 16 near the router's `stress` peak) and b from 1-8. `stress` seed 1 with the budget off fails the gap gates on UAV 1 (median gap 0.231 s, longest 0.62 s) and a roll step on UAV 3 (54.6 deg); with B 4, b 8 all three pass their gates, since batching saves the reader's handoffs under the CPU cap. The CPU budget counts handoffs, not work, so a batching reader looks cheaper than it is (todo 157). With the budget on in every seed, `stress` seed 40 (cap 4) no longer reproduced todo 65 (all dock; `.logs/dds-step6/stress40_pon1`), so `stress` keeps the default: on in half the seeds, off at seeds 1 and 40.
 
 **Faults** are scheduled events in the same profile, drawn per seed, and healed before the mission's last phase (liveness):
 - link drop: one link at 100% loss for 1-10 s;

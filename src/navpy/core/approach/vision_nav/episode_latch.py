@@ -22,6 +22,7 @@ from enum import Enum
 from typing import Optional
 
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 class FinalApproachTerminal(Enum):
@@ -33,9 +34,9 @@ class FinalApproachTerminal(Enum):
 TerminalObserver = Callable[[FinalApproachTerminal, Optional[DockContactIdentity]], None]
 
 # The reason of an aft-dock miss, as its NAV_FAIL line names it.
-MISSED_DOCK_REASON = "missed_dock"
+MISSED_DOCK_REASON = fail_reason.MISSED_DOCK
 # A NAV_FAIL whose caller names no reason.
-UNNAMED_FAILURE_REASON = "nav_fail"
+UNNAMED_FAILURE_REASON = fail_reason.NAV_FAIL
 
 
 @dataclass(frozen=True)

@@ -89,7 +89,8 @@ class TaskActor(ListenerAbc):
             vehicle,
             sender,
             lock,
-            selection.node_state,
+            # Under the actor lock: BUSY and the display in one byte.
+            lambda: int(selection.node_state()) | selection.display_bits,
             _peer_status_ports(
                 rebroadcast,
                 PeerStatusCoordinator(auction_state, rebroadcast, auction.replan),
@@ -153,9 +154,15 @@ class TaskActor(ListenerAbc):
     def has_selected_pois(self) -> bool:
         return self.selected_poi() is not None
 
-    def set_participation(self, approaching: bool, docked: bool) -> None:
-        """Nav publishes a final approach or a dock (both BUSY)."""
-        self._participation.set_participation(approaching, docked)
+    def set_participation(
+        self,
+        approaching: bool,
+        docked: bool,
+        display_bits: int = 0,
+    ) -> None:
+        """Nav publishes a final approach or a dock (both BUSY) and its
+        display bits (nav_display.py)."""
+        self._participation.set_participation(approaching, docked, display_bits)
 
     def clear_selected_poi(self) -> None:
         """Nav ended its task; a WAITING offer is kept."""

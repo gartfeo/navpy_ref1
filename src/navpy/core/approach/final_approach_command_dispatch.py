@@ -11,6 +11,7 @@ from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 @dataclass(frozen=True)
@@ -90,7 +91,7 @@ class FinalApproachCommandDispatch:
     def mark_no_detection(self, active_poi: DetectedObject) -> None:
         # Losing the dock is never success: only contact completes.
         self._mark_failed_and_log(
-            "no_detection",
+            fail_reason.NO_DETECTION,
             lambda: (
                 f"NAV_FAIL: no_detection "
                 f"task={get_poi_task_id(active_poi)} "
@@ -101,13 +102,13 @@ class FinalApproachCommandDispatch:
     def mark_missed_dock(self, poi: DetectedObject | None) -> None:
         """The armed dock went aft: the approach missed it."""
         self._mark_failed_and_log(
-            "missed_dock",
+            fail_reason.MISSED_DOCK,
             lambda: "NAV_FAIL: missed_dock " + self._poi_identity(poi)
         )
 
     def mark_navigation_rejected(self, poi: DetectedObject) -> None:
         self._mark_failed_and_log(
-            "navigation_rejected",
+            fail_reason.NAVIGATION_REJECTED,
             lambda: (
                 f"NAV_FAIL: navigation_rejected "
                 f"task={get_poi_task_id(poi)} "
@@ -120,7 +121,7 @@ class FinalApproachCommandDispatch:
         poi: DetectedObject | None,
     ) -> None:
         self._mark_failed_and_log(
-            "source_command_stale",
+            fail_reason.SOURCE_COMMAND_STALE,
             lambda: (
                 "NAV_FAIL: source_command_stale "
                 + self._poi_identity(poi)

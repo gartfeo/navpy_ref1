@@ -49,8 +49,9 @@ truth to time the end.
    `dock_outcome` field: nothing reads it, so NAV exit reports the outcome once (status line and row) instead.
 
 ## Reporting
-- Status text (GCS feed) and log, once the exit succeeded: `STATE DOCK_FAILED: reason=no_detection dock=0 task=1`.
-  DOCKED keeps `STATE DOCKED: contact 3d=…`. The SNAP line before it is a command-sampled diagnostic, not the
+- Status text (GCS feed) and log, once the exit succeeded: `STATE DOCK_FAILED (sim): reason=no_detection dock=0 task=1`.
+  DOCKED keeps `STATE DOCKED (sim): 3d=…`. The vehicle card shows DOCK FAILED (SIM) with the reason
+  (`gcs_mission_phase.md`). The SNAP line before it is a command-sampled diagnostic, not the
   closest physical distance.
 - Evidence row `DOCK_FAILED` (vehicle, task, dock, episode, reason). As built it is written at NAV exit, after
   `navigation_reset` drained the episode's command evidence, so it follows every command row and the SNAP row.

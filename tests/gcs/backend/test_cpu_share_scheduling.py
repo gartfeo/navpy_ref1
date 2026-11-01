@@ -7,7 +7,7 @@ import pytest
 from gcs.backend import cpu_share
 from gcs.backend.cpu_share import ShareRecord
 from gcs.backend.cpu_share_background import BackgroundScheduling
-from gcs.backend.cpu_share_holder import CPU_SHARE_ENV, StackScheduling
+from gcs.backend.cpu_share_holder import CPU_SHARE_ALL_CORES_ENV, CPU_SHARE_ENV, StackScheduling
 from gcs.backend.cpu_share_native import ABOVE_NORMAL_PRIORITY_CLASS as ABOVE
 from gcs.backend.cpu_share_native import BELOW_NORMAL_PRIORITY_CLASS as BELOW
 from gcs.backend.cpu_share_native import mask_of
@@ -239,3 +239,18 @@ def test_the_request_comes_from_the_launchers_environment(record, timers, monkey
     assert stack.start_from_env() == outcome
     if outcome == "holder":
         assert timers.made[0].interval == 90.0
+
+
+@pytest.mark.parametrize(("flag", "cpus"), ((None, (0, 1, 6, 7)), ("1", (0, 1, 6, 7, 8, 9, 18, 19))))
+def test_the_launchers_environment_sets_how_many_cpus_the_backend_runs_on(
+    record, timers, monkeypatch, flag, cpus,
+):
+    monkeypatch.setenv(CPU_SHARE_ENV, "90")
+    if flag is None:
+        monkeypatch.delenv(CPU_SHARE_ALL_CORES_ENV, raising=False)
+    else:
+        monkeypatch.setenv(CPU_SHARE_ALL_CORES_ENV, flag)
+    events: list = []
+    stack = _stack(record, events, timers)
+    assert stack.start_from_env() == "holder"
+    assert events == [("set_own", ABOVE, mask_of(cpus))]
