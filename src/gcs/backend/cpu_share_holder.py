@@ -2,7 +2,8 @@
 (``bounded_cpu_share.md``).
 
 ``gcs_launch.py --cpu-share-s N`` asks the backend for a share through
-``GCS_CPU_SHARE_S``. Granted, the backend runs ABOVE_NORMAL on the share's
+``GCS_CPU_SHARE_S``, and ``--cpu-share-all-cores`` for every free performance
+core through ``GCS_CPU_SHARE_ALL_CORES``. Granted, the backend runs ABOVE_NORMAL on the share's
 CPUs before it starts any NavPy, level with its NavPys, which inherit the
 CPUs and raise themselves to ABOVE_NORMAL (at NORMAL their threads starved
 the backend's reader, which fell seconds behind). Refused or not asked, the
@@ -34,6 +35,7 @@ from gcs.backend.navpy_process_instance import JOBS_LOCK, demote_open_jobs
 log = logging.getLogger(__name__)
 
 CPU_SHARE_ENV = "GCS_CPU_SHARE_S"
+CPU_SHARE_ALL_CORES_ENV = "GCS_CPU_SHARE_ALL_CORES"
 
 
 class StackScheduling:
@@ -68,9 +70,9 @@ class StackScheduling:
             log.warning("Ignoring invalid %s=%r", CPU_SHARE_ENV, raw)
             seconds = None
         label = f"gcs slot {os.environ.get('GCS_CHAT_INDEX', '?')} ({os.getcwd()})"
-        return self.start(seconds, label)
+        return self.start(seconds, label, every_free_core=bool(os.environ.get(CPU_SHARE_ALL_CORES_ENV)))
 
-    def start(self, seconds: float | None, label: str) -> str:
+    def start(self, seconds: float | None, label: str, *, every_free_core: bool = False) -> str:
         """Claim a share for *seconds* when asked, else run as background;
         returns ``holder``, ``background`` or ``normal`` (background priority
         could not be set; this stack's NavPys still start BELOW_NORMAL).
@@ -79,7 +81,10 @@ class StackScheduling:
         native = self._native = self._native or native_scheduling()
         record = self._record = self._record or ShareRecord()
         if seconds is not None and seconds > 0:
-            outcome = record.claim(label, seconds, native.efficiency_classes())  # type: ignore[attr-defined]
+            outcome = record.claim(
+                label, seconds, native.efficiency_classes(),  # type: ignore[attr-defined]
+                every_free_core=every_free_core,
+            )
             if isinstance(outcome, Share):
                 try:
                     native.set_own(ABOVE_NORMAL_PRIORITY_CLASS, mask_of(outcome.cpus))  # type: ignore[attr-defined]
@@ -144,4 +149,4 @@ class StackScheduling:
 stack_scheduling = StackScheduling()
 
 
-__all__ = ["CPU_SHARE_ENV", "StackScheduling", "stack_scheduling"]
+__all__ = ["CPU_SHARE_ALL_CORES_ENV", "CPU_SHARE_ENV", "StackScheduling", "stack_scheduling"]

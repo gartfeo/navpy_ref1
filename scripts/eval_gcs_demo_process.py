@@ -81,7 +81,7 @@ def launch_stack(
     headless: bool = True,
     browser: bool = True,
     launch_token: str | None = None,
-    cpu_share_s: float | None = None,
+    cpu_share_s: float | None = None, cpu_share_all_cores: bool = False,
 ) -> StackContext:
     if owned_entry(env) is not None:
         raise PreexistingOwnedStackError(
@@ -97,7 +97,7 @@ def launch_stack(
         launch_command(
             launch_token, scenario.home, sitl_arguments,
             instances=len(scenario.slots), headless=headless, browser=browser,
-            cpu_share_s=cpu_share_s,
+            cpu_share_s=cpu_share_s, cpu_share_all_cores=cpu_share_all_cores,
         ),
         env,
         timeout_s=min(timeout_s, 60.0),
