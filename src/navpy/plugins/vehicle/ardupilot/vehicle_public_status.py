@@ -34,6 +34,10 @@ class VehicleLimitsModeFacet:
     def get_mode(self) -> FlightMode | None:
         return self._parts.mode.current
 
+    @property
+    def heartbeat_count(self) -> int:
+        return self._parts.mode.heartbeat_count
+
 
 class VehicleHealthFacet:
     """Expose link, pre-arm, sensor, EKF, RC, and arm status."""

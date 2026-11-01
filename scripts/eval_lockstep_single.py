@@ -37,6 +37,7 @@ for path in (ROOT, ROOT / "src"):
 
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as registry  # noqa: E402
+from gcs.backend.cpu_share_background import apply_background  # noqa: E402
 from navpy.sim.lockstep.coordinator import StepLink, run  # noqa: E402
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder  # noqa: E402
 from navpy.sim.lockstep.scripted_operator import ScriptedOperator  # noqa: E402
@@ -195,6 +196,7 @@ def main() -> int:
     parser.add_argument("--rng-seed", type=int, default=0,
                         help="NAVPY_STEP_RNG_SEED for the SITL's noise; 0 leaves it unset")
     args = parser.parse_args()
+    apply_background()  # load changes only wall time (bounded_cpu_share.md)
     result = run_once(args.run_dir, args.ticks, args.host_delay_seed,
                       args.helper_jitter_seed, args.seed, args.rng_seed)
     print(json.dumps({key: result[key] for key in (

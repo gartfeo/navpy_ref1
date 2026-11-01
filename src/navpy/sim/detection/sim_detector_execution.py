@@ -1,4 +1,4 @@
-"""Source-driven and polling execution loops for the simulator detector."""
+"""Source-driven, polling and camera-scheduled execution loops for the simulator detector."""
 
 from __future__ import annotations
 
@@ -8,9 +8,13 @@ from typing import Optional
 from navpy.core.kernel import runtime_time as rt
 from navpy.sim.detection.detector_poll_timer import DetectorPollTimer
 from navpy.sim.detection.ideal_pose_source import IdealPoseSample
+from navpy.sim.detection.sim_camera_loop import SimCamera, SimCameraLoop
 from navpy.sim.detection.scheduler_cadence_lease import SchedulerCadenceLease
 from navpy.sim.detection.sim_coordinator_ports import WorkerCoordinatorPort
-from navpy.sim.detection.sim_polling_pose_reader import PollingPoseReaderPort
+from navpy.sim.detection.sim_polling_pose_reader import (
+    PollingPoseRead,
+    PollingPoseReaderPort,
+)
 from navpy.sim.detection.sim_runtime_ports import (
     DetectFramePort,
     ErrorSink,
@@ -37,7 +41,10 @@ class SimDetectorExecution:
         detect_pois: DetectFramePort,
         record_outcome: FrameOutcomeSink,
         poll_timer: Optional[DetectorPollTimer] = None,
+        camera: Optional[SimCamera] = None,
     ) -> None:
+        if camera is not None and ideal_360:
+            raise ValueError("camera_frames models the finite polling camera, not ideal_360")
         self._coordinator = coordinator
         self._polling_pose_reader = polling_pose_reader
         self._advance_source_time = advance_source_time
@@ -49,10 +56,15 @@ class SimDetectorExecution:
         self._detect_pois = detect_pois
         self._record_outcome = record_outcome
         self._poll_timer = poll_timer
+        self._camera_loop = None if camera is None else SimCameraLoop(
+            camera, coordinator.stop_event, self._read_pose, record_outcome,
+        )
 
     def run(self) -> None:
         if self._ideal_360:
             self._run_ideal_source_loop()
+        elif self._camera_loop is not None:
+            self._camera_loop.run()
         else:
             self._run_polling_loop()
 
@@ -130,24 +142,30 @@ class SimDetectorExecution:
         if self._poll_timer is not None:
             self._poll_timer.mark(stage)
 
-    def _poll_once(self) -> str:
+    def _read_pose(self) -> PollingPoseRead:
+        """Poll the pose; an unpaired one is recorded as dropped."""
         read = self._polling_pose_reader.read()
         # Every polled ATTITUDE advances the source clock, paired or not, so a
         # restart is detected on the raw stream before any post-reboot pair.
         if read.attitude_time_boot_s is not None:
             self._advance_source_time(read.attitude_time_boot_s)
-        sample = read.sample
         self._unpaired_pose_monitor.observe(
             read.attitude_time_boot_s,
-            paired=sample is not None,
+            paired=read.sample is not None,
         )
         self._mark("read")
-        if sample is None:
+        if read.sample is None:
             self._record_outcome(
                 read.attitude_time_boot_s,
                 "unpaired_pose_dropped",
                 None,
             )
+        return read
+
+    def _poll_once(self) -> str:
+        read = self._read_pose()
+        sample = read.sample
+        if sample is None:
             self._mark("log")
             return "empty" if read.attitude_time_boot_s is None else "unpaired"
         if self._poll_timer is not None:

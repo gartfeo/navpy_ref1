@@ -69,8 +69,8 @@ class TestAppMountsWindowInMonitorOnly(unittest.TestCase):
         # Confirmation actions (map cards and sidebar) still reach the handlers.
         for handler in ("handleTaskApprove", "handleTaskDeny", "handleTaskCancel"):
             self.assertIn(f"ws.{handler}", self.src)
-        # E-STOP still goes to both hosts (see test_estop_placement_js.py).
-        self.assertEqual(self.src.count("onEstop={commands.handleEstop}"), 2)
+        # E-STOP goes to its one host, the TopBar (see test_estop_placement_js.py).
+        self.assertEqual(self.src.count("onEstop={commands.handleEstop}"), 1)
         # Manual control entry and its overlays.
         self.assertIn("onToggleManualControl={mc.handleToggleManualControl}", self.src)
         self.assertIn("<ManualControlOverlay", self.src)

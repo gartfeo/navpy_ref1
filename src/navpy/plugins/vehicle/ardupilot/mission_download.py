@@ -16,6 +16,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAVLink_message,
 )
 
+from navpy.core.ports.mission_download import MissionDownload, MissionDownloadOutcome
 from navpy.core.ports.parameter_exchange import ExchangePolicy, with_cancel
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
@@ -61,6 +62,21 @@ class MissionDownloader:
         item_timeout: float = MISSION_ITEM_TIMEOUT_S,
     ) -> int:
         """The item count, or 0 when empty or failed (the store is then unchanged)."""
+        return self.download_outcome(
+            on_progress, mission_type, policy,
+            ack_timeout=ack_timeout, item_timeout=item_timeout,
+        ).count
+
+    def download_outcome(
+        self,
+        on_progress: MissionProgress | None = None,
+        mission_type: int = MAV_MISSION_TYPE_MISSION,
+        policy: ExchangePolicy | None = None,
+        *,
+        ack_timeout: float = MISSION_ACK_TIMEOUT_S,
+        item_timeout: float = MISSION_ITEM_TIMEOUT_S,
+    ) -> MissionDownload:
+        """Empty, complete, or failed with the store unchanged (:class:`MissionDownloadOutcome`)."""
         logger = self._logger_ref.value
         logger.info("Downloading mission…")
         policy = with_cancel(policy or default_mission_policy(), self._cancelled)
@@ -86,11 +102,11 @@ class MissionDownloader:
         )
         if sample is None:
             logger.error(f"Giving up – no MISSION_COUNT ({exchange.reason.value}).")
-            return 0
+            return MissionDownload(MissionDownloadOutcome.FAILED)
         total = sample.message.count
         if total == 0:
             self._store.replace_items([])
-            return 0
+            return MissionDownload(MissionDownloadOutcome.EMPTY)
         staged_items = []
         for sequence in range(total):
             exchange, sample = run_exchange(
@@ -117,13 +133,13 @@ class MissionDownloader:
             )
             if sample is None:
                 logger.error(f"Giving up – item {sequence} missing ({exchange.reason.value}).")
-                return 0
+                return MissionDownload(MissionDownloadOutcome.FAILED)
             staged_items.append(sample.message)
             if on_progress:
                 on_progress(sequence + 1, total)
         self._store.replace_items(staged_items)
         logger.info("Mission download successful.")
-        return total
+        return MissionDownload(MissionDownloadOutcome.COMPLETE, total)
 
     def download_items(
         self,

@@ -433,3 +433,27 @@ def test_yield_now_requeues_first_in_first_out_at_the_same_time_without_a_timer(
         ("a", 1, TICK_US), ("b", 1, TICK_US), ("c", 1, TICK_US),
     ]
     assert {now_us for _name, _index, now_us in order} == {TICK_US}
+
+
+def test_a_tick_takes_at_most_its_handoffs_and_due_timers_wait_for_one_left():
+    """A capped tick (step 4: a CPU budget, or 0 in a process freeze) leaves the rest runnable."""
+    runtime = BatonRuntime()
+    inbox = BatonQueue(runtime)
+    order: list[tuple[str, int]] = []
+
+    def reader() -> None:
+        while True:
+            order.append((inbox.get(), runtime.now_us))
+
+    def sleeper() -> None:
+        sleep(runtime, 0.01)
+        order.append(("timer", runtime.now_us))
+
+    runtime.spawn(reader, name="reader")
+    runtime.spawn(sleeper, name="sleeper")
+    taken = [runtime.tick(TICK_US, handoffs=1),  # the reader starts; the sleeper waits
+             runtime.tick(2 * TICK_US, lambda: inbox.deliver("x")),  # the sleeper first, then the read
+             runtime.tick(3 * TICK_US, handoffs=0)]  # frozen: its timer (due 50 ms) stays due
+    assert taken == [1, 2, 0] and order == [("x", 2 * TICK_US)]
+    assert runtime.timers.any_due(runtime.monotonic())
+    assert runtime.tick(4 * TICK_US, handoffs=5) == 1 and order[-1] == ("timer", 4 * TICK_US)

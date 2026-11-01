@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from navpy.sim.world.dock_contact_sensor import SIM_DOCK_NET_RADIUS_ENV, SIM_DOCK_NET_RADIUS_M
+from navpy.sim.world.dock_net_radius import SIM_DOCK_NET_RADIUS_ENV, SIM_DOCK_NET_RADIUS_M
 from navpy.sim.world.fleet_dock_world import FLEET_DOCKS_ENV
 from scripts.eval_gcs_demo_audit import validate_approval_records
 from scripts.eval_gcs_demo_config import build_environment, build_settings
@@ -23,6 +23,11 @@ from scripts.eval_gcs_demo_models import (
 from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_process import SystemClock, with_owned_stack
 from scripts.eval_gcs_demo_scenario import DemoScenario
+
+#: The wall run's CPU share outlasts its timeout by the stack's setup (SITL
+#: boot, connect, upload) before the timed mission starts
+#: (``bounded_cpu_share.md``).
+CPU_SHARE_SETUP_MARGIN_S = 300.0
 
 
 def execute_live_run(
@@ -83,6 +88,7 @@ def execute_live_run(
         sitl_root.launch_arguments(),
         clock=SystemClock(),
         scenario=scenario,
+        cpu_share_s=timeout + CPU_SHARE_SETUP_MARGIN_S,
     )
     if not isinstance(mission, MissionArtifacts):
         raise TypeError("mission action returned an invalid artifact")

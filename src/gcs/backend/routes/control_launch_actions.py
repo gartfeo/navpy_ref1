@@ -150,10 +150,14 @@ async def _container_launch(
         if entry:
             entry.vehicle.send_command_long(MAV_CMD_COMPONENT_ARM_DISARM, p1=1)
 
-    def auto_func(sys_id: int) -> None:
+    def auto_func(sys_id: int) -> int | None:
+        """Send AUTO; the heartbeat count before it (None: not connected)."""
         entry = vehicle_mgr.get_vehicle(sys_id)
-        if entry:
-            entry.vehicle.set_mode(FlightMode.AUTO)
+        if not entry:
+            return None
+        count = entry.vehicle.heartbeat_count
+        entry.vehicle.set_mode(FlightMode.AUTO)
+        return count
 
     await launch_controller.prepare(
         sys_ids=req.sys_ids,

@@ -92,6 +92,14 @@ Frontend:
   unclaimable) while a recorded child lives, until `gcs_stop` cleans it. Manual
   `run_swarm.sh` invocations (WSL, `~/ardupilot/Tools/autotest/run_swarm.sh`)
   must pass `COMPANION_UDP=1` to match launcher-started companions.
+- **CPU share** (`docs/design/bounded_cpu_share.md`): a wall run claims 4
+  P-cores for a time limit in `~/.gcs/cpu_shares.json` (`gcs_launch.py
+  --cpu-share-s N`, passed by the wall demo eval and `delivery_demo.py`); the
+  hand demo claims every free P-core (`--cpu-share-all-cores`), so a wall eval
+  during a demo runs as background. Everything else runs as background (BELOW_NORMAL, off the held CPUs): other
+  `gcs_launch` stacks, `swarm_run.py --eval`, lockstep evals and pytest. No
+  chat waits for a quiet PC; a refused claim runs as background and the
+  backend log says so. `python scripts\cpu_share.py --list` reads the shares.
 - `--chat N` exists as an advanced manual override of the slot/band — never
   use it in chats; slots always auto-resolve by launch directory.
 - Demo (`sim_mode`) + `dev_mode` default on; `connection.auto_connect`
@@ -122,8 +130,10 @@ Frontend:
 
 - `Connect` should discover vehicles after a short wait; buttons should then
   say `Stop NavPy`, not `Start NavPy`.
-- `START` launches all UAVs with a short click. Long-press `START` is only for
-  low-battery force-start override.
+- Container launch: hold `HOLD TO LAUNCH` for 1 s, then confirm; a single
+  stray click never launches. Bungee `START MISSION` starts with a short
+  click. When not ready (for example low battery), holding `START` then
+  confirming is the force-start override.
 - `E-STOP` requires confirmation.
 - `Companion computer not connected` usually means NavPy crashed or failed to
   start — NavPy runs as separate processes, so check NavPy process logs, not
@@ -152,6 +162,14 @@ Frontend:
   SIYI does not publish the density; an emulator is not the device for touch
   size or gloves (todo 94). Install system images with Android Studio's SDK
   Manager: Application Control blocks the command-line `sdkmanager` here.
+- Handheld app (`src/gcs/android`, a WebView shell on `127.0.0.1:8000`;
+  choice: `docs/design/handheld_app_shell.md`): build it on this PC with
+  `powershell -ExecutionPolicy Bypass -File <repo>\scripts\build_apk.ps1`
+  (SDK build-tools, API 33 platform, JDK 17; APK in `~\.gcs\apk`). To run it
+  against this PC, start the GCS with `GCS_FRONTEND_DIST` set to the built
+  `frontend\dist`, boot the emulator, then `adb -s emulator-5580 install -r
+  <apk>` and `adb -s emulator-5580 reverse tcp:8000 tcp:<backend port>`.
+  Measure through `webview_devtools_remote_<pid>`.
 - Live testing: delegate the full GCS/SITL flow (launch, connect, exercise,
   check logs, tear down) to the `live-tester` subagent; its procedure is in
   `.claude/agents/live-tester.md`.

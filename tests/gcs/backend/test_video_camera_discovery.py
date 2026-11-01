@@ -153,3 +153,25 @@ def test_lost_boundary() -> None:
     camera.heartbeat(1.0)
     assert not camera.is_lost(1.0 + CAMERA_LOST_AFTER_S - 1e-6)
     assert camera.is_lost(1.0 + CAMERA_LOST_AFTER_S)
+
+
+def test_preflight_fields_start_empty_and_follow_the_answers() -> None:
+    camera = CameraDiscovery(100, 0.0)
+    assert (camera.system_status, camera.vendor, camera.has_video) == (None, None, None)
+    camera.heartbeat(0.5, 4)
+    assert camera.system_status == 4
+    camera.poll(0.5)
+    assert camera.on_camera_information(0, "NavPy") is True
+    assert (camera.vendor, camera.has_video, camera.phase) == ("NavPy", False, PHASE_DONE)
+    # One CAMERA_INFORMATION per generation: a second is ignored.
+    assert camera.on_camera_information(CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM, "other") is False
+    assert (camera.vendor, camera.has_video) == ("NavPy", False)
+
+
+def test_rejected_reason_is_kept_until_a_valid_answer_replaces_it() -> None:
+    camera = _at_streams()
+    camera.poll(0.0)
+    camera.on_stream_information(1, 2, None, "userinfo")
+    assert camera.rejected() == [(1, "userinfo")]
+    camera.on_stream_information(1, 2, _stream(1))
+    assert camera.rejected() == []

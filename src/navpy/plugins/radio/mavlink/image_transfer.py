@@ -145,6 +145,9 @@ class ImageReassembler:
             return None
 
         poi_id = msg.width  # poi_id stored in width field
+        # A sender stops an image once its round is resolved, so an unfinished
+        # transfer is normal: drop timed-out ones when a new one starts.
+        self.cleanup_stale()
         self._transfers[poi_id] = _PendingTransfer(
             poi_id=poi_id,
             total_size=msg.size,

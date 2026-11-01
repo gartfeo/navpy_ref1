@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 
 from gcs.backend import instance_ports as ip
 from gcs.backend import navpy_process_launch as launch
+from gcs.backend import navpy_process_spawn as spawn
 from gcs.backend import navpy_sim_runtime as runtime
 from gcs.backend.settings_model import GcsSettings
 from gcs.backend.sim_video_companion import sim_video_env
@@ -55,7 +56,7 @@ class TestGcsSide(unittest.TestCase):
             detector_debug_show=False, vision_profile=None, log_level=None,
             navigation_speedup=0.0, popen_factory=popen, output_reader=lambda inst: None,
             logger=MagicMock())
-        with patch.object(launch, "_create_job", side_effect=OSError), \
+        with patch.object(spawn, "_create_job", side_effect=OSError), \
              patch.object(launch.rt, "Thread"):
             launch.launch_navpy_instance(7, "udp:0.0.0.0:5760", extra_env={"A": "b"}, **kwargs)
             self.assertEqual(popen.call_args.kwargs["env"]["A"], "b")

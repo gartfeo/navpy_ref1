@@ -3,11 +3,17 @@
 Display only: this records what a camera announces; nothing here connects to
 a stream or feeds navigation (docs/design/gcs_video_streams.md, section 1).
 
-One generation per camera lifetime as seen by the GCS: the owner
-(``video_streams.VehicleVideoStreams``) creates a new :class:`CameraDiscovery`
-when a camera HEARTBEAT arrives while the camera is unknown or lost, which
-drops the previous generation's streams. Requests are serialized: at most one
-is outstanding, so a COMMAND_ACK from the camera belongs to it.
+One generation per camera lifetime as seen by the GCS: the camera's record
+(``video_camera_record.CameraRecord``) starts a new :class:`CameraDiscovery`
+when a camera HEARTBEAT arrives while the camera is unknown or lost, or when
+NavPy restarted, which drops the previous generation's streams. Requests are
+serialized: at most one is outstanding, so a COMMAND_ACK from the camera
+belongs to it.
+
+A generation also keeps what the preflight camera rows show
+(docs/design/gcs_preflight_camera_row.md): the last HEARTBEAT's
+system_status, CAMERA_INFORMATION's vendor and video flag, and each rejected
+stream's reason.
 
 A send fails when its payload has not arrived within
 ``CAMERA_REQUEST_TIMEOUT_S`` (an ACK alone does not complete it) or when the
@@ -94,9 +100,15 @@ class CameraDiscovery:
         # (received, so not requested again, but never shown).
         self._received: dict[int, Optional[VideoStream]] = {}
         self._missing: list[int] = []
+        self._rejected: dict[int, str] = {}  # stream id -> URI rejection reason
+        self.system_status: Optional[int] = None
+        # From CAMERA_INFORMATION; None until it arrives.
+        self.vendor: Optional[str] = None
+        self.has_video: Optional[bool] = None
 
-    def heartbeat(self, now: float) -> None:
+    def heartbeat(self, now: float, system_status: Optional[int] = None) -> None:
         self._last_heartbeat = now
+        self.system_status = system_status
 
     def is_lost(self, now: float) -> bool:
         """No camera HEARTBEAT for ``CAMERA_LOST_AFTER_S``."""
@@ -108,6 +120,10 @@ class CameraDiscovery:
             return []
         return [self._received[i] for i in sorted(self._received)
                 if self._received[i] is not None]
+
+    def rejected(self) -> list[tuple[int, str]]:
+        """(stream id, reason) of every received stream whose URI was rejected."""
+        return sorted(self._rejected.items())
 
     def poll(self, now: float) -> Optional[CameraRequest]:
         """Issue the next send, a resend after a failed send, or nothing."""
@@ -133,19 +149,25 @@ class CameraDiscovery:
         if self._outstanding is not None and result not in _ACK_PENDING_OK:
             self._outstanding.failed = True
 
-    def on_camera_information(self, flags: int) -> None:
+    def on_camera_information(self, flags: int, vendor: str = "") -> bool:
+        """Take the generation's one CAMERA_INFORMATION; False when ignored."""
         if self.phase != PHASE_INFO:
-            return
+            return False
         self._outstanding = None
-        if flags & CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM:
+        self.vendor = vendor
+        self.has_video = bool(flags & CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM)
+        if self.has_video:
             self.phase = PHASE_ALL_STREAMS
         else:
             self.phase = PHASE_DONE
+        return True
 
     def on_stream_information(
         self, stream_id: int, count: int, stream: Optional[VideoStream],
+        rejected_reason: str = "",
     ) -> None:
-        """One VIDEO_STREAM_INFORMATION; *stream* is None if its URI was rejected."""
+        """One VIDEO_STREAM_INFORMATION; *stream* is None if its URI was
+        rejected, for *rejected_reason*."""
         if self.phase not in (PHASE_ALL_STREAMS, PHASE_MISSING_STREAMS):
             return
         if self._count is None and count >= 1:
@@ -155,6 +177,10 @@ class CameraDiscovery:
         if not 1 <= stream_id <= self._count:
             return
         self._received[stream_id] = stream
+        if stream is None:
+            self._rejected[stream_id] = rejected_reason
+        else:
+            self._rejected.pop(stream_id, None)
         if self.phase == PHASE_ALL_STREAMS:
             if len(self._received) == self._count:
                 self._finish()

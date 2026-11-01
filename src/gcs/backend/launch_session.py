@@ -25,7 +25,7 @@ async def prepare(
     arm_timeout: float,
     altitude_timeout: float,
     arm_func: Callable[[int], None],
-    auto_func: Callable[[int], None],
+    auto_func: Callable[[int], int | None],
     settle_s: float = 0.3,
     stagger_s: float = 0.0,
     container_gap_s: float = 0.0,
@@ -56,6 +56,7 @@ async def prepare(
     controller._states.clear()
     controller._errors.clear()
     controller._tasks.clear()
+    controller._revoked.clear()
 
     for sid in sys_ids:
         controller._states[sid] = VehicleState.idle

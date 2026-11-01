@@ -3,7 +3,13 @@ from types import SimpleNamespace
 
 import numpy as np
 
+from gcs.backend.cpu_share_background import apply_background
 from navpy.core.ports.camera_abc import CameraAbc
+
+
+def pytest_configure(config):
+    """The suite runs as background beside the CPU shares (bounded_cpu_share.md)."""
+    apply_background()
 
 
 class FovCamera(CameraAbc):

@@ -1,4 +1,5 @@
-"""The GCS reads each vehicle's FREE/BUSY from its own companion's beat."""
+"""The GCS reads each vehicle's FREE/BUSY and NavPy display phase from its
+own companion's beat (docs/design/gcs_mission_phase.md)."""
 from unittest.mock import MagicMock
 
 import pytest
@@ -8,6 +9,7 @@ from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.vehicle_manager import VehicleEntry
 from navpy.core.link.msg_meta import MsgMeta
 from navpy.core.link.swarm_heartbeat_msg import SwarmHeartbeatMsg
+from navpy.core.flow.nav_display import NavDisplay, NavOutcome, NavPhase
 
 SYS_ID = 2
 AUTOPILOT_COMPONENT_ID = 1
@@ -52,14 +54,54 @@ def test_own_companion_beat_sets_the_state(swarm):
 
     assert swarm.snapshot() == {
         "state": "FREE", "boot": 7, "seq": 1, "stale": False,
+        "phase": None, "outcome": None, "fail_reason": None,
+        "approach_seq": None,
     }
 
 
-@pytest.mark.parametrize("code", [1, 5])
-def test_any_non_zero_code_reads_busy(swarm, code):
+@pytest.mark.parametrize("code,state", [
+    (1, "BUSY"), (5, "BUSY"), (0xFF, "BUSY"), (4, "FREE"), (0xFE, "FREE"),
+])
+def test_bit_zero_alone_reads_busy(swarm, code, state):
     swarm.on_heartbeat(_beat(state=code))
 
-    assert swarm.snapshot()["state"] == "BUSY"
+    assert swarm.snapshot()["state"] == state
+
+
+@pytest.mark.parametrize("display,expected", [
+    (NavDisplay(NavPhase.SEARCH), ("SEARCH", None, None)),
+    (NavDisplay(NavPhase.HOMING), ("HOMING", None, None)),
+    (NavDisplay(NavPhase.HOLD, NavOutcome(True)), ("HOLD", "docked", None)),
+    (
+        NavDisplay(NavPhase.HOLD, NavOutcome(False, "no_detection")),
+        ("HOLD", "failed", "no_detection"),
+    ),
+    (
+        NavDisplay(NavPhase.SEARCH, NavOutcome(False, "made_up")),
+        ("SEARCH", "failed", "unknown"),
+    ),
+])
+@pytest.mark.parametrize("busy", [0, 1])
+def test_display_bits_reach_the_snapshot(swarm, display, expected, busy):
+    swarm.on_heartbeat(_beat(state=busy | display.state_bits()))
+
+    snapshot = swarm.snapshot()
+    assert (
+        snapshot["phase"], snapshot["outcome"], snapshot["fail_reason"],
+    ) == expected
+    assert snapshot["state"] == ("BUSY" if busy else "FREE")
+
+
+def test_a_late_beat_from_a_retired_boot_is_dropped(swarm):
+    failed = NavDisplay(NavPhase.HOLD, NavOutcome(False, "missed_dock"))
+    swarm.on_heartbeat(_beat(state=failed.state_bits(), boot=7, seq=9))
+    swarm.on_heartbeat(_beat(state=NavDisplay(NavPhase.HOLD).state_bits(),
+                             boot=8, seq=1))
+
+    swarm.on_heartbeat(_beat(state=failed.state_bits(), boot=7, seq=10))
+
+    snapshot = swarm.snapshot()
+    assert (snapshot["boot"], snapshot["outcome"]) == (8, None)
 
 
 @pytest.mark.parametrize("source", [
@@ -80,6 +122,8 @@ def test_older_or_repeated_beats_are_ignored(swarm):
 
     assert swarm.snapshot() == {
         "state": "FREE", "boot": 7, "seq": 5, "stale": False,
+        "phase": None, "outcome": None, "fail_reason": None,
+        "approach_seq": None,
     }
 
 
@@ -90,6 +134,8 @@ def test_a_new_boot_replaces_the_record(swarm):
 
     assert swarm.snapshot() == {
         "state": "BUSY", "boot": 8, "seq": 1, "stale": False,
+        "phase": None, "outcome": None, "fail_reason": None,
+        "approach_seq": None,
     }
 
 
@@ -118,3 +164,28 @@ def test_vehicle_entry_reports_its_companion_swarm_state():
 
     swarm = entry.snapshot()["swarm"]
     assert (swarm["state"], swarm["boot"], swarm["seq"]) == ("BUSY", 7, 3)
+
+
+def test_a_phase_change_alone_is_broadcast(swarm):
+    from gcs.backend.telemetry_loop import _has_changed
+
+    swarm.on_heartbeat(_beat(state=NavDisplay(NavPhase.SEARCH).state_bits()))
+    before = swarm.snapshot()
+    after = dict(before, phase="HOMING")
+
+    assert _has_changed({"swarm": before}, {"swarm": after})
+    assert not _has_changed({"swarm": after}, {"swarm": dict(after)})
+
+
+def test_approach_seq_is_the_newest_approach_beat_of_this_boot(swarm):
+    phase = lambda p: NavDisplay(p).state_bits()
+    swarm.on_heartbeat(_beat(state=phase(NavPhase.SEARCH), boot=7, seq=1))
+    assert swarm.snapshot()["approach_seq"] is None
+
+    swarm.on_heartbeat(_beat(state=1 | phase(NavPhase.APPROACH), boot=7, seq=5))
+    swarm.on_heartbeat(_beat(state=1 | phase(NavPhase.APPROACH), boot=7, seq=9))
+    swarm.on_heartbeat(_beat(state=phase(NavPhase.TO_TASK), boot=7, seq=12))
+    assert swarm.snapshot()["approach_seq"] == 9
+
+    swarm.on_heartbeat(_beat(state=phase(NavPhase.SEARCH), boot=8, seq=1))
+    assert swarm.snapshot()["approach_seq"] is None

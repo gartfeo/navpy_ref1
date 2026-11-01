@@ -19,6 +19,7 @@ sys.path.insert(0, str(SCRIPTS))
 
 from gcs.backend import instance_ports as ip  # noqa: E402
 from gcs.backend import instance_registry as reg  # noqa: E402
+from gcs.backend.cpu_share_background import apply_background  # noqa: E402
 from gcs.backend.instance_registry import SitlSupervisorActive  # noqa: E402
 
 import swarm_run_process as process_io  # noqa: E402
@@ -249,6 +250,8 @@ def main() -> None:
         # `is not None`, not truthiness: --defaults "" would otherwise be
         # accepted and then silently ignored by launch_command.
         wsl.ensure_defaults_file(args.defaults)
+    if args.eval:
+        apply_background()  # beside the CPU shares (bounded_cpu_share.md)
     chat = _resolve_chat(args.chat, eval_mode=args.eval)
     try:
         reg.begin_sitl_launch(
@@ -268,13 +271,8 @@ def main() -> None:
             flush=True,
         )
     launch = runner.LaunchServices(
-        _start_launcher,
-        _verify_swarm,
-        _verification_passed,
-        _describe_failure,
-        _speed_is_the_fault,
-        _force_speedup,
-        _kill_launch,
+        _start_launcher, _verify_swarm, _verification_passed, _describe_failure,
+        _speed_is_the_fault, _force_speedup, _kill_launch,
     )
     runtime = runner.RuntimeServices(
         reg,

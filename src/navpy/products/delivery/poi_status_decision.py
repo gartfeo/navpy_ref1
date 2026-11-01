@@ -12,6 +12,7 @@ from navpy.core.skills.confirm.confirmed_poi_release import (
     ReleaseOutcome,
 )
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
+from navpy.core.swarm.peer_task_reask import PeerTaskReask
 from navpy.core.flow.navigation_task_reset import AutoMissionResume
 from navpy.core.flow.nav_state import NavPhaseState, NavState
 from navpy.core.flow.nav_status import NavigationStatusReporter
@@ -40,6 +41,7 @@ class ConfirmationStatusDecision:
         confirmed: ConfirmedPoiRelease,
         rejection: PoiRejectionExit,
         peer_task: PeerTaskPriority,
+        peer_reask: PeerTaskReask,
         resume_auto: AutoMissionResume,
         logger: ILogger,
     ) -> None:
@@ -50,6 +52,7 @@ class ConfirmationStatusDecision:
         self._confirmed = confirmed
         self._rejection = rejection
         self._peer_task = peer_task
+        self._peer_reask = peer_reask
         self._resume_auto = resume_auto
         self._logger = logger
 
@@ -77,6 +80,12 @@ class ConfirmationStatusDecision:
                 self._resume_after_geo_abort(active)
             return
         if self._rejection.apply(active, status):
+            if (
+                status == ConfirmationStatus.TIMEOUT_REJECTED
+                and self._peer_reask.keep(active)
+            ):
+                # No answer is not "no": stay on the assigned dock.
+                return
             self._resume_auto.run()
             self._logger.info(
                 "REJECTED: resuming AUTO mission",

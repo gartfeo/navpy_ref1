@@ -15,7 +15,9 @@ from navpy.core.review.thumbnail_rendering import (
 )
 
 
-THUMBNAIL_SIZE = (640, 480)
+#: About 12 kB at quality 80, 8.5 s at the radio's image rate (owner's
+#: choice, ``radio_budget.md`` round 7; 640x480 was about 34 kB).
+THUMBNAIL_SIZE = (320, 240)
 JPEG_QUALITY = 80
 
 

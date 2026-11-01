@@ -85,7 +85,8 @@ would go home.
 - The camera mount is -14°. At 240 m above ground in level flight, a dock is in view 451-794 m ahead and about
   356 m left to 328 m right.
 - **At the planner's 363 m preset almost nothing is seen** (a band of 682-745 m ahead), and at 403 m nothing at all.
-  The fixture therefore flies at 240 m (owner question 2).
+  The fixture therefore flies at 240 m (owner question 2). The preset is 200 m since todo 92(d), so the planner's
+  stack is 240/220/200 m.
 - Every other UAV's route stays at least 980 m from d1 and d2 (829 m plus a 150 m margin). Home docks lie outside
   the area, at least 980 m from every route.
 - An offline oracle samples every route every 10 m. It is distance only: a dock farther than the 829 m zoom-1

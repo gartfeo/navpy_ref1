@@ -87,9 +87,10 @@ export async function reconcileMissionDownloads({
       if (!isActive()) return;
     }
 
-    // Only successful missions change the rendered plan. Final errors remain
-    // visible through onVehicleSettled without needlessly republishing it.
-    if (!result.error) await publish(result);
+    // Only missions with waypoints change the rendered plan. Final errors and
+    // empty vehicles remain visible through onVehicleSettled without
+    // needlessly republishing it.
+    if (!result.error && result.waypoints?.length) await publish(result);
     if (!isActive()) return;
     onVehicleSettled?.(sysId, result);
   }));

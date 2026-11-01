@@ -2,28 +2,29 @@ from __future__ import annotations
 
 from typing import Callable, Optional
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
+from navpy.core.ports.network_abc import ImageSendUnitRunner
 from navpy.core.review.confirmation_ports import ConfirmationImageSender
 from navpy.core.review.confirmation_image_artifacts import ConfirmationImageArtifacts
 from navpy.core.ports.detect_data import DetectedObject
 
 
-_LOCATION_TYPE_LABELS = {
-    "building": "Building",
-    "vehicle": "Vehicle",
-    "antenna": "Comms",
-    "operations_site": "Operations site",
-    "bridge": "Bridge",
-    "fuel": "Fuel",
-    "other": "Other",
-}
+def poi_class_name(class_id: int) -> str:
+    """Name the detected class: the dock class by name, any other by its ID.
 
-def poi_class_name(class_id: int, location_type: Optional[str] = None) -> str:
-    """Describe a location type or an ID without guessing the model's labels."""
-    if location_type:
-        return _LOCATION_TYPE_LABELS.get(location_type, location_type.capitalize())
+    The label names what was detected, never the location type of the site
+    it stands on.
+    """
+    if class_id == DOCK_DETECT_CLASS_ID:
+        return "Dock"
     return f"Detection class {class_id}"
+
+
+def _nothing() -> None:
+    return None
 
 
 class ConfirmationMedia:
@@ -43,16 +44,38 @@ class ConfirmationMedia:
         self._logger = logger
         self._thumbnail_builder = thumbnail_builder
         self._artifact_saver = artifact_saver
+        #: The image whose artifacts each POI's current round holds or is
+        #: saving: claimed by every round's first send, before its network send.
+        self._saved_images: dict[int, str] = {}
+        self._saved_lock = rt.Lock()
 
-    def send(self, poi: DetectedObject, poi_id: int) -> None:
+    def send(
+        self,
+        poi: DetectedObject,
+        poi_id: int,
+        run_unit: ImageSendUnitRunner,
+        *,
+        resend: bool = False,
+    ) -> bool:
+        """Send the confirmation image; False once the round no longer takes it.
+
+        ``run_unit`` runs each wire send inside the round's outbound fence and
+        refuses once the round is resolved, so a response resolves between two
+        chunks instead of after the whole image, and the rest is not sent.
+        Building the thumbnail and saving artifacts run outside the fence.
+        A ``resend`` within the same round saves artifacts only if its image
+        differs from the one saved for that round, so a resent copy adds none.
+        The save is claimed before the network send, so a resend that arrives
+        while the first send is still sending sees it, and released if the
+        save fails, so a resend can still save the round's artifacts.
+        """
+        if not run_unit(_nothing):  # resolved already: send and save nothing
+            return False
         confirmation = poi.confirmation
         classification = poi.classification
         if confirmation.frame is None or confirmation.bbox_cxcywh is None:
-            return
-        class_name = poi_class_name(
-            classification.class_id,
-            classification.location_type,
-        )
+            return True
+        class_name = poi_class_name(classification.class_id)
         image_b64 = self._thumbnail_builder(
             frame=confirmation.frame,
             poi_id=poi_id,
@@ -63,20 +86,51 @@ class ConfirmationMedia:
             degraded=confirmation.degraded,
         )
         if not image_b64:
-            return
+            return True
+        refused = False
+
+        def run_current(unit: Callable[[], None]) -> bool:
+            # A queueing network calls this from its own sender thread, after
+            # send() has returned, so the refusal is logged here, where it happens.
+            nonlocal refused
+            if run_unit(unit):
+                return True
+            if not refused:
+                refused = True
+                self._logger.info(
+                    f"P{poi_id} image send stopped: confirmation resolved.",
+                    key="nav_state",
+                )
+            return False
+
+        claimed = self._claim_save(poi_id, image_b64, resend)
         try:
             network = self._network()
             if network is None:
-                return
-            num_packets = network.send_image(poi_id, image_b64)
-            if num_packets > 0:
+                return True
+            num_packets = network.send_image(poi_id, image_b64, run_unit=run_current)
+            if not refused and num_packets > 0:
                 self._logger.info(
-                    f"P{poi_id} image sent ({num_packets} packets).",
+                    f"P{poi_id} image handed to the link ({num_packets} packets).",
                     key="nav_state",
                     dest=LogStatusDest.DRONE,
                 )
         finally:
-            self._save_artifacts(poi, poi_id, class_name, image_b64)
+            if claimed and not self._save_artifacts(poi, poi_id, class_name, image_b64):
+                self._release_save(poi_id, image_b64)
+        return not refused
+
+    def _claim_save(self, poi_id: int, image_b64: str, resend: bool) -> bool:
+        with self._saved_lock:
+            if resend and self._saved_images.get(poi_id) == image_b64:
+                return False
+            self._saved_images[poi_id] = image_b64
+            return True
+
+    def _release_save(self, poi_id: int, image_b64: str) -> None:
+        with self._saved_lock:
+            if self._saved_images.get(poi_id) == image_b64:
+                del self._saved_images[poi_id]
 
     def _save_artifacts(
         self,
@@ -84,10 +138,11 @@ class ConfirmationMedia:
         poi_id: int,
         class_name: str,
         image_b64: str,
-    ) -> None:
+    ) -> bool:
+        """True once the artifacts are written."""
         log_path = getattr(self._logger, "log_path", None)
         if not log_path:
-            return
+            return False
         try:
             artifacts = self._artifact_saver(
                 log_path=log_path,
@@ -102,16 +157,19 @@ class ConfirmationMedia:
                 frame_bboxes=poi.confirmation.frame_bboxes,
                 confirmation_degraded=poi.confirmation.degraded,
             )
-            if artifacts is not None:
-                self._logger.info(
-                    f"P{poi_id} confirmation images saved: "
-                    f"{artifacts.source_path.name}, "
-                    f"{artifacts.sent_thumbnail_path.name}",
-                    key="nav_state",
-                )
+            if artifacts is None:
+                return False
+            self._logger.info(
+                f"P{poi_id} confirmation images saved: "
+                f"{artifacts.source_path.name}, "
+                f"{artifacts.sent_thumbnail_path.name}",
+                key="nav_state",
+            )
+            return True
         except OSError as exc:
             self._logger.warning(
                 f"Failed to save confirmation image artifacts for "
                 f"P{poi_id}: {exc}",
                 key="nav_state",
             )
+            return False

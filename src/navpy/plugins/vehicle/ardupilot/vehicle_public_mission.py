@@ -11,6 +11,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from pymavlink.mavwp import MAVWPLoader
 
 from navpy.core.kernel.location import Location
+from navpy.core.ports.mission_download import MissionDownload
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.vehicle_public_ports import MissionParts
 
@@ -56,6 +57,14 @@ class VehicleMissionTransferFacet:
         policy: ExchangePolicy | None = None,
     ) -> int:
         """The item count, 0 when empty or failed; ``policy`` bounds the transfer."""
+        return self.download_mission_outcome(on_progress, policy).count
+
+    def download_mission_outcome(
+        self,
+        on_progress: Callable[[int, int], None] | None = None,
+        policy: ExchangePolicy | None = None,
+    ) -> MissionDownload:
+        """Empty, complete or failed, unlike the count; ``policy`` bounds the transfer."""
         return self._parts.mission.download(on_progress, policy=policy)
 
     def upload_mission(

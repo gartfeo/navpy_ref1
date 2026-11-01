@@ -20,12 +20,21 @@ _OUTPUT_BUFFER_SIZE = 100
 # keys sim records across NavPy restarts and reused PIDs.
 _generations = itertools.count(1)
 
+#: Guards every NavPy job handle: a spawn from job creation to resume, a
+#: close, and the CPU share's demotion (``bounded_cpu_share.md``), so the
+#: demotion reaches every open job and never a closed handle.
+JOBS_LOCK = rt.RLock()
+#: The open job handles (handle -> handle), under ``JOBS_LOCK``.
+_open_jobs: dict[int, int] = {}
+
 if sys.platform == "win32":
     import ctypes
     from ctypes import wintypes
 
     _kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+    _JOB_OBJECT_LIMIT_AFFINITY = 0x10
+    _JOB_OBJECT_LIMIT_PRIORITY_CLASS = 0x20
     _JobObjectExtendedLimitInformation = 9
 
     class _JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
@@ -62,6 +71,20 @@ if sys.platform == "win32":
         ]
 
 
+def _set_job_limits(handle: int, flags: int, affinity: int = 0, priority: int = 0) -> None:
+    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
+    info.BasicLimitInformation.LimitFlags = flags
+    info.BasicLimitInformation.Affinity = affinity
+    info.BasicLimitInformation.PriorityClass = priority
+    if not _kernel32.SetInformationJobObject(
+        handle,
+        _JobObjectExtendedLimitInformation,
+        ctypes.byref(info),
+        ctypes.sizeof(info),
+    ):
+        raise ctypes.WinError(ctypes.get_last_error())
+
+
 def _create_job() -> int:
     """Create a Windows Job Object with KILL_ON_JOB_CLOSE."""
     if sys.platform != "win32":
@@ -69,16 +92,13 @@ def _create_job() -> int:
     handle = _kernel32.CreateJobObjectW(None, None)
     if not handle:
         raise ctypes.WinError(ctypes.get_last_error())
-    info = _JOBOBJECT_EXTENDED_LIMIT_INFORMATION()
-    info.BasicLimitInformation.LimitFlags = _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
-    if not _kernel32.SetInformationJobObject(
-        handle,
-        _JobObjectExtendedLimitInformation,
-        ctypes.byref(info),
-        ctypes.sizeof(info),
-    ):
+    try:
+        _set_job_limits(handle, _JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE)
+    except OSError:
         _kernel32.CloseHandle(handle)
-        raise ctypes.WinError(ctypes.get_last_error())
+        raise
+    with JOBS_LOCK:
+        _open_jobs[handle] = handle
     return handle
 
 
@@ -92,15 +112,31 @@ def _assign_job(job_handle: int, proc: subprocess.Popen[bytes]) -> None:
 
 def _close_job(job_handle: int) -> None:
     if sys.platform == "win32":
-        _kernel32.CloseHandle(job_handle)
+        with JOBS_LOCK:
+            _open_jobs.pop(job_handle, None)
+            _kernel32.CloseHandle(job_handle)
 
 
 def _terminate_job(job_handle: int) -> None:
     """Terminate all processes in a Windows Job Object and close it."""
     if sys.platform != "win32":
         raise OSError("Windows Job Objects are unavailable")
-    _kernel32.TerminateJobObject(job_handle, 1)
-    _kernel32.CloseHandle(job_handle)
+    with JOBS_LOCK:
+        _open_jobs.pop(job_handle, None)
+        _kernel32.TerminateJobObject(job_handle, 1)
+        _kernel32.CloseHandle(job_handle)
+
+
+def demote_open_jobs(priority: int, affinity: int) -> int:
+    """Limit every process in every open NavPy job to *priority* and
+    *affinity*, under ``JOBS_LOCK``; returns how many jobs. Raises OSError
+    when one job could not be limited."""
+    flags = (_JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE | _JOB_OBJECT_LIMIT_AFFINITY
+             | _JOB_OBJECT_LIMIT_PRIORITY_CLASS) if sys.platform == "win32" else 0
+    with JOBS_LOCK:
+        for handle in _open_jobs:
+            _set_job_limits(handle, flags, affinity, priority)
+        return len(_open_jobs)
 
 
 @dataclass
@@ -233,7 +269,9 @@ def terminate_navpy_instance(
 
 
 __all__ = [
+    "JOBS_LOCK",
     "NavpyInstance",
+    "demote_open_jobs",
     "read_navpy_output",
     "snapshot_navpy_instance",
     "terminate_navpy_instance",

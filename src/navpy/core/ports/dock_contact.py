@@ -40,12 +40,14 @@ class DockEpisodeEnd:
     """How NAV left the armed episode, as the lifecycle saw it.
 
     Display only (the sim closest-approach record); never a command input.
-    ``abort_reason`` names an episode that NAV ended early: a NAV_FAIL's
-    reason or ``cancelled``. All unset: the reason is unknown.
+    ``failed`` is NAV's own failure (its FAILED latch). ``abort_reason``
+    names an episode that NAV ended early: a NAV_FAIL's reason or
+    ``cancelled``. All unset: the reason is unknown.
     """
 
     docked: bool = False
     missed: bool = False
+    failed: bool = False
     abort_reason: Optional[str] = None
 
 
@@ -58,6 +60,11 @@ class DockContactSensor(Protocol):
 
     def disarm(self, end: DockEpisodeEnd = DockEpisodeEnd()) -> None:
         """End the episode; ``end`` is the lifecycle's accepted outcome."""
+        ...
+
+    def end_evidence(self, identity: DockContactIdentity) -> None:
+        """NAV latched FAILED or MISSED for this episode: display evidence
+        stops here. Never blocks; called under the runtime lock."""
         ...
 
 

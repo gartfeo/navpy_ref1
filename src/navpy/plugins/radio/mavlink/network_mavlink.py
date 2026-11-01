@@ -1,6 +1,8 @@
 from __future__ import annotations
 
+import base64
 import logging
+import math
 from collections.abc import Callable
 from typing import Optional, Protocol
 
@@ -13,11 +15,19 @@ from pymavlink.dialects.v20.ardupilotmega import (
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC, MsgRegistry
 from navpy.core.link.message_filter import MessageFilter
-from navpy.core.ports.network_abc import NetworkAbc
+from navpy.core.ports.network_abc import ImageSendUnitRunner, NetworkAbc, run_now
+from navpy.plugins.radio.mavlink.image_pacer import PacedImageSender
 from navpy.plugins.radio.mavlink.image_transfer import ImageTransferType
 
 # MAVLink ENCAPSULATED_DATA payload size
 MAVLINK_CHUNK_SIZE = 253
+#: The radio port's byte rate: 57600 baud, 8N1 (``radio_budget.md`` "Radio facts").
+RADIO_LINK_BYTES_PER_S = 5760
+#: The share of the radio the confirmation image may use (``radio_budget.md``
+#: round 7): the rest of the traffic peaks at 3.4 kB/s, so a quarter leaves
+#: about 0.9 kB/s for its bursts.
+IMAGE_SHARE_OF_LINK = 0.25
+IMAGE_BYTES_PER_S = RADIO_LINK_BYTES_PER_S * IMAGE_SHARE_OF_LINK
 # Ends the inbound dispatch thread (queued after the last message on close).
 _CLOSED = object()
 
@@ -54,9 +64,12 @@ class NetworkMavlink(NetworkAbc):
     filtering (dedup + TTL).
 
     Listeners run in arrival order on this network's own thread, never on
-    the vehicle's MAVLink reader: a listener may wait (a confirmation
-    response waits for the round's paced image send), and waiting on the
-    reader stalls every telemetry stream of the vehicle for that long.
+    the vehicle's MAVLink reader: waiting on the reader stalls every
+    telemetry stream of the vehicle for that long.
+
+    Confirmation images are queued to one paced sender per link
+    (``PacedImageSender``) at ``IMAGE_BYTES_PER_S``; ``send_image`` returns
+    at once.
     """
 
     def __init__(self, node_id: int, vehicle: MavlinkMessageTransport, logger: ILogger,
@@ -64,7 +77,6 @@ class NetworkMavlink(NetworkAbc):
         super().__init__(
             node_id, JsonSerializer(), logger, message_filter,
             image_chunk_size=MAVLINK_CHUNK_SIZE,
-            inter_chunk_delay_ms=5.0
         )
         self.logger = logger
         self._vehicle = vehicle
@@ -77,6 +89,7 @@ class NetworkMavlink(NetworkAbc):
         )
         with rt.detached():  # owned by this network (closed by it)
             self._dispatcher.start()
+        self._images = PacedImageSender(self._vehicle.send_mavlink_message, IMAGE_BYTES_PER_S)
 
     def broadcast(self, message: MsgABC):
         # Auto-fill meta if not present (for dedup/TTL)
@@ -128,9 +141,42 @@ class NetworkMavlink(NetworkAbc):
                 self._message_filter.metrics.increment_decode_error()
                 self.logger.error(f"Failed to process MAVLink message: {e}")
 
+    def send_image(
+        self,
+        poi_id: int,
+        image_b64: str,
+        run_unit: Optional[ImageSendUnitRunner] = None,
+    ) -> int:
+        """Queue the image to the paced sender; returns its chunk count.
+
+        ``run_unit`` runs the hand-over to the queue and then each frame's send.
+        """
+        if not image_b64:
+            return 0
+        image_bytes = base64.b64decode(image_b64)
+        num_chunks = math.ceil(len(image_bytes) / MAVLINK_CHUNK_SIZE)
+        frames = [self._image_handshake(poi_id, len(image_bytes), num_chunks)]
+        frames += [
+            self._image_chunk(seq, image_bytes[seq * MAVLINK_CHUNK_SIZE:(seq + 1) * MAVLINK_CHUNK_SIZE])
+            for seq in range(num_chunks)
+        ]
+        run = run_unit or run_now
+        run(lambda: self._images.queue(poi_id, frames, run))
+        return num_chunks
+
     def _send_image_header(self, poi_id: int, total_size: int, num_chunks: int) -> None:
         """Send MAVLink DATA_TRANSMISSION_HANDSHAKE for image transfer."""
-        msg = MAVLink_data_transmission_handshake_message(
+        self._vehicle.send_mavlink_message(self._image_handshake(poi_id, total_size, num_chunks))
+
+    def _send_image_chunk(self, poi_id: int, sequence: int, data: bytes) -> None:
+        """Send MAVLink ENCAPSULATED_DATA chunk."""
+        self._vehicle.send_mavlink_message(self._image_chunk(sequence, data))
+
+    @staticmethod
+    def _image_handshake(
+        poi_id: int, total_size: int, num_chunks: int,
+    ) -> MAVLink_data_transmission_handshake_message:
+        return MAVLink_data_transmission_handshake_message(
             type=ImageTransferType.POI_CONFIRMATION,
             size=total_size,
             width=poi_id,  # Store poi_id in width field
@@ -139,19 +185,13 @@ class NetworkMavlink(NetworkAbc):
             payload=MAVLINK_CHUNK_SIZE,
             jpg_quality=80,
         )
-        self._vehicle.send_mavlink_message(msg)
 
-    def _send_image_chunk(self, poi_id: int, sequence: int, data: bytes) -> None:
-        """Send MAVLink ENCAPSULATED_DATA chunk."""
+    @staticmethod
+    def _image_chunk(sequence: int, data: bytes) -> MAVLink_encapsulated_data_message:
         # Pad to chunk size if needed
         if len(data) < MAVLINK_CHUNK_SIZE:
             data = data + bytes(MAVLINK_CHUNK_SIZE - len(data))
-
-        msg = MAVLink_encapsulated_data_message(
-            seqnr=sequence,
-            data=list(data),
-        )
-        self._vehicle.send_mavlink_message(msg)
+        return MAVLink_encapsulated_data_message(seqnr=sequence, data=list(data))
 
     def close(self):
         with self._callback_lock:
@@ -159,6 +199,7 @@ class NetworkMavlink(NetworkAbc):
                 return
             self.is_closed = True
         self._vehicle_subscription.cancel()
+        self._images.close()
         self._inbound.put(_CLOSED)
         if rt.current_thread() is not self._dispatcher:
             self._dispatcher.join()

@@ -22,7 +22,10 @@ class TestTaskConfirmCard(unittest.TestCase):
         self.src = _read("components", "TaskConfirmCard.jsx")
 
     def test_uses_reducer_selectors(self):
-        self.assertIn("import { isPending, canCancel } from '../hooks/taskConfirmationState'", self.src)
+        end = self.src.index("} from '../hooks/taskConfirmationState'")
+        imported = self.src[self.src.rindex("import {", 0, end):end]
+        for name in ("isPending", "canCancel", "confirmRoundKey"):
+            self.assertIn(name, imported)
 
     def test_auto_timeout_guarded_to_pending(self):
         # Decided cards must never count down or auto-fire.
@@ -92,16 +95,15 @@ class TestUseTaskAssignment(unittest.TestCase):
         self.assertIn("handleConfirmedStatusByTask", self.src)
         self.assertIn("handleResolvedCleanupByTask", self.src)
 
-    def test_cleanup_is_task_keyed(self):
-        # Precise removal by (UAV, task id) so a stale event cannot wipe a
-        # newer task's assignment; task ids are per owner, so the task id
-        # alone no longer names one entry.
+    def test_cleanup_is_uav_keyed(self):
+        # A confirm carries the UAV's own POI id, never the owner's task id,
+        # so removal goes by UAV: only the helper slot whose asked round this
+        # answers, so another POI's round cannot wipe the task.
+        # Behaviour: tests/gcs/test_task_assignment_state.js.
         state = _read("utils", "taskAssignmentState.js")
-        self.assertIn(
-            "entry.receiverId === data.sys_id && entry.taskId === data.task_id",
-            state,
-        )
-        self.assertIn("dropAssignments(state, forTask(data))", state)
+        self.assertIn("const slot = confirmingSlot(state, data);", state)
+        self.assertIn("answersRound(slot.confirm, data)", state)
+        self.assertNotIn("entry.taskId === data.task_id", state)
 
 
 class TestMissionStatusUsesPendingOnly(unittest.TestCase):
@@ -116,12 +118,14 @@ class TestRenderSitesWireCancel(unittest.TestCase):
         src = _read("App.jsx")
         self.assertEqual(
             src.count("onCancel={ws.handleTaskCancel}"), 2,
-            "Both confirm-card render sites (sidebar + manual overlay) must wire onCancel",
+            "Both confirm lists (right panel + RC overlay) must wire onCancel",
         )
 
-    def test_sidebar_forwards_cancel(self):
-        src = _read("components", "sidebar", "MonitoringSidebar.jsx")
+    def test_list_forwards_cancel(self):
+        # The cards moved from MonitoringSidebar into ConfirmCardList (todo 69).
+        src = _read("components", "ConfirmCardList.jsx")
         self.assertIn("onCancel={onCancel}", src)
+        self.assertNotIn("TaskConfirmCard", _read("components", "sidebar", "MonitoringSidebar.jsx"))
 
 
 if __name__ == "__main__":

@@ -38,9 +38,14 @@ class TestSourceExports(unittest.TestCase):
         for name in [
             "confirmRequest", "confirmImage", "confirmResponse",
             "disarmAfterGuided", "confirmReset", "expireDecided", "hasPendingConfirm",
-            "canCancel", "visibleConfirmEntries",
+            "canCancel", "confirmWaitSec", "confirmDeadlineMs", "secondsLeft",
+            "orderedConfirmEntries", "pendingSummary", "confirmZeroLabel",
         ]:
             self.assertIn(f"export function {name}", self.src)
+
+    def test_arrival_order_selector_removed(self):
+        """Todo 67: cards are ordered by time left; the arrival-order selector is gone."""
+        self.assertNotIn("visibleConfirmEntries", self.src)
 
     def test_vehicle_abort_removed(self):
         self.assertNotIn("export function vehicleAbort", self.src)
@@ -67,12 +72,12 @@ class TestRoundUidPlumbedThroughTheUi(unittest.TestCase):
         self.assertIn("round_uid: roundUid", src)
 
     def test_card_key_includes_the_round_uid(self):
-        """Both renderers: a card keyed only by sysId-taskId is not remounted
-        for a re-ask, so its timeout guard and in-progress press-and-hold
-        would carry across rounds."""
-        for parts in (("..", "src", "App.jsx"),
-                      ("components", "sidebar", "MonitoringSidebar.jsx")):
-            self.assertIn("${entry.taskId}-${entry.roundUid", self._read(*parts), parts[-1])
+        """The one renderer (ConfirmCardList, used by the right panel and the
+        RC overlay): a card keyed only by sysId-taskId is not remounted for a
+        re-ask, so its timeout guard and in-progress press-and-hold would
+        carry across rounds."""
+        self.assertIn("${entry.taskId}-${entry.roundUid",
+                      self._read("components", "ConfirmCardList.jsx"))
 
     def test_long_press_resets_per_round(self):
         src = self._read("components", "TaskConfirmCard.jsx")

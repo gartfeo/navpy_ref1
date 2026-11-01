@@ -254,9 +254,10 @@ it scrolls) and draws above the small swapped map; a pick, Escape or a tap
 outside closes it, and Escape returns focus to the menu button.
 Focus: Close removes the control that has focus, so focus moves to the picked
 UAV's button in the picker; if that UAV has left the fleet, to the first UAV
-button. (With an empty fleet the window is gone.) In monitor mode confirm cards and E-STOP are in the
-sidebar, not over the map, so neither the window nor the small swapped map can
-cover them. The top-right bar keeps its pre-PR #18 controls at 32 px (owner,
+button. (With an empty fleet the window is gone.) In monitor mode E-STOP is in the
+top bar and the confirm cards and rows are in the right panel (todo 69,
+`gcs_estop_reach.md`), not over the map, so neither the window nor the small
+swapped map can cover them. The top-right bar keeps its pre-PR #18 controls at 32 px (owner,
 2026-10-18), without the follow selector; it wraps on a narrow pane
 (`MonitorMapOverlay.jsx:64-78`) and reports its bottom edge, so the window
 always starts 12 px below it.
@@ -306,8 +307,8 @@ always starts 12 px below it.
     as a pick of a map-icon UAV would (open question 1). Never a silent switch
     to another UAV.
   - The GCS learns of streams only from the camera protocol: a camera that is
-    expected but never advertises shows the map icon; preflight reports it
-    (`architecture_todo.md` 70).
+    expected but never advertises shows the map icon; the preflight Video
+    stream row reports it (`gcs_preflight_camera_row.md`).
 - Deadlines: no first frame within `VIDEO_FIRST_FRAME_DEADLINE_S` (default 10 s:
   ICE setup plus one keyframe interval, which the display stream keeps at 2 s or
   less), or no new frame for `VIDEO_STALL_DEADLINE_S` (default 5 s, a few

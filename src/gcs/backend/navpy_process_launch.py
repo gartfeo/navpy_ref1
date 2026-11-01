@@ -12,13 +12,8 @@ from pathlib import Path
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
-from gcs.backend.navpy_process_instance import (
-    NavpyInstance,
-    _assign_job,
-    _close_job,
-    _create_job,
-    terminate_navpy_instance,
-)
+from gcs.backend.navpy_process_instance import NavpyInstance, terminate_navpy_instance
+from gcs.backend.navpy_process_spawn import spawn_in_job
 
 
 log = logging.getLogger(__name__)
@@ -217,31 +212,9 @@ def launch_navpy_instance(
     }
     if sys.platform == "win32":
         kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
-    job_handle: int | None = None
-    if sys.platform == "win32":
-        try:
-            job_handle = _create_job()
-        except OSError:
-            logger.warning("Failed to create job object for sys_id=%d", sys_id)
-    try:
-        proc = popen_factory(command, **kwargs)  # noqa: S603
-    except BaseException as failure:
-        if job_handle is not None:
-            try:
-                _close_job(job_handle)
-            except BaseException as cleanup_error:
-                raise BaseExceptionGroup(
-                    "NavPy spawn and job cleanup failed",
-                    (failure, cleanup_error),
-                ) from failure
-        raise
-    if job_handle is not None:
-        try:
-            _assign_job(job_handle, proc)
-        except Exception:
-            logger.warning("Failed to assign process to job for sys_id=%d", sys_id)
-            _close_job(job_handle)
-            job_handle = None
+    proc, job_handle = spawn_in_job(
+        command, kwargs, popen_factory=popen_factory, sys_id=sys_id, logger=logger,
+    )
     inst = NavpyInstance(
         sys_id=sys_id,
         connection=connection,

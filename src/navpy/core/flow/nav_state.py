@@ -124,6 +124,8 @@ class NavigationTaskState:
     orbit_radius_m: float = 0.0
     orbit_approach_alt_rel_m: Optional[float] = None
     peer_poi_location: Optional[Location] = None
+    # Confirmation rounds of the assigned peer task that got no answer.
+    peer_unanswered_rounds: int = 0
     navigation_poi_location: Optional[Location] = None
     nav_mode_observed: bool = False
     guided_last_attempt_at: Optional[float] = None

@@ -170,3 +170,26 @@ class TestRoute:
         assert data["profile"] == "siyi_zr10"
         assert data["status"] == "problems"
         assert data["zones"][0]["problems"][0]["kind"] == "no_search_window"
+
+
+# Profiles whose dock flies at the UAV's altitude (horizontal camera), not on
+# the ground: a ground-dock stack does not apply to them.
+_CO_ALTITUDE_PROFILES = {"siyi_zr10_horizon"}
+
+
+def test_default_stack_fits_each_ground_dock_camera():
+    """The planner's default stack (dock preset at the bottom, one altitude
+    separation per UAV above it) stays within reach of the profile's camera
+    for a dock on the ground, so a plan built with no altitude edits can find
+    its docks."""
+    from gcs.backend.settings_model import FlightSettings
+
+    flight = FlightSettings()
+    profiles, _, _ = load_profiles()
+    for name, profile in profiles.items():
+        if name in _CO_ALTITUDE_PROFILES:
+            continue
+        base = profile["detector"]["dock_presets"]["dock"]["altitude_m"]
+        top = base + (flight.uavs_per_set - 1) * flight.altitude_separation_m
+        h_max = max(max_search_height(c) for c in search_cameras(profile, sim_finite=False))
+        assert top <= h_max, f"{name}: stack top {top} m above camera reach {h_max:.0f} m"

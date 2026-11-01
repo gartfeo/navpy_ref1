@@ -24,10 +24,26 @@ Implementation notes:
   copy. `swarm` is a telemetry change key, so a new beat is broadcast.
 - Frontend: a FREE beat retires a round only once the helper's "doing" (or
   the APPLIED's ref) orders it; a round without one ends by advert, reject
-  or APPLIED. Confirm events match entries by (UAV, task id), and available
-  tasks are keyed `${owner}:${task}` like rounds. A helper's confirm carries
-  its own POI id, which can differ from the owner's task id; the card then
-  never shows CONFIRMED, as before this change (follow-up).
+  or APPLIED. Available tasks are keyed `${owner}:${task}` like rounds. A
+  helper's confirm carries its own POI id, not the owner's task id, so
+  confirm events are matched by UAV, to its helper slot: a request from
+  the helper's boot after the "doing" that assigned it raises the slot to
+  confirming and
+  records the round (POI id, round uid), and only an answer naming that
+  round raises it to confirmed or, denied, back to assigned (a deny does
+  not show the helper let the task go; its FREE beat, when received,
+  retires the slot,
+  2026-10-25). A later request
+  re-points a slot not yet confirmed; a round without a uid never counts.
+  Both go in order: an APPLIED copy older than the one the slot was
+  applied by, or a request older than the recorded round, is ignored, so
+  a late copy never brings back an older task, helper boot or round.
+  Ordering across owner or helper boots is open (todo 134).
+  A WAITING round
+  is never raised: before APPLIED the GCS cannot tell the task's round from
+  an own-POI round, so a confirm heard before APPLIED leaves the task
+  ASSIGNED (todo 88) (fixed 2026-10-25; before, the card never showed
+  CONFIRMED).
 - Audit: the backend log's format also switches the peer gate, so recorded
   legacy runs need no `assigned by owner` line. The gate orders the
   assignment against `Peer navigation started`: a free peer's hub return
@@ -132,12 +148,14 @@ Reject repeats stop only on RECEIVED or APPLIED.
 
 ## Busy UAVs, fuel and priority
 
-**Node state** (`SwarmNodeState` in `swarm_heartbeat_msg.py`, sent in the
-existing `SWARM_HEARTBEAT.state` byte, always 0 today; no dialect change):
+**Node state** (`SwarmNodeState` in `swarm_heartbeat_msg.py`, sent in bit 0
+of the existing `SWARM_HEARTBEAT.state` byte; no dialect change):
 `FREE=0`, `BUSY=1`. BUSY = slot WAITING/ASSIGNED, or nav is **approaching**
 (committed phase NAV: flying a final approach). Everything else is FREE:
 searching, CONFIRM of an own POI, DDH return, ONHOLD/RESET/RECOVERY.
-Receivers treat any non-zero code as busy.
+Receivers read bit 0 only; bits 1-7 carry nav's display phase and last
+outcome for the GCS (`gcs_mission_phase.md`). All UAVs of a fleet run one
+build: an older build reads any non-zero byte as busy.
 
 **Approaching** is published by the nav thread after each cycle commits the
 phase (`NavNetworkRuntime.publish_approaching` →
@@ -203,8 +221,9 @@ SWARM_ACK APPLIED for step 4: resolve `(helper, ref)` against that helper's
 current round, emit WS `task_assign_ack` and log
 `Task assign ack: owner=O helper=H task_id=T status=APPLIED ref=B:S uid=B:S`.
 `vehicle_entry.py` subscribes to the own companion's `SWARM_HEARTBEAT`, keeps
-the newest by `(boot, seq)`, and adds `swarm {state, boot, seq, stale}` to the
-snapshot (stale after the beat's `ttl_ms`).
+the newest by `(boot, seq)` (dropping beats from boots it replaced), and adds
+`swarm {state, phase, outcome, fail_reason, boot, seq, stale}` to the snapshot
+(stale after the beat's `ttl_ms`; display fields per `gcs_mission_phase.md`).
 
 **Frontend**: new pure reducer `utils/taskAssignmentState.js` (dispatch table
 by action; `useTaskAssignment` becomes a thin wrapper).
@@ -267,6 +286,7 @@ from heartbeats, took queue delay for clock skew and admitted stale bids
 | heartbeat lost / peer silent 5 s | next beat 1 s later / skipped, revived by its next beat |
 | release advert lost while helper WAITING | re-advertised to it until it bids or stops WAITING |
 | helper nav RESET while ASSIGNED | released, as today |
+| helper's confirmation of the assigned dock unanswered | task kept, asked again up to the re-ask budget (below) |
 
 ## Lossy link (todo 114, 2026-10-24, owner approved both fixes)
 
@@ -428,6 +448,77 @@ lockstep coordinator applies the loss where bytes enter the radio:
   a recycled task id with delayed accepted and rejecting step 4s.
 - `none`, `hw`, `stress` matrices; stress seeds 8 and 4 as evidence (not
   gates); full pytest.
+
+## Unanswered confirmation of the assigned dock (2026-10-25)
+
+**Seen.** Delivery demo `20261025-140306` (copy in the main checkout's
+`.logs/task-timeout-evidence/`). UAV 2 held task 2 from UAV 1 (ASSIGNED,
+`uav_2_navigation.log:87`). Its first confirmation round got no answer:
+"POI 1 auto-rejected (timeout)" at 14:19:29 (`:115`), then "REJECTED:
+resuming AUTO mission" (`:120`). UAV 1 had forgotten the task in its own
+reset at 14:19:21 ("Reset drops task 2 CONFIRMED to peer 2",
+`uav_1_navigation.log:336`). From 14:19:29 no UAV held task 2. UAV 2 got it
+back only because the dock was still in view: a self-detect one cycle
+before its waypoint hold (`:127-129`), approved in round 2 (14:19:43).
+
+**Mechanism.** A timeout (`TIMEOUT_REJECTED`) takes the same exit as an
+operator "no": `ConfirmationStatusDecision` runs `AutoMissionResume`, whose
+`clear_selected_poi` releases the ASSIGNED slot (`release_assigned`) and
+sends nothing; the UAV goes back to its search route. The owner never takes
+a CONFIRMED task back (decision 4) and may have forgotten it (accepted
+RESET corner case), so the task is stranded.
+
+**Rule.** A timeout is "no answer", not "no". For an own POI it already
+allows `CONFIRM_REASK_MAX_ATTEMPTS` (2) more rounds when the POI is seen
+again; only an operator REJECTED is final. A UAV with an assigned dock goes
+to that dock only (delivery rules, 2026-10-16), so it must not go back to
+search while the question is open.
+
+**Change.** On `TIMEOUT_REJECTED` of the active POI while a peer task is
+ASSIGNED and its peer navigation runs (`TaskFocus` then admits only the
+assigned dock), with re-ask budget left (`PeerTaskReask`):
+- keep the task (slot stays ASSIGNED, node BUSY), close the review as today
+  (clear the active POI, stop tracking, DETECT), and do not resume AUTO:
+  the UAV stays in the peer orbit around the task's dock, with its orbit
+  geometry, loiter-radius lease and `peer_poi_location` (the dock
+  association gate) kept;
+- start the next round as the first one started: clear the cached
+  detections and the review's geo hold (`active`, `last_own_poi_geo`) and,
+  for an orbit approach, point the camera at the task's dock again
+  (`PeerGeoTracker` start and prime; `PeerGeoTick` then keeps it there);
+  otherwise stop geo pointing. Not `setup()`: its sim seeding appends a
+  second sim dock. The status stays `TIMEOUT_REJECTED`, so the next
+  detection starts the round through the normal re-ask
+  (`NavigationTaskAction.try_start`, which counts it), and CONFIRM entry
+  resets the round's timers;
+- log "POI: Pn got no answer; asking again for peer task T (kept)".
+
+The budget is the own-POI one, two more rounds, counted per task as well as
+per POI id: a track identity expires, so the same dock can come back under a
+new id with a fresh POI budget. `peer_unanswered_rounds` counts the task's
+unanswered rounds and is cleared with the other peer fields on release and
+RESET. After the third unanswered round, or when the POI's own budget is
+spent, today's exit runs: release and resume AUTO, now with a warning
+"peer task T released locally, no automatic recovery". An operator REJECTED,
+confirm-on-fail, the dwell and re-acquire limits and a geo-hold abort are
+unchanged (todo 138). Nothing changes on the radio or in the owner.
+
+**Between rounds** the UAV waits as it waited for the first round: the peer
+approach has no time limit for finding its dock, and a failed geo arm only
+logs a warning there too. A bound, and what follows it, is an owner decision
+(todo 135).
+
+**Residual.** After the budget the task is stranded as before (todo 115
+covers recovery). Fits todo 114's lossy-link fix (merged): the helper stays
+BUSY while it asks again, so owners keep it out of auctions. Two existing GCS
+limits weaken "only an operator's no is final" and are logged, not fixed
+here: the GCS card's countdown sends a deny, which NavPy reads as REJECTED
+if it arrives before NavPy's own timeout (todo 136; arriving after it, it
+used to drop the kept helper slot from the GCS display, now it returns the
+slot to assigned), and a delayed copy
+of an older round's request replaces the open round on the GCS card and
+in the backend's round registry; the helper slot status ignores it (todo
+137).
 
 ## Unchanged and out of scope
 

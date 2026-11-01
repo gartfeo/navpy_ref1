@@ -119,7 +119,7 @@ FOCUSED_CLASS_LINE_LIMITS = {
 
 VENDORED_SHA256 = {
     "src/navpy/plugins/vehicle/ardupilot/_mavftp/_upstream_mavftp.py":
-        "6977ACE6D7FF6DE95AF5FF63FEB1883F3863C76266A2FF6E1607C86312BCBE9F",
+        "62B9D1E436401B01EB10453B4944313093F1A1877ABA10384211610A4BECE6EA",
     "src/navpy/plugins/gimbal/siyi/siyi_sdk.py":
         "DCEBF8A3BB4EFAE396D213236918CB66D1C95D67816B8681A377255E4A8C8843",
     "src/navpy/plugins/gimbal/siyi/siyi_message.py":
@@ -194,10 +194,17 @@ FACADE_METHOD_ALLOWANCES = {
     # 86 = 84 + read_parameter and write_parameter, the bounded parameter
     # exchanges the GCS routes use (radio_budget.md round 4 design, todo 103,
     # Codex-reviewed 2026-10-20) -- a ratchet, not headroom.
+    # 87 = 86 + heartbeat_count, which dates a mode reading so the launch
+    # confirms AUTO only from a heartbeat after its command (radio_budget.md
+    # round 7 design, todo 117, Codex-reviewed 2026-10-25) -- a ratchet.
+    # 88 = 87 + download_mission_outcome, which tells an empty mission table
+    # from a failed download so the GCS mission route answers an empty vehicle
+    # with 200 (mission download outcome design, Codex-reviewed 2026-10-25)
+    # -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 86, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 88, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",
@@ -217,10 +224,13 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/core/perception/detection_coordinator.py",
         "DetectionCoordinator",
     ): FacadeMethodAllowance(1, 31, frozenset({"_parts"})),
+    # 41 = 40 + has_fresh_frame, the detector readiness the camera HEARTBEAT
+    # reports for the preflight camera row (gcs_preflight_camera_row.md,
+    # Codex-reviewed, owner-approved 2026-10-25) -- a ratchet, not headroom.
     (
         "src/navpy/core/perception/pipeline/detector.py",
         "Detector",
-    ): FacadeMethodAllowance(1, 40, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 41, frozenset({"_parts"})),
     (
         "src/navpy/core/perception/zoom/poi_zoom_orchestrator.py",
         "PoiZoomTracker",

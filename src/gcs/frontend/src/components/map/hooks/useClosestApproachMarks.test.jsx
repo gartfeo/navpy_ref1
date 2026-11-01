@@ -22,11 +22,14 @@ const cesium = { current: {
   ColorBlendMode: { MIX: 'mix' },
   LabelStyle: { FILL_AND_OUTLINE: 'outlined' },
   VerticalOrigin: { BOTTOM: 'bottom' },
+  Cartographic: { fromDegrees: (lon, lat) => ({ lon, lat }) },
 } };
 
 let entities;
 let viewer;
 let store;
+let samples; // pending terrain samples, oldest first
+let globeHeight;
 
 function makeStore(sysIds) {
   let listeners = [];
@@ -40,12 +43,27 @@ function makeStore(sysIds) {
 
 beforeEach(() => {
   entities = new Set();
-  viewer = { current: { entities: {
-    add: vi.fn((entity) => { entities.add(entity); return entity; }),
-    remove: vi.fn((entity) => entities.delete(entity)),
-  } } };
+  samples = [];
+  globeHeight = undefined;
+  viewer = { current: {
+    entities: {
+      add: vi.fn((entity) => { entities.add(entity); return entity; }),
+      remove: vi.fn((entity) => entities.delete(entity)),
+    },
+    terrainProvider: 'ion-terrain',
+    scene: { globe: { getHeight: vi.fn(() => globeHeight) } },
+  } };
+  cesium.current.sampleTerrainMostDetailed = vi.fn((provider, positions) => new Promise((resolve, reject) => {
+    samples.push({
+      provider, positions, reject,
+      resolve: (height) => resolve(positions.map(position => ({ ...position, height }))),
+    });
+  }));
   store = makeStore([2, 3]);
 });
+
+/** Let pending promise callbacks run. */
+const settle = () => act(async () => { await new Promise(resolve => setTimeout(resolve, 0)); });
 
 function record(overrides = {}) {
   return {
@@ -60,12 +78,14 @@ function record(overrides = {}) {
 
 const DEFAULTS = {
   records: null, simMode: true, show: true, resetKey: '0:0', hiddenSysIds: null, paused: false, ready: true,
+  terrainReady: false,
 };
 
 function render(props = {}) {
   const storeRef = { current: store };
   return renderHook((p) => useClosestApproachMarks(
     cesium, viewer, storeRef, p.ready, p.records, p.simMode, p.show, p.resetKey, p.hiddenSysIds, p.paused,
+    p.terrainReady,
   ), { initialProps: { ...DEFAULTS, ...props } });
 }
 
@@ -85,17 +105,18 @@ it('draws the mark, the dock dot, the triangle and the ghost of a missed approac
   renderWith([record()]);
   const all = [...entities];
   const [mark] = marks();
-  expect(mark.position).toEqual({ lon: 44, lat: 40, height: 41 }); // alt_rel_m, on the trail
+  // No terrain: the dock dot on the ellipsoid (0), the point 1 m above it.
+  expect(mark.position).toEqual({ lon: 44, lat: 40, height: 1 });
   expect(mark.point.color.css).toBe('#ef4444');
   expect(labelOf(mark)).toBe(
     'UAV 2 · 1.84 m mapMarkers.closestApproach.missed\nh 1.52 m · v 1.04 m',
   );
   const dock = all.find(e => e.point && !e.properties);
-  expect(dock.position).toEqual({ lon: 44.00001, lat: 40.00001, height: 40 });
+  expect(dock.position).toEqual({ lon: 44.00001, lat: 40.00001, height: 0 });
   const legs = all.filter(e => e.polyline && e.label);
   expect(legs.map(e => e.polyline.positions)).toEqual([
-    [{ lon: 44.00001, lat: 40.00001, height: 40 }, { lon: 44, lat: 40, height: 40 }],
-    [{ lon: 44, lat: 40, height: 40 }, { lon: 44, lat: 40, height: 41 }],
+    [{ lon: 44.00001, lat: 40.00001, height: 0 }, { lon: 44, lat: 40, height: 0 }],
+    [{ lon: 44, lat: 40, height: 0 }, { lon: 44, lat: 40, height: 1 }],
   ]);
   expect(legs.map(e => e.label.text)).toEqual(['h 1.52 m', 'v 1.04 m']);
   expect(legs.every(e => e.polyline.material.dashed)).toBe(true);
@@ -110,7 +131,8 @@ it('draws the mark, the dock dot, the triangle and the ghost of a missed approac
   for (const detail of [ghost.model, ...legs.map(e => e.label)]) {
     expect(detail.distanceDisplayCondition.far).toBe(SIM_CLOSEST_APPROACH_DETAIL_RANGE_M);
   }
-  expect(mark.properties.closestApproachView).toEqual({ lon: 44, lat: 40, alt: 41, headingDeg: 91 });
+  expect(mark.properties.closestApproachView).toEqual({ lon: 44, lat: 40, alt: 1, headingDeg: 91 });
+  expect(cesium.current.sampleTerrainMostDetailed).not.toHaveBeenCalled();
 });
 
 it('colours a docked approach green and says so; no attitude, no ghost', () => {
@@ -220,4 +242,128 @@ it('keeps at most the per-UAV cap, dropping the oldest', () => {
 it('skips a record without heights over home', () => {
   renderWith([record({ alt_rel_m: null })]);
   expect(entities.size).toBe(0);
+});
+
+const heightsOf = () => {
+  const all = [...entities];
+  const [mark] = marks();
+  const dock = all.find(e => e.point && !e.properties);
+  return {
+    point: mark.position.height,
+    dock: dock.position.height,
+    legs: all.filter(e => e.polyline && e.label).map(e => e.polyline.positions.map(p => p.height)),
+    ghost: all.find(e => e.model).position.height,
+    view: mark.properties.closestApproachView.alt,
+    legLabels: all.filter(e => e.polyline && e.label).map(e => e.label.text),
+  };
+};
+
+const ON_TERRAIN = {
+  point: 1311, dock: 1310, legs: [[1310, 1310], [1310, 1311]], ghost: 1311, view: 1311,
+  legLabels: ['h 1.52 m', 'v 1.04 m'],
+};
+
+it('anchors the mark to the terrain sampled at the dock', async () => {
+  renderWith([record()], { terrainReady: true });
+  await settle();
+  expect(entities.size).toBe(0); // no ground yet: never drawn at 0
+  expect(samples).toHaveLength(1);
+  expect(samples[0].provider).toBe('ion-terrain');
+  expect(samples[0].positions).toEqual([{ lon: 44.00001, lat: 40.00001 }]);
+  samples[0].resolve(1310);
+  await settle();
+  expect(heightsOf()).toEqual(ON_TERRAIN);
+});
+
+it('redraws marks drawn before terrain on it, without consuming keys again', async () => {
+  const { update } = renderWith([record()]);
+  expect(heightsOf().dock).toBe(0);
+  update({ terrainReady: true });
+  expect(entities.size).toBe(0);
+  await settle();
+  samples[0].resolve(1310);
+  await settle();
+  expect(heightsOf()).toEqual(ON_TERRAIN);
+  update({ records: [record()] }); // the same key again: no new mark, no new sample
+  await settle();
+  expect(marks()).toHaveLength(1);
+  expect(samples).toHaveLength(1);
+  update({ terrainReady: false }); // terrain gone: back on the ellipsoid
+  expect(heightsOf().dock).toBe(0);
+});
+
+it('a failed sample uses the rendered globe, else waits for a later status', async () => {
+  const { update } = renderWith([record()], { terrainReady: true });
+  await settle();
+  samples[0].reject(new Error('tile failed'));
+  await settle();
+  expect(entities.size).toBe(0);
+  update({ records: [record()] }); // the next status samples again
+  await settle();
+  expect(samples).toHaveLength(2);
+  update({ records: [record()] }); // one request at a time
+  await settle();
+  expect(samples).toHaveLength(2);
+  samples[1].resolve(NaN);
+  await settle();
+  expect(entities.size).toBe(0);
+  globeHeight = 1310;
+  update({ records: [record()] });
+  await settle();
+  samples[2].reject(new Error('tile failed'));
+  await settle();
+  expect(heightsOf()).toEqual(ON_TERRAIN);
+});
+
+it('a sample that throws uses the rendered globe', async () => {
+  cesium.current.sampleTerrainMostDetailed = vi.fn(() => { throw new Error('no availability'); });
+  globeHeight = 1310;
+  renderWith([record()], { terrainReady: true });
+  await settle();
+  expect(heightsOf()).toEqual(ON_TERRAIN);
+});
+
+it.each([
+  ['Clear all', ({ update }) => update({ resetKey: '0:1' })],
+  ['eviction by the cap', ({ update }) => update({ records: Array.from(
+    { length: SIM_CLOSEST_APPROACH_MARKS_PER_UAV }, (_, i) => record({ key: `b:9:${i}` }),
+  ) })],
+  ['fleet removal', () => act(() => store.setFleet([3]))],
+  ['sim mode off', ({ update }) => update({ simMode: false })],
+  ['sim mode off and on', ({ update }) => { update({ simMode: false }); update({ simMode: true }); }],
+  ['terrain gone', ({ update }) => update({ terrainReady: false })],
+  ['terrain gone and back', ({ update }) => { update({ terrainReady: false }); update({ terrainReady: true }); }],
+  ['unmount', ({ unmount }) => unmount()],
+])('a sample completing after %s changes nothing', async (_name, change) => {
+  const hook = renderWith([record()], { terrainReady: true });
+  await settle();
+  const first = samples[0];
+  change(hook);
+  await settle();
+  const before = [...entities];
+  const adds = viewer.current.entities.add.mock.calls.length;
+  first.resolve(1310);
+  await settle();
+  expect([...entities]).toEqual(before);
+  expect(viewer.current.entities.add.mock.calls.length).toBe(adds);
+});
+
+it('a hidden mark is redrawn hidden', async () => {
+  const { update } = renderWith([record()], { terrainReady: true, hiddenSysIds: new Set([2]) });
+  await settle();
+  samples[0].resolve(1310);
+  await settle();
+  expect(heightsOf().point).toBe(1311);
+  expect([...entities].every(e => e.show === false)).toBe(true);
+  update({ hiddenSysIds: null });
+  expect([...entities].every(e => e.show === true)).toBe(true);
+});
+
+it('pause keeps existing marks and their redraw', async () => {
+  const { update } = renderWith([record()], { terrainReady: true });
+  await settle();
+  update({ paused: true });
+  samples[0].resolve(1310);
+  await settle();
+  expect(heightsOf()).toEqual(ON_TERRAIN);
 });

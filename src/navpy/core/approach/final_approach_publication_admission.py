@@ -10,6 +10,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
 @dataclass(frozen=True)
@@ -85,7 +86,7 @@ class FinalApproachPublicationAdmission:
         self,
         active_poi: DetectedObject | None,
     ) -> None:
-        self._ports.mark_failed("discontinuity_source_missing")
+        self._ports.mark_failed(fail_reason.DISCONTINUITY_SOURCE_MISSING)
         identity = (
             "active_poi=missing"
             if active_poi is None

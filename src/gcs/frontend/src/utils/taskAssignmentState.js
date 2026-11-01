@@ -10,8 +10,20 @@
  * Keys: a pending round is `${owner}:${task}`; once assigned it moves to the
  * helper's slot `helper:${id}` (one per helper), so a recycled task id never
  * collides with a task being flown. Ranks waiting < assigned < confirming <
- * confirmed are never lowered within a round. Available tasks are keyed
+ * confirmed are never lowered within a round, except that a deny returns a
+ * confirming slot to assigned (`taskResolved`). Available tasks are keyed
  * `${owner}:${task}` too: task ids are per owner.
+ *
+ * Confirm events carry the confirming UAV's own POI id: each companion numbers
+ * its POIs itself, so a helper confirms the owner's task 2 as its POI 1. They
+ * are matched by UAV, to that UAV's helper slot, which records the round (POI
+ * id, round uid) the GCS heard the UAV ask while it held the task
+ * (CONFIRMING). The round must come from the helper's boot after the "doing"
+ * it was assigned by; only an answer naming that round moves the slot.
+ * Anything else (an own-POI round asked before the assignment, a restarted
+ * helper's round, a later round at its home dock, a stale page's decision, a
+ * round without a uid) does not. A round the GCS heard before it heard the
+ * owner's APPLIED is never counted either: it may be an own-POI round.
  *
  * Every function returns the same state reference when nothing changes.
  */
@@ -56,10 +68,6 @@ function follows(uid, floor) {
     && uid.boot_id === floor.boot_id && uid.msg_seq > floor.msg_seq;
 }
 
-function forTask(data) {
-  return (entry) => entry.receiverId === data.sys_id && entry.taskId === data.task_id;
-}
-
 function forVehicle(sysId) {
   return (entry) => entry.receiverId === sysId;
 }
@@ -84,14 +92,27 @@ function dropAvailable(state, keys) {
   return { ...state, availableTasks };
 }
 
-function raise(state, data, status) {
-  let assignments = state.assignments;
-  for (const entry of Object.values(state.assignments).filter(forTask(data))) {
-    if (higher(entry.status, status) === entry.status) continue;
-    if (assignments === state.assignments) assignments = { ...assignments };
-    assignments[entry.key] = { ...entry, status };
-  }
-  return assignments === state.assignments ? state : { ...state, assignments };
+// A round uid as the backend publishes it, `${boot}:${seq}`
+// (gcs/backend/task_confirm_uid.py); null for "legacy" or none.
+function parseRoundUid(roundUid) {
+  const match = /^(\d+):(\d+)$/.exec(roundUid ?? '');
+  return match ? { boot_id: Number(match[1]), msg_seq: Number(match[2]) } : null;
+}
+
+function answersRound(asked, data) {
+  return !!asked && asked.taskId === data.task_id && asked.roundUid === data.round_uid;
+}
+
+// The helper slot a confirm answer applies to, if any.
+function confirmingSlot(state, data) {
+  const slot = state.assignments[helperKey(data.sys_id)];
+  return slot && RANK[slot.status] >= RANK.confirming
+    && answersRound(slot.confirm, data) ? slot : null;
+}
+
+function raise(state, slot, status) {
+  if (!slot || higher(slot.status, status) === slot.status) return state;
+  return withAssignment(state, { ...slot, status });
 }
 
 function sameAvailable(current, entry) {
@@ -173,15 +194,29 @@ export function assignAck(state, data) {
   if (!round || round.receiverId !== data.helper_id) return state;
   const key = helperKey(data.helper_id);
   const slot = state.assignments[key];
-  let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
-  if (slot && slot.senderId === round.senderId && slot.taskId === round.taskId
-      && slot.requestUid?.boot_id === round.requestUid?.boot_id) {
-    status = higher(status, slot.status);
-  }
+  // An APPLIED copy no newer than the one this owner last applied the slot by
+  // arrived late: it must not bring back an older task or helper boot.
+  if (slot && slot.senderId === data.owner_id && slot.appliedUid != null
+      && !isNewer(data.uid, slot.appliedUid)) return state;
   const doingUid = isNewer(data.ref, round.doingUid) ? data.ref : round.doingUid;
+  let status = higher(round.status, ASSIGNMENT_STATUS.ASSIGNED);
+  let kept = {};
+  let assignedUid = doingUid;
+  // The same assignment applied again to the same helper boot keeps how far
+  // its confirmation got, and the "doing" it was first assigned by; a
+  // restarted helper confirms afresh.
+  if (slot && slot.senderId === round.senderId && slot.taskId === round.taskId
+      && slot.requestUid?.boot_id === round.requestUid?.boot_id
+      && slot.doingUid?.boot_id === doingUid?.boot_id) {
+    status = higher(status, slot.status);
+    assignedUid = slot.assignedUid;
+    if (slot.confirm) kept = { confirm: slot.confirm };
+  }
   const assignments = { ...state.assignments };
   delete assignments[round.key];
-  assignments[key] = { ...round, key, status, doingUid };
+  assignments[key] = {
+    ...round, key, status, doingUid, assignedUid, appliedUid: data.uid ?? null, ...kept,
+  };
   return { ...state, assignments };
 }
 
@@ -196,19 +231,36 @@ export function swarmHeartbeat(state, data) {
     && entry.doingUid != null && isNewer(beat, entry.doingUid));
 }
 
+// The latest round a UAV asks while it holds the task answers for it, until
+// the task is confirmed.
 export function taskConfirming(state, data) {
-  return raise(state, data, ASSIGNMENT_STATUS.CONFIRMING);
+  const slot = state.assignments[helperKey(data.sys_id)];
+  if (!slot || slot.status === ASSIGNMENT_STATUS.CONFIRMED) return state;
+  const uid = parseRoundUid(data.round_uid);
+  if (!follows(uid, slot.assignedUid)) return state;
+  if (slot.confirm && !follows(uid, parseRoundUid(slot.confirm.roundUid))) return state;
+  return withAssignment(state, {
+    ...slot,
+    status: ASSIGNMENT_STATUS.CONFIRMING,
+    confirm: { taskId: data.task_id, roundUid: data.round_uid },
+  });
 }
 
 export function taskConfirmed(state, data) {
-  return raise(state, data, ASSIGNMENT_STATUS.CONFIRMED);
+  return raise(state, confirmingSlot(state, data), ASSIGNMENT_STATUS.CONFIRMED);
 }
 
+// A denied POI: the UAV's own advert of it goes, and the task it was
+// confirming for its owner goes back to ASSIGNED. A deny does not show that
+// the UAV let the task go: after its own timeout it keeps the task and asks
+// again (the card's countdown deny then comes late). Its FREE beat retires
+// the slot once it lets the task go.
 export function taskResolved(state, data) {
-  const resolved = Object.values(state.assignments).filter(forTask(data));
-  return dropAvailable(dropAssignments(state, forTask(data)), [
+  const slot = confirmingSlot(state, data);
+  const next = slot ? withAssignment(state, { ...slot, status: ASSIGNMENT_STATUS.ASSIGNED }) : state;
+  return dropAvailable(next, [
     roundKey(data.sys_id, data.task_id),
-    ...resolved.map((entry) => roundKey(entry.senderId, entry.taskId)),
+    ...(slot ? [roundKey(slot.senderId, slot.taskId)] : []),
   ]);
 }
 

@@ -54,6 +54,7 @@ import swarm_run  # noqa: E402
 from gcs_launch_sitl_args import add_sitl_arguments, swarm_passthrough  # noqa: E402
 from gcs_launch_list import _print_list, _sitl_status  # noqa: E402,F401
 from gcs_launch_video import launch_sim_video, reap_sim_video_ports  # noqa: E402
+from gcs_launch_cpu_share import add_cpu_share_argument, scheduling_env  # noqa: E402
 
 
 def git_branch() -> str:
@@ -101,10 +102,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--no-sitl", dest="sitl", action="store_false",
                         help="do not start the SITL swarm (real hardware / run it separately)")
     parser.add_argument(
-        "-n",
-        "--instances",
-        type=int,
-        default=ip.VEHICLES_PER_CHAT,
+        "-n", "--instances", type=int, default=ip.VEHICLES_PER_CHAT,
         help=(
             "how many vehicles of this slot's sysid set to launch "
             f"(1..{ip.VEHICLES_PER_CHAT}, default: {ip.VEHICLES_PER_CHAT}). "
@@ -132,6 +130,7 @@ def _build_parser() -> argparse.ArgumentParser:
         help="correlate this exact launcher with its SITL registry verdict",
     )
     add_sitl_arguments(parser)
+    add_cpu_share_argument(parser)
     parser.set_defaults(sitl=True)
     return parser
 
@@ -224,6 +223,7 @@ def main() -> int:
         print(f"  reaped orphan pid {pid} on this slot's port")
 
     try:
+        share_env = scheduling_env(args)  # before any child: background unless sharing
         # --- SITL swarm (WSL), unless --no-sitl ---
         # Started first so it boots while the backend comes up; the backend's
         # auto-connect retries until vehicles appear. swarm_run resolves the same
@@ -256,7 +256,7 @@ def main() -> int:
                    console_log=console_logs and console_logs / "swarm_run.out")
 
         # --- backend (uvicorn) ---
-        backend_env = os.environ.copy()
+        backend_env = {**os.environ, **share_env}
         backend_env["GCS_CHAT_INDEX"] = str(n)
         backend_env["PYTHONPATH"] = str(SRC_DIR)
         backend = _spawn(

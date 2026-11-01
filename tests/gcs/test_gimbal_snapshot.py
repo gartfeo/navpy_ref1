@@ -22,6 +22,7 @@ class FakeVehicle:
         self.battery_voltage = 24.0
         self.battery_current = 3.0
         self.get_mode = None
+        self.heartbeat_count = 0
         self.attitude = None
         self.is_armed = False
         self.heading = 90

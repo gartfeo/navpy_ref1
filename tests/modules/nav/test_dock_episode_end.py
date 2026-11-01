@@ -27,13 +27,13 @@ def test_a_latched_miss_is_missed():
     assert dock_episode_end(ARMED, False, missed, False) == DockEpisodeEnd(missed=True)
 
 
-def test_a_nav_fail_aborts_with_its_reason():
+def test_a_nav_fail_is_navs_own_failure_with_its_reason():
     failed = _terminal(FinalApproachTerminal.FAILED, "source_command_stale")
     assert dock_episode_end(ARMED, False, failed, False) == DockEpisodeEnd(
-        abort_reason="source_command_stale"
+        failed=True, abort_reason="source_command_stale"
     )
-    unnamed = _terminal(FinalApproachTerminal.FAILED)
-    assert dock_episode_end(ARMED, False, unnamed, False).abort_reason == UNNAMED_FAILURE_REASON
+    unnamed = dock_episode_end(ARMED, False, _terminal(FinalApproachTerminal.FAILED), False)
+    assert (unnamed.failed, unnamed.abort_reason) == (True, UNNAMED_FAILURE_REASON)
 
 
 def test_a_cancel_aborts_as_cancelled():

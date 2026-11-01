@@ -66,8 +66,26 @@ def _make_mock_client(trigger_success=True):
     return client
 
 
+def _takes_auto(lc, record=lambda sid: None):
+    """An ``auto_func`` whose vehicle takes AUTO: its next heartbeat reads AUTO."""
+    def auto(sid):
+        record(sid)
+        _mode, count = lc._modes.get(sid, (None, 0))
+        lc._modes[sid] = ("AUTO", count + 1)
+        return count
+    return auto
+
+
 def _prepare_args(lc, **overrides):
-    """Return default prepare kwargs, with optional overrides."""
+    """Return default prepare kwargs, with optional overrides.
+
+    An ``auto_func`` override only records: its vehicle takes AUTO
+    (``_takes_auto``); ``raw_auto_func`` is used as given.
+    """
+    if "auto_func" in overrides:
+        overrides["auto_func"] = _takes_auto(lc, overrides["auto_func"])
+    if "raw_auto_func" in overrides:
+        overrides["auto_func"] = overrides.pop("raw_auto_func")
     defaults = dict(
         sys_ids=[1],
         channel_map={1: 1},
@@ -77,7 +95,7 @@ def _prepare_args(lc, **overrides):
         arm_timeout=5.0,
         altitude_timeout=30.0,
         arm_func=lambda sid: None,
-        auto_func=lambda sid: None,
+        auto_func=_takes_auto(lc),
         ekf_recheck=lambda sid: [],
     )
     defaults.update(overrides)

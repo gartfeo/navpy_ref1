@@ -4,6 +4,11 @@ import { colors } from '../../styles';
 import useHeldSeconds from '../../hooks/useHeldSeconds';
 import { HEADER_FONT_PX, PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout';
 
+const TAG_LINE_PX = 18;
+const TAG_PAD_PX = 6;
+/** The tag's full height (line, padding, 1 px border); App starts the RC confirm list below it. */
+export const FPV_TAG_HEIGHT_PX = TAG_LINE_PX + 2 * TAG_PAD_PX + 2;
+
 /**
  * Always-on label of RC FPV, the synthetic first-person view on the main map:
  * a frame in the accent colour (not a warning colour), a fixed top-centre tag
@@ -11,17 +16,24 @@ import { HEADER_FONT_PX, PANEL_MARGIN_PX } from '../../utils/vehicleWindowLayout
  * last pose a full-width "View held" banner with the time held. Never takes
  * taps: everything here is pointer-events none.
  *
- * @param {{ label: string, holdReason: string|null, top: number }} props
+ * `heldLeft` and `heldRight` are the banner's insets: while the RC confirm
+ * list lies at the right, App narrows the banner to the room between the
+ * flight-mode buttons and the list, so neither hides the banner's text.
+ *
+ * @param {{ label: string, holdReason: string|null, top: number, heldLeft?: number, heldRight?: number }} props
  */
-export default function FpvViewOverlay({ label, holdReason, top }) {
+export default function FpvViewOverlay({
+  label, holdReason, top, heldLeft = PANEL_MARGIN_PX, heldRight = PANEL_MARGIN_PX,
+}) {
   const { t } = useTranslation();
   const heldSeconds = useHeldSeconds(holdReason);
   const text = {
     fontSize: HEADER_FONT_PX,
+    lineHeight: `${TAG_LINE_PX}px`,
     fontWeight: 700,
     color: colors.textBright,
     background: colors.bgLight,
-    padding: '6px 12px',
+    padding: `${TAG_PAD_PX}px 12px`,
     borderRadius: 6,
   };
 
@@ -52,8 +64,8 @@ export default function FpvViewOverlay({ label, holdReason, top }) {
             ...text,
             position: 'absolute',
             top: top + 44,
-            left: PANEL_MARGIN_PX,
-            right: PANEL_MARGIN_PX,
+            left: heldLeft,
+            right: heldRight,
             textAlign: 'center',
             border: `1px solid ${colors.warning}`,
             color: colors.warning,

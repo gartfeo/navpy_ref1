@@ -24,6 +24,10 @@ class LaunchController:
         self._errors: dict[int, str] = {}
         self._altitudes: dict[int, float] = {}
         self._armed: dict[int, bool] = {}
+        # Latest heartbeat mode name (None: link lost) and that vehicle's heartbeat count.
+        self._modes: dict[int, tuple[str | None, int]] = {}
+        # Vehicles an operator command took over this session: no more launch commands.
+        self._revoked: set[int] = set()
         self._climb_rates: dict[int, float] = {}
         self._throttles: dict[int, float] = {}  # commanded throttle %, VFR_HUD
         # monotonic time since climb first met the threshold (None = not climbing)
@@ -70,8 +74,18 @@ class LaunchController:
         }
 
     def update_telemetry(self, sys_id: int, alt_rel: float, armed: bool,
-                         climb: float = 0.0, throttle: float = 0.0):
-        return launch_observation.update_telemetry(self, sys_id, alt_rel, armed, climb, throttle)
+                         climb: float = 0.0, throttle: float = 0.0, *,
+                         mode: str | None = None, heartbeat_count: int = 0):
+        return launch_observation.update_telemetry(
+            self, sys_id, alt_rel, armed, climb, throttle, mode=mode, heartbeat_count=heartbeat_count,
+        )
+
+    def forget_missing(self, present_ids: set[int]) -> None:
+        return launch_observation.forget_missing(self, present_ids)
+
+    def revoke_commands(self, sys_ids: list[int]) -> None:
+        """An operator command for these vehicles: the launch sends them no more commands."""
+        self._revoked.update(sys_ids)
 
     async def prepare(
         self,
@@ -83,7 +97,7 @@ class LaunchController:
         arm_timeout: float,
         altitude_timeout: float,
         arm_func: Callable[[int], None],
-        auto_func: Callable[[int], None],
+        auto_func: Callable[[int], int | None],
         settle_s: float = 0.3,
         stagger_s: float = 0.0,
         container_gap_s: float = 0.0,
@@ -166,6 +180,7 @@ class LaunchController:
         self._esp32_client = None
         self._arm_func = None
         self._auto_func = None
+        self._revoked.clear()
         self._ekf_recheck = None
         self._abort_event.clear()
         self._abort_notified = False

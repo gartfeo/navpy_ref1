@@ -20,6 +20,8 @@ def snapshot(entry: VehicleEntry) -> dict:
     entry._video_streams.tick()
     loc = v.location(is_relative=False)
     loc_rel = v.location(is_relative=True)
+    # The count first: the mode is then from that heartbeat or a newer one.
+    heartbeat_count = v.heartbeat_count
     mode = v.get_mode
     att = v.attitude
     armed = v.is_armed
@@ -44,6 +46,7 @@ def snapshot(entry: VehicleEntry) -> dict:
         "voltage": v.battery_voltage,
         "current": v.battery_current,
         "mode": mode.name if mode else None,
+        "heartbeat_count": heartbeat_count,
         "armed": armed,
         "lat": loc.lat if loc else None,
         "lon": loc.lng if loc else None,
@@ -78,6 +81,7 @@ def snapshot(entry: VehicleEntry) -> dict:
         "confirm_blocked": entry._confirm_blocked,
         "swarm": entry._swarm_state.snapshot(),
         "video_streams": entry._video_streams.snapshot(),
+        "cameras": entry._video_streams.cameras(),
     }
     rc_channels = entry._rc_channels_snapshot()
     if rc_channels is not None:

@@ -115,7 +115,7 @@ export default function ProfileSelector({
         // Reconfigure planner with updated profile catalog so coverage/footprint
         // calculations use the new intrinsics without requiring a page reload.
         // Thread detector_class_dimensions so per-class sizes stay backend-owned.
-        if (draft) configurePlanner(draft, latest.profiles, latest.detector_class_dimensions);
+        if (draft) configurePlanner(draft, latest.profiles, latest.detector_class_dimensions, latest.default_profile);
       }
       setLocalOverrides({ profile: {}, devices: {}, zooms: {} });
       if (setPresetOverrides) setPresetOverrides({});

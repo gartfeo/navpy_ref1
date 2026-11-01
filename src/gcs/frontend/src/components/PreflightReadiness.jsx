@@ -9,7 +9,10 @@ import { launchGatesFromSettings } from '../utils/prearmChecks';
 import { computeVehicleReadiness, computeFleetParamSync } from '../utils/preflightReadiness';
 import { remediationFor, topIssue } from '../utils/preflightRemediation';
 
-const BASE_ROWS = ['prearm', 'companion', 'mission', 'gps', 'throttle', 'battery', 'ekf', 'rc', 'sensors'];
+const BASE_ROWS = [
+  'prearm', 'companion', 'detectorCamera', 'videoStream', 'mission', 'gps', 'throttle',
+  'battery', 'ekf', 'rc', 'sensors',
+];
 
 const STATUS_COLOR = {
   go: colors.success,
@@ -40,14 +43,32 @@ function prearmText(t, w) {
   return w;
 }
 
-function checkValue(t, check) {
+// Detector camera / video stream cell text; `nameOf` names a UAV by sys_id.
+function cameraValue(t, { key, detail }, nameOf) {
+  if (!detail) return '—';
+  const { state } = detail;
+  if (key === 'detectorCamera') {
+    const text = t(`preflight.cameraState.${state}`);
+    if (!detail.total) return text;
+    return `${text} ${t('preflight.cameraCount', { count: detail.count, total: detail.total })}`;
+  }
+  if (state === 'streams') return t('preflight.streamCount', { count: detail.count });
+  if (state === 'uriRejected') return t('preflight.streamState.uriRejected', { reason: detail.reason });
+  if (state === 'duplicate') {
+    return t('preflight.streamState.duplicate', { names: detail.sysIds.map(nameOf).join(', ') });
+  }
+  return t(`preflight.streamState.${state}`);
+}
+
+function checkValue(t, check, nameOf) {
   if (!check) return '—';
   const { key, status, detail } = check;
+  if (key === 'detectorCamera' || key === 'videoStream') return cameraValue(t, check, nameOf);
   if (key === 'companion') {
     // Short cell status; the full "start / connect NavPy" guidance lives in the
     // action strip + hover remediation. Long sidebar-badge wording would wrap
     // badly in the narrow grid column.
-    if (status === 'go') return t('preflight.ccActive');
+    if (status === 'go') return t('preflight.ccConnected');
     if (status === 'warn') return t('preflight.ccChecking');
     if (status === 'nogo') return t('preflight.ccDisconnected');
     return '—';
@@ -148,7 +169,7 @@ function PitotConfirm({ onConfirm, onCancel }) {
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
         alignItems: 'center', justifyContent: 'center', zIndex: 10000 }}
-      onClick={(e) => { if (e.target === e.currentPoi) onCancel(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
     >
       <div style={{ background: colors.bgLight, border: `2px solid ${colors.warning}`,
         borderRadius: 8, padding: 24, maxWidth: 360, textAlign: 'center' }}>
@@ -294,6 +315,9 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
   const anyPitot = rows.some((r) => hasPitot(r.v));
   const gridRows = anyPitot ? [...BASE_ROWS, 'airspeed'] : BASE_ROWS;
   const disarmedIds = vehicleList.filter((v) => v.link_ok && !v.armed).map((v) => v.sys_id);
+  const nameOf = (sysId) => vehicleList.find((v) => v.sys_id === sysId)?.name ?? `#${sysId}`;
+  // Companion "Connected" means only NavPy's heartbeat, not mission or approach.
+  const companionTip = t('preflight.ccTooltip');
 
   // Fleet-wide "params not synced" advisory (CONF-01) — computed over the
   // already-fetched per-vehicle param snapshots (D-06); purely additive, never
@@ -304,7 +328,7 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
   });
 
   const showTip = (e, hintKey) => {
-    const el = e.currentPoi;
+    const el = e.currentTarget;
     setTip({ text: t(hintKey), left: el.offsetLeft, top: el.offsetTop + el.offsetHeight + 2 });
   };
 
@@ -371,7 +395,8 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
             return (
               <React.Fragment key={key}>
                 <div style={{ ...cellBase, background: bg, color: colors.textDim, fontWeight: 600,
-                  position: 'sticky', left: 0, zIndex: 1, borderRight: `1px solid ${colors.border}` }}>
+                  position: 'sticky', left: 0, zIndex: 1, borderRight: `1px solid ${colors.border}` }}
+                  title={key === 'companion' ? companionTip : undefined}>
                   {t(`preflight.${key}`)}
                 </div>
                 {rows.map(({ v, linkDown, byKey }) => {
@@ -380,12 +405,13 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
                   const rem = linkDown ? null : remediationFor(check);
                   return (
                     <div key={`${key}-${v.sys_id}`}
+                      title={key === 'companion' && status === 'go' ? companionTip : undefined}
                       onMouseEnter={rem ? (e) => showTip(e, rem.hintKey) : undefined}
                       style={{ ...cellBase, background: bg, wordBreak: 'break-word',
                         color: STATUS_COLOR[status] || colors.text,
                         textDecoration: rem ? 'underline dotted' : 'none', textUnderlineOffset: 2,
                         cursor: rem ? 'help' : 'default' }}>
-                      {linkDown ? '—' : checkValue(t, check)}
+                      {linkDown ? '—' : checkValue(t, check, nameOf)}
                     </div>
                   );
                 })}
@@ -481,7 +507,8 @@ function ReadinessBody({ settings, onReboot, fullParams, onOpenParamSync }) {
 
 /**
  * One-click Preflight readiness overlay: a checks × vehicles grid (pre-arm,
- * companion, mission, GPS, throttle, battery, EKF, RC, sensors, airspeed) with
+ * companion, detector camera, video stream, mission, GPS, throttle, battery, EKF,
+ * RC, sensors, airspeed) with
  * each vehicle's name + overall GO/CAUTION/NO-GO combined in its header cell. An
  * "action needed" strip above the grid lists only the vehicles with a problem (a
  * fully ready fleet shows nothing there); hovering a red/amber cell in the grid
@@ -504,7 +531,7 @@ export default function PreflightReadiness({ settings, onClose, onReboot, fullPa
     <div
       style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', display: 'flex',
         alignItems: 'center', justifyContent: 'center', zIndex: 9999 }}
-      onClick={(e) => { if (e.target === e.currentPoi) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div style={{ width: 'min(920px, 95vw)', maxHeight: '85vh', background: colors.bgLight,
         border: `1px solid ${colors.border}`, borderRadius: 8, display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>

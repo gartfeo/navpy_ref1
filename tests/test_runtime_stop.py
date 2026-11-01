@@ -185,7 +185,8 @@ def test_the_lifecycle_stop_drives_the_unchanged_run_loop(baton, monkeypatch):
 
 
 def test_the_lifecycle_flag_is_opt_in_and_needs_the_participant(monkeypatch):
-    from navpy.app.runtime_composition import RuntimePorts, compose_runtime
+    from navpy.app.runtime_composition import compose_runtime
+    from navpy.app.runtime_ports import RuntimePorts
 
     parser = make_parser()
     assert parser.parse_args(["-ss", "4"]).stop_on_lifecycle is False

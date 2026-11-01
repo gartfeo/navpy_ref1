@@ -34,15 +34,16 @@ export default function useWsHandlers({
   useEffect(() => {
     messageHandlersRef.current['task_confirm_request'] = (data) => {
       taskConfirm.handleConfirmRequest(data);
-      confirmingStatusRef.current?.(data.sys_id, data.task_id);
+      confirmingStatusRef.current?.(data.sys_id, data.task_id, data.round_uid);
     };
     messageHandlersRef.current['task_confirm_image'] = taskConfirm.handleConfirmImage;
     // Response converges on ALL clients (not just the initiator's wrapper):
-    // the card state AND the (UAV, task)-keyed assignment state are updated here.
+    // the card state AND the UAV's assignment state are updated here.
     messageHandlersRef.current['task_confirm_response'] = (data) => {
       taskConfirm.handleConfirmResponse(data);
-      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(data.sys_id, data.task_id);
-      else taskAssign.handleResolvedCleanupByTask(data.sys_id, data.task_id);
+      const { sys_id: sysId, task_id: taskId, round_uid: roundUid } = data;
+      if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(sysId, taskId, roundUid);
+      else taskAssign.handleResolvedCleanupByTask(sysId, taskId, roundUid);
     };
     // Mission restart / E-STOP (incl. a per-UAV E-STOP): clear cards +
     // assignments for the listed UAVs.
@@ -148,8 +149,8 @@ export default function useWsHandlers({
 
   // ---- Approve / deny / cancel wrappers ----
   // Card-only on purpose: assignment state converges for ALL clients
-  // (including this one) via the task_confirm_response WS handler, keyed by
-  // task_id. Mutating assignment here too would diverge card vs assignment
+  // (including this one) via the task_confirm_response WS handler, matched
+  // by UAV. Mutating assignment here too would diverge card vs assignment
   // state on a failed POST (the card is gated on res.ok; assignment was not).
   const handleTaskApprove = useCallback((sysId) => {
     taskConfirm.approve(sysId);

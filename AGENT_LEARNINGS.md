@@ -12,6 +12,8 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
+  (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
   5501 + 10 x instance (AP_RCProtocol_UDP.cpp). Driving the "pilot" this way keeps Lua
   RC overrides behaving as on the aircraft; MAVLink RC overrides would compete with them.
@@ -825,7 +827,8 @@
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
-- A full pytest run is not light load: about 70% CPU average with 100% peaks. Never overlap it with a wall eval.
+- A full pytest run is not light load: about 70% CPU average with 100% peaks. Since the CPU share (2026-10-28) it runs
+  as background beside a share-holding wall eval; do not wait for it to end.
 - The eval env is an allow-list: ad-hoc env vars do not reach NavPy; derive probe paths from NAVPY_LOG_DIR.
 - To tell a NavPy stall from a SITL stall, compare NavPy's ATTITUDE arrival lag with the GCS receiver's for the same UAV:
   equal lag is upstream (SITL/WSL), NavPy-only lag is NavPy.
@@ -962,6 +965,8 @@
 ## Moving a product out of core in reviewed steps (delivery move c2-c9, 2026-10-19)
 - Never edit a worktree while its pytest or lockstep gate runs: the suite reads the files mid-run. Gate in
   one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
+  Repeated 2026-10-28 (bounded CPU share): review fixes made while a background `tests/gcs` run was still
+  going gave two subprocess tests an ImportError from a half-applied edit. Check for running suites first.
 - Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
   matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
   that keeps CRLF and fails on a missing or repeated match made every edit checkable.
@@ -1015,8 +1020,7 @@
   a remembered "LF" was wrong. Run `file` on each target before a scripted edit.
 - A full `pytest tests/gcs` started while edits went on: its vitest leg timed
   out at 5 s under load and the same test passed alone. Run the full suite
-  after the edits, on a quiet PC, and rerun a timeout alone before blaming
-  the change.
+  after the edits, and rerun a timeout alone before blaming the change.
 - A dirty file that main also changed blocks a fast-forward. Without a WIP
   commit or the shared stash: save `git diff -- <file>` as a patch, check the
   file out, fast-forward, `git apply --3way` (it stages), then `git reset -- <file>`.
@@ -1376,3 +1380,389 @@
 - model_stream keys allow only [A-Za-z0-9._-]; key per-device draws by router endpoint name.
 - Both Manifest and RoutedPorts sat at the 12-field SOLID limit; adding a field means removing one or
   passing it as an argument. Run tests/guards early.
+
+## Handheld app build and todo 113 (2026-10-25)
+- The Windows APK build (`scripts/build_apk.ps1`) needs `zipalign -p 4` before
+  `apksigner`: Android 11+ refuses an APK whose resources.arsc is not aligned.
+  Adding classes.dex works with .NET `ZipFile` (no `zip` on Windows).
+- PowerShell 5.1 with `$ErrorActionPreference = "Stop"` and `*>` redirection
+  turns adb's stderr ("daemon not running") into a terminating error. Run
+  `unirc_emulator.ps1` from Bash with `> file 2>&1` instead; the script then
+  also sets `accelerometer_rotation 0`, which `user_rotation` needs.
+- To test the APK against this PC: start the GCS with `GCS_FRONTEND_DIST` set
+  to the built dist, then `adb reverse tcp:8000 tcp:<backend port>`. This
+  tests the production bundle, which is what the handheld runs.
+- The Claude browser pane is hidden during tool work, so rAF stops and Cesium
+  never sizes its canvas (300x150). For desktop checks use headless Chrome
+  with its own `--user-data-dir` in the scratchpad and CDP.
+- A desktop map that is black with Cesium's CSS missing came from the service
+  worker (todo 118), not the layout: bypass it with CDP
+  `Network.setBypassServiceWorker` to split the two.
+- Python one-liners in a Bash heredoc turned `\b` and `\a` in Windows paths
+  into control bytes. Write such text with the Edit or Write tool.
+
+## Todos 92, 110: demo open points (2026-10-25)
+- A retry that opens a new protocol session drops the late reply to the old one. Before changing an
+  FTP/MAVLink retry, read the firmware's server (ArduPilot GCS_FTP.cpp replays its last reply for a
+  same-session, same-seq resend). Build test fakes from that source, not from the client.
+- A UI default and the companion default can disagree silently: check which profile each side picks
+  when settings name none, and guard the preset with a test against the real reach check.
+- Hold a round's fence per wire unit, not around a whole multi-chunk send; do slow work outside it.
+- The shared venv had OpenCV 5.0.0 on 2026-10-25, so 4 board-detector tests failed; not a code fault.
+
+## Todos 116, 117: image share and confirmed launch mode (2026-10-25)
+
+- I repeated the time.monotonic mistake above: a pacer test timed 30 ms gaps with it and failed
+  at random under mutation runs. Time wall-clock tests with time.perf_counter.
+- Never run a test baseline while a mutation script is editing the same source files: the
+  baseline then tests a mutant. Wait for the mutation run, then run the baseline.
+- A surviving mutation can mean the guarded state is unreachable through the caller (a new
+  round already abandons the old image). Test the guard at its own unit, or remove it.
+- Guards to run early: launch_execution.py is near its 300-line cap and task_confirm_rounds.py
+  near 180. VehicleMav's method count is a ratchet: raise it only with a dated comment.
+- The matrix summary prints only top-level errors, so per-vehicle failures stayed hidden for a
+  whole round (todo 121). Read each vehicle's report errors before calling a matrix cell clear.
+- An artifact counter that advances per send doubled the artifacts when the GCS asked for a resend.
+  Key one-per-round outputs by round at the producer, and claim them before the slow send.
+- msys sed -i strips CR from CRLF sources. Edit them with Python opened with newline="".
+- A mutation killed by a NameError proves nothing; make sure the killing test fails on the behaviour.
+- A broad test subset is not full pytest: a demo test outside my subset still expected 640x480.
+
+## Sim closest-approach marks v6 (2026-10-25)
+
+- A height shown on the Cesium map needs its datum checked against the terrain provider. The
+  record's heights are over home; drawn as ellipsoid heights they sat 1.3 km under Ion terrain,
+  and the fly-to camera was lifted to the ground. Anchor such heights to a ground the map
+  already shows (the dock icon), and test the redraw when terrain arrives later.
+- An outcome that depends on which thread latched first needs evidence that cannot be lost
+  between samples. "Still closing" judged on the last sample hid near misses; per-segment pass
+  evidence in the dock frame, cut at NAV's own latch, kept them.
+- I repeated the heredoc-with-apostrophe mistake (2026-10-16 entry above) twice in this task.
+  Before any Bash heredoc, scan the body for an apostrophe; any JavaScript body has one.
+- python -I ignores PYTHONIOENCODING; a script that prints vitest output needs
+  sys.stdout.reconfigure(encoding="utf-8").
+- A mutation script that restores each file in a finally block let 12 frontend mutants run
+  in one call; check the restored text with grep afterwards.
+- Cesium camera.changed fires only after a move of percentageChanged (0.5) of the camera
+  height, so a "restore when above X m" watch on it ran hundreds of metres late over high
+  terrain. Watch scene.postRender, and make test fakes raise changed the way Cesium does.
+- The full suite, not my subset, caught the 300-line module guard; run tests/guards after
+  any file grows.
+
+## Mission download outcome: empty vehicle is not a failure (2026-10-25)
+- A count of 0 meant both "empty table" and "transfer failed". Return a typed outcome
+  (core/ports/mission_download.py) instead of overloading the count.
+- Guards to check before adding API: MavMission sits at the 15-method cap, IVehicle is
+  now at 15, and routes/missions.py is exactly 300 lines. I changed MavMission.download's
+  return type instead of adding a method, and a new IVehicle capability gets a default
+  that raises NotImplementedError (the legacy abstract-set test pins the abstract list).
+- In a worktree-isolated agent, Bash refuses `PYTHONPATH=... python`; run pytest from
+  PowerShell with `$env:PYTHONPATH` set to the worktree's Windows src path.
+- The node logic tests (tests/gcs/frontend/*_logic.js) load a util by stripping
+  `export`, not `import`: a util they load must not import other modules.
+- The stop test in test_mission_transfer.py failed once at 0.5004 s in a broad run and
+  passes alone; its measured window is ~0 s here and on main, so it is load timing.
+## Delivery demo GCS fixes: plan button, helper confirm, dock label (2026-10-25)
+- A helper confirms the owner's task under its own POI id (`PoiTaskIdAllocator`), so any GCS
+  match of confirm traffic against swarm task ids silently misses. Match by UAV (the helper slot);
+  the design doc had flagged this as a follow-up, so read its "follow-up" notes before keying.
+- Matching by UAV alone let an answer for another of that UAV's POIs confirm or drop the task
+  (Codex P1). Record the asked round (POI id, round uid) in the slot and match answers against it.
+  Copying the card's permissive guard (a missing uid matches) was not enough: an identity guard
+  must require the uid and the sender's boot (one MsgMetaProvider boot per NavPy process).
+- A Python heredoc turned `\'` into a bare quote in a JS test string, breaking the file. Write
+  JS strings with quotes through the Edit or Write tool, not a heredoc script.
+- tests/guards/test_core_knows_no_product.py rejects product words such as "hub" even in a core
+  docstring. Run tests/guards right after editing src/navpy/core.
+- A worktree has no .venv: run pytest with the main checkout's
+  `.venv/Scripts/python.exe` and PYTHONPATH set to the worktree's src.
+
+## Preflight camera rows (todos 70, 72a, 2026-10-26)
+- pymavlink decodes a `uint8_t[N]` text field (`CAMERA_INFORMATION.vendor_name`) as a list of
+  ints, not str or bytes. Tests that fed a str passed while the wire would have failed; a
+  NavPy-to-GCS test that packs and decodes the real message caught it. Add one for every new
+  field read from a message.
+- Check when a field is sent before reusing it: NavPy's swarm heartbeat carries the boot id only
+  from DETECT on, so preflight needed its own boot id (camera HEARTBEAT `custom_mode`).
+- A new method on a facade fails `FACADE_METHOD_ALLOWANCES` in
+  `tests/guards/solid_architecture_guard.py`. The project raises that allowance by one with a
+  comment naming the approved design; say so in the report.
+- The "lost record takes no replies" test survived a mutation that removed the guard until it was
+  parametrized over every reply kind (information, stream, ACK). Mutate each guard once.
+- Two JS test expectations of mine disagreed with the approved rule ("cameras seen" counts lost
+  ones). When a new test fails, read the design text before changing code or test.
+- The global Vitest setup's `t(key)` drops interpolation; mock react-i18next in the test file with
+  an interpolating `t` (as `VehicleWindow.test.jsx` does) to check names in a cell.
+- One full `npm test` failed once in `trailsWiring.test.jsx` (untouched) while the PC was busy;
+  it passed alone three times and in the next full run. Rerun alone before blaming a change.
+
+## Dev sim step 4: freeze and CPU budget (2026-10-26)
+
+- A handoff cap means a tick can leave work: runnable threads and timers still due. Every
+  place that asks "is this participant done" must then ask the scheduler's actual state
+  (nothing runnable, no live timer due), not a flag the last settle set; Codex found the
+  early end (round 1) and then that my flag could block the end forever (round 2).
+- A timer heap keeps cancelled entries until they reach the head, so "any timer due" must
+  drop stale heads first, or a cancelled timeout reads as work left (Codex round 3).
+- Each yield costs a handoff: a reader that yields after each item takes two per item.
+  Count handoffs from the trace before writing a cap's expected numbers.
+- A mutation script counted "no tests ran" (pytest exit 5, after I renamed tests) as a kill.
+  Count a kill only on exit 1, and refresh the test ids after every rename.
+- A Python replacement string written in a bash heredoc turned an escaped newline into a
+  real one, twice. Edit source with the Edit tool, or build the backslash with chr(92). It happened again in step 5
+  (a nested heredoc and a sed edit of a mutation list): read this file before scripting edits.
+- Measure a model's natural demand before trusting its range. The design's stress CPU budget
+  (50-200 handoffs per tick) never bound: a NavPy takes about 9 per tick. A temporary per-tick
+  count in a scratch worktree showed it; a participant's environment is hermetic, so such a
+  diagnostic must write to its cwd (the run dir), not read an env var.
+- Do not edit the worktree while a matrix runs: each run's manifest records
+  `uncommitted_diff_sha256`, so a doc edit after the first cell makes the artifact check fail
+  on `input_manifest.json` with equal digests. Commit first, then start the matrix.
+## Unanswered peer confirmation keeps the task (2026-10-25)
+- The vision walk guard (`test_step1_vision_walk.py`) failed when a core module that
+  `products/delivery/poi_status_decision.py` imports pulled in geo code (peer_geo -> geo_ref_calc).
+  Pass geo actions as callable ports and build them in an app/flow composition module.
+- `nav_task_composition.py` sits near the SOLID caps (150-line function, 300-line module).
+  Put new wiring in its own small composition module instead of growing it.
+- Injected statuses skip the confirmation round lifecycle (Codex nit). For an end-to-end
+  test, tick sense/decide/act with a frameless detection (`supports_confirmation_frame=False`)
+  and a network mock that stamps request meta; keep the answered round open with a long wait.
+- More param reads at startup move every later lockstep sim stamp (120 ms here), and
+  `test_navpy_participant_run.py` pins absolute stamps. Run it, or full pytest, after any
+  change to startup reads.
+- From Git Bash, `PYTHONPATH="$PWD/src;$PWD"` is ignored (POSIX paths with `;`) and imports
+  come from the shared checkout; `"$PWD/src:$PWD"` or Windows paths with `;` work.
+- A lockstep test's NavPy child takes its source from the test file's repo root, so
+  `git archive HEAD src` plus PYTHONPATH does not test old code there: export src, scripts
+  and tests and run from that tree.
+- After a rebase that took todo numbers, a blanket replace of "(todo N)" also rewrote
+  main's own new reference. Renumber only the lines your commit adds, then check each
+  reference in `git diff origin/main`.
+
+## Todo 69: E-STOP and Cancel task reach, design (2026-10-25)
+
+- A mock that scales a control to make it fit hides the fit problem the owner must judge
+  (Codex caught a 0.9 scale). Draw new controls at true size, and copy no current-size
+  control into a 'new' figure without redrawing it.
+- RC screenshots with no UAV selected have no HUD. Before placing anything over the RC
+  map, read TelemetryHud.jsx (heading tape, status, altitude tape, five-line warning
+  strip) and VehicleSelector.jsx, and say which layer draws on top.
+- Moving a host of the confirm cards: check every phase that can show while UAVs fly.
+  Edit plan is offered in flight, and planning mounted no cards at all.
+- The 2026-10-07 Target->Poi rename turned every e.currentTarget into e.currentPoi (no
+  currentTarget left in the frontend). After a bulk rename, grep for DOM and library
+  names it may have hit.
+- Inject confirm rounds into the page's telemetry WebSocket and block /api/control/
+  task_confirm* POSTs in the page to see cards live without answering a vehicle
+  (scripts kept in .logs/gcs-estop-reach/current).
+- The approved RC list from top 60 would have covered the centred first-person tag at
+  960 and 1280 px wide; found only while deriving the placement from the real sizes.
+  Derive an overlay's edges from every layer it may meet (exported sizes, plus a test
+  that the component really draws them), not from one screenshot with no UAV selected.
+  The "View held" banner, drawn only during a hold, was still missed and found only
+  live: list the conditional layers too (banners, holds, warnings, open menus).
+  Narrowing the banner on one side then moved its centred text under the flight-mode
+  buttons on the other (Codex). When an overlay moves, check both of its edges.
+- A height cap measured only when a menu opens goes stale on resize; listen for resize
+  while it is open.
+
+## Todos 87(a), 118: map load errors (2026-10-25)
+- CDP probes: auto-attach with `waitForDebuggerOnStart: true` pauses the service worker, so the
+  page never gets a controller; use false. A `Target.createTarget` tab in headless Chrome is
+  hidden (no rAF, canvas 300x150): drive the first existing page. Send
+  `Page.addScriptToEvaluateOnNewDocument` about 300 ms after attach, or the first load misses it.
+- Random probe clicks hit Cesium's credit link and opened a tab, which hid the app tab; that run's
+  stopped redraw was the probe's fault. Click only named controls.
+- Headless Chrome with its profile under the long scratchpad path could not write CacheStorage
+  ("Unexpected internal error"); a short profile path could. Use a short path unless testing that.
+- "Rendering has stopped" from `GlobeDepth.update` ("Expected width to be greater than 0") with a
+  0x0 drawing buffer is a lost WebGL context, not a 0-size layout. Check `gl.isContextLost()`.
+- Cesium reports every render-loop stop through `showErrorPanel`; `scene.renderError` sees only
+  errors inside `scene.render`, not the clock tick where entities update.
+- A changed service worker reaches a browser with the old one a load late: the update load is
+  still served by the old worker. Test the upgrade path before claiming "next load".
+- The full tests/gcs run failed two event-loop stall tests while a Codex review ran beside it;
+  alone they passed. Run the full suite with nothing heavy alongside.
+- At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
+  there by layout. Size criteria must name the layout's map box per size.
+
+## Dev sim step 5: camera latency and frame drops (2026-10-26)
+
+- A guard checked twice survives a mutation of one check. The frame generation is checked at
+  reserve and at commit, so swapping it in one place still rejected stale frames. Mutate the
+  input both checks read (the frame's generation), not one of the checks.
+- A mutation nobody can kill can mean dead code, not a weak test: "keep FIFO by raising the due
+  time" survived because the loop only ever publishes and waits on the queue head. Remove such
+  code instead of writing a test for it.
+- To find which model moves a calibration, rerun the same seed with only the new model off.
+  `p_on` 0 moves the switch but no other draw, so the rest of the run stays the same: quiet seed 3
+  with the camera off still lost coverage, which pointed at the line rate, not the camera.
+- A SimpleNamespace stand-in for an options dataclass breaks when the dataclass gains a field;
+  grep the tests for the stand-in (`SimpleNamespace(ideal_360=`) when adding one.
+- Check a range proof per sample before writing "Passed". I marked step 5 passed from summary
+  ranges; Codex showed three of fifteen UAVs and the SNAP maximum outside the wall range. List
+  each run against the range and write the step as open when any one is outside.
+- Fit a sim model to its source's own distributions, not only to a few end-to-end ranges. The
+  per-frame latency draw matched the wall runs' cadence by chance, but published 22 % of
+  intervals over 62.5 ms where the ZR10 report has 0.32 %. Before fitting, check what the
+  reference itself measured: the wall runs had no camera latency, so they could not judge one.
+
+## Dev sim step 6: thread order, reader budget, timers first (2026-10-28)
+
+- Measure a model's demand under the profile it will run in. The design's reader budget
+  (20-200 packets per tick) came from the wall's 3000 pkt/s; under `stress`'s line rate a
+  NavPy reader sees at most 6 per tick, so the range could never bind. A per-tick counter in
+  a scratch run gave the real range in one run.
+- A model can relieve another: the reader budget's batching saves baton handoffs, so under
+  the CPU cap `stress` seed 1 went from failing the gap gates to passing. Compare a model's
+  run against the same seed with only that model off before calling it harsher.
+- Check origin/main before starting long gates, and again before reporting: shared refs
+  moved under this worktree mid-matrix, and every gate had to run again on the merge.
+- A new park point needs a wake path for close: the budget wait used a plain sleep, so a
+  close in the same tick could not join the reader (Codex). Wait on the stop event instead,
+  and test close while the thread sits in the new wait.
+- Run the guard tests (`tests/guards`) before the long gates. The SOLID guard failed only in
+  full pytest, after the matrices; the fix moved code, so every gate ran a third time.
+- A `cat > file` with no input in the Bash tool waits on stdin forever. Write files with the
+  Write tool.
+- Kill a stopped background batch by its process tree (`taskkill /T` on its own bash and
+  python PIDs), then release its eval slots with `gcs_stop.py --chat N` for the slots this
+  worktree owns; `gcs_launch.py --list` shows them.
+
+## NAV reader lag: closest-approach tracker on the reader thread (todo 65 (b), 2026-10-27)
+- Cause found by comparing per-callback wall time in NAV against the seconds before NAV
+  in one bounded trace (reader recv/select/decode/dispatch, callbacks by name, worker,
+  GC). The sim-only dock contact callback went from 24 ms to 1454 ms per window; nothing
+  else changed that much. Trace the phase that fails against the phase that does not.
+- The same cause was fixed on 2026-10-13 (todo 34); a later feature (the closest-approach
+  tracker) reintroduced it while its docstring still said "cheap unless near the dock".
+  Guard per-sample reader-thread cost with a test that counts the expensive calls, not a
+  comment.
+- py-spy --gil gave 580-742 sample errors per 4 s on these processes, so it cannot measure
+  GIL occupancy. Per-thread CPU from QueryThreadCycleTime (`.logs/t31/thread_cycles.py`)
+  worked.
+- Isolated microbenchmarks understated the cost: pymap3d took 163 us alone but about
+  1.3 ms per call in NAV, where threads already sum to more than one core. Measure cost
+  inside the loaded process.
+- Driving the hand demo from the built-in browser: POST
+  `/api/vehicles/discover?device=udp:0.0.0.0:15550&timeout=3`, then Retry; inject the plan
+  file by overriding `HTMLInputElement.prototype.click` once; HOLD TO LAUNCH needs a JS
+  mousedown, 1.6 s wait, mouseup. Click APPROVE by its find() ref: a coordinate click
+  on the confirm card missed once and the request timed out (REJECTED, re-asked).
+  Tools: `.logs/nav-reader-lag/tools`.
+- Reader lag needs no diagnostic code: the demo's source-time CSVs log every ATTITUDE
+  arrival at NavPy and at the GCS (wall_s, boot_ms), so NavPy minus GCS for the same
+  boot_ms is the reader's lag (`tools/arrival_lag.py`). It matched the trace.
+- An unfixed comparison run may fail differently: here the NAV phases lasted 2.9 s wall
+  and ended (one `DOCKED`, one `no_detection`) before a catch-up burst could trip
+  `source_command_stale`. Compare the measured mechanism (reader busy share, lag), not
+  only the end state.
+- Codex found that the flat-earth bound ignored height (the flat frame uses surface
+  radii): at 3000 m it failed at 4 m reach, and the upper bound the fix used for
+  pruning could drop the true minimum at an elevated dock. The existing random check
+  ran at one height (300 m) and passed. Check a geometric bound over the whole range of
+  every input (latitude, height, scale, still segments), in both directions.
+- `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
+  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
+  and check line endings with `file` after any scripted edit.
+- A Windows path written into a Python string through the Bash tool lost one of its
+  doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
+  control character in place of the run folder. Build backslashes with chr(92) and
+  scan changed files for control characters before committing.
+
+## Bounded CPU share (todo 65, 2026-10-28)
+
+- On Windows an open reader makes `os.replace` onto a JSON record fail. A record
+  that is replaced atomically needs its reads under the same lock as its writes.
+- `pyproject` `addopts` ignores `tests/gcs`, so `pytest tests` skips it. Run
+  `tests/gcs` as its own command, and the Python test fakes that copy a changed
+  signature with it.
+- In this worktree the Bash guard refused any command line containing the word
+  "eval" (paths included), and some with shell variables such as `$d` or
+  `timeout` in pipes; a heredoc without those ran. Use the PowerShell tool with
+  literal paths, or write a script with Write and run it with `python -I`. A `cd`
+  into a subfolder moves the session's working directory; use absolute paths.
+- Background (BELOW_NORMAL) work loses every CPU to NORMAL work. In C1 another
+  chat's lockstep `cpuload` cell (20 NORMAL burners, branch without the share)
+  starved this branch's `cpuload` cell until a 60 s `wsl.exe` call timed out. Check
+  the probe for other chats' burners before blaming the change.
+- A share keeps NavPy at 10x but does not raise its observation rate: NavPy used
+  about 0.6 of a P-core and made 6-8 fresh observations per sim second (todo 149).
+  Compare coverage with a no-load run of the same code before calling it load.
+- The first holder ran its backend NORMAL on the share's 4 CPUs beside three
+  ABOVE_NORMAL NavPys: the backend's reader fell 3-5 s behind (C1, Q1), never in
+  the runs without a share. Give every process of the holding stack the same
+  class. Compare GCS and NavPy ATTITUDE arrivals per run to see such a lag.
+- I spent an hour suspecting a code or host regression because the 10-21 wall
+  run passed and today's runs of the same commit did not. A per-run trend of
+  the detector poll cost (`work_ms`, `read_ms` from
+  `pose_cadence_detector_poll_uav_*_navpy.csv`) over every wall run of the past
+  10 days showed it tracks host load (10-19 load runs and a failed 10-21 run of
+  the same commit cost the same as today). Build that trend first.
+- Thread CPU from `pose_cadence_*` rows is quantized to 15.6 ms: read only sums
+  over a window. A tight loop timed per CPU at ABOVE_NORMAL shows the clock
+  under load: P-cores took 33-37 ms per million iterations with every core busy,
+  23-25 ms in an earlier run whose host load was not recorded.
+- psutil cannot read protected processes (vmmemWSL, System), so the probe missed
+  about half the host's busy cores in the two-at-once runs. For host-wide CPU,
+  sample `\Process(*)\% Processor Time` (vmmemWSL carries the WSL guest) and
+  `\Hyper-V Hypervisor Logical Processor(_Total)\% Total Run Time` with
+  Get-Counter, inline in the PowerShell tool (`-ExecutionPolicy Bypass` is denied).
+- In the two-at-once runs the failing stack looked tied to slot 0's CPUs. A swap
+  (slot 0 on the other P-cores) still failed it, so overlap with the other
+  stack's flight was the cause. Swap a confounded factor before blaming it, and
+  test an alternative (here `MAX_SHARES 1`) before proposing it: refusing the
+  second share did not save the holder.
+- To count packets by type, a temporary tally in `InboundRouter.ingest` that
+  rewrites a JSON file every 5000 packets cost one 3-minute Q run per side and
+  needed no exit hook. Revert it before committing.
+- PowerShell 5.1 `Out-File -Encoding utf8` writes a BOM, which became the first
+  character of a commit subject. Write commit-message files with
+  `[IO.File]::WriteAllText(path, text, (New-Object Text.UTF8Encoding($false)))`.
+
+## Todos 67, 68: confirm cue and zero wording (2026-10-28)
+
+- A display clock kept in state is stale for new data. The list sampled `now` once a second
+  and froze it while nothing was pending, so a new card showed more than its wait (0:31 for
+  30 s; 3:48 after a gap). Unit tests missed it because act() runs the resample effect before
+  the assertion; the live check caught it. Read the clock at render and keep the interval only
+  as a re-render trigger. A MutationObserver with attributeOldValue sees the overwritten first
+  value in a test.
+- Do not floor a clock with a past reading (max(sample, newest receipt)): a backward wall-clock
+  step then holds it ahead. Codex found this in the floor I first used.
+- When a component stops updating a state, grep every reader of it. Skipping a hosted card's
+  own countdown state froze its timer bar, which also read that state; no reviewer flagged it.
+- An effect's deps that list every input restart its interval on each update (images, param
+  drafts), so a periodic sound never comes due. Key the effect to the fact that starts or stops
+  the timer (here: whether any round is live) and read the inputs through refs.
+- Check a first-match label order against every phase a param forces: NAV_CWT 0 is due from
+  its first render, so "due" before "no wait" made decision 7's words unreachable.
+- `npm run build` while a live tester's dev server runs can wipe its .vite cache; warn the
+  tester or build only between live runs.
+
+## Stale receipt at 606 m (2026-10-31)
+
+- A freshness trip does not prove the clock or the limit is wrong. Compare every
+  reader's clock over the same seconds first: here all read 10.25-10.30x, so the
+  readers fell behind and the trip was correct.
+- A clock anchor of +-11 s gave flat, identical "lag" on all readers: it was the
+  clock's rate varying. A 5 s local minimum still reads about 125 ms high when the
+  rate is 2.5% off. For a limit on receipt, read gaps between accepted poses and
+  between detector polls: they need no clock model. Lag on NavPy and GCS alike is
+  either an artefact or both starving; do not read it alone.
+- Do not assume one stall of the limit's size caused a trip. Flight A tripped the
+  100 ms limit with stalls of 40-67 ms: the limit covers the whole path to the command.
+- An A/B driver must check what it moved. The first run changed only the venv
+  launcher's process (it said "kids 7420"); walk all descendants and print the count.
+- A CPU share expiring during an experiment invalidated its last phases (3 s lag).
+  Check the backend log for "CPU share ... ended" before reading a late phase.
+- Analysis scripts that read 4 GB of logs are load too; one ran at 0.95 core during
+  a measurement. Filter by time with `rows()` from a windowed reader, and wait for
+  the run to end.
+- In a worktree `python` on PATH may be the system Python: a full suite run gave
+  10 false failures (no jsbsim, headless OpenCV). Run `.venv\Scripts\python.exe`.
+- Python edit scripts with triple quotes in a Bash heredoc failed to parse and ran
+  nothing. Use the Edit tool; check one thing before a batch depends on it.
+- Readers timing arrival cannot alone show a producer kept time. Use what the producer
+  cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
+  and after and compare them at the event (`producer_test.py`). Codex caught this gap.

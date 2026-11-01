@@ -501,6 +501,184 @@ repeats every 0.5 s until answered.
 - Gate fix found by these runs: a confirmation response the uplink broke
   still counts as sent (`eval_gcs_demo_confirmation_timing.py`).
 
+## Round 7 design: image share and confirmed launch mode (todos 116, 117, 110)
+
+### Cause (round 6 journals, `stress` seeds 1, 4 and 8)
+
+While NavPy 1 sends its image (640x480, quality 80, about 34 kB in 136
+`ENCAPSULATED_DATA` chunks, 5 ms apart), its SITL's serial1 is offered
+6.1-6.3 kB/s against 5.76 kB/s: the image takes 2.7-3.5 kB/s, everything
+else 2.8-3.4 kB/s. NAVLINK then waits 100-170 ticks and much of it is never
+re-emitted. So the image has room for about 1.5 kB/s at most.
+
+Seed 8: UAV 2's one `SET_MODE` (AUTO) was broken on the uplink. The launch
+never reads the mode, so it armed UAV 2 in its old mode and timed out.
+
+### 116. One paced image sender per link
+
+- Thumbnail 320x240, quality 80 (owner's choice, 2026-10-25): about 12 kB,
+  47 chunks.
+- `NetworkMavlink` owns one image sender thread (`PacedImageSender`). It
+  sends one image at a time, so all images of that link share one budget.
+  After each frame it waits that frame's wire time at the image rate:
+  (payload size + 12 bytes MAVLink 2 framing) / rate, the payload size from
+  the pymavlink message class (255 for a chunk: 267 bytes, 185 ms).
+- Rate: `IMAGE_SHARE_OF_LINK` = 25 % of `RADIO_LINK_BYTES_PER_S` = 5760
+  (57600 baud 8N1, the radio port's rate): 1440 B/s. Basis: other traffic
+  peaks at 3.4 kB/s, leaving 2.36 kB/s; 1440 keeps 0.9 kB/s for bursts. A
+  12 kB image takes about 8.5 s. Seeds 1, 4 and 8 check that it is enough.
+- `send_image(poi_id, image_b64, run_unit)` queues the image and returns.
+  `run_unit(unit) -> bool` runs one frame's send under the round's exact fence
+  (`send_if_current` / `send_pending_if_current`) and refuses once the round
+  is resolved or retired; the sender then drops the rest of that image. The
+  wait between frames is outside the fence. A send error is logged and ends
+  that image (today it fails the round; a failed request send still does).
+- At most one image per POI waits: a new image for a POI replaces any
+  queued one for it (a replaced round's frames would be refused anyway);
+  for the POI being sent, it waits behind it.
+- The base `NetworkAbc.send_image` (WiFi, serial) keeps its synchronous
+  loop with the same `run_unit` per frame (todo 110, merged from main
+  `983d3d54`, which made the same change in parallel).
+
+### 110. The approval no longer waits for the image
+
+- The round worker sends the request, queues the image and goes straight to
+  its wait loop: request resends every 2 s and the deadline are unchanged.
+- The thumbnail request handler only builds the thumbnail and queues it, so
+  the dispatch thread of NetworkMavlink is free at once.
+- A response resolves at once (the fence is held for one frame only); the
+  next frame is refused. The thumbnail build and artifact save run outside
+  the fence.
+
+### GCS: ask for a thumbnail only when the image stalls
+
+The GCS asks once per round, 3 s after the first request of the round, if
+the image is incomplete (`task_confirm_rounds.py` `thumbnail_request_due`).
+An 8.5 s image is still arriving then, so it would ask for a second copy.
+The 3 s grace now counts from the later of the first request and the last
+handshake or chunk of that round's image.
+
+### 117. Confirm AUTO, resend until it holds, stop for the operator
+
+- The telemetry feed passes each vehicle's heartbeat mode to the launch
+  controller with `armed`, plus a heartbeat count (`HeartbeatState.observe`
+  counts each autopilot heartbeat; `VehicleMav.heartbeat_count`; snapshot
+  `heartbeat_count`). AUTO counts as confirmed only from a heartbeat counted
+  after the first AUTO attempt, so a heartbeat from before the command
+  cannot satisfy it, even when the vehicle already read AUTO.
+- One helper, `_command_until(attempt, done, timeout)`: run `attempt`, poll
+  `done` every 0.1 s as today, run `attempt` again every
+  `LAUNCH_COMMAND_RESEND_S` = 1 s (the heartbeat rate: sooner, the effect of
+  the last command cannot be seen yet), stop on done, timeout or abort.
+- Each attempt first checks that the launch still owns the vehicle's
+  commands. Any operator command for that vehicle (`/command`: mode, arm,
+  disarm, E-STOP, reboot, ...) revokes that ownership for the session: no
+  more resends; the wait goes on, so E-STOP or MANUAL ends in a timeout.
+- Each arm attempt runs the EKF re-check right before it, as the one arm
+  does today.
+- Step 1 (and the already-airborne path) waits for AUTO within
+  `arm_timeout`; on timeout the session fails with "AUTO mode timeout". The
+  settle pause follows. The arm wait uses the same helper.
+- Right before release, after its last await, the launch checks that it
+  still owns the vehicle's commands and that the vehicle still reads AUTO
+  and armed; if not, the session fails without the trigger, like the EKF
+  re-check.
+- Bungee launch has the same one-shot flaw but "proceed anyway" semantics;
+  logged as a new todo.
+
+### Code review additions (Codex, 2026-10-25)
+
+- The fence is held for one step at a time. A queueing network
+  (`NetworkMavlink`) fences its hand-over to the queue itself; the
+  synchronous base `send_image` fences each frame. `ConfirmationMedia`
+  no longer wraps the whole call, so a WiFi image sleeps outside the fence.
+- AUTO counts from the heartbeat count read right before a send to a
+  connected vehicle; a vehicle that is not connected sets no baseline, so
+  its cached AUTO cannot confirm.
+- A launch vehicle with no snapshot reads no mode and not armed
+  (`forget_missing`), never its last cached state.
+- The release conditions (no operator command, AUTO and armed) are
+  checked on the executor, right before the trigger call, so a release
+  queued behind busy workers stops for a change while it waited. The
+  launch command helpers moved to `launch_commands.py`.
+
+### Not covered
+
+- Image delivery under byte loss: every chunk is needed; at 0.30 % per byte
+  a 267-byte chunk survives about 45 % of the time, so a `stress` image
+  rarely arrives whole. The matrices do not check image receipt. Todo 119.
+
+### Checks
+
+- Pacing from wire size and share (fake clock); one image at a time across
+  POIs; a newer image replaces a queued one for its POI, also when a
+  replacement round arrives before its first image and before a fallback.
+- `run_unit` refusing ends the image; waits are outside the fence; a response
+  delivered synchronously inside a frame's send resolves and the next frame
+  is refused; a response mid-image resolves at once.
+- Request resends keep their 2 s cadence during an image; the thumbnail
+  handler returns without waiting.
+- GCS: no thumbnail request while chunks keep arriving; one after a 3 s stall.
+- Launch: a lost `SET_MODE` is resent until AUTO; a heartbeat from before
+  the first attempt does not confirm it; timeout fails; arm the same; an
+  operator command stops resends and, after arm, blocks release; the EKF
+  check runs before every arm attempt; release refuses a vehicle no longer
+  AUTO and armed; abort stops.
+- Each mechanism test proved by mutation (36 mutations with the follow-up
+  below, all killed).
+- `none`, `hw` and `stress` seed-1 matrices pass from a fresh worktree off
+  origin/main; `stress` seeds 4 and 8 run as diagnostics, with serial1
+  offered load and NAVLINK lag in the image window read from the journal;
+  full pytest shows only main's failures.
+
+## Results (round 7, `.logs/radio-budget-r7`, `-r7b`, `-r7c`)
+
+- First run (`db259462`): `none` and `hw` pass; `stress` fails every cell
+  at one digest, each UAV on "expected exactly one confirmation metadata
+  artifact, found 2". Cause (journal): one round and one approval per UAV;
+  the image never arrives whole, so the GCS asks for a thumbnail, and
+  NavPy's resend saved a second, byte-identical artifact set. This predates
+  round 7: round 6's `stress` reports carry the same error, hidden because
+  the matrix summary prints only top-level errors (todo 121).
+- Follow-up fix (`31ffc41e`, `385c0ec9`, Codex-reviewed): a resend within a
+  round saves artifacts only if its image differs from the round's; the
+  save is claimed before the network send and released if it fails. A
+  refusal in the middle of an image is logged where it happens (the pacer
+  thread), which round 7 had lost.
+- Rerun (`31ffc41e`): `none`, `hw` and `stress` matrices pass, one digest
+  each (`none` `0f39d395…`, `hw` `522dc304…`, unchanged; `stress`
+  `d8df66f1…`). Final run (`adf2a2c7`, with main): the same three digests, no error in
+  any vehicle's report, one artifact set per UAV.
+- Image window, owner's serial1 (offered load against 5.76 kB/s; NAVLINK
+  lag from serial0 to serial1):
+
+  | Run | Before the image | During the image | NAVLINK lag (median, max) |
+  | --- | --- | --- | --- |
+  | `stress` seed 1, UAV 1 | 3.6 kB/s | 5.1 kB/s | 3, 9 ticks (round 6: 100-170) |
+  | `stress` seed 8, UAV 1 | 3.6 kB/s | 5.2 kB/s | 8, 16 ticks |
+  | `stress` seed 4, UAV 2 | 3.7 kB/s | 5.4 kB/s | 8, 10 ticks |
+
+  The image now fits under the line rate (round 6: 6.1-6.3 kB/s). The
+  share of NavPy 1's NAVLINK that never leaves serial1 is the same before
+  and during the image (35 of 60, 40 of 65 in seed 1), mostly swarm
+  heartbeats; cause not traced (todo 125).
+- **116, 117:** the swarm handover, launch and approvals pass in every
+  `stress` run. The launch resent `SET_MODE` and arm where the first was
+  lost (seed 8: two of each for UAV 1).
+- Seed 4 (0.56 %): every UAV passes; the run fails only on two garbage
+  frames with ids in the NAVLINK range that the router's id filter dropped
+  as designed, which the forwarding gate counts as NAVLINK (todo 121).
+- Seed 8 (0.42 %, wind 3.8 m/s): no UAV docks. UAV 1 misses in wind
+  (approach quality, out of scope); its 70° roll step follows an
+  observation gap from bursty ATTITUDE on serial0 (todo 124). The peers
+  were assigned 9-10 s late, inside their orbit, and lost the dock (todo
+  123); a broken image chunk also breaks the next packet at the router,
+  5 owner handover messages among them (todo 122).
+- Pytest (`adf2a2c7`): 4 failed, 9674 passed. The 4 board-detector tests
+  also fail on main `36cfa811` (OpenCV 5.0.0 in the shared venv), where
+  `test_mission_transfer` also failed once on timing. Opt-in tests pass (26).
+- No image reaches the GCS whole under `stress` (todo 119).
+
 ## Not covered
 
 - Air timing and per-link loss: todo 96.

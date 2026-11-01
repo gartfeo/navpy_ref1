@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch, AsyncMock
 import pytest
 
 from gcs.backend.companion_identity import COMPANION_COMPONENT_ID
+from gcs.backend.task_confirm_images import ConfirmationImageSession
 from gcs.backend.task_confirm_listener import TaskConfirmListener, _LEGACY_ROUND_UID
 from navpy.plugins.radio.mavlink.image_transfer import ImageTransferType
 from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
@@ -630,6 +631,77 @@ class TestImageTransferIsRoundScoped:
         assert images[0]["task_id"] == 7
         assert images[0]["round_uid"] == _uid(11)
         assert (1, 7) in listener._rounds._image_received
+
+
+
+class TestThumbnailRequestWaitsForAStall:
+    """A paced image takes longer than the grace, so the GCS asks for a second
+    copy only once the image stops arriving (``radio_budget.md`` round 7)."""
+
+    def _requests(self, mock_vehicle):
+        return [c.args[0] for c in mock_vehicle.send_mavlink_message.call_args_list
+                if c.args[0].get_type() == "SWARM_REQUEST"]
+
+    @patch("gcs.backend.task_confirm_listener.ws_manager")
+    def test_no_request_while_the_image_keeps_arriving_then_one_after_a_stall(
+            self, mock_ws, listener, mock_vehicle, loop):
+        mock_ws.broadcast = AsyncMock()
+        listener.register_vehicle(1, mock_vehicle)
+        clock = _FrozenClock()
+        grace = TaskConfirmListener._THUMBNAIL_GRACE_S
+        with patch("gcs.backend.task_confirm_listener.rt", RuntimeOverlay(monotonic=clock.monotonic)):
+            listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))
+            listener._on_handshake(1, _handshake_msg(7, num_packets=10, size=40))
+            for seq in range(5):  # well past the grace, a chunk every 0.9 grace
+                clock.advance(grace * 0.9)
+                listener._on_chunk(1, _chunk_msg(seqnr=seq))
+                listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))  # a repeat
+            loop.run_until_complete(asyncio.sleep(0.05))
+            assert self._requests(mock_vehicle) == [], "asked for a copy of an image still arriving"
+
+            clock.advance(grace + 0.1)  # the rest never comes
+            listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))
+            loop.run_until_complete(asyncio.sleep(0.05))
+        requests = self._requests(mock_vehicle)
+        assert len(requests) == 1
+        assert (requests[0].boot_id, requests[0].msg_seq) == (_BOOT_ID, 11)
+
+    @patch("gcs.backend.task_confirm_listener.ws_manager")
+    def test_frames_of_another_rounds_image_do_not_hold_off_the_request(
+            self, mock_ws, listener, mock_vehicle, loop):
+        mock_ws.broadcast = AsyncMock()
+        listener.register_vehicle(1, mock_vehicle)
+        clock = _FrozenClock()
+        grace = TaskConfirmListener._THUMBNAIL_GRACE_S
+        with patch("gcs.backend.task_confirm_listener.rt", RuntimeOverlay(monotonic=clock.monotonic)):
+            listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=11))  # round A
+            listener._on_handshake(1, _handshake_msg(7, num_packets=10, size=40))
+            listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=12))  # round B
+            clock.advance(grace * 0.9)
+            listener._on_chunk(1, _chunk_msg())  # still round A's image
+            clock.advance(grace * 0.2)
+            listener._on_navlink(1, _make_navlink_msg(task_id=7, msg_seq=12))
+            loop.run_until_complete(asyncio.sleep(0.05))
+        assert len(self._requests(mock_vehicle)) == 1
+
+    def test_the_session_dates_only_the_open_rounds_image(self):
+        open_uid = {7: "A"}
+        now = [5.0]
+        session = ConfirmationImageSession(
+            open_round_uid=lambda _sys_id, task_id: open_uid.get(task_id),
+            accept_image=lambda *_args: True,
+            broadcast=lambda _message: None,
+            is_companion=lambda *_args: True,
+            clock=lambda: now[0],
+        )
+        session.register_vehicle(1)
+        session.on_handshake(1, _handshake_msg(7, num_packets=10, size=40))
+        now[0] = 6.0
+        session.on_chunk(1, _chunk_msg())
+        assert session.last_frame_at(1, 7) == 6.0
+        assert session.last_frame_at(1, 8) is None
+        open_uid[7] = "B"  # another round opened without abandoning the image
+        assert session.last_frame_at(1, 7) is None
 
 
 if __name__ == "__main__":

@@ -51,7 +51,7 @@ export function handleClick(Cesium, viewer, click, callbacksRef) {
 
   if (!cb.editable || !cb.isDrawing) {
     const hit = pickEntity(Cesium, viewer, click.position);
-    if (hit && hit.type === 'closestApproach') flyToClosestApproach(Cesium, viewer, hit.view);
+    if (hit && hit.type === 'closestApproach') flyToClosestApproach(Cesium, viewer, hit.view, hit.entity);
     return;
   }
 

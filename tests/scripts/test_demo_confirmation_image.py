@@ -7,6 +7,8 @@ import sys
 import cv2
 import numpy as np
 
+from navpy.core.review.image_utils import THUMBNAIL_SIZE
+
 
 def test_demo_writes_readable_one_and_two_dock_frames(tmp_path):
     assets = tmp_path / "assets"
@@ -24,6 +26,6 @@ def test_demo_writes_readable_one_and_two_dock_frames(tmp_path):
         frame = cv2.imread(str(output / f"sim_frame_{name}.jpg"))
         thumbnail = cv2.imread(str(output / f"sim_detect_{name}.jpg"))
         assert frame.shape == (1080, 1920, 3)
-        assert thumbnail.shape == (480, 640, 3)
+        assert thumbnail.shape == (THUMBNAIL_SIZE[1], THUMBNAIL_SIZE[0], 3)  # the sent thumbnail
         assert np.any(frame)
         assert np.any(thumbnail)

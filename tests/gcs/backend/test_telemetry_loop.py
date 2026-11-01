@@ -150,3 +150,37 @@ class TestTelemetryLoopNavpyRestart(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestTelemetryLoopLaunchFeed(unittest.TestCase):
+    """The launch reads a mode only from a live link (todo 117, radio_budget.md round 7)."""
+
+    def _feed(self, link_ok):
+        async def run_once():
+            mgr = MagicMock()
+            mgr.get_all_snapshots.return_value = [
+                {"sys_id": 1, "link_ok": link_ok, "mode": "AUTO", "heartbeat_count": 9}]
+            mgr.get_seen_ids.return_value = []
+            loop = TelemetryLoop(mgr)
+            settings = SimpleNamespace(simulation=SimpleNamespace(sim_mode=False),
+                                       connection=SimpleNamespace(ws_broadcast_interval_s=0.0))
+
+            async def stop_after_sleep(_interval):
+                loop._stop.set()
+
+            controller = MagicMock(is_prepared=True, is_running=False)
+            with patch("gcs.backend.telemetry_loop.settings_store.get", return_value=settings), \
+                 patch("gcs.backend.telemetry_loop.launch_controller", controller), \
+                 patch("gcs.backend.telemetry_loop.ws_manager.broadcast", new_callable=AsyncMock), \
+                 patch("gcs.backend.telemetry_loop.asyncio.sleep", new=stop_after_sleep):
+                await loop._loop()
+            controller.forget_missing.assert_called_once_with({1})
+            return controller.update_telemetry.call_args.kwargs
+
+        return asyncio.run(run_once())
+
+    def test_a_live_link_feeds_the_mode_and_its_heartbeat_count(self):
+        self.assertEqual(self._feed(True), {"mode": "AUTO", "heartbeat_count": 9})
+
+    def test_a_lost_link_feeds_no_mode(self):
+        self.assertIsNone(self._feed(False)["mode"])

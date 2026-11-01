@@ -1,10 +1,12 @@
 """Camera-protocol answers from NavPy's camera components.
 
-Each camera mount with ``video_streams`` in its profile device is one MAVLink
-camera component (MAV_COMP_ID_CAMERA.. by gimbal device id). It announces
-itself with HEARTBEAT and answers REQUEST_MESSAGE for CAMERA_INFORMATION and
-VIDEO_STREAM_INFORMATION (docs/design/gcs_video_streams.md, section 1).
-Operator display only: nothing here reads or feeds navigation state.
+Each camera mount is one MAVLink camera component (MAV_COMP_ID_CAMERA.. by
+gimbal device id). It announces itself with HEARTBEAT, whose system_status is
+its detector's frame readiness and whose custom_mode is NavPy's boot id, and
+answers REQUEST_MESSAGE for CAMERA_INFORMATION and VIDEO_STREAM_INFORMATION
+(docs/design/gcs_video_streams.md, section 1;
+docs/design/gcs_preflight_camera_row.md). Operator display only: nothing here
+reads or feeds navigation state.
 """
 
 from __future__ import annotations
@@ -20,6 +22,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_RESULT_ACCEPTED,
     MAV_RESULT_DENIED,
     MAV_STATE_ACTIVE,
+    MAV_STATE_CRITICAL,
     MAV_TYPE_CAMERA,
     MAVLINK_MSG_ID_CAMERA_INFORMATION,
     VIDEO_STREAM_ENCODING_H264,
@@ -33,6 +36,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.camera_health import CameraHealth
 from navpy.core.ports.video_stream import VideoStreamSpec
 from navpy.plugins.vehicle.ardupilot.camera_stream_requests import (
     is_camera_stream_request,
@@ -48,39 +52,45 @@ _ENCODING_BY_NAME = {
 }
 _MAVLINK_VERSION = 3
 _CAMERA_NAME_BYTES = 32
+_BOOT_ID_MAX = 0xFFFFFFFF  # HEARTBEAT custom_mode is uint32
 
 
 @dataclass(frozen=True)
 class StreamingCamera:
-    """One camera component and the streams it announces."""
+    """One camera component, its detector readiness and its streams (may be none)."""
 
     gimbal_device_id: int
     model_name: str
     resolution_h: int  # configured image size; 0 when unknown
     resolution_v: int
     streams: tuple[VideoStreamSpec, ...]
+    camera_health: CameraHealth
 
     def __post_init__(self) -> None:
         if self.gimbal_device_id not in CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID:
             raise ValueError(
-                f"camera '{self.model_name}' has video_streams but no camera "
-                f"component for gimbal_device_id {self.gimbal_device_id}"
+                f"camera '{self.model_name}' has no camera component for "
+                f"gimbal_device_id {self.gimbal_device_id}"
             )
-        if not self.streams:
-            raise ValueError(f"camera '{self.model_name}' has no video streams")
 
     @property
     def component_id(self) -> int:
         return CAMERA_COMPONENT_BY_GIMBAL_DEVICE_ID[self.gimbal_device_id]
 
 
-def camera_heartbeat() -> MAVLink_heartbeat_message:
+def new_camera_boot_id() -> int:
+    """A random id for this NavPy process; never 0, which means older NavPy."""
+    return rt.rng().randint(1, _BOOT_ID_MAX)
+
+
+def camera_heartbeat(ready: bool, boot_id: int) -> MAVLink_heartbeat_message:
+    """ACTIVE when the mount's detector gets frames, else CRITICAL."""
     return MAVLink_heartbeat_message(
         type=MAV_TYPE_CAMERA,
         autopilot=MAV_AUTOPILOT_INVALID,
         base_mode=0,
-        custom_mode=0,
-        system_status=MAV_STATE_ACTIVE,
+        custom_mode=boot_id,
+        system_status=MAV_STATE_ACTIVE if ready else MAV_STATE_CRITICAL,
         mavlink_version=_MAVLINK_VERSION,
     )
 
@@ -96,6 +106,10 @@ class CameraStreamResponder:
     @property
     def component_ids(self) -> tuple[int, ...]:
         return tuple(self._cameras)
+
+    @property
+    def cameras(self) -> tuple[StreamingCamera, ...]:
+        return tuple(self._cameras.values())
 
     def answer(self, request: MAVLink_message) -> tuple[MAVLink_message, ...]:
         """Messages to send from ``request.target_component``; () to ignore."""
@@ -120,11 +134,12 @@ class CameraStreamResponder:
         camera: StreamingCamera,
     ) -> MAVLink_camera_information_message:
         model = camera.model_name.encode("ascii", "replace")[:_CAMERA_NAME_BYTES]
+        vendor = camera.camera_health.vendor.encode("ascii", "replace")[:_CAMERA_NAME_BYTES]
         return MAVLink_camera_information_message(
             time_boot_ms=int(
                 (rt.monotonic() - self._boot_monotonic_s) * 1000
             ) & 0xFFFFFFFF,
-            vendor_name=[0] * _CAMERA_NAME_BYTES,
+            vendor_name=list(vendor.ljust(_CAMERA_NAME_BYTES, b"\0")),
             model_name=list(model.ljust(_CAMERA_NAME_BYTES, b"\0")),
             firmware_version=0,
             focal_length=math.nan,
@@ -133,7 +148,7 @@ class CameraStreamResponder:
             resolution_h=camera.resolution_h,
             resolution_v=camera.resolution_v,
             lens_id=0,
-            flags=CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM,
+            flags=CAMERA_CAP_FLAGS_HAS_VIDEO_STREAM if camera.streams else 0,
             cam_definition_version=0,
             cam_definition_uri=b"",
             gimbal_device_id=camera.gimbal_device_id,
@@ -191,4 +206,5 @@ __all__ = [
     "CameraStreamResponder",
     "StreamingCamera",
     "camera_heartbeat",
+    "new_camera_boot_id",
 ]

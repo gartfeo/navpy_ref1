@@ -12,12 +12,22 @@ if TYPE_CHECKING:
 
 log = logging.getLogger("gcs.backend.launch_controller")
 
+def forget_missing(controller: LaunchController, present_ids: set[int]) -> None:
+    """A launch vehicle with no snapshot reads no mode and not armed, never its last cached state."""
+    for sys_id in controller._states:
+        if sys_id not in present_ids:
+            controller._modes[sys_id] = (None, controller._modes.get(sys_id, (None, 0))[1])
+            controller._armed[sys_id] = False
+
+
 def update_telemetry(controller: LaunchController, sys_id: int, alt_rel: float, armed: bool,
-                     climb: float = 0.0, throttle: float = 0.0) -> None:
+                     climb: float = 0.0, throttle: float = 0.0, *,
+                     mode: str | None = None, heartbeat_count: int = 0) -> None:
     prev_alt = controller._altitudes.get(sys_id)
     prev_armed = controller._armed.get(sys_id)
     controller._altitudes[sys_id] = alt_rel
     controller._armed[sys_id] = armed
+    controller._modes[sys_id] = (mode, heartbeat_count)
     controller._climb_rates[sys_id] = climb
     controller._throttles[sys_id] = throttle
     # Track sustained climb for the airborne predicate. Only meaningful when

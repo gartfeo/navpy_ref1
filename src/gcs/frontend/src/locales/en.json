@@ -362,15 +362,32 @@
     "approve": "APPROVE",
     "deny": "DENY",
     "cancelTask": "CANCEL TASK",
-    "approved": "APPROVED",
     "denied": "DENIED",
     "cancellationRequested": "CANCELLATION REQUESTED",
     "approvalSent": "Approval sent",
+    "showStill": "Show still",
+    "hideStill": "Hide still",
     "gateOverridden": "Gate overridden — image may be small/unstable",
     "holdToApprove": "HOLD TO APPROVE",
     "viewCamera": "View camera",
     "viewing": "Viewing",
-    "viewCameraNote": "The countdown keeps running"
+    "viewCameraNote": "The countdown keeps running",
+    "zero": {
+      "autoDeny": "Auto-deny in {{time}}",
+      "autoApprove": "Auto-approve in {{time}}",
+      "autoDenyUnknown": "Auto-deny in {{time}} (policy not loaded)",
+      "noWaitDeny": "No wait: GCS denies now",
+      "noWaitApprove": "No wait: GCS approves now",
+      "due": "Time up; sending answer",
+      "fired": "Time up; answer not confirmed"
+    },
+    "zeroChip": {
+      "autoDeny": "Auto-deny",
+      "autoApprove": "Auto-approve",
+      "autoDenyUnknown": "Auto-deny (policy not loaded)"
+    },
+    "soundOff": "Sound off, tap to enable",
+    "noSound": "No sound"
   },
   "flightMode": {
     "rc": "RC",
@@ -400,10 +417,15 @@
     "detectionStart": "DS",
     "dock": "D",
     "closestApproach": {
-      "docked": "docked",
-      "missed": "missed",
-      "aborted": "aborted"
+      "docked": "docked (sim)",
+      "missed": "missed (sim)",
+      "aborted": "aborted (sim)"
     }
+  },
+  "mapStopped": {
+    "title": "Map stopped",
+    "line": "Check UAV status in the sidebar. To restore the map, try reloading the page; unsaved plan edits are lost.",
+    "reload": "Reload"
   },
   "trailsPanel": {
     "button": "Trails",
@@ -678,7 +700,7 @@
   },
   "vehicle": {
     "cc": "CC",
-    "ccActive": "Companion active",
+    "ccActive": "Companion connected: NavPy heartbeat in the last 5 s; not mission or approach state",
     "ccChecking": "Companion link — verifying…",
     "ccDown": "Companion computer not connected",
     "swarmBusy": "BUSY",
@@ -1030,7 +1052,15 @@
       "gyro": "Calibrate gyros — hold the vehicle still",
       "baro": "Recalibrate baro / ground pressure",
       "airspeed": "Zero airspeed with the pitot covered",
-      "sensors": "Sensor unhealthy — recalibrate"
+      "sensors": "Sensor unhealthy — recalibrate",
+      "cameraNoFrames": "NavPy gets no detector frames: check the camera cable, power and NavPy log",
+      "cameraLost": "The camera stopped announcing itself: check NavPy's log",
+      "cameraNotAdvertised": "NavPy announces no camera: check its vision profile and log",
+      "streamDiscoveryFailed": "Stream discovery failed: stop NavPy for more than 5 s, then start it",
+      "streamUriRejected": "Fix the stream URI or video.allowed_networks",
+      "streamDuplicate": "Two UAVs announce one stream: give each UAV its own stream path",
+      "streamNotAdvertised": "Test source is on but this UAV announces no stream: restart its NavPy",
+      "streamLost": "The stream camera stopped announcing itself: check NavPy's log"
     },
     "go": "GO",
     "noGo": "NO-GO",
@@ -1044,6 +1074,8 @@
     "noDataYet": "No preflight data yet",
     "prearm": "Pre-arm",
     "companion": "Companion",
+    "detectorCamera": "Detector camera",
+    "videoStream": "Video stream",
     "mission": "Mission",
     "throttle": "Throttle",
     "gps": "GPS",
@@ -1054,9 +1086,31 @@
     "missionUploaded": "Uploaded",
     "missionMissing": "Not uploaded",
     "throttleHigh": "Not idle",
-    "ccActive": "Active",
+    "ccConnected": "Connected",
+    "ccTooltip": "NavPy heartbeat in the last 5 s; not mission or approach state",
     "ccChecking": "Verifying…",
     "ccDisconnected": "Disconnected",
+    "cameraState": {
+      "ready": "Ready",
+      "simulated": "Simulated",
+      "noFrames": "No frames",
+      "lost": "Lost",
+      "notAdvertised": "Not advertised",
+      "checking": "Checking…",
+      "notReported": "Not reported"
+    },
+    "cameraCount": "({{count}} of {{total}})",
+    "streamCount_one": "{{count}} stream",
+    "streamCount_other": "{{count}} streams",
+    "streamState": {
+      "checking": "Checking…",
+      "noneConfigured": "None configured",
+      "discoveryFailed": "Discovery failed",
+      "uriRejected": "URI rejected: {{reason}}",
+      "duplicate": "Same stream as {{names}}",
+      "lost": "Lost",
+      "notAdvertised": "Not advertised"
+    },
     "ok": "OK",
     "checking": "Checking...",
     "noFix": "No 3D fix",
@@ -1109,7 +1163,28 @@
     "assigned": "ASSIGNED",
     "approaching": "APPROACHING",
     "confirming": "CONFIRMING",
-    "confirmed": "CONFIRMED"
+    "confirmed": "CONFIRMED",
+    "homing": "HOMING",
+    "recovering": "RECOVERING",
+    "docked": "DOCKED (SIM CONTACT)",
+    "dockFailed": "DOCK FAILED (SIM)",
+    "reason": "Reason: {{reason}}",
+    "last": "Last: {{outcome}}",
+    "lastDocked": "docked (sim contact)",
+    "lastDockFailed": "dock failed (sim)",
+    "lastHeard": "(last heard)",
+    "reasons": {
+      "nav_fail": "navigation failed",
+      "no_detection": "no detection",
+      "missed_dock": "missed the dock",
+      "navigation_rejected": "navigation rejected",
+      "source_command_stale": "commands went stale",
+      "discontinuity_source_missing": "vision source lost",
+      "final_approach_record_unavailable": "approach record unavailable",
+      "source_event_active_poi_missing": "POI missing",
+      "source_event_pump": "vision source failed",
+      "unknown": "other, see the NavPy log"
+    }
   },
   "loadStage": {
     "connecting": "Connecting",

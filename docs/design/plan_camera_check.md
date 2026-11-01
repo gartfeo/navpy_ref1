@@ -7,7 +7,8 @@ The GCS lets the operator upload and launch a plan whose sim docks the active ca
 moving the hand delivery demo to a normal app run: UI plans fly the dock preset altitude plus the zone stack
 (`useMissionUpload.js`: base + (n-1-i)*sep), so 363/383/403 m for `siyi_zr10`, while the fixture was proven at
 220-260 m. With the ZR10 at -14 deg, the image bottom meets flat ground 757 m out at 403 m, beyond the 829 m slant
-detection range (for a dock at ground level). The app says nothing.
+detection range (for a dock at ground level). The app says nothing. (Since todo 92(d) the ZR10 preset is 200 m, so the
+stack is 240/220/200 m, and the planner uses the catalog default profile when the settings name none.)
 
 ## Owner ruling (2026-10-20)
 - Search is **detection, not identification**: the ZR10 searches wide and zooms (up to x10) only after a detection

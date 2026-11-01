@@ -149,7 +149,8 @@ def test_the_terrain_comes_from_the_dem_after_an_unanswered_report_wait(runs):
     home = next(i for i, line in enumerate(log) if "Using home from mission" in line)
     poi = next(i for i, line in enumerate(log) if "P1: wp:" in line)
     stamp = lambda line: line.split(" ")[1]  # noqa: E731  (HH:MM:SS,mmm)
-    assert poi > home and (stamp(log[home]), stamp(log[poi])) == ("08:53:24,660", "08:53:25,660")
+    # Home comes after the startup param reads, so their count moves both stamps.
+    assert poi > home and (stamp(log[home]), stamp(log[poi])) == ("08:53:24,780", "08:53:25,780")
 
 
 def _drain_script(operator) -> str:

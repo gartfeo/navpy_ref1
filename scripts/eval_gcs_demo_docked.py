@@ -46,7 +46,7 @@ _DOCK_ARMED_WALL_FIELDS = (*_DOCK_ARMED_SOURCE_FIELDS, "wall_s")
 # NAV_FAIL, so a genuine contact cannot come later than that after the last
 # commanded frame.
 DOCKED_AFTER_LAST_FRAME_MAX_S = FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S
-# The sim net radius (navpy.sim.world.dock_contact_sensor): contact is
+# The sim net radius (navpy.sim.world.dock_net_radius): contact is
 # strictly inside it, so a DOCKED row outside it contradicts its own decision.
 DOCK_NET_RADIUS_M = 0.5
 

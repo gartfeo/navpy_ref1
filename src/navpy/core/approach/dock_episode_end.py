@@ -33,7 +33,10 @@ def dock_episode_end(
         if terminal.terminal is FinalApproachTerminal.MISSED:
             return DockEpisodeEnd(missed=True)
         if terminal.terminal is FinalApproachTerminal.FAILED:
-            return DockEpisodeEnd(abort_reason=terminal.reason or UNNAMED_FAILURE_REASON)
+            return DockEpisodeEnd(
+                failed=True,
+                abort_reason=terminal.reason or UNNAMED_FAILURE_REASON,
+            )
     if cancelled:
         return DockEpisodeEnd(abort_reason=CANCELLED_REASON)
     return DockEpisodeEnd()

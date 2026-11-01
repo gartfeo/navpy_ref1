@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Preflight camera rows mock</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --bgLight: #16213e; --bgLighter: #1f3050; --accent: #00d2ff;
+    --text: #e0e0e0; --dim: #8899aa; --bright: #fff; --go: #4caf50;
+    --warn: #ff9800; --nogo: #f44336; --border: #2a3f5f;
+  }
+  body { margin: 0; padding: 20px; background: #0d0d1a; color: var(--text);
+    font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 18px; color: var(--bright); margin: 0 0 4px; }
+  h2 { font-size: 14px; color: var(--accent); margin: 22px 0 8px; }
+  .note { color: var(--dim); font-size: 12px; margin: 0 0 10px; max-width: 900px; }
+  .wrap { display: flex; gap: 20px; flex-wrap: wrap; align-items: flex-start; }
+  .panel { width: 600px; background: var(--bgLight); border: 1px solid var(--border);
+    border-radius: 8px; overflow: hidden; }
+  .phead { padding: 10px 14px; border-bottom: 1px solid var(--border); font-size: 15px;
+    font-weight: 700; color: var(--bright); display: flex; justify-content: space-between; }
+  .pbody { padding: 12px 14px; }
+  .cap { font-size: 10px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase;
+    margin-bottom: 6px; }
+  .strip { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 12px; }
+  .chip { display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px;
+    border-radius: 4px; font-size: 12px; }
+  .chip.warn { background: #ff98001f; color: var(--warn); }
+  .chip span.t { color: var(--text); }
+  .uav { display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff;
+    font-size: 11px; font-weight: 700; line-height: 18px; }
+  .u1 { background: #D90012; } .u2 { background: #0033A0; } .u3 { background: #F2A800; }
+  .grid { display: grid; grid-template-columns: 130px repeat(3, minmax(130px, 1fr));
+    border: 1px solid var(--border); border-radius: 4px; overflow: hidden; }
+  .c { padding: 6px 8px; border-bottom: 1px solid var(--border); font-size: 12px;
+    display: flex; align-items: center; gap: 6px; min-width: 0; }
+  .lab { color: var(--dim); font-weight: 600; border-right: 1px solid var(--border); }
+  .hd { background: var(--bgLighter); }
+  .a { background: var(--bgLight); } .b { background: var(--bgLighter); }
+  .new { box-shadow: inset 3px 0 0 var(--accent); }
+  .go { color: var(--go); } .warn { color: var(--warn); } .na { color: var(--dim); }
+  .hint { text-decoration: underline dotted; text-underline-offset: 2px; }
+  .badge { padding: 1px 8px; font-size: 11px; font-weight: 700; border-radius: 4px;
+    color: #000; letter-spacing: .5px; }
+  .bgo { background: var(--go); } .bwarn { background: var(--warn); } .bnogo { background: var(--nogo); }
+  .two { display: flex; flex-direction: column; gap: 1px; }
+  .two small { color: var(--dim); font-size: 10px; }
+  .tip { position: relative; }
+  .bubble { position: absolute; left: 6px; top: 100%; margin-top: 2px; width: 230px; z-index: 2;
+    background: #0b0b16; border: 1px solid var(--accent); border-radius: 6px; padding: 8px 10px;
+    font-size: 11px; color: var(--text); line-height: 1.5; box-shadow: 0 6px 18px rgba(0,0,0,.5); }
+  .ntip { position: absolute; left: 10px; top: 100%; margin-top: 4px; z-index: 2; width: 250px;
+    background: #ffffe1; color: #000; border: 1px solid #767676; font-size: 11px; padding: 3px 6px; }
+  table.states { border-collapse: collapse; font-size: 12px; background: var(--bgLight);
+    border: 1px solid var(--border); }
+  table.states td, table.states th { padding: 5px 10px; border-bottom: 1px solid var(--border);
+    text-align: left; }
+  table.states th { color: var(--dim); font-weight: 600; }
+  .card { width: 300px; background: var(--bgLight); border: 1px solid var(--border);
+    border-radius: 6px; padding: 10px; }
+  .cc { display: inline-block; padding: 0 5px; font-size: 10px; font-weight: 700;
+    border-radius: 3px; color: #000; background: var(--go); }
+  .rec { color: var(--go); font-weight: 700; }
+</style>
+</head>
+<body>
+<h1>Preflight readiness: camera rows and companion wording (todos 70, 72a)</h1>
+<p class="note">Static mock in the app's colours. New rows have a cyan left edge. Camera rows are
+caution at worst: they never make a UAV NO-GO and never change LAUNCH.</p>
+
+<h2>Option A (recommended): two rows, one status each</h2>
+<div class="wrap">
+  <div class="panel">
+    <div class="phead">Preflight readiness — sim, test source on <span class="na">&times;</span></div>
+    <div class="pbody">
+      <div class="cap">Action needed</div>
+      <div class="strip">
+        <span class="chip warn"><span class="uav u2">UAV 2</span><span class="t">Two UAVs announce one stream: give each UAV its own stream path</span></span>
+        <span class="chip warn"><span class="uav u3">UAV 3</span><span class="t">Two UAVs announce one stream: give each UAV its own stream path</span></span>
+      </div>
+      <div class="cap">Detail</div>
+      <div class="grid">
+        <div class="c hd lab"></div>
+        <div class="c hd"><span class="uav u1">UAV 1</span><span class="badge bgo">GO</span></div>
+        <div class="c hd"><span class="uav u2">UAV 2</span><span class="badge bwarn">CAUTION</span></div>
+        <div class="c hd"><span class="uav u3">UAV 3</span><span class="badge bwarn">CAUTION</span></div>
+
+        <div class="c a lab">Pre-arm</div>
+        <div class="c a go">OK</div><div class="c a go">OK</div><div class="c a go">OK</div>
+
+        <div class="c b lab tip">Companion</div>
+        <div class="c b go tip">Connected
+          <div class="ntip">NavPy heartbeat in the last 5 s; not mission or approach state</div>
+        </div>
+        <div class="c b go">Connected</div><div class="c b go">Connected</div>
+
+        <div class="c a lab new">Detector camera</div>
+        <div class="c a go">Simulated</div><div class="c a go">Simulated</div><div class="c a go">Simulated</div>
+
+        <div class="c b lab new">Video stream</div>
+        <div class="c b go">1 stream</div>
+        <div class="c b warn hint">Same stream as UAV 3</div>
+        <div class="c b warn hint">Same stream as UAV 2</div>
+
+        <div class="c a lab">Mission</div>
+        <div class="c a go">Uploaded</div><div class="c a go">Uploaded</div><div class="c a go">Uploaded</div>
+        <div class="c b lab">GPS</div>
+        <div class="c b go">3D · 10 sats</div><div class="c b go">3D · 10 sats</div><div class="c b go">3D · 10 sats</div>
+        <div class="c a lab na">… (throttle, battery, EKF, RC, sensors unchanged)</div>
+        <div class="c a"></div><div class="c a"></div><div class="c a"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel">
+    <div class="phead">Preflight readiness — real fleet <span class="na">&times;</span></div>
+    <div class="pbody">
+      <div class="cap">Action needed</div>
+      <div class="strip">
+        <span class="chip warn"><span class="uav u2">UAV 2</span><span class="t">NavPy gets no detector frames: check the camera cable, power and NavPy log</span></span>
+        <span class="chip warn"><span class="uav u3">UAV 3</span><span class="t">NavPy announces no camera: check its vision profile and log</span></span>
+      </div>
+      <div class="cap">Detail</div>
+      <div class="grid">
+        <div class="c hd lab"></div>
+        <div class="c hd"><span class="uav u1">UAV 1</span><span class="badge bgo">GO</span></div>
+        <div class="c hd"><span class="uav u2">UAV 2</span><span class="badge bwarn">CAUTION</span></div>
+        <div class="c hd"><span class="uav u3">UAV 3</span><span class="badge bwarn">CAUTION</span></div>
+
+        <div class="c a lab">Pre-arm</div>
+        <div class="c a go">OK</div><div class="c a go">OK</div><div class="c a go">OK</div>
+        <div class="c b lab">Companion</div>
+        <div class="c b go">Connected</div><div class="c b go">Connected</div><div class="c b go">Connected</div>
+
+        <div class="c a lab new">Detector camera</div>
+        <div class="c a go">Ready</div>
+        <div class="c a warn hint tip">No frames
+          <div class="bubble">NavPy gets no detector frames: check the camera cable, power and NavPy log</div>
+        </div>
+        <div class="c a warn hint">Not advertised</div>
+
+        <div class="c b lab new">Video stream</div>
+        <div class="c b na">None configured</div>
+        <div class="c b na">None configured</div>
+        <div class="c b na">—</div>
+
+        <div class="c a lab">Mission</div>
+        <div class="c a go">Uploaded</div><div class="c a go">Uploaded</div><div class="c a go">Uploaded</div>
+        <div class="c b lab na">… unchanged rows</div>
+        <div class="c b"></div><div class="c b"></div><div class="c b"></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<h2>Option B: one Camera row, two lines per cell</h2>
+<p class="note">The cell has one colour, the worse of the two lines, so CAUTION does not say
+which part it is about (UAV 2 below).</p>
+<div class="panel" style="width: 600px">
+  <div class="pbody">
+    <div class="grid">
+      <div class="c hd lab"></div>
+      <div class="c hd"><span class="uav u1">UAV 1</span><span class="badge bgo">GO</span></div>
+      <div class="c hd"><span class="uav u2">UAV 2</span><span class="badge bwarn">CAUTION</span></div>
+      <div class="c hd"><span class="uav u3">UAV 3</span><span class="badge bwarn">CAUTION</span></div>
+      <div class="c a lab new">Camera</div>
+      <div class="c a go"><div class="two">Detector: Ready<small>Stream: none configured</small></div></div>
+      <div class="c a warn"><div class="two">Detector: Ready<small>Stream: same as UAV 3</small></div></div>
+      <div class="c a warn"><div class="two">Detector: No frames<small>Stream: 1 stream</small></div></div>
+    </div>
+  </div>
+</div>
+
+<h2>All states</h2>
+<div class="wrap">
+  <table class="states">
+    <tr><th>Detector camera</th><th>Status</th><th>When</th></tr>
+    <tr><td class="go">Ready</td><td>GO</td><td>NavPy camera (vendor "NavPy"), heartbeat ACTIVE</td></tr>
+    <tr><td class="go">Simulated</td><td>GO</td><td>NavPy sim camera (vendor "NavPy sim"), ACTIVE</td></tr>
+    <tr><td class="warn">No frames</td><td>CAUTION</td><td>NavPy camera, CRITICAL: no frame within 1.0 s</td></tr>
+    <tr><td class="warn">Lost</td><td>CAUTION</td><td>seen, then silent 5 s</td></tr>
+    <tr><td class="warn">Not advertised</td><td>CAUTION</td><td>companion up 15 s, no camera ever seen</td></tr>
+    <tr><td class="na">Checking…</td><td>grey</td><td>no camera yet within 15 s, or camera info not in (discovery still running)</td></tr>
+    <tr><td class="na">Not reported</td><td>grey</td><td>not a NavPy camera (older NavPy, other vendor, failed before camera info), or a NavPy camera with another status</td></tr>
+    <tr><td class="na">—</td><td>grey</td><td>companion down or link down</td></tr>
+    <tr><td class="na">No frames (1 of 2)</td><td>—</td><td>two cameras: the worst, with the count</td></tr>
+  </table>
+  <table class="states">
+    <tr><th>Video stream</th><th>Status</th><th>When</th></tr>
+    <tr><td class="go">1 stream</td><td>GO</td><td>own companion announced it, valid, unique host/path (not proof of which camera)</td></tr>
+    <tr><td class="na">None configured</td><td>grey</td><td>camera info says no stream, none expected</td></tr>
+    <tr><td class="na">Checking…</td><td>grey</td><td>discovery running, or grace not over</td></tr>
+    <tr><td class="warn">Discovery failed</td><td>CAUTION</td><td>retries exhausted</td></tr>
+    <tr><td class="warn">Lost</td><td>CAUTION</td><td>a camera that had a stream is lost</td></tr>
+    <tr><td class="warn">URI rejected: host outside allowed networks</td><td>CAUTION</td><td>failed URI validation</td></tr>
+    <tr><td class="warn">Same stream as UAV 3</td><td>CAUTION</td><td>another UAV, same host and path</td></tr>
+    <tr><td class="warn">Not advertised</td><td>CAUTION</td><td>test source on, none after 15 s</td></tr>
+    <tr><td class="na">—</td><td>grey</td><td>no camera advertised, none expected</td></tr>
+  </table>
+</div>
+
+<h2>Sidebar CC badge tooltip (locale only)</h2>
+<div class="wrap">
+  <div class="card tip">
+    <span class="uav u1">UAV 1</span> &nbsp; <span class="cc">CC</span>
+    <div class="ntip" style="top: 26px; left: 70px;">Companion connected: NavPy heartbeat in the last 5 s; not mission or approach state</div>
+    <div style="height: 34px"></div>
+  </div>
+  <p class="note" style="max-width: 420px">Before: row "Active", badge "Companion active".
+  Verifying… and Disconnected keep their wording.</p>
+</div>
+</body>
+</html>

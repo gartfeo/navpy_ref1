@@ -26,6 +26,7 @@ from navpy.app.flow.nav_composition_types import (
     PoiMissionOwnership,
     VehicleApproachOwnership,
 )
+from navpy.core.flow.nav_display import NavDisplayBuilder, NavOutcomeLatch
 from navpy.core.flow.nav_state import NavState
 from navpy.app.flow.nav_delivery_composition import compose_sortie_finish
 from navpy.products.delivery.flow import restart_search
@@ -75,6 +76,19 @@ def _dock_episode_ending(
     return ending
 
 
+def _display_builder(
+    outcome: NavOutcomeLatch,
+    state: NavStateOwnership,
+    poi: PoiMissionOwnership,
+) -> NavDisplayBuilder:
+    """Display only: the delivery module's return flag names HOMING."""
+    return NavDisplayBuilder(
+        outcome,
+        state.navigation_task,
+        lambda: poi.mission.default_delivery_hub_active,
+    )
+
+
 def compose_nav_application(
     vehicle: IVehicle,
     detection: DetectionCoordination,
@@ -102,6 +116,7 @@ def compose_nav_application(
         end_episode=navigation.final_approach.end_dock_episode,
         ending=_dock_episode_ending(navigation, poi),
     )
+    outcome = NavOutcomeLatch()
     nav_transition = NavTransition(
         NavEntry(
             NavEntryPorts(
@@ -137,7 +152,9 @@ def compose_nav_application(
         state.navigation_task,
         lambda: args.is_oneshot,
         logger=logger,
+        outcome=outcome,
     )
+    display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: state.clock.decision_s(),
@@ -195,6 +212,7 @@ def compose_nav_application(
         lambda committed: observation.network.publish_participation(
             is_approaching(committed),
             committed is NavState.DOCKED,
+            display.build(committed),
         ),
     )
     sensor = DetectionSensor(

@@ -5,6 +5,7 @@ from unittest.mock import Mock, call
 import pytest
 
 from navpy.core.swarm.nav_network import NavNetworkRuntime
+from navpy.core.flow.nav_display import NavDisplay, NavPhase
 from navpy.core.flow.nav_state import NavPhaseState, NavState
 from navpy.core.flow.nav_task_availability import is_approaching
 from navpy.core.flow.navigation_loop import StateActionDispatcher
@@ -77,7 +78,7 @@ def test_runtime_forwards_only_changes_to_the_task_actor():
         runtime.publish_participation(approaching, False)
 
     assert actor.set_participation.call_args_list == [
-        call(False, False), call(True, False), call(False, False),
+        call(False, False, 0), call(True, False, 0), call(False, False, 0),
     ]
 
 
@@ -90,7 +91,7 @@ def test_a_replacement_actor_learns_the_current_value():
 
     runtime.publish_participation(True, False)
 
-    replacement.set_participation.assert_called_once_with(True, False)
+    replacement.set_participation.assert_called_once_with(True, False, 0)
 
 
 def test_without_a_task_actor_nothing_is_published():
@@ -101,4 +102,21 @@ def test_without_a_task_actor_nothing_is_published():
     actor = Mock()
     runtime.task_actor = actor
     runtime.publish_participation(True, False)
-    actor.set_participation.assert_called_once_with(True, False)
+    actor.set_participation.assert_called_once_with(True, False, 0)
+
+
+def test_a_display_change_alone_is_forwarded_with_the_flags():
+    runtime = _runtime()
+    actor = Mock()
+    runtime.task_actor = actor
+    search = NavDisplay(NavPhase.SEARCH)
+    homing = NavDisplay(NavPhase.HOMING)
+
+    runtime.publish_participation(False, False, search)
+    runtime.publish_participation(False, False, search)
+    runtime.publish_participation(False, False, homing)
+
+    assert actor.set_participation.call_args_list == [
+        call(False, False, search.state_bits()),
+        call(False, False, homing.state_bits()),
+    ]

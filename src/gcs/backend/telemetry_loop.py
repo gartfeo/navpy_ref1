@@ -41,7 +41,8 @@ def _has_changed(prev: dict, curr: dict) -> bool:
                 "companion_ok", "companion_status", "mission_progress", "roll", "pitch",
                 "prearm_ok", "prearm_check_state", "is_probing", "mission_uploaded",
                 "mission_total", "mission_download_progress", "swarm",
-                "video_streams"):
+                "video_streams", "cameras", "camera_wait_over",
+                "video_stream_expected", "video_stream_duplicates"):
         p, c = prev.get(key), curr.get(key)
         if p is None and c is None:
             continue
@@ -160,7 +161,10 @@ class TelemetryLoop:
                             snap.get("armed", False),
                             snap.get("climb") or 0.0,
                             snap.get("throttle") or 0.0,
+                            mode=snap.get("mode") if snap.get("link_ok") else None,
+                            heartbeat_count=snap.get("heartbeat_count") or 0,
                         )
+                    launch_controller.forget_missing(active_ids)
 
                 # Only broadcast if there's meaningful change
                 changed = []

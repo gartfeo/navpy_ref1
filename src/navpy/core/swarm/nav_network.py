@@ -10,6 +10,7 @@ from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.kernel.location import Location
 from navpy.core.review.confirm_override_listener import ConfirmOverrideListener
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
+from navpy.core.flow.nav_display import NavDisplay
 from navpy.core.kernel.failure_health import ComponentFailureLatch
 from navpy.core.swarm.nav_network_shutdown import (
     disconnect_nav_network_session,
@@ -51,7 +52,9 @@ class NavNetworkRuntime:
         self.task_actor: Optional[TaskActor] = None
         self.peer_dispatch: Optional[PeerPoiDispatchWorker] = None
         self._health = ComponentFailureLatch()
-        self._published: tuple[Optional[TaskActor], bool] = (None, False)
+        self._published: tuple[Optional[TaskActor], bool, bool, int] = (
+            None, False, False, 0,
+        )
 
     def set_network(self, network: Optional[NetworkAbc]) -> None:
         self._disconnect()
@@ -108,17 +111,25 @@ class NavNetworkRuntime:
         if self.peer_dispatch is not None and pois:
             self.peer_dispatch.submit(pois)
 
-    def publish_participation(self, approaching: bool, docked: bool) -> None:
+    def publish_participation(
+        self,
+        approaching: bool,
+        docked: bool,
+        display: NavDisplay = NavDisplay(),
+    ) -> None:
         """Tell the swarm whether nav flies a final approach or is docked.
 
-        Either one is BUSY. Called every nav cycle; only a change, or a new
-        actor, takes the actor's lock, and both flags change in one update.
+        Either one is BUSY. ``display`` is the operator display only
+        (nav_display.py). Called every nav cycle; only a change, or a new
+        actor, takes the actor's lock, and all of it changes in one update.
         """
         actor = self.task_actor
-        if actor is None or self._published == (actor, approaching, docked):
+        bits = display.state_bits()
+        published = (actor, approaching, docked, bits)
+        if actor is None or self._published == published:
             return
-        self._published = (actor, approaching, docked)
-        actor.set_participation(approaching, docked)
+        self._published = published
+        actor.set_participation(approaching, docked, bits)
 
     def start_task_actor(self) -> None:
         if self.task_actor is not None:

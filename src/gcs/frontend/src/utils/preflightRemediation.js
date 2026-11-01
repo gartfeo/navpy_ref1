@@ -54,6 +54,25 @@ function companionFix(check) {
     : { hintKey: 'preflight.fix.companionChecking', action: null };
 }
 
+// Camera rows: one hint per caution state (docs/design/gcs_preflight_camera_row.md).
+const DETECTOR_CAMERA_FIX = {
+  noFrames: 'preflight.fix.cameraNoFrames',
+  lost: 'preflight.fix.cameraLost',
+  notAdvertised: 'preflight.fix.cameraNotAdvertised',
+};
+const VIDEO_STREAM_FIX = {
+  duplicate: 'preflight.fix.streamDuplicate',
+  uriRejected: 'preflight.fix.streamUriRejected',
+  discoveryFailed: 'preflight.fix.streamDiscoveryFailed',
+  lost: 'preflight.fix.streamLost',
+  notAdvertised: 'preflight.fix.streamNotAdvertised',
+};
+
+function stateFix(hints, check) {
+  const hintKey = hints[check.detail?.state];
+  return hintKey ? { hintKey, action: null } : null;
+}
+
 function sensorsFix(check) {
   const failed = check.detail?.failed || [];
   if (failed.includes('mag')) return { hintKey: 'preflight.fix.compass', action: link('compass') };
@@ -80,14 +99,20 @@ export function remediationFor(check) {
     case 'rc': return { hintKey: 'preflight.fix.rc', action: link('radio') };
     case 'sensors': return sensorsFix(check);
     case 'airspeed': return { hintKey: 'preflight.fix.airspeed', action: CAL };
+    case 'detectorCamera': return stateFix(DETECTOR_CAMERA_FIX, check);
+    case 'videoStream': return stateFix(VIDEO_STREAM_FIX, check);
     default: return null;
   }
 }
 
 // Per-vehicle "next step" priority: most blocking / most actionable first.
 // Companion + mission lead because they are launch-gate blockers the operator
-// must resolve before launch (companion-down is the reported bug).
-const PRIORITY = ['companion', 'mission', 'prearm', 'gps', 'throttle', 'battery', 'ekf', 'airspeed', 'sensors', 'rc'];
+// must resolve before launch (companion-down is the reported bug). The camera
+// rows (caution only) follow the launch-gate rows.
+const PRIORITY = [
+  'companion', 'mission', 'prearm', 'gps', 'throttle', 'battery',
+  'detectorCamera', 'videoStream', 'ekf', 'airspeed', 'sensors', 'rc',
+];
 const STATUS_RANK = { nogo: 0, warn: 1 };
 
 // Rank for the priority tie-break. An unknown key sorts LAST (not first, which a

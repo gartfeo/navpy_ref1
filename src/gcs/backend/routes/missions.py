@@ -44,7 +44,7 @@ def _fence_outcome_model(status: dict | None) -> FenceOutcome | None:
 
 @router.get("/{sys_id}/mission")
 async def download_mission(sys_id: int, request: Request, timeout_s: float | None = None):
-    """Download the current mission from a connected vehicle within ``timeout_s``."""
+    """The vehicle's mission within ``timeout_s``; an empty table is 200 with no waypoints."""
     policy = requested_policy(timeout_s, DEFAULT_MISSION_REQUEST_S)
     entry = vehicle_mgr.get_vehicle(sys_id)
     request_id = request.headers.get("x-gcs-request-id")
@@ -96,14 +96,14 @@ async def download_mission(sys_id: int, request: Request, timeout_s: float | Non
                          request_id=request_id, outcome="success", cached=True,
                          total=len(entry.cached_mission.get("waypoints") or []))
                     return entry.cached_mission
-                count = entry.vehicle.download_mission(on_progress=_progress, policy=policy)
-                if count == 0:
+                result = entry.vehicle.download_mission_outcome(on_progress=_progress, policy=policy)
+                if result.failed:
                     emit("mission_backend_finished", source="backend", sys_id=sys_id,
-                         request_id=request_id, outcome="failure", reason="empty_or_download_failed")
+                         request_id=request_id, outcome="failure", reason="download_failed")
                     return None
-                parsed = parse_mission_items(entry.vehicle, count, sys_id)
+                parsed = parse_mission_items(entry.vehicle, result.count, sys_id)
                 emit("mission_backend_finished", source="backend", sys_id=sys_id,
-                     request_id=request_id, outcome="success",
+                     request_id=request_id, outcome="success", reason=result.outcome.value,
                      total=len(parsed.get("waypoints") or []))
                 return parsed
         except Exception as exc:
@@ -123,8 +123,8 @@ async def download_mission(sys_id: int, request: Request, timeout_s: float | Non
         raise HTTPException(status_code=503, detail="Another mission transfer is still running")
     if parsed is None:
         emit("mission_request_finished", source="backend", sys_id=sys_id, request_id=request_id,
-             outcome="failure", reason="empty_or_download_failed")
-        raise HTTPException(status_code=404, detail="No mission on vehicle or download failed")
+             outcome="failure", reason="download_failed")
+        raise HTTPException(status_code=404, detail="Mission download failed")
 
     emit("mission_request_finished", source="backend", sys_id=sys_id, request_id=request_id,
          outcome="success", total=len(parsed.get("waypoints") or []))

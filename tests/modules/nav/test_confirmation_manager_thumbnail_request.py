@@ -10,7 +10,7 @@ FORCE_CONFIRM belongs to 02-05).
 import threading
 import time
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import ANY, MagicMock, patch
 
 import numpy as np
 
@@ -121,7 +121,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
 
         confirm_calls = self._confirm_request_calls()
         self.assertGreaterEqual(len(confirm_calls), 2, "expected at least one resend")
-        self.mock_network.send_image.assert_called_once_with(501, "b64-image")
+        self.mock_network.send_image.assert_called_once_with(501, "b64-image", run_unit=ANY)
 
     def test_swarm_request_resource_for_pending_poi_resends_thumbnail(self):
         """SWARM_REQUEST(RESOURCE, THUMBNAIL) for a still-pending task_id
@@ -142,6 +142,24 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
                 len(self._confirm_request_calls()), confirm_count_before,
                 "on-demand thumbnail fetch must not re-broadcast the request",
             )
+            time.sleep(0.6)  # let the worker exit cleanly before teardown
+
+    def test_a_thumbnail_request_resends_the_image_without_a_second_artifact(self):
+        """The GCS's thumbnail request in the same round resends the image and
+        saves nothing new: a round keeps one set of artifacts."""
+        self.mock_logger.log_path = "session-logs"
+        with patch(
+            "navpy.core.review.confirmation_manager.create_confirmation_thumbnail",
+            return_value="b64-image",
+        ), patch(
+            "navpy.core.review.confirmation_manager.save_confirmation_image_artifacts",
+        ) as save_spy:
+            self.confirmation_manager.review([self.poi])
+            time.sleep(0.05)
+            self.confirmation_manager.on_message(self._resource_request(501))
+
+            self.assertEqual(self.mock_network.send_image.call_count, 2)
+            save_spy.assert_called_once()
             time.sleep(0.6)  # let the worker exit cleanly before teardown
 
     def test_swarm_request_resource_for_unknown_task_id_is_noop(self):

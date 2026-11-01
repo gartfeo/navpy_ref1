@@ -36,6 +36,15 @@ describe('FpvViewOverlay', () => {
     expect(getByRole('status')).toHaveTextContent('fpvView.held.poseUnavailable 0');
   });
 
+  it('the held banner keeps 12 px insets unless App narrows it for the RC confirm list', () => {
+    const { getByRole, rerender } = render(<FpvViewOverlay label="UAV 1" holdReason="linkLost" top={54} />);
+    expect(getByRole('status').style.left).toBe('12px');
+    expect(getByRole('status').style.right).toBe('12px');
+    rerender(<FpvViewOverlay label="UAV 1" holdReason="linkLost" top={54} heldLeft={100} heldRight={510} />);
+    expect(getByRole('status').style.left).toBe('100px');
+    expect(getByRole('status').style.right).toBe('510px');
+  });
+
   it('telemetry disconnected has its own held reason', () => {
     const { getByRole } = render(<FpvViewOverlay label="UAV 1" holdReason="telemetryDisconnected" top={54} />);
     expect(getByRole('status')).toHaveTextContent('fpvView.held.telemetryDisconnected 0');

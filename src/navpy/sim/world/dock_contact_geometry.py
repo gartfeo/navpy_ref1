@@ -47,18 +47,26 @@ def chord_bow_bound_m(chord_m: float, speed_mps: float) -> float:
     return radius_m - math.sqrt(radius_m ** 2 - half_chord_m ** 2)
 
 
-def flat_earth_error_bound_m(reach_m: float, abs_tan_lat: float) -> float:
+def flat_earth_error_bound_m(
+    reach_m: float,
+    abs_tan_lat: float,
+    abs_height_m: float,
+) -> float:
     """How far the flat local frame can disagree with the exact geometry.
 
     The coarse filter works in a flat frame at the dock, scaled by WGS84's
-    local radii of curvature, so first-order scale error cancels. What
+    local surface radii of curvature, so first-order scale error cancels on
+    the ellipsoid. Points at height h above it sit on radii larger by h, so
+    their horizontal distances scale by up to |h| / R: at most
+    reach * |h| / R_min, with ``abs_height_m`` the largest |h| involved. What
     remains for points within ``reach_m`` of each other near the dock is
     second order: earth curvature drops the surface by reach^2 / (2R), and
     the east scale changes with latitude by reach * tan(lat) / R per metre.
-    Both stay below reach^2 * (1 + |tan lat|) / R_min, plus a rounding floor.
+    Both stay below reach^2 * (1 + |tan lat|) / R_min. A rounding floor is
+    added on top.
     """
     return (
-        reach_m * reach_m * (1.0 + abs_tan_lat) / _WGS84_MIN_RADIUS_M
+        reach_m * (reach_m * (1.0 + abs_tan_lat) + abs_height_m) / _WGS84_MIN_RADIUS_M
         + SIM_DOCK_CONTACT_FLAT_EARTH_FLOOR_M
     )
 

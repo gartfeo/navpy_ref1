@@ -43,7 +43,7 @@ class SwarmPresence:
         vehicle: TaskLocationReader,
         sender: TaskMessageSender,
         lock: rt.RLock,
-        node_state: Callable[[], SwarmNodeState],
+        node_state: Callable[[], int],
         peers: PeerStatusPorts,
         logger: ILogger,
     ) -> None:

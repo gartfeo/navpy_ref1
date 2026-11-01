@@ -54,6 +54,7 @@ from navpy.core.swarm.peer_task_priority import (
     PeerTaskPriority,
     PeerTaskPriorityPorts,
 )
+from navpy.app.flow.nav_peer_reask_composition import compose_peer_reask
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.flow.nav_state import NavState
 from navpy.core.perception.detection_coordination import DetectionCoordination
@@ -244,6 +245,9 @@ def compose_navigation_task_workflows(
         selector=selector,
         peer_notifier=peer_notifier,
         peer_task_priority=peer_task_priority,
+        peer_reask=compose_peer_reask(
+            state, observation, peer_geo_tracker, approach_kind, logger,
+        ),
         work_source=compose_work_source(
             state, peer_task_priority, peer_navigation,
             mission_navigation.fallback_navigation, navigation_task_action,

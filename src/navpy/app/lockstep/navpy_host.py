@@ -12,7 +12,8 @@ baton; ``lockstep_slice.md``, "NavPy participant" and "Participant runtime"):
   every line also reaches ``DONE.log_lines``;
 - its device (``lockstep:serial0.<sysid>``) is opened through the link (``create_vehicle``'s
   ``open_bus``); the scheduler cadence is :class:`IdentitySchedulerCadence`
-  (nothing writes ``SIM_SPEEDUP``: a navigation speedup is refused);
+  (nothing writes ``SIM_SPEEDUP``: a navigation speedup is refused); the
+  sim camera's latency and drops come from the context (``camera_frames``);
 - the stop is a :class:`LifecycleStopRequest` (``--stop-on-lifecycle`` is
   required): a lifecycle ``stop`` or the drain ``end`` ends the run loop, the
   existing cleanup joins every producer and drains the log worker on ticks,
@@ -35,7 +36,8 @@ from pathlib import Path
 from navpy.app import runtime_ready
 from navpy.app.navpy_argparse import make_parser
 from navpy.app.network_args import NetworkType
-from navpy.app.runtime_composition import RuntimePorts, compose_runtime
+from navpy.app.runtime_composition import compose_runtime
+from navpy.app.runtime_ports import RuntimePorts
 from navpy.app.runtime_stop import LifecycleStopRequest
 from navpy.core.kernel.logging import logger_factory
 from navpy.core.kernel.logging.logger_api import ILogger
@@ -81,6 +83,7 @@ class NavpyHost:
         self._out = out
         self._link = link
         self._args = parse_lockstep_args(context.config.get("argv") or (), link.device)
+        self._camera_frames = context.camera_frames
         runtime_ready.set_process_identity(context.participant.identity)
         runtime_ready.set_ready_publisher(self._publish_ready)
         logger_factory.bind_run_log_dir(LOG_DIR)
@@ -112,6 +115,7 @@ class NavpyHost:
             scheduler_cadence=lambda _vehicle, _bus: IdentitySchedulerCadence(),
             observe_logger=self._observe_logger,
             lifecycle_stop=self.stop,
+            camera_frames=self._camera_frames,
         )
         try:
             compose_runtime(self._args, ports).run()

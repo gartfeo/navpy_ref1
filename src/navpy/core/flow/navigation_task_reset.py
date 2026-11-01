@@ -85,6 +85,7 @@ class NavigationTaskStateReset:
         self._navigation_task.orbit_radius_m = 0.0
         self._navigation_task.orbit_approach_alt_rel_m = None
         self._navigation_task.peer_poi_location = None
+        self._navigation_task.peer_unanswered_rounds = 0
         self._navigation_task.navigation_poi_location = None
         self._navigation_failures.reset()
         self._confirm.hold_active = False
@@ -253,6 +254,7 @@ class AutoMissionResume:
         self._navigation_task.orbit_radius_m = 0.0
         self._navigation_task.orbit_approach_alt_rel_m = None
         self._navigation_task.peer_poi_location = None
+        self._navigation_task.peer_unanswered_rounds = 0
         self._navigation_task.navigation_poi_location = None
         self._confirm.hold_active = False
         self._ports.clear_flow_task()

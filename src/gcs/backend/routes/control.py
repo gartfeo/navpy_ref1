@@ -133,6 +133,8 @@ async def send_command(req: CommandRequest):
     if handler is None:
         raise HTTPException(400, f"Unknown command: {req.command}")
 
+    # The operator took these vehicles over: a launch stops commanding them.
+    launch_controller.revoke_commands(targets)
     results = handler(targets, req.params)
 
     if req.command == "estop":

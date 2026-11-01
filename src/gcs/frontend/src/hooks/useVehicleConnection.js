@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { decodeBitmaskArray } from '../utils/bitmask';
 import { reindexZoneMap } from '../utils/simDockReindex';
-import { assembleMissionsFromResults, mergeDownloadedMissionZones } from '../utils/missionAssembly';
+import { assembleMissionsFromResults, mergeDownloadedMissionZones, missionAnswerKind } from '../utils/missionAssembly';
 import { reconcileMissionDownloads, waitForBackendMissionSettlement } from '../utils/missionReconciliation';
 import {
   addDownloadOwner,
@@ -346,9 +346,11 @@ export default function useVehicleConnection({
           outcome: result.error === 'timeout' ? 'timeout' : result.error ? 'failure' : 'accepted',
           total: result.waypoints?.length || 0,
         });
+        const label = vehicles.find((v) => v.sys_id === sysId)?.name || 'UAV ' + sysId;
         if (result.error) {
-          const vehicle = vehicles.find((v) => v.sys_id === sysId);
-          setNotification?.(`Mission download ${result.error === 'timeout' ? 'timed out' : 'failed'} for ${vehicle?.name || 'UAV ' + sysId}`);
+          setNotification?.(`Mission download ${result.error === 'timeout' ? 'timed out' : 'failed'} for ${label}`);
+        } else if (missionAnswerKind(result) === 'empty') {
+          setNotification?.(`No mission on ${label}`);
         }
       },
     });
@@ -495,7 +497,12 @@ export default function useVehicleConnection({
       setNotification?.(`Mission download ${m.error === 'timeout' ? 'timed out' : 'failed'} for ${name || 'UAV ' + sysId}`);
       return;
     }
-    if (!m?.waypoints?.length) return;
+    if (!m?.waypoints?.length) {
+      // An empty vehicle is not a failure: the startup restore stays quiet and
+      // an operator's download says so.
+      if (!startupRun && missionAnswerKind(m) === 'empty') setNotification?.(`No mission on ${name || 'UAV ' + sysId}`);
+      return;
+    }
     // Same ordering rule as the fleet path: this vehicle's fence state is
     // claimed before its mission can publish a plan. A vehicle that carries no
     // mission publishes nothing and is not claimed, so drawing a new plan still

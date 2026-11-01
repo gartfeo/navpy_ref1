@@ -3,7 +3,6 @@ import { useTranslation } from 'react-i18next';
 import { colors, topBarHeight } from '../styles';
 import ConnectionPanel from './ConnectionPanel';
 import EstopDropdown from './EstopDropdown';
-import { PHASES } from '../hooks/useMissionState';
 import useFullscreen from '../hooks/useFullscreen';
 import { APP_BRANCH, branchColor } from '../utils/appBranch';
 
@@ -40,7 +39,6 @@ export default function TopBar({
   autoScan,
   devMode,
   onEstop,
-  manualControlEnabled,
 }) {
   const { t } = useTranslation();
   const dropdownRef = useRef(null);
@@ -60,14 +58,10 @@ export default function TopBar({
 
   const uavCount = vehicleList?.length || 0;
 
-  // Fallback E-STOP host: the primary dropdown lives in the MonitoringSidebar
-  // UAV Status header, but that sidebar is unmounted during the planning phase
-  // and while manual control hides the sidebar. In those states — with
-  // vehicles still connected (possibly armed) — the TopBar must keep E-STOP
-  // reachable, so it renders the same shared dropdown only then.
-  const showEstopFallback = uavCount > 0
-    && !!onEstop
-    && (phase !== PHASES.MONITOR || manualControlEnabled);
+  // E-STOP lives here in every phase (planning, monitor, RC): the top bar
+  // never scrolls, so no card can push it out of view (todo 69). With no
+  // vehicles there is nothing to stop.
+  const showEstop = uavCount > 0 && !!onEstop;
 
   return (
     <>
@@ -200,9 +194,7 @@ export default function TopBar({
             )}
           </div>
 
-          {showEstopFallback && (
-            <EstopDropdown vehicleList={vehicleList} onEstop={onEstop} size="topbar" />
-          )}
+          {showEstop && <EstopDropdown vehicleList={vehicleList} onEstop={onEstop} />}
 
           {/* Fullscreen toggle: on the handheld this hides the Android bars */}
           {fullscreen.supported && (

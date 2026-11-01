@@ -97,9 +97,10 @@ class ConfirmationRoundRunner:
                 ):
                     return
                 first_send = self._monotonic()
-                if not self._state.send_if_current(
-                    confirmation,
-                    lambda: self._media.send(poi, confirmation.poi_id),
+                if not self._media.send(
+                    poi,
+                    confirmation.poi_id,
+                    lambda unit: self._state.send_if_current(confirmation, unit),
                 ):
                     return
             except _OUTBOUND_ERRORS as exc:

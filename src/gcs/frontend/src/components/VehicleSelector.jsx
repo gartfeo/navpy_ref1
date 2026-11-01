@@ -2,8 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors, setColors } from '../styles';
 
+// The selector's geometry; App ends the RC confirm list above it.
+const INSET_PX = 24;
+const LABEL_LINE_PX = 11;
+const GAP_PX = 6;
+const CHIP_PX = 36;
+/** Selector bottom edge to map bottom edge, plus its height with the "Select UAV" line. */
+export const VEHICLE_SELECTOR_SPAN_PX = INSET_PX + LABEL_LINE_PX + GAP_PX + CHIP_PX;
+
 const pillBase = {
-  height: 36,
+  height: CHIP_PX,
   padding: '0 14px',
   borderRadius: 18,
   fontSize: 12,
@@ -31,19 +39,20 @@ export default function VehicleSelector({ vehicleList, selectedSysId, onSelect }
   return (
     <div style={{
       position: 'absolute',
-      bottom: 24,
+      bottom: INSET_PX,
       left: '50%',
       transform: 'translateX(-50%)',
       zIndex: 10,
       display: 'flex',
       flexDirection: 'column',
       alignItems: 'center',
-      gap: 6,
+      gap: GAP_PX,
       pointerEvents: 'none',
     }}>
       {noSelection && (
         <span style={{
           fontSize: 11,
+          lineHeight: `${LABEL_LINE_PX}px`,
           fontWeight: 600,
           color: colors.warning,
           textShadow: '0 1px 3px rgba(0,0,0,0.8)',
@@ -51,7 +60,7 @@ export default function VehicleSelector({ vehicleList, selectedSysId, onSelect }
           {t('vehicleSelector.selectUav')}
         </span>
       )}
-      <div style={{ display: 'flex', gap: 6 }}>
+      <div style={{ display: 'flex', gap: GAP_PX }}>
         {vehicleList.map((v, i) => {
           const baseColor = setColors[i % setColors.length];
           const isSelected = v.sys_id === selectedSysId;

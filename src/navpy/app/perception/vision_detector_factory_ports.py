@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.core.perception.detector_ports import DetectorFleetMember
+from navpy.core.ports.camera_health import CameraHealth
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.sim.debug_view.vision_ui_ports import (
     DetectorUiStepPort,
@@ -26,6 +27,8 @@ class VisionDetectorNode:
     cleanup: DetectorConstructionCleanupPort
     real_ui: Optional[DetectorUiStepPort]
     sim_debug: Optional[SimDebugSource]
+    # Display only: read by the camera publisher, never by navigation.
+    camera_health: CameraHealth
 
 
 class VisionDetectorFactory(Protocol):

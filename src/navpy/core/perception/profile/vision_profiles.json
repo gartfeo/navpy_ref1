@@ -432,7 +432,7 @@
         "optimized_altitude": 158.0,
         "dock_presets": {
           "dock": {
-            "altitude_m": 363,
+            "altitude_m": 200,
             "min_pixel_size": 36,
             "label": "Dock"
           }

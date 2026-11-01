@@ -40,14 +40,38 @@ class FramePublicationStore:
         self._condition = rt.Condition(rt.Lock())
         self._snapshot = FrameSnapshot(None, 0, 0, 0, None)
         self._is_running = False
+        # Sequence of the newest publication when the capture last started:
+        # a stop does not clear the slot, so older frames are not this run's.
+        self._run_start_sequence = 0
         self._wall_time = wall_time
         self._monotonic = monotonic
 
     def set_running(self, running: bool) -> None:
         with self._condition:
+            if running and not self._is_running:
+                self._run_start_sequence = self._snapshot.sequence
             self._is_running = bool(running)
             if not self._is_running:
                 self._condition.notify_all()
+
+    def has_fresh_frame(self, max_age_s: float) -> bool:
+        """A frame of the running capture, published at most *max_age_s* ago.
+
+        The age is on the publication clock (``published_at_s``). A None
+        publication, a frame from before the latest start and a stopped
+        capture do not count.
+        """
+        with self._condition:
+            snapshot = self._snapshot
+            if (
+                not self._is_running
+                or snapshot.frame is None
+                or snapshot.published_at_s is None
+                or snapshot.sequence <= self._run_start_sequence
+            ):
+                return False
+            now_s = rt.time() if self._wall_time is None else self._wall_time()
+            return now_s - snapshot.published_at_s <= max_age_s
 
     def publish(
         self,

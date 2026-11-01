@@ -310,14 +310,14 @@ the launch longitude, at `route_offset_m` 150, so each UAV still flies 3 lines
 of 3 km. `detect_after_wps {z: 0}` (`nav_last_wp 1`), `sim_dock_wps {2: [1, 2]}`:
 the south-end turn waypoints of zone 2, 150 m apart, like d1–d2. Zone 2 is the
 lowest (`planner.js:280`). The UI planner takes its altitudes from the camera
-profile named in the settings (`plannerConfig.js` `configurePlanner`). The
-owner's settings name none, so it uses its built-in defaults: zones 0–2 at
-240/220/200 m, close to the fixture's 220 m. The live run flew these, and both
-docks were detected there. If the owner selects the ZR10 profile, the zones go to 403/383/363 m. With
-the fixed -14° search pitch, only 363 m leaves a window, about 682–730 m out,
-where both docks are in frame and in range. At 403 m the frame's near edge
-(757 m) lies past the range (709 m) (Codex, calibrated ZR10). Zone 2 is the
-only choice that suits both cases, but the ZR10-profile case is not live-tested.
+NavPy flies: the profile named in the settings, else the catalog's
+`default_profile` (`plannerConfig.js` `configurePlanner`, todo 92(d)). For the
+ZR10 the dock preset is 200 m (829 m detection range × sin 14°, the -14° search
+pitch's boresight meeting the ground at that range; it was 363 m, from an
+older 1500 m range, which put the stack top out of reach). Zones 0–2 fly
+240/220/200 m, close to the fixture's 220 m; the live run flew these, and both
+docks were detected there. `tests/gcs/test_plan_camera_check.py` keeps every
+ground-dock profile's default stack within its camera's reach.
 The zone goes to the third vehicle in the UI list.
 
 **One command** `delivery_demo.py`:

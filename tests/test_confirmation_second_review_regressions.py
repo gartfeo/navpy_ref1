@@ -371,7 +371,7 @@ def test_confirmation_artifact_programmer_error_propagates() -> None:
         bbox_cxcywh=(1.0, 1.0, 1.0, 1.0),
     )
     with pytest.raises(TypeError, match="bad artifact signature"):
-        media.send(poi, 7)
+        media.send(poi, 7, lambda unit: unit() or True)
 
 
 def test_auction_cleanup_attempts_all_and_surfaces_exception_group() -> None:

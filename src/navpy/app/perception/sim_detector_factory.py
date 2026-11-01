@@ -11,9 +11,11 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.perception.geo.zc_util import ZcUtil
+from navpy.core.ports.camera_health import NAVPY_SIM_CAMERA_VENDOR, CameraHealth
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.pose_streams import resolve_pose_stream_rate_hz
+from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.sim.detection.detector_sim import DetectorSim
 from navpy.sim.sim_cv_threads import apply_sim_cv_threads
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
@@ -24,11 +26,8 @@ from navpy.app.perception.vision_zoom_profile import build_zoom_config
 from navpy.sim.world import closest_approach_record
 from navpy.sim.world.closest_approach_record import ClosestApproach
 from navpy.sim.world.dock_contact_feed import SimDockContactFeed
-from navpy.sim.world.dock_contact_sensor import (
-    SimDockContactSensor,
-    max_segment_s,
-    sim_dock_net_radius_m,
-)
+from navpy.sim.world.dock_contact_sensor import SimDockContactSensor, max_segment_s
+from navpy.sim.world.dock_net_radius import sim_dock_net_radius_m
 
 
 class SimDetectorFactory:
@@ -43,6 +42,7 @@ class SimDetectorFactory:
         profile: VisionProfile,
         zc_util: ZcUtil | None,
         scheduler_cadence: SchedulerCadence | None,
+        camera_frames: CameraFrameFactoryPort | None = None,
     ) -> None:
         self._vehicle = vehicle
         self._args = args
@@ -51,6 +51,7 @@ class SimDetectorFactory:
         self._profile = profile
         self._zc_util = zc_util
         self._scheduler_cadence = scheduler_cadence
+        self._camera_frames = camera_frames
         self._assets_path = Path(__file__).resolve().parents[4] / ".sim"
         self._dock_contact: SimDockContactSensor | None = None
         self._dock_contact_feed: SimDockContactFeed | None = None
@@ -104,7 +105,6 @@ class SimDetectorFactory:
         detector_settings: VisionProfile,
         mount_index: int,
     ) -> VisionDetectorNode:
-        del mount_index
         ideal_360 = bool(detector_settings.get("ideal_360", False))
         tracking_config = (
             None
@@ -134,6 +134,11 @@ class SimDetectorFactory:
             zoom_config=zoom_config,
             scheduler_cadence=self._scheduler_cadence,
             ideal_360=ideal_360,
+            camera_frames=(
+                None
+                if self._camera_frames is None
+                else self._camera_frames(mount_index)
+            ),
         )
         self._wire_dock_contact(detector)
         if ideal_360:
@@ -176,7 +181,13 @@ class SimDetectorFactory:
             sim_debug=SimDebugSource(
                 read_snapshot=read_debug_snapshot,
             ),
+            camera_health=CameraHealth(NAVPY_SIM_CAMERA_VENDOR, _sim_camera_ready),
         )
+
+
+def _sim_camera_ready() -> bool:
+    # The sim detector projects the sim world; it has no capture to stall.
+    return True
 
 
 __all__ = ["SimDetectorFactory"]

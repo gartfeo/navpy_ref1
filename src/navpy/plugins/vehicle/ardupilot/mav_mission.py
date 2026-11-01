@@ -11,6 +11,7 @@ from pymavlink.mavwp import MAVWPLoader
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.location import Location
+from navpy.core.ports.mission_download import MissionDownload
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
@@ -102,9 +103,10 @@ class MavMission:
         on_progress: MissionProgress | None = None,
         mission_type: int = MAV_MISSION_TYPE_MISSION,
         policy: ExchangePolicy | None = None,
-    ) -> int:
+    ) -> MissionDownload:
+        """Empty, complete or failed; the vehicle's int API takes its ``count``."""
         with self._lock:
-            return self._downloader.download(on_progress, mission_type, policy)
+            return self._downloader.download_outcome(on_progress, mission_type, policy)
 
     def download_items(
         self,

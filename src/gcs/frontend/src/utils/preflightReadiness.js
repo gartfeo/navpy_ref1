@@ -7,7 +7,8 @@
  * sensor health (gyro/accel/mag/baro), and the RC link — fields surfaced from
  * the telemetry snapshot (`vehicle.ekf`, `vehicle.sensors`) — plus the
  * launch-gate-only conditions companion computer, mission upload, and throttle
- * (see computeVehicleReadiness).
+ * (see computeVehicleReadiness), and the display-only detector camera and video
+ * stream rows (caution at worst, never part of the launch gate).
  *
  * This is an ADVISORY readiness view: it does NOT change launch gating in
  * LaunchPanel/control.py — it informs the operator. But its overall GO/NO-GO is
@@ -236,6 +237,92 @@ export function computeCompanionCheck(vehicle) {
   return { key: 'companion', status: 'na', detail: { status: s || null } };
 }
 
+// Detector camera and video stream rows (docs/design/gcs_preflight_camera_row.md).
+// Display only and caution at worst: they never read 'nogo' and the launch gate
+// (computeLaunchReadiness) never sees them. Both read '—' (na, no detail) while
+// the companion is not "ok": its own row says why.
+const CAMERA_ROW_STATUS = {
+  ready: 'go', simulated: 'go', streams: 'go',
+  lost: 'warn', noFrames: 'warn', notAdvertised: 'warn',
+  discoveryFailed: 'warn', uriRejected: 'warn', duplicate: 'warn',
+  checking: 'na', notReported: 'na', noneConfigured: 'na',
+};
+// The detector row shows its worst camera: Lost and No frames, then Checking,
+// then Not reported, then Ready and Simulated.
+const DETECTOR_CAMERA_RANK = {
+  lost: 3, noFrames: 3, checking: 2, notReported: 1, ready: 0, simulated: 0,
+};
+// Only NavPy's own cameras' HEARTBEAT status means detector readiness.
+const NAVPY_CAMERA_READY = { navpy: 'ready', navpy_sim: 'simulated' };
+
+function cameraRowCheck(key, state, extra = {}) {
+  return { key, status: CAMERA_ROW_STATUS[state], detail: { state, ...extra } };
+}
+
+/** One camera's detector state, the first that applies (backend `cameras`). */
+function detectorCameraState(camera) {
+  if (camera.lost) return 'lost';
+  if (camera.vendor == null) return camera.discovery === 'failed' ? 'notReported' : 'checking';
+  const ready = NAVPY_CAMERA_READY[camera.vendor];
+  if (!ready) return 'notReported';
+  if (camera.status === 'active') return ready;
+  if (camera.status === 'critical') return 'noFrames';
+  return 'notReported';
+}
+
+/**
+ * Detector camera row: does NavPy's detector get frames? With no camera, it is
+ * Checking until `camera_wait_over` (the backend's advertise grace), then Not
+ * advertised. With cameras, the worst one wins; with more than one, detail
+ * carries how many cameras are in that state.
+ */
+export function computeDetectorCameraCheck(vehicle) {
+  const key = 'detectorCamera';
+  if (!vehicle || vehicle.companion_status !== 'ok') return { key, status: 'na', detail: null };
+  const cameras = Array.isArray(vehicle.cameras) ? vehicle.cameras : [];
+  if (!cameras.length) {
+    return cameraRowCheck(key, vehicle.camera_wait_over ? 'notAdvertised' : 'checking');
+  }
+  const states = cameras.map(detectorCameraState);
+  const state = states.reduce(
+    (w, s) => (DETECTOR_CAMERA_RANK[s] > DETECTOR_CAMERA_RANK[w] ? s : w),
+  );
+  if (cameras.length === 1) return cameraRowCheck(key, state);
+  const count = states.filter((s) => s === state).length;
+  return cameraRowCheck(key, state, { count, total: cameras.length });
+}
+
+/**
+ * Video stream row: is the operator display stream advertised by this UAV's
+ * companion and unique in the fleet? The first that applies; a lost camera's
+ * streams have already left `video_streams` and the backend's duplicate check.
+ */
+export function computeVideoStreamCheck(vehicle) {
+  const key = 'videoStream';
+  if (!vehicle || vehicle.companion_status !== 'ok') return { key, status: 'na', detail: null };
+  const cameras = Array.isArray(vehicle.cameras) ? vehicle.cameras : [];
+  const live = cameras.filter((c) => !c.lost);
+  const duplicates = vehicle.video_stream_duplicates || [];
+  if (duplicates.length) {
+    const sysIds = [...new Set(duplicates.flatMap((d) => d.sys_ids))].sort((a, b) => a - b);
+    return cameraRowCheck(key, 'duplicate', { sysIds });
+  }
+  const rejected = live.flatMap((c) => c.rejected || []);
+  if (rejected.length) return cameraRowCheck(key, 'uriRejected', { reason: rejected[0].reason });
+  if (live.some((c) => c.discovery === 'failed')) return cameraRowCheck(key, 'discoveryFailed');
+  if (cameras.some((c) => c.lost && c.has_video)) return cameraRowCheck(key, 'lost');
+  if (live.some((c) => c.discovery === 'running')) return cameraRowCheck(key, 'checking');
+  const count = (vehicle.video_streams || []).length;
+  if (count) return cameraRowCheck(key, 'streams', { count });
+  if (vehicle.video_stream_expected) {
+    return cameraRowCheck(key, vehicle.camera_wait_over ? 'notAdvertised' : 'checking');
+  }
+  if (cameras.length && cameras.every((c) => c.has_video === false)) {
+    return cameraRowCheck(key, 'noneConfigured');
+  }
+  return { key, status: 'na', detail: null };
+}
+
 /**
  * Mission-upload row. Mirrors the launch gate: a vehicle with no verified upload
  * and no mission items on board cannot launch, so not-uploaded is a hard blocker
@@ -273,9 +360,10 @@ export function computeThrottleCheck(vehicle, gates = DEFAULT_LAUNCH_GATES) {
 }
 
 /**
- * Full readiness for one vehicle. Folds in the presence-gated airspeed row plus
- * the launch-gate-only conditions (companion, mission, throttle) so the board's
- * overall verdict cannot read GO while the launch gate would block the vehicle.
+ * Full readiness for one vehicle. Folds in the presence-gated airspeed row, the
+ * launch-gate-only conditions (companion, mission, throttle) so the board's
+ * overall verdict cannot read GO while the launch gate would block the vehicle,
+ * and the camera rows, which can only raise it to caution.
  * Link-down vehicles read 'na' with no checks — there's nothing to report until
  * telemetry resumes. Single source of truth for "this vehicle's one overall
  * verdict", shared by the readiness grid and the fleet-status rollup below.
@@ -285,10 +373,12 @@ export function computeVehicleReadiness(vehicle, gates = DEFAULT_LAUNCH_GATES) {
   if (!vehicle || !vehicle.link_ok) return { checks: [], overall: 'na' };
   const base = computePreflightReadiness(vehicle, gates);
   const companion = computeCompanionCheck(vehicle);
+  const detectorCamera = computeDetectorCameraCheck(vehicle);
+  const videoStream = computeVideoStreamCheck(vehicle);
   const mission = computeMissionCheck(vehicle);
   const throttle = computeThrottleCheck(vehicle, gates);
   const air = computeAirspeedCheck(vehicle);
-  const checks = [...base.checks, companion, mission, throttle, air];
+  const checks = [...base.checks, companion, detectorCamera, videoStream, mission, throttle, air];
   let overall = checks.reduce((acc, c) => worst(acc, c.status), 'na');
   // Authoritative backstop: the launch gate is the source of truth for "can this
   // vehicle launch". Any launch blocker (throttle, GPS accuracy, unknown battery,
