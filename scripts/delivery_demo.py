@@ -249,10 +249,10 @@ def cpu_share_text(record: ShareRecord | None = None) -> str:
         ]
         if not shares:
             return (
-                "CPU share: none found for this stack, so it runs as background: the claim was "
-                "refused or the share has already ended (backend.log under the logs folder says "
-                "which). A share never grows after launch; to get one, stop, free the CPUs and "
-                "launch again."
+                "CPU share: none found for this stack, so it should run as background: the claim "
+                "was refused or the share has already ended. backend.log under the logs folder "
+                "says which, and its Stack scheduling line says if background could not be set. "
+                "A share never grows after launch; to get one, stop, free CPUs and launch again."
             )
         return _share_summary(shares[-1], record.clock())
     except Exception as error:  # noqa: BLE001 - the stack is up; the read must not fail it

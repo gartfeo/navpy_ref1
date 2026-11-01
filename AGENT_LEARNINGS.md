@@ -1748,3 +1748,7 @@
   them fails the launch with unrecognized arguments.
 - Copying an agent's work folder as evidence took in 42 MB of private repo copies. List
   it first and keep only results.
+- Quote an audit number in its verified form and keep its reference. Todo 166 carried
+  23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
+  line; Codex caught it, and a sweep of the `corrected` fields then found five more
+  overstatements. Read those fields before writing, not after.

@@ -350,7 +350,7 @@ def test_ready_text_reads_this_stacks_share_among_others(tmp_path):
 def test_ready_text_says_when_this_stack_has_no_share(tmp_path, shares, dead):
     text = demo.cpu_share_text(_record(tmp_path, *shares, dead=dead))
 
-    assert "CPU share: none found for this stack, so it runs as background" in text
+    assert "CPU share: none found for this stack, so it should run as background" in text
     assert "backend.log" in text and "Finish before" not in text
 
 
@@ -437,3 +437,18 @@ def test_ready_text_finds_the_share_the_backend_claims(monkeypatch, tmp_path):
     assert StackScheduling(record, native, timer=timer).start_from_env() == "holder"
 
     assert "CPU share: 6 CPUs (0,1,2,3,4,5) until" in demo.cpu_share_text(record)
+
+
+def test_ready_text_promises_no_background_it_may_not_have(monkeypatch, tmp_path):
+    # The real start: a refused claim and a refused background priority leave no
+    # share to find and a stack not at background, so the text points at the log.
+    record = ShareRecord(tmp_path / "cpu_shares.json")
+    native = SimpleNamespace(efficiency_classes=lambda: {0: 1})
+    monkeypatch.setenv(CPU_SHARE_ENV, "60")
+
+    assert StackScheduling(record, native, background=lambda: False).start_from_env() == "normal"
+
+    text = demo.cpu_share_text(record)
+    assert "so it should run as background" in text and "Stack scheduling line" in text
+    main_py = demo._REPOSITORY_ROOT / "src" / "gcs" / "backend" / "main.py"
+    assert '"Stack scheduling: %s"' in main_py.read_text(encoding="utf-8")
