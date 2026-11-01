@@ -352,6 +352,9 @@ def test_ready_text_says_when_this_stack_has_no_share(tmp_path, shares, dead):
 
     assert "CPU share: none found for this stack, so it should run as background" in text
     assert "backend.log" in text and "Finish before" not in text
+    # A dead row may be an earlier stack's (a refused claim writes nothing), so
+    # the text cannot say this stack stopped; only the log can show that.
+    assert "if neither, the backend may have stopped" in text
 
 
 def test_ready_text_says_so_when_no_record_exists(tmp_path):
