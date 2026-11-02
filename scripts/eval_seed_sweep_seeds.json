@@ -1,0 +1,13 @@
+{
+  "schema": 1,
+  "note": "Regression seeds (deterministic_dev_sim.md, section 3): each found a bug once and must pass in every sweep. A seed joins when its bug is fixed. last_digest is the last digest seen, for reference only: code changes move digests.",
+  "regression": [
+    {
+      "profile": "stress",
+      "seed": 40,
+      "why": "todo 65: no UAV docked under the CPU cap 4 until the lockstep reader drained its delivery (todo65_root_cause.md); the owner kept it as a seed that must pass (2026-11-01)",
+      "last_digest": "297878aefbd8802c67139d98db6d1d605b77980b1a143813377a4e662808356a",
+      "last_commit": "caed2cb4"
+    }
+  ]
+}

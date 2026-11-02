@@ -7,8 +7,8 @@ so each end is checked without a vehicle:
 
 - a lifecycle ``stop`` ends the run loop; cleanup, then the ``stopped{id}``
   ack, and the ending ``DONE`` is flushed (the coordinator answers ``acked``);
-- a cleanup failure sends no ack and ends unflushed (``missed`` and a host
-  fault at the coordinator);
+- a cleanup failure sends no ack and ends unflushed (``missed`` and the product
+  failure ``unclean_end`` at the coordinator, todo 202);
 - the drain ``end`` stops it with no ack event, flushed;
 - a stop that arrives before the host was built is held and applied;
 - a composition failure before readiness ends unflushed, with no readiness.

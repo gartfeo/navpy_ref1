@@ -2097,3 +2097,20 @@
 - Prove a clock test catches the mix: put `rt.time()` back in one place at a time (association, board clock, freshness) and see it fail, then restore.
 - In Git Bash, `PYTHONPATH="$PWD/src;..."` becomes `C:\c\Users\...` and Python silently imports the main checkout's packages. Use `W=$(pwd -W)` and print `navpy.__path__` before trusting a test run.
 - Python `open(..., 'w')` in text mode writes LF; on this Windows checkout that turned CRLF files into "w/mixed" or LF. Git normalizes, but byte-hashed files do not.
+## Dev sim step 8: seed sweep (2026-11-02)
+
+- Do not edit a tracked file while a matrix runs, not even a doc. The input manifest records the
+  uncommitted diff's hash, so the cells before and after the edit differ and the matrix fails
+  (`matrix_none_dirty`). Commit first, or write in the scratchpad until the matrix ends.
+- Run a mutation script in a detached worktree of the commit, never in the worktree under test. It rewrites
+  source files, so a full pytest or a review running there at the same time may see a mutant; both had to be
+  rerun.
+- A planted-bug result needs a clean-tree control on the same seeds. `hw` 576840 failed on the clean tree too,
+  in another way (todo 229), which only the control showed.
+- A known-todo explainer must match the todo's mechanism, not its symptom words. "Wind on and a roll step"
+  hid a roll step on a UAV that docked (`stress` 30); todo 77 is a dock miss, so the roll step is explained
+  only on a UAV that also missed. Re-class saved runs after narrowing a rule to see what it uncovers.
+- A replay that matches up to a fault tick shows the run was deterministic there, not why it ended there. Name
+  such an outcome for what was observed (`not_repeated`, incomplete), not for a cause the evidence cannot prove.
+- Check every mutation string against the current code before a mutation run; a stale one stops the run at
+  its assert after the earlier mutations have already run.

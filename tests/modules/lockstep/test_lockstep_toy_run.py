@@ -95,9 +95,9 @@ def test_a_duplicate_stop_gets_the_same_result_and_a_stale_one_an_error(tmp_path
         {"result": "acked"}, {"result": "acked"}, {"result": "error"}]
 
 
-def test_a_cleanup_failure_is_a_missed_stop_and_a_host_fault(tmp_path):
+def test_a_cleanup_failure_is_a_missed_stop_and_a_product_failure(tmp_path):
     coordinator, *_ = build(tmp_path, plan=manifest(rover={"fail_flush": True}))
-    with pytest.raises(HostFault, match="without a flushed end"):
+    with pytest.raises(ParticipantFault, match="without a flushed end"):
         coordinator.run()
     assert ("stop_result", "missed") in [(kind, result) for _k, kind, _o, result, _p in _lifecycle(coordinator)]
 
@@ -151,9 +151,10 @@ def test_the_drain_budget_is_a_fault_and_stops_by_ownership(tmp_path):
     assert not any(pid_alive(m.child.pid) for m in roster.members)
 
 
-def test_a_stop_budget_miss_is_missed_and_a_fault(tmp_path):
+def test_a_stop_budget_miss_is_missed_and_a_product_failure(tmp_path):
+    """The budget is sim time, so the miss repeats on a rerun (todo 202)."""
     coordinator, *_ = build(tmp_path, plan=manifest(rover={"ignore_stop": True}))
-    with pytest.raises(HostFault, match="missed its stop budget"):
+    with pytest.raises(ParticipantFault, match="missed its stop budget"):
         coordinator.run()
     assert ("stop_result", "missed") in [(kind, result) for _k, kind, _o, result, _p in _lifecycle(coordinator)]
 
