@@ -1326,6 +1326,69 @@
   Codex's claim that jammy lacks nvcodec came from that site and was wrong.
 - A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
+## Encoded publisher, HITL step 8 (2026-10-25)
+
+- The publisher, lens remap and stream check live in aas-hitl (its AGENT_LEARNINGS has the GStreamer lessons);
+  navpy only gained the NPYC v3 decoder. Keep the v3 fixture hashes in step with Unreal's header and the aas-hitl
+  decoder: one header change touches three repos.
+- rtspclientsink starts ANNOUNCE/SETUP/RECORD only on the first buffer's caps, and MediaMTX answered SETUP about
+  1 s later; a backlog guard counting from the first push trips on that handshake. Hold later frames as
+  "connecting" until MediaMTX's API reports the publisher.
+- An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
+  the path.
+- Live runs (2026-10-27): a global -NavPyNativeCameraPort makes all three gimbal actors connect to one port, and
+  accept order decides which camera streams; keep each actor's level port (UAV1 18110, UAV2 18120, UAV3 18130).
+- After a WSL listener closes, the VM-wide wslrelay keeps a stale Windows listener; a restarted publisher adds a
+  second one and Unreal's connect can land on the stale one (a void run). Before starting Unreal, check exactly one
+  Windows LISTENING socket on the port, and after it an ESTAB to python3 inside WSL. The relay exits only once the VM
+  idles out, which never happens while another chat works in WSL. On WSL 2.6.3 the order decides: a publisher that ends
+  while Unreal is sending wedges the port until the VM restarts, and Unreal sees no error; closing Unreal first stays
+  clean (reproduced on scratch ports; the cause is in wslrelay's source, fixed upstream in 3.0.4). WSL's own address
+  (hostname -I) has no relay and carried 2 to 3 times the rate under load. Use it for streams at this rate.
+- A number counted from slot log lines cannot exceed the slot rate, so "Unreal ticks at only 22-30 per second" was an
+  artifact I reported as a finding. Check how a statistic is built before reading a limit into it; Insights was the
+  real measure.
+- Compare runs on a busy PC only back to back. Runs E5 and E6 differed in Unreal's main view and also in WSL's load
+  (12.5 to low; remap p50 14.5 to 3.9 ms, socket-busy 250 to 2), so neither explained the gain alone; only the
+  back-to-back E7 and E8 isolated the view (late ticks 396 to 59, steady rate 27.6 to 30.0 fps). Log WSL's load next
+  to every live number.
+- Monitors can be the load. 20 sleepers waking every 2 ms and a 50 Hz thread sampler went with 23.7 fps (S12); the next
+  run without them read 28.4 fps (S13), but WSL's load also differed (20 against 13), so it is no clean A/B. Read a run
+  with heavy monitors for where the stalls fall, not for its rate.
+- A PNG named by PTS is only safe with rtspsrc buffer-mode=none. With the default mode a stall made PTS clamp, one PNG
+  overwrote another, and I chased a "270 px error" that was the wrong frame. Check the join before the pipeline.
+- A slow reader's start can hurt a running stream: loading nvcodec in a second process took 1-9 s and held frames up to
+  650 ms in the encoder. Load the plugin before the stream starts.
+- A frame-count bound is not a time bound: frames arrive bunched, so "more than 3" tripped after only 70 ms. Compute how
+  often each level occurs (each one was 40-60 times rarer) before reasoning about what a limit allows.
+- os.replace on /mnt/c is not atomic for a reader: the name is missing in about 5 % of reads while rewriting. On /tmp, none.
+- gcs_stop.py --eval found nothing once because the registry entry of my slot now named another chat's folder, so my
+  SITL stayed up. Check for leftover processes after a stop instead of trusting its output; stop only exact PIDs.
+- A capture at nice 19 lagged the stream by 60 s (PTS 130 s after 205 s), so it missed the last zoom moves although
+  its timer covered them. Check the last PTS it read, not its duration.
+- The WSL distro idle-stops, and \\wsl.localhost reads then fail; keep `wsl.exe --exec /bin/sleep N` running while
+  reading. From Git Bash pass //wsl.localhost/... with MSYS_NO_PATHCONV=1 ('\\wsl.localhost' arrives with one
+  backslash).
+- A check that gates on the PC must treat a failed reading as "unknown", never as "free": a failed CIM call (HRESULT
+  0x80041032) once left the busy list empty and read as QUIET, and wsl.exe once failed with Wsl/Service/0x80072747.
+  There is no quiet-PC rule any more: live runs claim a CPU share and record the load (docs/design/bounded_cpu_share.md).
+- A CPU share bounds cores, not the power limit: at 17-19 of 20 cores busy the clock fell to about 85 % of nominal. WSL's
+  vCPU threads are not touched by the share. Record load, clock and memory with every live number.
+- Unreal profiling: -csvCaptureFrames on the command line asserts (IsRayTracingAllowed before RHI init); start it
+  with ExecCmds "csvprofile frames=N". Unreal Insights exports without UI via -OpenTraceFile, -AutoQuit -NoUI and
+  -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics ..." (or ExportTimingEvents for per-call times);
+  pass the argument string through PowerShell Start-Process, as Git Bash quoting silently dropped the command.
+- Replay a hand-off design against the run's own log (ready times, measured job times) before choosing it. The
+  planned tick-quantised hold looked sufficient but reached 23-25 fps of 27-28 captured, because the game thread
+  hands off once per tick; a one-deep worker queue plus one held frame reached the capture rate.
+- orin1 has no h265parse; for a read-only RTSP rate check use rtph265depay with alignment=au.
+- Smart App Control refused a rebuilt unsigned plugin DLL (LoadLibrary GetLastError=4551). The owner turned it off
+  on 2026-10-28 and signing was dropped, so unsigned builds load. Do not state what a Windows setting allows from
+  memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
+- Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
+  anything longer than a line.
+- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback
