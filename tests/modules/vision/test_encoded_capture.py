@@ -23,10 +23,9 @@ from navpy.core.ports.frame_capture_ports import CaptureStampKind
 from navpy.core.perception.profile import vision_profile_loader
 from navpy.plugins.camera.gstreamer import frame_capture_gstreamer as module
 from navpy.plugins.camera.gstreamer.encoded_frame_gate import EncodedStreamReset
-from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import (
-    GstreamerFrameCapture,
-    parse_gstreamer_source,
-)
+from navpy.plugins.camera.gstreamer.encoded_source import parse_gstreamer_source
+from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import GstreamerFrameCapture
+from tools.hitl.encoded_capture_score import score_intervals, score_los
 
 SOURCE = "gstreamer+rtsp://127.0.0.1:18554/main.264?decoder=avdec_h265&latency_ms=50"
 WIDTH, HEIGHT = 4, 2
@@ -404,6 +403,36 @@ def test_the_detector_measures_each_picture_once():
 
     assert detector.detect.call_count == 2
     assert generation.publish_detection.call_count == 2
+
+
+def test_live_check_scores_kept_intervals_and_each_fault():
+    sender = [i * 33_333_333 for i in range(100)]
+    base = 7_000_000_000
+    clean = [base + p for p in sender[10:90]]
+
+    good = score_intervals(clean, sender)
+    assert good.ok and good.sender_in_window == 80 and good.decoded == 80
+
+    missing = clean[:30] + clean[31:]
+    assert not score_intervals(missing, sender).ok
+    assert score_intervals(missing, sender).missing_sender == 1
+
+    retimed = list(clean)
+    retimed[40] += 1_000_000
+    assert score_intervals(retimed, sender).unmatched_decoded == 1
+
+    repeated = clean[:30] + [clean[29]] + clean[30:]
+    assert score_intervals(repeated, sender).repeated_pts == 1
+
+    assert not score_intervals([], sender).ok
+    assert not score_intervals([base, base + 5, base + 11], sender).ok
+
+
+def test_live_check_scores_duplicate_los_updates():
+    assert score_los([(1, 1.0), (2, 2.0)]) == {
+        "los_updates": 2, "duplicate_pictures": 0, "duplicate_times": 0}
+    assert score_los([(1, 1.0), (1, 2.0), (2, 2.0)]) == {
+        "los_updates": 3, "duplicate_pictures": 1, "duplicate_times": 1}
 
 
 _HAS_GI = importlib.util.find_spec("gi") is not None

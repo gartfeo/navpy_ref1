@@ -7,7 +7,7 @@ opening is a failed start, never another decoder path.
 rtspsrc is pinned to ``buffer-mode=none`` (RTP clock only), ``ntp-sync=false``
 and ``rfc7273-sync=false``, with a fixed jitter-buffer latency, and appsink to
 ``sync=false``, so PTS keeps the sender's intervals and the receiver clock does
-not delay delivery. A frame's PTS, its sequence in this open and the open's
+not hold frames back. A frame's PTS, its sequence in this open and the open's
 identity travel in ``CaptureStamp.source``; the stamp itself is READ, taken when
 the sample was pulled (certified exposure timing is not claimed here). The
 sequence counts this open's accepted frames; the publisher's own frame numbers
@@ -25,9 +25,7 @@ GStreamer 1.20 APIs only: this code also runs on the Orin.
 from __future__ import annotations
 
 from collections.abc import Callable
-from dataclasses import dataclass
 from typing import Any, Optional
-from urllib.parse import parse_qs, urlsplit
 
 import numpy as np
 
@@ -45,10 +43,10 @@ from navpy.plugins.camera.gstreamer.encoded_frame_gate import (
     EncodedStreamReset,
     FrameFacts,
 )
-
-GSTREAMER_SCHEME = "gstreamer+rtsp://"
-SUPPORTED_DECODERS = ("nvh265dec", "avdec_h265")    # HITL step 7's selection
-_MAX_LATENCY_MS = 2000
+from navpy.plugins.camera.gstreamer.encoded_source import (
+    EncodedSourceSettings,
+    parse_gstreamer_source,
+)
 
 # Long enough for Unreal's and the publisher's start beside a loaded PC. Ends a run that never gets a stream.
 FIRST_FRAME_DEADLINE_S = 300.0
@@ -59,45 +57,6 @@ SAMPLE_GAP_LIMIT_S = 5.0
 _PULL_SLICE_NS = 100_000_000
 
 FrameObserver = Callable[[FrameSourceIdentity, float], None]
-
-
-def is_gstreamer_source(source: object) -> bool:
-    return isinstance(source, str) and source.lower().startswith(GSTREAMER_SCHEME)
-
-
-@dataclass(frozen=True)
-class EncodedSourceSettings:
-    url: str
-    decoder: str
-    latency_ms: int
-
-    def pipeline_text(self) -> str:
-        return (
-            f"rtspsrc name=src location={self.url} protocols=udp buffer-mode=none "
-            f"ntp-sync=false rfc7273-sync=false latency={self.latency_ms} "
-            "! rtph265depay ! h265parse ! video/x-h265,stream-format=byte-stream,alignment=au "
-            f"! {self.decoder} ! videoconvert ! video/x-raw,format=BGR "
-            "! appsink name=sink sync=false async=false max-buffers=4 drop=false"
-        )
-
-
-def parse_gstreamer_source(source: str) -> EncodedSourceSettings:
-    """The source's settings; ValueError unless all of them are stated and known."""
-    if not is_gstreamer_source(source):
-        raise ValueError(f"not a {GSTREAMER_SCHEME} source: {source!r}")
-    parts = urlsplit(source[len("gstreamer+"):])
-    query = parse_qs(parts.query, strict_parsing=bool(parts.query))
-    if set(query) != {"decoder", "latency_ms"} or any(len(v) != 1 for v in query.values()):
-        raise ValueError(f"{source!r}: needs exactly decoder=NAME and latency_ms=N")
-    decoder, latency = query["decoder"][0], query["latency_ms"][0]
-    if decoder not in SUPPORTED_DECODERS:
-        raise ValueError(f"{source!r}: decoder must be one of {SUPPORTED_DECODERS}")
-    if not latency.isdigit() or int(latency) > _MAX_LATENCY_MS:
-        raise ValueError(f"{source!r}: latency_ms must be 0 to {_MAX_LATENCY_MS}")
-    url = f"rtsp://{parts.netloc}{parts.path}"
-    if not parts.hostname or any(c.isspace() or c in '!"\'' for c in url):
-        raise ValueError(f"{source!r}: not a usable RTSP address")
-    return EncodedSourceSettings(url, decoder, int(latency))
 
 
 def _load_gst() -> Any:
@@ -323,13 +282,8 @@ def _bgr_pixels(data: bytes, width: int, height: int) -> np.ndarray:
 
 __all__ = [
     "CONNECT_RETRY_S",
-    "EncodedSourceSettings",
     "FIRST_FRAME_DEADLINE_S",
     "FrameObserver",
-    "GSTREAMER_SCHEME",
     "GstreamerFrameCapture",
     "SAMPLE_GAP_LIMIT_S",
-    "SUPPORTED_DECODERS",
-    "is_gstreamer_source",
-    "parse_gstreamer_source",
 ]

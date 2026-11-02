@@ -10,10 +10,8 @@ import cv2
 
 from navpy.plugins.camera.opencv.frame_capture_cv_lease import OpenCvCaptureLease
 from navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg import FfmpegFrameCapture
-from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import (
-    GstreamerFrameCapture,
-    is_gstreamer_source,
-)
+from navpy.plugins.camera.gstreamer.encoded_source import is_gstreamer_source
+from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import GstreamerFrameCapture
 from navpy.plugins.camera.unreal.frame_capture_npyc import NpycFrameCapture, is_npyc_source
 from navpy.plugins.camera.opencv.frame_capture_opencv import (
     OpenCvFrameCapture,
