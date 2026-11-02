@@ -76,7 +76,7 @@ export default function useTaskConfirmation({ waitSecFor = NO_WAIT } = {}) {
   }, []);
 
   const handleConfirmImage = useCallback((data) => {
-    setPendingConfirms((prev) => confirmImage(prev, data));
+    setPendingConfirms((prev) => confirmImage(prev, { ...data, receivedAt: confirmNow() }));
   }, []);
 
   const handleConfirmResponse = useCallback((data) => {

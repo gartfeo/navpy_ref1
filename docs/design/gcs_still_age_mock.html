@@ -1,0 +1,230 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Confirm still age mock</title>
+<style>
+  :root {
+    --bg: #1a1a2e; --bgLight: #16213e; --bgLighter: #24344f; --surface: #1f3050; --accent: #00d2ff;
+    --text: #e0e0e0; --dim: #8899aa; --bright: #fff; --go: #4caf50;
+    --warn: #ff9800; --nogo: #f44336; --border: #2a3f5f;
+  }
+  body { margin: 0; padding: 20px 16px; background: #0d0d1a; color: var(--text);
+    font: 13px/1.4 -apple-system, "Segoe UI", Roboto, sans-serif; }
+  h1 { font-size: 18px; color: var(--bright); margin: 0 0 4px; }
+  h2 { font-size: 14px; color: var(--accent); margin: 24px 0 8px; }
+  .note { color: var(--dim); font-size: 12px; margin: 0 0 10px; max-width: 1000px; }
+  .wrap { display: flex; gap: 24px; flex-wrap: wrap; align-items: flex-start; }
+  .col { display: flex; flex-direction: column; gap: 6px; width: 300px; max-width: 100%; }
+  .col.w { width: 320px; }
+  .cap { font-size: 11px; color: var(--dim); letter-spacing: 1px; text-transform: uppercase; }
+  /* The real card's outer width: 320 px host less 16 px host padding each side. */
+  .host { width: 288px; max-width: 100%; }
+  .panel { width: 320px; max-width: 100%; height: 352px; background: var(--bgLight); border: 1px solid var(--border);
+    box-sizing: border-box; display: flex; flex-direction: column; overflow: hidden; }
+  .rc { height: 173px; border-radius: 6px; }
+  .pinned { flex-shrink: 0; padding: 10px 16px 4px; border-bottom: 1px solid var(--border); }
+  .scroll { flex: 1 1 auto; overflow: hidden; padding: 16px 16px 0; position: relative; min-height: 0; }
+  .scroll::after { content: "scrolls"; position: absolute; right: 6px; bottom: 2px;
+    font-size: 10px; color: var(--dim); background: var(--bgLight); padding: 0 3px; }
+  .uav { display: inline-block; padding: 0 5px; border-radius: 3px; color: #fff; font-size: 11px; font-weight: 700; line-height: 18px; }
+  .u7 { background: #D90012; } .u8 { background: #0033A0; } .u9 { background: #8a6d00; }
+  .card { margin-bottom: 12px; padding: 10px; background: var(--surface); border-radius: 6px;
+    border: 2px solid var(--warn); box-shadow: 0 0 8px #ff980060; }
+  .head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 2px 6px;
+    font-size: 13px; font-weight: 700; color: var(--warn); margin-bottom: 6px; }
+  .t { margin-left: auto; font-variant-numeric: tabular-nums; }
+  .g { color: var(--go); } .r { color: var(--nogo); }
+  .pos { font-size: 11px; color: var(--dim); margin-bottom: 6px; }
+  .pos a { color: var(--accent); }
+  .still { position: relative; height: 160px; border-radius: 4px; background:
+    repeating-linear-gradient(45deg,#24344f,#24344f 8px,#2a3d5c 8px,#2a3d5c 16px); }
+  .still span { position: absolute; left: 92px; top: 52px; border: 2px solid var(--go); padding: 16px 28px;
+    font-size: 10px; color: var(--go); }
+  .empty { height: 160px; border-radius: 4px; background: var(--bgLighter); display: flex; align-items: center;
+    justify-content: center; color: var(--dim); font-size: 11px; text-align: center; }
+  .empty.old { height: 60px; }
+  .gap8 { margin-bottom: 8px; }
+  .capt { font-size: 11px; color: var(--text); margin: 4px 0 0; font-variant-numeric: tabular-nums; }
+  .capt2 { font-size: 11px; color: var(--dim); margin: 0 0 8px; }
+  .hid { visibility: hidden; }
+  .vc { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .vc b { flex: 0 0 auto; min-height: 44px; line-height: 44px; padding: 0 12px; border-radius: 4px; font-size: 14px; font-weight: 600;
+    border: 1px solid var(--border); background: var(--bgLighter); color: var(--bright); }
+  .vc span { flex: 1 1 120px; font-size: 11px; color: var(--dim); }
+  .bar { height: 3px; background: var(--bgLight); border-radius: 2px; margin-bottom: 8px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--go); }
+  .btns { display: flex; gap: 8px; }
+  .btn { flex: 1; text-align: center; padding: 8px 0; border-radius: 4px; font-weight: 700; font-size: 13px; color: #fff; }
+  .ap { background: var(--go); } .dn { background: var(--nogo); }
+  .row { display: flex; align-items: center; gap: 6px; height: 32px; margin-bottom: 4px; font-size: 12px; font-weight: 700; color: var(--go); }
+  .row .x { margin-left: auto; border: 1px solid var(--nogo); color: var(--nogo); font-weight: 700; padding: 0 8px;
+    line-height: 30px; border-radius: 4px; font-size: 11px; }
+  .row .s { margin-left: auto; border: 1px solid var(--accent); color: var(--accent); padding: 0 6px; line-height: 30px; border-radius: 6px; font-size: 11px; }
+  .row .s + .x { margin-left: 0; }
+  .chip { display: flex; align-items: center; gap: 5px; height: 30px; box-sizing: border-box; margin-bottom: 4px;
+    padding: 0 8px; border-radius: 6px; border: 2px solid var(--warn); background: #ff980022;
+    font-size: 12px; font-weight: 700; color: var(--bright); white-space: nowrap; }
+  .chip .more { color: var(--dim); font-size: 11px; }
+  .open { margin-bottom: 12px; }
+  .open .h { display: flex; align-items: center; gap: 6px; margin-bottom: 4px; font-size: 12px; font-weight: 700; color: var(--bright); }
+  .open .still { height: 120px; }
+  .open .still span { top: 32px; }
+  .new { outline: 1px dashed var(--accent); outline-offset: 1px; }
+</style>
+</head>
+<body>
+<h1>Confirm still: age and POI (todo 71)</h1>
+<p class="note">Static mock at the real sizes for the 320 px host. The dashed outline marks what is new. Scenario:
+demo policy, wait 30 s; s1-u7's request reached this browser 7 s ago, so 23 s are left. Fit in the running app is
+checked live; this page is a drawing. Note: gcs_still_age.md.</p>
+
+<h2>Waiting for the image: the first seconds of a round (decisions 5, 6)</h2>
+<div class="wrap">
+  <div class="col">
+    <div class="cap">Today</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+      <div class="empty old gap8">Waiting for image...</div>
+      <div class="vc"><b>View camera</b><span>The countdown keeps running</span></div>
+      <div class="bar"><i style="width:77%"></i></div>
+      <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div>
+    </div></div>
+    <div class="note">No time. When the image arrives, Approve and Deny drop by up to 104 px, and every card below moves with them.</div>
+  </div>
+  <div class="col">
+    <div class="cap">Proposed</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+      <div class="empty new">Waiting for image</div>
+      <div class="capt new">POI #3 · request received 0:07 ago</div>
+      <div class="capt2 hid">Taken before the request; exact time unknown</div>
+      <div class="vc"><b>View camera</b><span class="new">Live view may no longer show POI #3. The countdown keeps running.</span></div>
+      <div class="bar"><i style="width:77%"></i></div>
+      <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div>
+    </div></div>
+    <div class="note">The picture area and both caption lines already have their final size, so nothing moves when the image arrives.
+      The second line stays hidden until then.</div>
+  </div>
+  <div class="col">
+    <div class="cap">Proposed, time up, no image</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t r">Time up; sending answer</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+      <div class="empty new">No image received</div>
+      <div class="capt new">POI #3 · request received 0:31 ago</div>
+      <div class="capt2 hid">Taken before the request; exact time unknown</div>
+      <div class="vc"><b>View camera</b><span class="new">Live view may no longer show POI #3. <i class="hid">The countdown keeps running.</i></span></div>
+      <div class="bar"></div>
+      <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div>
+    </div></div>
+    <div class="note">An image arriving after this still attaches. The countdown sentence is hidden but keeps its space, so nothing moves. The age keeps rising.</div>
+  </div>
+</div>
+
+<h2>With the image (decisions 1, 2, 4)</h2>
+<div class="wrap">
+  <div class="col">
+    <div class="cap">Today</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+      <div class="still gap8"><span>D3</span></div>
+      <div class="vc"><b>View camera</b><span>The countdown keeps running</span></div>
+      <div class="bar"><i style="width:77%"></i></div>
+      <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div>
+    </div></div>
+    <div class="note">No age and no POI on the still. Nothing warns that the live view may show something else.</div>
+  </div>
+  <div class="col">
+    <div class="cap">Proposed</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+      <div class="still"><span>D3</span></div>
+      <div class="capt new">POI #3 · request received 0:07 ago</div>
+      <div class="capt2 new">Taken before the request; exact time unknown</div>
+      <div class="vc"><b>View camera</b><span class="new">Live view may no longer show POI #3. The countdown keeps running.</span></div>
+      <div class="bar"><i style="width:77%"></i></div>
+      <div class="btns"><span class="btn ap">APPROVE</span><span class="btn dn">DENY</span></div>
+    </div></div>
+    <div class="note">The age ticks each second with the countdown and restarts on a re-ask. It is the time since the request reached this
+      browser, not the picture's age. The second line says so.</div>
+  </div>
+  <div class="col">
+    <div class="cap">Proposed, Armenian (for the owner to check)</div>
+    <div class="host"><div class="card">
+      <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Ավտոմերժում 0:23 հետո</span></div>
+      <div class="pos">40.181200, 44.514900 <a>[Քարտեզ]</a> — 120m</div>
+      <div class="still"><span>D3</span></div>
+      <div class="capt new">POI #3 · հարցումը ստացվել է 0:07 առաջ</div>
+      <div class="capt2 new">Նկարահանվել է հարցումից առաջ, ճշգրիտ ժամանակն անհայտ է</div>
+      <div class="vc"><b>Դիտել տեսախցիկը</b><span class="new">Տեսախցիկն արդեն կարող է ցույց չտալ POI #3-ը։ Հետհաշվարկը շարունակվում է։</span></div>
+      <div class="bar"><i style="width:77%"></i></div>
+      <div class="btns"><span class="btn ap">ՀԱՍՏԱՏԵԼ</span><span class="btn dn">ՄԵՐԺԵԼ</span></div>
+    </div></div>
+    <div class="note">Only the dashed text is new. The Armenian View camera button is wider, so the note drops under it, and the card grows with it.</div>
+  </div>
+</div>
+
+<h2>In the hosts at 960 x 448</h2>
+<div class="wrap">
+  <div class="col w">
+    <div class="cap">Right panel, 3 pending, soonest card on top</div>
+    <div class="panel">
+      <div class="pinned">
+        <div class="chip"><span>&#128276; 3</span><span class="uav u7">s1-u7</span><span class="more">+2</span><span class="g">0:23</span><span style="font-weight:600">Auto-deny</span></div>
+      </div>
+      <div class="scroll">
+        <div class="card" style="margin-bottom:0">
+          <div class="head"><span><span class="uav u7">s1-u7</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+          <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+          <div class="still"><span>D3</span></div>
+          <div class="capt new">POI #3 · request received 0:07 ago</div>
+          <div class="capt2 new">Taken before the request; exact time unknown</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">A card with the image is about 35 px taller than today. Today's 60 px empty card grows about 135 px, to the same size. The chip stays pinned and scrolls to the soonest card.</div>
+  </div>
+  <div class="col w">
+    <div class="cap">Right panel, approved, still open</div>
+    <div class="panel">
+      <div class="pinned">
+        <div class="row"><span class="uav u7">s1-u7</span> Approval sent <span class="s">Hide still</span><span class="x">CANCEL TASK</span></div>
+        <div class="row"><span class="uav u8">s1-u8</span> Approval sent <span class="s" style="border-color:var(--border);color:var(--text)">Still</span><span class="x">CANCEL TASK</span></div>
+      </div>
+      <div class="scroll">
+        <div class="open">
+          <div class="h"><span class="uav u7">s1-u7</span> POI #3</div>
+          <div class="pos">40.181200, 44.514900 <a>[Map]</a> — 120m</div>
+          <div class="still"><span>D3</span></div>
+          <div class="capt new">POI #3 · request received 1:12 ago</div>
+          <div class="capt2 new">Taken before the request; exact time unknown</div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Same caption on the opened still, so the age is there when deciding on Cancel task. Rows stay pinned.</div>
+  </div>
+  <div class="col w">
+    <div class="cap">RC list, 173 px, the tightest case</div>
+    <div class="panel rc">
+      <div class="pinned">
+        <div class="chip"><span>&#128276; 1</span><span class="uav u9">s1-u9</span><span class="g">0:23</span><span style="font-weight:600">Auto-deny</span></div>
+        <div class="row"><span class="uav u7">s1-u7</span> Approval sent <span class="x">CANCEL TASK</span></div>
+        <div class="row"><span class="uav u8">s1-u8</span> Approval sent <span class="x">CANCEL TASK</span></div>
+      </div>
+      <div class="scroll" style="padding-top:8px">
+        <div class="card">
+          <div class="head"><span><span class="uav u9">s1-u9</span> POI #3</span><span class="t g">Auto-deny in 0:23</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="note">Every Cancel task stays pinned. About 50 px is left to scroll in, as today. Approve and Deny are further down that scroll: checked live, by scrolling and hit-testing.</div>
+  </div>
+</div>
+</body>
+</html>

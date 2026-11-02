@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { render, act, fireEvent } from '@testing-library/react';
+import { render, act, fireEvent, within } from '@testing-library/react';
 import { useState } from 'react';
 import TaskConfirmCard from './TaskConfirmCard';
 import { LONG_PRESS_MS } from '../utils/armAction';
@@ -183,6 +183,30 @@ describe('TaskConfirmCard View camera', () => {
     expect(getByText('task.viewing')).toBeDisabled();
   });
 
+  // jsdom has no layout, so this checks the mechanism. The browser numbers are
+  // in gcs_still_age.md: a narrower "Viewing" re-wraps the note and moves Approve.
+  it('holds one width for both labels: the other label stays inside it, hidden', () => {
+    const h = handlers();
+    const entry = entryFor({ roundUid: 'a' });
+    const view = render(card(entry, h, { viewing: false, onView: vi.fn() }));
+    const expectOtherLabelHeld = (shown, other) => {
+      // The name excludes the hidden label, so a screen reader hears one label.
+      const button = view.getByRole('button', { name: shown });
+      const held = within(button).getByText(other);
+      expect(held.style.visibility).toBe('hidden');
+      expect(held.style.height).toBe('0px');
+      // It must stay in flow to set the width: display: none or an absolute
+      // position would hide it just as well and bring the movement back.
+      expect(held.style.display).toBe('block');
+      expect(held.style.position).toBe('');
+      expect(held.style.width).toBe('');
+      expect(button.style.width).toBe('');
+    };
+    expectOtherLabelHeld('task.viewCamera', 'task.viewing');
+    view.rerender(card(entry, h, { viewing: true, onView: vi.fn() }));
+    expectOtherLabelHeld('task.viewing', 'task.viewCamera');
+  });
+
   it('is absent on decided cards and when not offered (no stream, RC)', () => {
     const approved = { ...entryFor({ roundUid: 'a' }), status: 'approved' };
     const r1 = render(card(approved, handlers(), { viewing: false, onView: vi.fn() }));
@@ -195,10 +219,10 @@ describe('TaskConfirmCard View camera', () => {
   it('tapped midway keeps the original deadline, calls neither approve nor deny, and expiry fires once', () => {
     const h = handlers();
     const onView = vi.fn();
-    const { getByText, getByTestId } = render(card(entryFor({ roundUid: 'a' }), h, { viewing: false, onView }));
+    const { getByRole, getByTestId } = render(card(entryFor({ roundUid: 'a' }), h, { viewing: false, onView }));
     advance(10_000);
     expect(getByTestId('confirm-countdown-1').dataset.time).toBe('0:20');
-    fireEvent.click(getByText('task.viewCamera'));
+    fireEvent.click(getByRole('button', { name: 'task.viewCamera' }));
     expect(onView).toHaveBeenCalledTimes(1);
     expect(h.onApprove).not.toHaveBeenCalled();
     expect(h.onDeny).not.toHaveBeenCalled();
@@ -221,9 +245,9 @@ describe('TaskConfirmCard View camera', () => {
         </div>
       );
     }
-    const { getByText, getByTestId } = render(<Host />);
+    const { getByRole, getByText, getByTestId } = render(<Host />);
     advance(12_000);
-    fireEvent.click(getByText('task.viewCamera'));
+    fireEvent.click(getByRole('button', { name: 'task.viewCamera' }));
     expect(getByText('fpv:false')).toBeInTheDocument();
     expect(getByTestId('confirm-countdown-1').dataset.time).toBe('0:18');
     advance(19_000);

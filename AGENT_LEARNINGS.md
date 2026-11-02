@@ -1765,3 +1765,70 @@
   was Cesium 1.138 leaving a clamped label's new letters at the raw height: a bare page on
   the installed version proved it, and upstream's changelog and tags showed the first fixed
   release. Do both before designing around a rendering fault.
+
+## Todo 71: the confirm still's age (2026-11-01)
+
+- A card's vitest stub returns the key and drops the arguments, so it cannot test wording
+  or interpolation. A test file can `vi.mock('react-i18next')` over the setup file's mock
+  and resolve the real en.json. Assert values through `data-*` attributes, as the
+  countdown's `data-time` does.
+- For "does this move", a layout check in jsdom proves nothing. Compare the styles in
+  vitest, then measure `getBoundingClientRect` live before and after the event.
+- `delivery_demo.py` opens the owner's browser, and that window stays connected and answers
+  rounds. Rounds then end early, so close it or expect it when driving the page elsewhere.
+- vitest's "Timeout waiting for worker to respond" means the files that worker held did not
+  run: the suite failed and coverage is incomplete, but results from files that ran still count
+  (todo 165). In one `--maxWorkers=1` run none of its 5 files ran. I first blamed CPU load, but the CPU read 3 %: free RAM was about 5 GB of 31, 750 pages/s,
+  with other chats' Python jobs holding over 50 GB. Memory pressure is the suspect, not proven.
+  Check memory as well as CPU. 14 tests/gcs tests also failed in a full run. 13 passed in a
+  group rerun and the last alone; the failures I could read were Node timeouts of 5 to 10 s.
+- A PowerShell line holding both `Select-String -Pattern '...\s...'` and `Remove-Item` was
+  blocked as a removal of system path `\s`. Keep removals in their own command.
+- I measured the View camera press in English only (1 px in the live check) and wrote
+  "Armenian was not measured". That hid a real regression in Armenian: with my new flex basis
+  the button's width decided the note's side there too, as it already did in English on
+  origin/main (23 px at width 320), so the label switch moved Approve 22 px in Armenian at
+  width 320 with the app's font, and up to 37 px over the fonts and widths.
+  Measure each language for each operator action. It is cheap and needs no stack: bundle the
+  real component with esbuild, open it in headless Chrome (`--dump-dom
+  --virtual-time-budget`) and read `getBoundingClientRect` over fonts and widths.
+- `vi.useFakeTimers` alone leaves `Date` at today's time. My tests with t0 = 1_000_000 passed
+  `now` as a prop, so they read fine while the card's real auto-fire ran at mount (its tick
+  reads `confirmNow()`, not the prop). Call `vi.setSystemTime`, and in a test that says
+  "unfired", assert the handler was not called.
+- A number in a PR text needs its conditions. An audit of my text found one font on one card
+  written as "at width 320", a mock's estimate written as a cost, and two live checks a commit
+  older than the text said. Give the font, width and card with each number, say what is a
+  measurement and what an estimate, and name the commit each check ran on.
+- A press can land on what moved under it. A row above Approve that goes during a round puts
+  Approve under a finger aimed at the row, and that called the real approve handler (todo 166;
+  fetch was stubbed). When attacking a layout fix, also try the events that add or remove a
+  control near a decision button, with real input, not only the event the fix is about. The
+  final review found two more such events: a pinned row expiring and a sooner round inserted
+  above.
+- I wrote "This is not new in this PR" about that press after an attack that never pressed View
+  camera on the card above. In that state the PR does change the result (English, app's font,
+  width 320: origin/main posts nothing, the PR posts approve). Before writing "not new" or "the
+  same", compare base and head in each state, including row-height differences: a 23 px row
+  difference was what kept Approve away on origin/main, by accident. Unless frequency was
+  measured, say changes in size, not in likelihood.
+- Hidden text stays findable by `getByText`. After I added the hidden label, one presence check
+  could pass on the hidden span, so forcing every card to Viewing passed all the card tests; two
+  clicks could pass on it too, so swapping the labels failed only 3 tests. When a change adds
+  hidden text, find the tests that match that text, use `getByRole` with the name, and show it
+  with a mutation.
+- On Windows, `chrome.exe --version` does not print a version. It starts the browser: it prints
+  "Opening in existing browser session", so a window or tab probably opened in the owner's Chrome
+  (inferred), or a new Chrome starts on the owner's default profile; whether that changed the
+  profile's session or history files was not checked. It happened in four agents on this PR,
+  three of them in the final review. Read the file's version resource instead
+  (`(Get-Item $chrome).VersionInfo.ProductVersion`), and always start Chrome with
+  `--headless=new` and a temporary `--user-data-dir`.
+- I copied one long record into three documents and they drifted: an audit found conditions in one
+  copy that another lacked. Keep one complete record, and let the others give a short form that
+  points to it, generated from one source if they must say the same thing.
+- I cut a failing test run's error with `tail -n 8`: the run ended "1 error" and the error text was
+  gone, so its cause stays unknown. Save the whole output of any run that can fail, then read it.
+- Mark what came from a reviewer's prose and what from a saved result. Harness output that is only
+  printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
+  report, and two reports disagree on one Armenian case with nothing saved to settle it.
