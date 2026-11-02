@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useReducer } from 'react';
+import { useEffect, useMemo, useReducer, useRef } from 'react';
 import telemetryStore from '../stores/telemetryStore';
 import {
   INITIAL_ASSIGNMENT_STATE,
@@ -19,6 +19,15 @@ const BEAT_TTL_MS = 5000;
 
 export default function useTaskAssignment() {
   const [state, dispatch] = useReducer(reduceTaskAssignment, INITIAL_ASSIGNMENT_STATE);
+  const lastHeardAt = useRef({});
+  // A gap ends at what ended it, and that message's round is not behind the gap.
+  const closeGap = useRef((sysId) => {
+    const now = performance.now();
+    if (now - lastHeardAt.current[sysId] > BEAT_TTL_MS) {
+      dispatch({ type: 'link_gap', data: { sys_id: sysId } });
+    }
+    lastHeardAt.current[sysId] = now;
+  }).current;
 
   // Heartbeats retire rounds and end approved docks; each beat once. A dropped
   // socket, or a gap between a UAV's beats longer than their TTL (seen as a stale
@@ -27,7 +36,6 @@ export default function useTaskAssignment() {
   useEffect(() => {
     const lastBeat = {};
     const wasStale = {};
-    const lastBeatAt = {};
     let connected = telemetryStore.isConnected();
     return telemetryStore.subscribe(() => {
       const nowConnected = telemetryStore.isConnected();
@@ -43,15 +51,11 @@ export default function useTaskAssignment() {
         const beat = `${swarm.boot}:${swarm.seq}`;
         if (lastBeat[vehicle.sys_id] === beat) continue;
         lastBeat[vehicle.sys_id] = beat;
-        const now = performance.now();
-        if (now - lastBeatAt[vehicle.sys_id] > BEAT_TTL_MS) {
-          dispatch({ type: 'link_gap', data: { sys_id: vehicle.sys_id } });
-        }
-        lastBeatAt[vehicle.sys_id] = now;
+        closeGap(vehicle.sys_id);
         dispatch({ type: 'swarm_heartbeat', data: { sys_id: vehicle.sys_id, swarm } });
       }
     });
-  }, []);
+  }, [closeGap]);
 
   const handlers = useMemo(() => {
     const on = (type) => (data) => dispatch({ type, data });
@@ -64,13 +68,16 @@ export default function useTaskAssignment() {
       handleAssignResponse: on('task_assign_response'),
       handleAssignAck: on('task_assign_ack'),
       handleDisarmAfterGuidedCleanup: on('disarm_after_guided'),
-      handleConfirmingStatus: on('task_confirming'),
+      handleConfirmingStatus: (data) => {
+        closeGap(data.sys_id);
+        dispatch({ type: 'task_confirming', data });
+      },
       handleConfirmedStatusByTask: onTask('task_confirmed'),
       handleResolvedCleanupByTask: onTask('task_resolved'),
       handleDeniedCleanup: (sysId) => dispatch({ type: 'vehicle_reset', data: { sys_id: sysId } }),
       reset: () => dispatch({ type: 'reset' }),
     };
-  }, []);
+  }, [closeGap]);
 
   return {
     assignments: state.assignments,

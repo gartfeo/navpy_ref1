@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { act, renderHook } from '@testing-library/react';
 import useTaskAssignment from './useTaskAssignment';
 
@@ -122,14 +122,16 @@ describe('useTaskAssignment', () => {
     (gapMs, word) => {
       const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
       const { result } = renderHook(() => useTaskAssignment());
-      for (const sysId of [2, 3]) {
+      const askAndApprove = (sysId) => {
         act(() => result.current.handleConfirmingStatus({
           sys_id: sysId, task_id: 7, round_uid: '3:60', task_type: 'DOCK', lat: 41 + sysId, lon: 45, alt: 0,
         }));
         act(() => result.current.handleConfirmedStatusByTask(sysId, 7, '3:60'));
-      }
+      };
+      askAndApprove(2);
       publish([{ sys_id: 2, swarm: { state: 'BUSY', phase: 'APPROACH', outcome: null, boot: 3, seq: 61, stale: false } }]);
       now.mockReturnValue(1000 + gapMs);
+      askAndApprove(3);
       publish([
         { sys_id: 2, swarm: { state: 'BUSY', phase: 'HOLD', outcome: 'docked', boot: 3, seq: 90, stale: false } },
         { sys_id: 3, swarm: { state: 'BUSY', phase: 'APPROACH', outcome: null, boot: 3, seq: 61, stale: false } },
@@ -141,6 +143,71 @@ describe('useTaskAssignment', () => {
       expect(result.current.assignments['own:3:3:60'].noWord).toBeUndefined();
     },
   );
+
+  describe('a round heard after a gap', () => {
+    const beatOf = (phase, seq, outcome = null) => [{
+      sys_id: 2, swarm: { state: 'BUSY', phase, outcome, boot: 3, seq, stale: false },
+    }];
+    const ask = (result) => act(() => result.current.handleConfirmingStatus({
+      sys_id: 2, task_id: 7, round_uid: '3:60', task_type: 'DOCK', lat: 41, lon: 45, alt: 0,
+    }));
+    const approve = (result) => act(() => result.current.handleConfirmedStatusByTask(2, 7, '3:60'));
+    let now;
+    beforeEach(() => {
+      now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+    });
+    afterEach(() => now.mockRestore());
+
+    it('keeps its word, approved before its APPROACH snapshot', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      now.mockReturnValue(7000);
+      ask(result);
+      approve(result);
+      now.mockReturnValue(7100);
+      publish(beatOf('APPROACH', 61));
+      now.mockReturnValue(8100);
+      publish(beatOf('HOLD', 62, 'docked'));
+      expect(result.current.assignments['handled:2:3:60'].outcome).toBe('docked');
+    });
+
+    it('keeps its marker, approved after its APPROACH snapshot', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      now.mockReturnValue(7000);
+      ask(result);
+      now.mockReturnValue(7100);
+      publish(beatOf('APPROACH', 61));
+      expect(result.current.assignments['own:2:3:60']).toBeDefined();
+      approve(result);
+      expect(result.current.assignments['own:2:3:60'].status).toBe('confirmed');
+    });
+
+    it('still ends the older round with no word', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      ask(result);
+      approve(result);
+      publish(beatOf('APPROACH', 61));
+      now.mockReturnValue(7000);
+      act(() => result.current.handleConfirmingStatus({
+        sys_id: 2, task_id: 8, round_uid: '3:70', task_type: 'DOCK', lat: 42, lon: 45, alt: 0,
+      }));
+      expect(result.current.assignments['handled:2:3:60'].outcome).toBe('unknown');
+    });
+
+    it('loses its word when the gap comes after it', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      now.mockReturnValue(2000);
+      ask(result);
+      approve(result);
+      now.mockReturnValue(7001);
+      publish(beatOf('APPROACH', 61));
+      publish(beatOf('HOLD', 62, 'docked'));
+      expect(result.current.assignments['handled:2:3:60'].outcome).toBe('unknown');
+    });
+  });
 
   it('takes the outcome word away when the socket drops', () => {
     const { result } = renderHook(() => useTaskAssignment());

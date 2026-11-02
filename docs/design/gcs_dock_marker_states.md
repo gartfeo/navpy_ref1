@@ -116,11 +116,13 @@ leaves no entry (Known limits).
 
 A WebSocket drop means rounds and their answers may have been missed. When the
 store's connection goes down, or one UAV's beat goes stale or its next beat comes over
-the 5 s TTL after the last (for that UAV only, the jump covering stalled snapshots),
-`useTaskAssignment` dispatches `link_gap`: every open
+the 5 s TTL after the UAV was last heard (for that UAV only, the jump covering stalled
+snapshots), `useTaskAssignment` dispatches `link_gap`: every open
 round, approved or still pending, gets `noWord`, and an `awaitingOutcome` entry stops
 waiting. An approved entry still moves to handled by the rules above, but reads
-outcome unknown. A flagged pending own entry goes at the first later beat whose phase
+outcome unknown. A new round closes a time gap before it is admitted, so the gap flags only
+older rounds. This fence goes by arrival: message order cannot tell a round heard right after a
+gap from one followed by a gap that hid the later approach. A flagged pending own entry goes at the first later beat whose phase
 is not CONFIRM, since its answer may have been missed and nothing ties it to a round
 any more. A later round on a slot clears the flag: the gap did not hide that round.
 
