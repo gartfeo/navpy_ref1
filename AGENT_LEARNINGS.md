@@ -2076,3 +2076,13 @@
   `-x` at the end of a 10-minute suite it was the only failure.
 - `swarm_run.py` and `delivery_demo.py` sit near the 300-line guard. A hook that lives in its
   own module (`mavlink_recorder.start_for_chat`) costs the launcher two lines.
+## HITL step 9: encoded decoder (2026-11-02)
+
+- rtspsrc's `udp-reconnect` defaults to true: a "no reconnect after the first frame" rule in Python is not enough. Pin it off and read it back with the other pins (Codex caught it).
+- GStreamer 1.24's Python appsink has no `try_pull_sample` method without the GstApp typelib; `sink.emit("try-pull-sample", ns)` works with core bindings only. A scripted fake hid this: run the real-gi tests in WSL before the live run.
+- Align two PTS series by the anchor that matches most of a window, and let one sender frame match one decoded frame; a first-fit anchor or a reusable match hides a missing or retimed frame. A throwaway script with a fixed offset reported 1.3 s of lag that was 50-150 ms.
+- Score against the publisher's CSV only after the publisher ends: its last rows reach the disk late, and a live score counted them as unmatched (`--rescore`).
+- Read Unreal's own log before blaming a stream end: `RequestExit(... ViewportClosed)` at 365 s showed Unreal's window had closed 5 s before the capture's abort, so the abort was correct.
+- A full `pytest tests` at 97% CPU did 4% in 28 min. Run the touched groups, then compare each failure against origin/main in a temporary worktree; `test_param_groups_js` failed only under load and passed alone.
+- The newest Codex folder under `%LOCALAPPDATA%\OpenAI\Codexin` may hold only `rg.exe`; take the newest folder that has `codex.exe`.
+

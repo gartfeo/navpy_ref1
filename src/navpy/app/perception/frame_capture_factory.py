@@ -10,6 +10,8 @@ import cv2
 
 from navpy.plugins.camera.opencv.frame_capture_cv_lease import OpenCvCaptureLease
 from navpy.plugins.camera.ffmpeg.frame_capture_ffmpeg import FfmpegFrameCapture
+from navpy.plugins.camera.gstreamer.encoded_source import is_gstreamer_source
+from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import GstreamerFrameCapture
 from navpy.plugins.camera.unreal.frame_capture_npyc import NpycFrameCapture, is_npyc_source
 from navpy.plugins.camera.opencv.frame_capture_opencv import (
     OpenCvFrameCapture,
@@ -62,6 +64,8 @@ def open_capture_backend(
     """Open the backend for ``source``; ``board_clock`` stamps npyc:// frames."""
     if is_npyc_source(source):
         return NpycFrameCapture.open(str(source), logger, board_clock)
+    if is_gstreamer_source(source):
+        return GstreamerFrameCapture.open(str(source), logger)      # no fallback
     if isinstance(source, str) and source.lower().startswith("rtsp://"):
         if _IS_JETSON:
             capture = open_jetson_capture(source, logger)
