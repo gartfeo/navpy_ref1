@@ -331,9 +331,10 @@ def test_after_a_wall_budget_breach_the_runtime_refuses_to_continue(monkeypatch)
     host_lock = threading.Lock()
     host_lock.acquire()
     runtime.spawn(host_lock.acquire, name="host-blocked")
-    with pytest.raises(LockstepFault, match="kept the baton"):
+    # A stall of the host, by its type: the coordinator must not read it as the product's failure.
+    with pytest.raises(baton.BatonWallFault, match="kept the baton"):
         runtime.run_until_quiescent()
-    with pytest.raises(LockstepFault, match="kept the baton"):
+    with pytest.raises(baton.BatonWallFault, match="kept the baton"):
         runtime.tick(TICK_US)
     with pytest.raises(LockstepFault, match="stop by ownership"):
         runtime.abort()

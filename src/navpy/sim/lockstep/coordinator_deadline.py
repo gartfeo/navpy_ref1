@@ -18,8 +18,10 @@ sends, each ``DONE`` and what applying it holds for (a spawn's registration,
 a retirement's exit), the operator's baton and the reply sends. Every one
 draws on ``D_k``: its budget is ``min(own, D_k - now)`` (:meth:`budget`), a
 wait that fails once ``D_k`` has passed is the deadline's fault
-(:meth:`raise_if_spent`), and a wait that returns after it is too
-(:meth:`check`). Running out is ``HostFault("exchange_budget")``, journaled
+(:meth:`raise_if_spent`), unless a participant's link says its process went
+away, which is definite whatever the time (``Roster._gone``), and a wait that
+returns after it is too (:meth:`check`). Running out is
+``HostFault("exchange_budget")``, journaled
 with the tick and the sub-wait; the run then stops by ownership before the
 firmware deadline could turn it into a SITL death.
 

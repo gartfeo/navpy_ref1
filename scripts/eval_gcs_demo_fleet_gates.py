@@ -14,6 +14,7 @@ Sysid i is SITL i and NavPy ordinal i (``FleetLayout``).
 | Workflow ticks | per vehicle, the retained order, then its role's: the owner's orbit before its request state; a peer's assignment, then its approach, then its request state |
 | Pose cadence | the ``navpy`` and ``gcs`` arrival streams of every sysid, each file flushed whole |
 | SNAP | each vehicle's first SNAP line is its latched first SNAP, by the generation that tick's members name; k_T is their maximum |
+| Scheduled faults | each planned fault ran on schedule, bit, and the mission was back by its deadline (``eval_gcs_demo_fleet_faults``) |
 
 The slice's owner-only checks (forbidden messages, no peer source, exactly
 one approval, owner-only pose files and assignment) do not apply.
@@ -29,6 +30,7 @@ from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import approval_timing_errors
 from scripts.eval_gcs_demo_assignment_lines import parse_assignment_lines
 from scripts.eval_gcs_demo_constants import backend_log_path
+from scripts.eval_gcs_demo_fleet_faults import fault_recovery_errors
 from scripts.eval_gcs_demo_fleet_packets import (
     applied_chains,
     applied_emissions,
@@ -172,7 +174,8 @@ def certified_lockstep_gate_errors(log_dir: Path, plan: DemoMissionPlan,
             + backend_assignment_errors(log_dir, records, plan)
             + fleet_approval_errors(records, lines, approvals)
             + vehicle_workflow_errors(lines, plan) + fleet_snap_errors(records, lines)
-            + pose_cadence_errors(log_dir, sys_ids, POSE_PRODUCERS))
+            + pose_cadence_errors(log_dir, sys_ids, POSE_PRODUCERS)
+            + fault_recovery_errors(log_dir, records, lines))
 
 
 __all__ = [

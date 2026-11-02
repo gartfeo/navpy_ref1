@@ -4,7 +4,7 @@ import { isHoldKey } from '../utils/armAction';
 const noop = () => {};
 const NO_OP_HANDLERS = {
   onMouseDown: noop, onMouseUp: noop, onMouseLeave: noop,
-  onTouchStart: noop, onTouchEnd: noop, onContextMenu: noop,
+  onTouchStart: noop, onTouchEnd: noop, onTouchCancel: noop, onContextMenu: noop,
   onKeyDown: noop, onKeyUp: noop, onBlur: noop,
 };
 
@@ -61,6 +61,8 @@ export default function useLongPress({ onComplete, duration = 1000, enabled = tr
       onMouseLeave: cancel,
       onTouchStart: (e) => { e.preventDefault(); start(); },
       onTouchEnd: cancel,
+      // The browser took the touch, for a scroll say: the hold is over.
+      onTouchCancel: cancel,
       onContextMenu: (e) => e.preventDefault(),
       // Keyboard press-and-hold. preventDefault suppresses the native button
       // click so a key press never fires on activation — only a completed hold

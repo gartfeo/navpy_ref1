@@ -7,18 +7,21 @@ ordinal order and the participants run concurrently; ``DONE``s are read and
 applied in the same order, so the result depends only on the ``TICK``s.
 Within one ``DONE``: port egress, responses, events (readiness), log lines,
 spawn requests, stop requests, faults, then the end, which retires the
-participant now and holds the clock until its process exits.
+participant now and holds the clock until its process exits. After the last
+``DONE``, outside drain, the scheduled faults advance (``coordinator_faults``).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from navpy.sim.lockstep.baton import BatonWallFault
+from navpy.sim.lockstep.coordinator_faults import FaultRunner
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Member, Roster
 from navpy.sim.lockstep.coordinator_router import RoutedPorts
-from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, ParticipantFault
+from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, HostFault, ParticipantFault
 from navpy.sim.lockstep.part_wire import Done, Event, Response
 
 #: The ``DONE`` event that commits readiness (NavPy's ``runtime_ready``;
@@ -41,7 +44,7 @@ class TickOutput:
 
 class TickExchange:
     def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...],
-                 ports: RoutedPorts) -> None:
+                 ports: RoutedPorts, faults: FaultRunner | None = None) -> None:
         self._roster = roster
         self._book = book
         #: Only these roles' log lines can carry the mission terminal marker (NavPy's SNAP).
@@ -49,6 +52,8 @@ class TickExchange:
         #: Where the members' port bytes come from and go to (the router path);
         #: the coordinator drives its SITL side (frames, replies, parking).
         self.ports = ports
+        #: The run's scheduled faults, if any.
+        self.faults = faults
 
     def run(self, k: int, t_us: int, record: TickRecord, *, draining: bool) -> TickOutput:
         """In drain no ``TICK`` carries port bytes (there is no SITL frame)."""
@@ -70,6 +75,8 @@ class TickExchange:
             record.member(member.ordinal, member.spawn.generation, raw_tick, raw_done)
             self._apply(member, done, k, t_us, record, output, draining)
         self._book.check_budgets(t_us)
+        if self.faults is not None and not draining:
+            self.faults.tick(t_us, record, output.log_lines)
         return output
 
     def _apply(self, member: Member, done: Done, k: int, t_us: int, record: TickRecord,
@@ -95,12 +102,17 @@ class TickExchange:
             self._book.spawn(spawn, member.ordinal, draining=draining)
         for stop in done.stop_requests:
             self._book.stop(stop, member.ordinal, t_us, draining=draining)
+        wall = next((fault for fault in done.faults if fault.startswith(BatonWallFault.__name__)), None)
         output.faults.extend(
             ParticipantFault("participant", fault, tick=k, ordinal=member.ordinal)
-            for fault in done.faults)
+            for fault in done.faults if fault != wall)
         if done.ended is not None:
-            self._book.retire(member, k, done.ended)
-            self._roster.await_exit(member)
+            self._book.retire(member, k, done.ended, host_fault=wall)
+            try:
+                self._roster.await_exit(member)
+            except HostFault:
+                if not self._book.faults:  # else a fault already named this end, and its exit adds nothing
+                    raise
 
 
 __all__ = ["READY_EVENT", "TickExchange", "TickOutput"]

@@ -33,6 +33,23 @@ def _bound(monkeypatch) -> BatonRuntime:
     return baton
 
 
+def test_a_log_level_on_the_record_is_the_one_its_command_line_must_carry(monkeypatch):
+    """A fault run's level comes with the coordinator's record: the backend's environment carries none."""
+    baton, out = _bound(monkeypatch), OutboxBuffer()
+    debug = lockstep_navpy_argv(SYS_ID, SERIAL0, vision_profile="siyi_zr10", log_level="DEBUG")
+    launcher = LockstepLauncher({SYS_ID: {**SPEC, "log_level": "DEBUG", "argv": debug}}, out, RequestIds(2))
+    baton.spawn(lambda: launcher.start(SYS_ID, "ignored", vision_profile="siyi_zr10"), name="executor-1")
+    baton.run_until_quiescent()
+    [spawn] = out.spawn_requests
+    assert spawn.ordinal == ORDINAL
+    baton.tick(TICK_US, lambda: launcher.deliver(Lifecycle("spawn", (0, 1), spawn.id, ORDINAL, 1, "ok")))
+    assert baton.threads.alive() == [] and not baton.threads.errors
+
+    mismatched = LockstepLauncher({SYS_ID: {**SPEC, "log_level": "DEBUG"}}, OutboxBuffer(), RequestIds(2))
+    with pytest.raises(ValueError, match="was recorded with"):
+        mismatched.start(SYS_ID, "ignored", vision_profile="siyi_zr10")
+
+
 def test_a_stale_generation_pid_never_stops_the_replacement(monkeypatch):
     baton, out = _bound(monkeypatch), OutboxBuffer()
     launcher = LockstepLauncher({SYS_ID: SPEC}, out, RequestIds(2))
@@ -64,6 +81,48 @@ def test_a_stale_generation_pid_never_stops_the_replacement(monkeypatch):
     assert seen["stale"] is False
     assert [(s.ordinal, s.generation) for s in out.stop_requests] == [(ORDINAL, 1)]  # none for the stale pid
     assert seen["status"]["pid"] == seen["second"] and seen["status"]["running"]
+    assert baton.threads.alive() == [] and not baton.threads.errors
+
+
+def test_a_scheduled_restart_is_the_spawns_next_generation_with_its_own_readiness(monkeypatch):
+    baton, out = _bound(monkeypatch), OutboxBuffer()
+    launcher = LockstepLauncher({SYS_ID: SPEC}, out, RequestIds(2))
+    seen = {}
+    commits = iter(range(1, 100))
+
+    def record(kind: str, request, generation: int, result=None, payload=None) -> Lifecycle:
+        return Lifecycle(kind, (0, next(commits)), request, ORDINAL, generation, result, payload)
+
+    def start() -> None:
+        seen["pid"] = launcher.start(SYS_ID, "ignored", vision_profile="siyi_zr10").pid
+        seen["ready"] = launcher.wait_ready(SYS_ID, seen["pid"], 5.0)
+
+    baton.spawn(start, name="executor-1")
+    baton.run_until_quiescent()
+    [spawn] = out.spawn_requests
+    baton.tick(TICK_US, lambda: launcher.deliver(record("spawn", spawn.id, 1, "ok")))
+    baton.tick(2 * TICK_US, lambda: launcher.deliver(record("ready", spawn.id, 1, None, {"boot": 1})))
+    assert seen["ready"] == {"boot": 1}
+
+    def restart() -> None:  # the coordinator's ticks: the old generation's exit, then the respawn
+        launcher.deliver(record("exited", spawn.id, 1, None, {"failed": False}))
+        launcher.deliver(record("spawn", spawn.id, 2, "ok", {"fault": "navpy_restart:uav1"}))
+
+    baton.tick(3 * TICK_US, restart)
+
+    def second() -> None:
+        seen["status"] = launcher.get_status(SYS_ID)
+        seen["second"] = launcher.wait_ready(SYS_ID, generation_pid(ORDINAL, 2), 5.0)
+        seen["ready_now"] = launcher.get_status(SYS_ID)["ready"]
+
+    baton.spawn(second, name="executor-2")
+    baton.run_until_quiescent()
+    status = seen["status"]
+    assert status["pid"] == generation_pid(ORDINAL, 2) and status["running"] and not status["ready"]
+    assert out.spawn_requests == [spawn]  # the coordinator's respawn asked for no spawn here
+    assert "second" not in seen  # the first generation's readiness does not count
+    baton.tick(4 * TICK_US, lambda: launcher.deliver(record("ready", spawn.id, 2, None, {"boot": 2})))
+    assert seen["second"] == {"boot": 2} and seen["ready_now"]
     assert baton.threads.alive() == [] and not baton.threads.errors
 
 

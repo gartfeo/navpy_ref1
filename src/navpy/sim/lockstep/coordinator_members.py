@@ -20,26 +20,18 @@ from dataclasses import dataclass, field
 
 from navpy.sim.lockstep.coordinator_deadline import DONE, EXIT, REGISTER, TICK, ExchangeDeadline
 from navpy.sim.lockstep.coordinator_register import await_register
-from navpy.sim.lockstep.coordinator_spawn import (
-    ChildRecorder,
-    HostChild,
-    HostSidecar,
-    SpawnRecord,
-    Spawner,
-    capability,
+from navpy.sim.lockstep.coordinator_spawn import ChildRecorder, HostChild, HostSidecar, SpawnRecord, Spawner, capability
+from navpy.sim.lockstep.coordinator_types import (
+    CoordinatorFault,
+    HostFault,
+    Manifest,
+    ParticipantFault,
+    RunFault,
+    WallBudgets,
 )
-from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, Manifest, WallBudgets
 from navpy.sim.lockstep.part_socket import PartListener, PartSocket, PeerClosed
-from navpy.sim.lockstep.part_wire import (
-    Done,
-    Lifecycle,
-    PartWireError,
-    Request,
-    RequestId,
-    Tick,
-    check_tick,
-)
-from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, EnvironmentRecord
+from navpy.sim.lockstep.part_wire import Done, Lifecycle, PartWireError, Request, RequestId, Tick, check_tick
+from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, HOST_CAUSED_EXITS, EnvironmentRecord
 
 _log = logging.getLogger(__name__)
 
@@ -181,6 +173,10 @@ class Roster:
             link = await_register(self._listener, record, child,
                                   self.deadline.budget(REGISTER, self._budgets.register_s))
         except HostFault as error:
+            code = child.wait(0)
+            if code is not None and code not in HOST_CAUSED_EXITS and not self._recorder.stopping():
+                raise ParticipantFault("unscheduled_exit", f"{error}; its process exited",
+                                       ordinal=record.ordinal) from error
             self.deadline.raise_if_spent(REGISTER, error)
             raise
         self.deadline.check(REGISTER)
@@ -190,6 +186,8 @@ class Roster:
         try:
             budget = self.deadline.budget(TICK, self._budgets.done_s)
             raw = member.link.send(tick, time.monotonic() + budget)
+        except (BrokenPipeError, ConnectionResetError, ConnectionAbortedError) as error:
+            raise self._gone(member, tick.k) from error
         except OSError as error:
             self.deadline.raise_if_spent(TICK, error)
             raise CoordinatorFault("tick_unsent", f"TICK not sent: {error}", tick=tick.k,
@@ -203,9 +201,7 @@ class Roster:
             budget = self.deadline.budget(DONE, self._budgets.done_s)
             message, raw = member.link.recv(time.monotonic() + budget)
         except (PeerClosed, ConnectionResetError, ConnectionAbortedError) as error:
-            self.deadline.raise_if_spent(DONE, error)  # every failure past D_k is the deadline's
-            raise CoordinatorFault(  # EOF or a reset: the process went away
-                "eof_without_end", f"EOF at tick {k} without an ending DONE", **context) from error
+            raise self._gone(member, k) from error  # EOF or a reset: the process went away
         except socket.timeout as error:
             self.deadline.raise_if_spent(DONE, error)
             raise HostFault("done_missed", f"no DONE {k} within the wall budget", **context) from error
@@ -224,6 +220,14 @@ class Roster:
         if any(origin != member.ordinal for origin, _ in own):
             raise CoordinatorFault("foreign_id", f"request ids of another origin {own}", **context)
         return message, raw
+
+    def _gone(self, member: Member, k: int) -> RunFault:
+        """A process gone with no ending ``DONE``: the slot's own stop, else nobody scheduled it. That
+        holds past ``D_k`` too: no wall budget of either side ends a registered process without a ``DONE``."""
+        if self._recorder.stopping():
+            return HostFault("slot_stopping", f"stopped at tick {k}", tick=k, ordinal=member.ordinal)
+        return ParticipantFault("unscheduled_exit", f"went away at tick {k} without an ending DONE",
+                                tick=k, ordinal=member.ordinal)
 
     def await_exit(self, member: Member) -> None:
         """The clock hold after an ending ``DONE``: the process must exit cleanly."""

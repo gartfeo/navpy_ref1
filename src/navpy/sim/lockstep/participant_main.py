@@ -21,19 +21,23 @@ import os
 import random
 import sys
 import time
+import traceback
 from collections.abc import Callable
 
 from navpy.sim.lockstep.camera_frames import CameraFrameFactory, camera_frame_factory
 from navpy.sim.lockstep.part_socket import PartSocket
 from navpy.sim.lockstep.participant import Participant, bootstrap
 from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget
-from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, EnvironmentRecord
+from navpy.sim.lockstep.participant_env import (
+    ENVIRONMENT_VARIABLE,
+    EXIT_NO_CONNECT,
+    EXIT_NO_GO,
+    EnvironmentRecord,
+)
 from navpy.sim.lockstep.participant_hooks import ParticipantContext, ParticipantHooks, RequestIds
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
 from navpy.sim.lockstep.scheduling_models import apply_scheduling
 
-#: Exit code of a child that never got ``go``.
-EXIT_NO_GO = 4
 #: Wall budget for the loopback connect to the coordinator (host supervision).
 CONNECT_WALL_BUDGET_S = 30.0
 #: Acceptance (c): a host-only seed of injected delays before each ``DONE``
@@ -78,7 +82,11 @@ def main() -> int:
     factory = load_factory(record.hooks)
     camera_frames, budget = apply_sim_models(record, participant)
     hooks = factory(ParticipantContext(participant, record.config, RequestIds(record.ordinal), camera_frames))
-    link = PartSocket.connect(record.coordinator, timeout_s=CONNECT_WALL_BUDGET_S)
+    try:
+        link = PartSocket.connect(record.coordinator, timeout_s=CONNECT_WALL_BUDGET_S)
+    except OSError:
+        traceback.print_exc()
+        return EXIT_NO_CONNECT
     try:
         return ParticipantLoop(participant, hooks, link, host_delay=host_delay(),
                                handoffs=budget.handoffs).run(record.register())

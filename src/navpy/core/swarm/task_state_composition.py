@@ -27,8 +27,9 @@ class SwarmTaskState(NamedTuple):
 def create_task_state(
     lock: rt.RLock,
     monotonic_s: Callable[[], float] = rt.monotonic,
+    note: Callable[[str], None] = lambda _line: None,
 ) -> SwarmTaskState:
-    peers = PeerRoster(lock, monotonic_s)
+    peers = PeerRoster(lock, monotonic_s, note)
     store = _TaskAuctionStore(lock=lock, peers=peers, dispatches={})
     return SwarmTaskState(
         SelectedTaskSlot(lock, monotonic_s),

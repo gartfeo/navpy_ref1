@@ -200,6 +200,9 @@ class AllowAll:
     def forget(self, child, spawn) -> None:
         self.children.remove((child.pid, spawn))
 
+    def stopping(self) -> bool:
+        return False
+
 
 #: The source roots a participant imports from (the toy hooks live under tests/).
 PYTHON_PATH = (str(REPO / "src"), str(REPO))

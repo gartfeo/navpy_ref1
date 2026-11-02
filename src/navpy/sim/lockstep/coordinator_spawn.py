@@ -92,6 +92,9 @@ class ChildRecorder(Protocol):
     def forget(self, child: HostChild, spawn: SpawnRecord) -> None:
         """Release the record of a child killed before admission."""
 
+    def stopping(self) -> bool:
+        """The slot's own stop is under way (``gcs_stop``), so a child gone is its doing."""
+
 
 class LocalChild:
     """A participant process on this host, held until :meth:`go`."""
@@ -182,7 +185,7 @@ class HostSidecar:
         self._rows: dict[str, dict[str, object]] = {}
 
     def note(self, spawn: SpawnRecord, **facts: object) -> None:
-        key = f"{spawn.spawn_id[0]}.{spawn.spawn_id[1]}"
+        key = f"{spawn.spawn_id[0]}.{spawn.spawn_id[1]}.{spawn.generation}"
         row = self._rows.setdefault(key, {
             "spawn_id": list(spawn.spawn_id), "role": spawn.role, "ordinal": spawn.ordinal,
             "generation": spawn.generation,

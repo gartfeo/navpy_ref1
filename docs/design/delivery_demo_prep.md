@@ -321,7 +321,8 @@ ground-dock profile's default stack within its camera's reach.
 The zone goes to the third vehicle in the UI list.
 
 **One command** `delivery_demo.py`:
-1. Run dir, settings and SITL root.
+1. Run dir, settings and SITL root, then the commit and input record,
+   `input_manifest.json` (see "Checking a hand run").
 2. `launch_stack(..., headless=False, browser=False)`, which refuses if the
    checkout already runs a stack.
 3. Frontend wait, then `wait_for_vehicles` (auto-connect connects them).
@@ -331,6 +332,31 @@ The zone goes to the third vehicle in the UI list.
    enough, see `bounded_cpu_share.md`).
 
 Stop with `gcs_stop.py`.
+
+**Checking a hand run** (ready plan step 2): `python scripts\delivery_demo_check.py`
+prints what happened in the newest run under this checkout's `.logs\delivery-demo`,
+or in a run folder named on the command line:
+- the approaches and each one's outcome, from `parse_final_approach_outcomes`;
+- the commit and inputs, the backend's CPU share and `/launch` lines, and the
+  timeline's rejected, timed-out and failed counts;
+- per UAV, from the file names: the flight's log lines, approach cadence
+  (`cadence_annotation`), source-time figures (`source_time_summary`) and
+  `sensor_config_errors`.
+
+It is not the delivery gate, which judges an eval run and gives 21 false errors
+on a hand run. Nothing in it is a pass or a fail: a dock outcome is a fact, and
+simulation never proves physical docking or cargo receipt. A missing or partial
+file says so and the rest still prints; it exits 2 only when there is no run
+folder. It reads whole CSVs but skips the detector streams, the largest; on the 17
+real run folders it took 3 to 99 s, on a busy PC. Attitude gaps cover the whole
+file, so a gap across a NavPy restart counts.
+
+`input_manifest.json` comes from `write_input_manifest`, through
+`scripts/delivery_demo_manifest.py`. A hand demo inherits the owner's whole shell,
+so only the exact names in `MANIFEST_ENV` reach it; a new variable stays out until
+it is added there. A failed write only warns and the launch goes on. The manifest
+hashes the plan file the Ready text offers, not the plan the operator loaded,
+which the run does not keep (todo 176).
 
 **Tests:**
 - Settings: the owner file plus pins; owner keys kept, pins win, no hubs.

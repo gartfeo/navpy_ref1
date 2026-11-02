@@ -26,7 +26,8 @@ a link unseen), ``routed_out`` (router copies into a link),
 ``router_dropped`` (packets from a link no endpoint accepted or filtered),
 ``router_filtered`` (packets from a link no endpoint accepted and some filtered) and
 ``router_skipped_bytes`` (bytes from a link that are no packet, or fail
-their CRC; the autopilot's boot text).
+their CRC; the autopilot's boot text). A scheduled fault's cut (``radio_cuts``)
+adds ``radio_fault``, only on a link it cut, so a fault-free journal does not change.
 """
 
 from __future__ import annotations
@@ -42,6 +43,7 @@ ROUTED_OUT = "routed_out"
 ROUTER_DROPPED = "router_dropped"
 ROUTER_FILTERED = "router_filtered"
 ROUTER_SKIPPED_BYTES = "router_skipped_bytes"
+RADIO_FAULT = "radio_fault"
 DIRECTIONS = (FROM_SITL, TO_SITL, DRAIN_TO_SITL, ROUTED_OUT, ROUTER_DROPPED, ROUTER_FILTERED,
               ROUTER_SKIPPED_BYTES)
 #: The tally link of the router's backend endpoint.
@@ -90,6 +92,8 @@ class MavlinkTally:
               skipped_bytes: int = 0) -> None:
         """Count framed packets (their ``packet_key``) and skipped bytes; note the
         NAVLINK counts in ``record`` (a tick record's data, or the parked frame's record)."""
+        if direction == RADIO_FAULT:
+            self._counters.setdefault((device, direction), _Counter())
         counter = self._counters[(device, direction)]
         counts = Counter(keys)
         counter.totals.update(counts)
@@ -104,7 +108,7 @@ class MavlinkTally:
                     "messages": dict(sorted(self._counters[(device, direction)].totals.items())),
                     "skipped_bytes": self._counters[(device, direction)].skipped_bytes,
                 }
-                for direction in DIRECTIONS
+                for direction in (*DIRECTIONS, RADIO_FAULT) if (device, direction) in self._counters
             }
             for device in self._devices
         }
@@ -123,6 +127,6 @@ def _note_navlink(record: dict, device: str, direction: str, counts: Counter[str
 
 __all__ = [
     "DIRECTIONS", "DRAIN_TO_SITL", "FROM_SITL", "MavlinkTally", "MessageKey", "NAVLINK_IDS",
-    "NO_TARGET", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_FILTERED", "ROUTER_LINK",
+    "NO_TARGET", "RADIO_FAULT", "ROUTED_OUT", "ROUTER_DROPPED", "ROUTER_FILTERED", "ROUTER_LINK",
     "ROUTER_SKIPPED_BYTES", "TO_SITL", "message_id", "parse_key",
 ]

@@ -24,6 +24,7 @@ PEER_APPROACH_MARKER = "Peer navigation started"
 #: logging calls, so a new line fails until it is listed here.
 PEER_ASSIGNMENT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("task rebroadcast", re.compile(r"\bRebroadcast task \d+")),  # task_rebroadcast.py
+    ("peer admitted", re.compile(r"\bPeer \d+ admitted\b")),  # task_rebroadcast.py, logged at debug
     ("task accepted by a peer", re.compile(r"\bTask \d+ accepted by \d+\b")),  # task_auction_coordinator.py
     ("peer task offer", re.compile(r"\bTask \d+ can be handled by \d+")),
     ("assignment request ack", re.compile(r"\bTask \d+: request acked by \d+")),

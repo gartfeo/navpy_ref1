@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from navpy.sim.lockstep.part_wire import (
+    FREEZE,
     Done,
     Event,
     Lifecycle,
@@ -145,6 +146,11 @@ def test_every_id_list_is_in_strict_id_order():
         decode(duplicate)
     with pytest.raises(PartWireError, match="round-trip|id order"):
         encode(Tick(1, 0, cancels=((0, 5), (0, 4))))
+
+
+def test_a_scheduled_freeze_crosses_the_wire_with_no_request():
+    tick = Tick(1, 0, lifecycle=(Lifecycle(FREEZE, (0, 3), None, 1, 2, None, {"frozen": True, "fault": "x"}),))
+    assert decode(encode(tick)) == tick
 
 
 def test_lifecycle_records_are_in_commit_id_order():

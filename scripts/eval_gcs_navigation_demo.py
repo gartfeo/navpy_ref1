@@ -43,6 +43,7 @@ from scripts.eval_gcs_demo_models import (
     EpisodeMetrics,
     GateLimits,
     MissionArtifacts,
+    ProductFailure,
     RegressionError,
     RunReport,
     VehicleReport,
@@ -75,6 +76,7 @@ __all__ = [
     "GcsApi",
     "MissionArtifacts",
     "ROOT",
+    "ProductFailure",
     "RegressionError",
     "RunReport",
     "SIM_SPEEDUP",
@@ -101,6 +103,9 @@ __all__ = [
 if __name__ == "__main__":
     try:
         raise SystemExit(main())
+    except ProductFailure as error:
+        print(f"REGRESSION FAILED: {error}", file=sys.stderr)
+        raise SystemExit(1)
     except RegressionError as error:
         print(f"REGRESSION SETUP FAILED: {error}", file=sys.stderr)
         raise SystemExit(2)

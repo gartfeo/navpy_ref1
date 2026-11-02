@@ -7,11 +7,12 @@ from types import SimpleNamespace
 
 import pytest
 
+from navpy.sim.lockstep.coordinator_types import HostFault, ParticipantFault
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest, require_wired
 from scripts.eval_gcs_demo_constants import PARAM_REQUEST_BUDGET_S
-from scripts.eval_gcs_demo_models import RegressionError, StackContext
+from scripts.eval_gcs_demo_models import ProductFailure, RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 from scripts.eval_gcs_demo_stack_ops import configure_vehicle_params
 from scripts.lockstep_fleet_actor import NAMED_PARAMETER_NAMES, named_parameter_snapshot
@@ -84,6 +85,58 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
     assert '"log_dir": "."' in report and str(tmp_path) not in report
     assert "lockstep outcome 'operator_returned', not 'ok'" in report
     assert "operator: RegressionError: stalled" in report
+
+
+@pytest.mark.parametrize(("fault", "failure", "message"), [
+    (ParticipantFault("unscheduled_exit", "went away", tick=9, ordinal=1), ProductFailure,
+     "lockstep product failure: unscheduled_exit"),
+    (HostFault("exchange_budget", "ran out", tick=9), RegressionError, "lockstep run fault: HostFault"),
+])
+def test_a_run_fault_says_whether_the_product_ended_the_run(tmp_path, monkeypatch, fault, failure, message):
+    """Section 4: an unscheduled exit is a product failure, so a failed run and not a failed setup."""
+    import json
+
+    class Faulting:
+        journal = SimpleNamespace(write=lambda _path: None)
+
+        def __init__(self, *_args, **_kwargs) -> None:
+            pass
+
+        def run(self):
+            raise fault
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval.lockstep, "release_if_owner", lambda *_a: None)
+    monkeypatch.setattr(lockstep_eval.lockstep, "RegistryChildRecorder", lambda *_a: None)
+    monkeypatch.setattr(lockstep_eval, "WslFleet",
+                        lambda *_a: SimpleNamespace(root="/r", sitls=(), launch=None, stop=lambda: None))
+    monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Faulting)
+    monkeypatch.setattr(lockstep_eval, "lockstep_operator", lambda *_a: SimpleNamespace(result=None))
+    monkeypatch.setattr(lockstep_eval, "write_lines", lambda *_a: None)
+    with pytest.raises(failure, match=message) as raised:
+        execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
+    assert isinstance(raised.value, ProductFailure) == (failure is ProductFailure)
+    assert raised.value.__cause__ is fault
+    host = json.loads((tmp_path / "run" / lockstep_eval.RUN_HOST_FILE).read_text(encoding="utf-8"))
+    assert host["fault"] == f"{type(fault).__name__}: {fault}"
+
+
+@pytest.mark.parametrize(("error", "code", "line"), [
+    (ProductFailure("lockstep product failure: unscheduled_exit"), 1, "REGRESSION FAILED: lockstep product failure"),
+    (RegressionError("lockstep run fault: HostFault"), 2, "REGRESSION SETUP FAILED: lockstep run fault"),
+])
+def test_the_exit_code_parts_a_failed_run_from_a_failed_setup(monkeypatch, capsys, error, code, line):
+    import runpy
+
+    def main():
+        raise error
+
+    monkeypatch.setattr(cli, "main", main)
+    with pytest.raises(SystemExit) as raised:
+        runpy.run_path(str(ROOT / "scripts" / "eval_gcs_navigation_demo.py"), run_name="__main__")
+    assert raised.value.code == code
+    assert line in capsys.readouterr().err
 
 
 def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_path, monkeypatch,
@@ -159,10 +212,10 @@ def test_the_sim_profile_reaches_the_coordinators_manifest_only_as_navpy_partici
     assert hw_slice != plain_slice and dataclasses.replace(hw_slice, roles=plain_slice.roles) == plain_slice
     stress = dataclasses.replace(OPTIONS, sim_profile="stress")
     models = participant_models(lockstep_eval.sim_realization(stress))
-    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze", "thread_order"}
+    assert set(models) == {"camera_frames", "cpu_budget", "process_freeze", "reader_budget", "thread_order"}
     assert models["cpu_budget"] == {"handoffs": 6}
     backend = scheduling_subset(models)
-    assert set(backend) == {"thread_order"}
+    assert set(backend) == {"reader_budget", "thread_order"}
     plain, stressed = manifest(CERTIFIED, none), manifest(CERTIFIED, stress)
     assert dataclasses.replace(stressed, roles=plain.roles) == plain
     assert list(stressed.roles) == list(plain.roles)
@@ -354,6 +407,22 @@ def test_the_slice_manifest_is_unchanged_by_the_fleet_wiring():
         sitl_ports=SITL_PORTS, router=ROUTER, initial=(("backend", BACKEND),),
         companion_roles=SLICE_LAYOUT.companion_roles, expected_fleet=SLICE_LAYOUT.expected_fleet,
         boot_budget_us=BOOT_BUDGET_US)
+
+
+def test_only_a_run_with_scheduled_faults_logs_at_debug():
+    """Its peer gates read the roster's debug line; every other run keeps its journal digest."""
+    import dataclasses
+
+    assert lockstep_eval.fault_plans(lockstep_eval.sim_realization(OPTIONS), 3)  # hw seed 1 draws faults
+    plan = manifest(CERTIFIED, OPTIONS)
+    for spec in plan.roles["backend"].config["companions"].values():
+        assert spec["log_level"] == "DEBUG" and spec["argv"][-2:] == ["--log-level", "DEBUG"]
+        assert plan.roles[spec["role"]].config["argv"] == spec["argv"]
+    for profile in ("none", "quiet", "stress"):
+        options = dataclasses.replace(OPTIONS, sim_profile=profile)
+        assert not lockstep_eval.fault_plans(lockstep_eval.sim_realization(options), 3)
+        for spec in manifest(CERTIFIED, options).roles["backend"].config["companions"].values():
+            assert "log_level" not in spec and "--log-level" not in spec["argv"]
 
 
 def test_the_certified_manifest_wires_three_uavs():

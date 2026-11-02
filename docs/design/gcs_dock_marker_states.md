@@ -226,7 +226,7 @@ identity, as above.
   HD map, where the demo docks are about 23 px apart). The first far scale, 0.3, drew it
   at 14 px under the sim's 14 px closest-approach ring, and its badge could not be read.
   The word's text keeps 0.3, so the range above still holds. The sim marks still cover a
-  pad's centre (todo 191).
+  pad's centre (todo 208).
 - A marker's raw height is the ground rendered there when the entry changes
   (`dockMarkerPosition`), else the entry's height until a tile has rendered. Cesium 1.138
   draws a clamped label's new letters at the raw position: `LabelCollection.rebindAllGlyphs`
@@ -237,7 +237,7 @@ identity, as above.
   and a new label drew no word. The same steps with the raw height on the ground drew every
   word complete (bare page on the installed 1.138.0, `.logs/dock-marker-states/glyph_exp/`).
   Upstream first copies the clamped position in tag 1.140. This leaves the Cesium bug in
-  place; an upgrade changes the whole map engine, so it is todo 194.
+  place; an upgrade changes the whole map engine, so it is todo 211.
 - A word in a dark UAV colour gets a white outline: below 3:1 on the usual black outline,
   which in the fleet palette is only `#0033A0`.
 - The handled pad has an opaque fill under its dimmed strokes, so a hub below it does
@@ -295,7 +295,7 @@ marker until a position exists; that follow-up goes in the todo list.
 - A denied round leaves no entry, so a round of that UAV older than it, arriving after the
   deny, reads as new: a marker, or a slot awaiting it. It matches the card: the backend
   classifies rounds per UAV and task, so that round opens a card as it does on main (todo
-  200), and the card's answer or countdown ends the marker. If the operator approves it,
+  217), and the card's answer or countdown ends the marker. If the operator approves it,
   it reads handled, outcome unknown. It needs one UAV's rounds reordered by more than an
   operator's answer, and they come through that UAV's one link reader (`mav_bus_reader.py`).
 - A cancel naming a handled round marks it "canceled" even if the UAV had moved on from
@@ -314,14 +314,14 @@ marker until a position exists; that follow-up goes in the todo list.
   the slot in TO_TASK and CONFIRM; the card's label there is the same for assigned and
   awaiting. Rounds on a real build carry no position, so there a slot still takes any
   round after its assignment, and a stale slot can still take another dock's round. Its
-  marker stays at the slot's position (todo 188).
+  marker stays at the slot's position (todo 205).
 - A restart that moved no UAV still sends the message with no reason, as main does: the
-  listed UAVs' cards reset and their approved entries move to handled (todo 193).
+  listed UAVs' cards reset and their approved entries move to handled (todo 210).
 - The dark blue pad's stroke stays low contrast on dark ground. The colour predates this
   change, so only the word is fixed.
 - On terrain the ground read at a state change is the deepest tile rendered there, which
   can be coarse for a dock off screen. A new letter sits at that height until a deeper
-  tile renders, so a word can show slightly off its pad until then (todo 194).
+  tile renders, so a word can show slightly off its pad until then (todo 211).
 - White dashed legs and UAV labels can cross a word; they keep their order.
 - A helper assigned again after its approved slot went to history shows the new task's
   label in TO_TASK and CONFIRM, where main kept the old confirmed slot and showed none.
@@ -342,7 +342,7 @@ marker until a position exists; that follow-up goes in the todo list.
   change across the gap (the approved approach recorded none, or the same one as before,
   or no beat of it was heard). The later approach's end then labels the approved dock.
   What the GCS receives looks the same as one approach: beats are 1 Hz and carry no
-  approach identity, so closing this needs an approach id in the heartbeat (todo 190).
+  approach identity, so closing this needs an approach id in the heartbeat (todo 207).
   The marker is display only, the demo config has auto-approve off, and a socket drop
   or a stale beat is covered by `link_gap`.
 - A companion that sends no phase byte (an older NavPy, or no beat yet): a later
@@ -647,7 +647,7 @@ Held, and declared without code:
   none, is right and now listed under limits. Part (b) needs an advert lost to this
   client; its limit is reworded, because the later round does draw an own marker.
 
-Held, and logged: 13 is todo 191 (low, sim only). 16 is todo 192 (pre-existing).
+Held, and logged: 13 is todo 208 (low, sim only). 16 is todo 209 (pre-existing).
 
 Fell:
 
@@ -730,7 +730,7 @@ set by hand with "++++" for 19 s, so that picture cannot credit its complete wor
 range; a second tab was open, so duplicate denies cannot be told apart; a replacement
 approve timer fired twice.
 
-Out of scope, logged: todos 194 to 199, and the hand demo's CPU share ending mid-session,
+Out of scope, logged: todos 211 to 216, and the hand demo's CPU share ending mid-session,
 already todo 152.
 
 ### Live check, final code (sim)
@@ -756,7 +756,7 @@ Flat ground, no token (the case where words were cut):
   stack. The one-pad rule and label rows rest on the reducer and hook tests. Approve then cancel on
   UAV 5 went to "canceled" in 0.53 s with no outcome unknown between.
 - A4: Reset View draws pads at about 23.5 px and no state words. No badge can be read there: the
-  sim's marks cover the centres, and one UAV's sim label box covers most of a pad (todo 191).
+  sim's marks cover the centres, and one UAV's sim label box covers most of a pad (todo 208).
 - A5 pass: a restart naming UAV 99 returned `not_connected`, sent no `new_mission`, and all markers
   stayed. A6 pass: the launch's `new_mission` came 112 ms after the confirm and the page was
   empty 102 ms later.
@@ -766,7 +766,7 @@ Ion terrain, ground 1332 to 1338 m:
 - B1: confirm and docked letters full, raw heights within rounding at the delivery docks and 3.35 m
   under the ground at the home dock, whose tile was not yet deep. At delivery docks 150 m apart, in
   this 1024 px window at 650 m, the two docked words print over each other and "UAV 6" cannot be
-  read, which is the limit under Map. It is more than the note's "can touch", so todo 201 records it.
+  read, which is the limit under Map. It is more than the note's "can touch", so todo 218 records it.
 - B2: a word that changed off screen was whole at the 10 s picture. The 1 s picture is stale, so it
   settles nothing, and the tester's later letter reads are not in the saved files.
 - B3: as A4. Delivery pads overlap by 2 to 3 px here, so one can cover part of the other's badge.
@@ -778,7 +778,7 @@ Open, not explained: each flight had two page-like socket clients beside the rec
 brief asks for one page, and flat-ground denies came in pairs about 100 ms apart, so two pages' cards
 may have fired. Backend and NavPy logs held no error. After the cancel, UAV 5 stayed in HOMING
 with no new round for nearly 8 minutes, where earlier cycles took about 16 s; cause not established
-(todo 202). No marker's state or word went unsupported by its messages: 36 page records match a
+(todo 219). No marker's state or word went unsupported by its messages: 36 page records match a
 replay through the reducer, every outcome word matches its heartbeats, and no marker came before its
 message. Hard fixes this run checks: words whole at a state change and larger pads. Not pictured
 live: approved pad, dark blue word outline, assigned, offered, outcome unknown and dock failed.
@@ -842,7 +842,7 @@ were sent.
    corrected. No code change: the backend opens a card for that round, as on main, so a
    marker agrees with what the operator is asked, and the card's answer or countdown ends
    it. Remembering denied rounds would add a state to hide a marker whose card still shows.
-   It is a Known limit, with the card's own behaviour logged as todo 200.
+   It is a Known limit, with the card's own behaviour logged as todo 217.
 3. An APPLIED stamped after a RESET's advert, and delivered before it, hides the new offer.
    Holds, and the Known limit was wrong that it needs a new reservation and the 2 s wait. No
    code change: the owner's next message of that task shows it, while the slot it hides
@@ -878,7 +878,7 @@ HOLD/docked, labels A "docked" until mission reset, with no reordering or config
    after a stale gap also reads "outcome unknown", while the UAV card keeps NavPy's word. The
    recordings show this is rare but real: stale spans 0, 33, 1 and 0, one of them starting in
    APPROACH. A later approach whose beats are all lost in gaps each under the TTL stays a Known
-   limit; closing it needs an approach id (todo 190). Also dropped `APPROACH` from
+   limit; closing it needs an approach id (todo 207). Also dropped `APPROACH` from
    `OPEN_ROUND_PHASES`, dead since round 8's change (the mutant that removed it survived).
 
 ### Codex final diff, round 10
@@ -891,7 +891,7 @@ Reject, two findings.
    another approach's outcome" is the constraint, and timeout approval has no minimum time. Here:
    it needs auto or timeout approval (the demo has none), an approach ended and another detected,
    confirmed and flown to contact in under 5 s, with 1 Hz beats all lost; none was seen in any
-   recording. Only an approach id in the heartbeat closes it (todo 190), which changes the wire
+   recording. Only an approach id in the heartbeat closes it (todo 207), which changes the wire
    format, so it is outside this step.
 2. Holds, fixed. A gap hid the recorded approach, so CONFIRM or TO_TASK kept the marker approved
    for the next wait. The open-phase test now reads `approachOutcome`, so it goes to handled with
@@ -901,4 +901,4 @@ Reject, two findings.
 
 Approve, for its narrow scope only: round 10's fix, its tests, the changed fixture, and that the
 note states finding 1 fairly. Round 10's finding 1 went to the owner, who accepted the limit on 2026-11-02
-and kept todo 190 as its fix.
+and kept todo 207 as its fix.

@@ -176,6 +176,9 @@ class TelemetryLoop:
                     if prev is None or prev.get("link_ok") != snap.get("link_ok"):
                         emit("vehicle_link_state", source="backend", sys_id=sid,
                              outcome="connected" if snap.get("link_ok") else "lost")
+                    if prev is None or prev.get("companion_status") != snap.get("companion_status"):
+                        emit("vehicle_companion_state", source="backend", sys_id=sid,
+                             outcome=snap.get("companion_status"))
                     if prev is not None and _check_disarm_after_guided(prev, snap):
                         disarm_events.append({
                             "type": "disarm_after_guided",

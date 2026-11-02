@@ -11,6 +11,10 @@ the target; the target's ending ``DONE`` resolves it, ``acked`` for a flushed
 end, else ``missed`` (a host fault). It is ``missed`` too after
 :data:`STOP_BUDGET_US` of sim time, or when requested during drain (both
 faults). A duplicate stop gets the same result; a stale generation an error.
+
+A scheduled fault stops and respawns a NavPy through :meth:`LifecycleBook.stop_scheduled`
+and :meth:`LifecycleBook.respawn`. An end nobody scheduled (no stop asked for it, no drain
+``end`` sent) is a product failure, flushed or not (``unscheduled_exit``).
 """
 
 from __future__ import annotations
@@ -19,7 +23,7 @@ from dataclasses import dataclass, field
 
 from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_members import Member, Roster
-from navpy.sim.lockstep.coordinator_types import STOP_BUDGET_US, HostFault
+from navpy.sim.lockstep.coordinator_types import STOP_BUDGET_US, HostFault, ParticipantFault, RunFault
 from navpy.sim.lockstep.part_wire import Lifecycle, RequestId, SpawnRequest, StopRequest
 from navpy.sim.lockstep.participant_hooks import RequestIds
 
@@ -45,7 +49,7 @@ class LifecycleBook:
         self._record: TickRecord | None = None
         self.operator: list[Lifecycle] = []
         #: Faults found while committing; the run ends after the tick.
-        self.faults: list[HostFault] = []
+        self.faults: list[RunFault] = []
 
     def begin_tick(self, record: TickRecord) -> None:
         self._record = record
@@ -82,8 +86,9 @@ class LifecycleBook:
         self.commit(spawn.requester, "ready", spawn.spawn_id, spawn.ordinal, spawn.generation,
                     None, payload)
 
-    def retire(self, member: Member, k: int, flushed: bool) -> None:
-        """Tick step 4: the participant's ending ``DONE k`` retires it now."""
+    def retire(self, member: Member, k: int, flushed: bool, host_fault: str | None = None) -> None:
+        """Tick step 4: the participant's ending ``DONE k`` retires it now. ``host_fault``: what its
+        ``DONE`` named as the host's doing (the baton's wall budget), so no one's product failure."""
         member.retired_at = k
         member.flushed = flushed
         spawn = member.spawn
@@ -93,7 +98,12 @@ class LifecycleBook:
         stop = self._stops.get((spawn.ordinal, spawn.generation))
         if stop is not None and stop.result is None:
             self._resolve(stop, "acked" if flushed else "missed")
-        if not flushed:  # every unflushed end is a host fault: the run tears down
+        if host_fault is not None:
+            self.faults.append(HostFault("baton_wall_budget", host_fault, tick=k, ordinal=spawn.ordinal))
+        elif stop is None and not member.end_sent:
+            self.faults.append(ParticipantFault("unscheduled_exit", f"ended with flushed={flushed}; "
+                                                "no stop or drain asked", tick=k, ordinal=spawn.ordinal))
+        elif not flushed:  # an unflushed scheduled end is a host fault: the run tears down
             self.faults.append(HostFault("unclean_end", "ended without a flushed end",
                                          tick=k, ordinal=spawn.ordinal))
 
@@ -123,6 +133,24 @@ class LifecycleBook:
         self._stops[key] = _Stop(request.ordinal, request.generation, t_us + STOP_BUDGET_US,
                                  [(request.id, requester)])
         self.commit(request.ordinal, "stop", request.id, request.ordinal, request.generation)
+
+    def stop_scheduled(self, member: Member, t_us: int, fault: str) -> None:
+        """A scheduled fault's stop: nobody waits for its answer, and ``retire`` resolves it."""
+        spawn = member.spawn
+        self._stops[(spawn.ordinal, spawn.generation)] = _Stop(spawn.ordinal, spawn.generation,
+                                                               t_us + STOP_BUDGET_US)
+        self.commit(spawn.ordinal, "stop", self._ids.next(), spawn.ordinal, spawn.generation, None,
+                    {"fault": fault})
+
+    def respawn(self, member: Member, fault: str) -> Member:
+        """The retired ``member``'s next generation, for the same spawn id and requester. Its
+        ``spawn`` follows the old generation's ``exited`` in one ``TICK``, so no product thread
+        sees the requester's companion gone."""
+        spawn = member.spawn
+        new = self._roster.spawn(spawn.role, spawn.ordinal, spawn.spawn_id, spawn.requester)
+        self.commit(spawn.requester, "spawn", spawn.spawn_id, new.ordinal, new.spawn.generation, "ok",
+                    {"fault": fault})
+        return new
 
     def check_budgets(self, t_us: int) -> None:
         for stop in self._stops.values():

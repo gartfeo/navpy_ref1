@@ -76,9 +76,11 @@ def test_a_packet_lost_before_stop_all_fails_the_run_and_one_in_flight_at_the_st
     assert lost["pairs_complete"] and lost["lost_before_stop"] == 1
     assert not harness.run_ok(_run(navlink=lost))
     assert gate.trace_summary([_trace(1, 2, delivered=None, sent=500)], IDS, None)["lost_before_stop"] == 1
-    records = [{"k": 5, "lifecycle": [{"kind": "spawn"}]}, {"k": 7, "lifecycle": [{"kind": "stop"}]},
-               {"k": 9, "lifecycle": [{"kind": "stop"}]}]
-    assert gate.first_stop_tick(records) == 7 and gate.first_stop_tick(records[:1]) is None
+    records = [{"k": 5, "lifecycle": [{"kind": "spawn", "payload": None}]},
+               {"k": 6, "lifecycle": [{"kind": "stop", "payload": {"fault": "navpy_restart:uav2"}}]},
+               {"k": 7, "lifecycle": [{"kind": "stop", "payload": None}]},
+               {"k": 9, "lifecycle": [{"kind": "stop", "payload": None}]}]
+    assert gate.first_stop_tick(records) == 7 and gate.first_stop_tick(records[:2]) is None
 
 
 def test_an_ambiguous_trace_fails_the_run_and_never_counts_as_delivered():

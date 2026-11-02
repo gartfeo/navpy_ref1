@@ -19,6 +19,9 @@ from navpy.core.swarm.task_messaging import TaskMessageSender
 from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
 from navpy.core.swarm.task_ports import TaskLocationReader
 
+#: What is logged when a peer checks out. The roster marks the peer silent at once, with no line of its own.
+PEER_CHECKED_OUT_LOG = "Actor {} checked out"
+
 
 @dataclass(frozen=True)
 class PeerStatusPorts:
@@ -110,7 +113,7 @@ class SwarmPresence:
         if message.sender_id != self._actor_id:
             self._peers.checked_out(message.sender_id)
         self._logger.info(
-            f"Actor {message.sender_id} checked out at location "
+            f"{PEER_CHECKED_OUT_LOG.format(message.sender_id)} at location "
             f"{message.location}."
         )
 
@@ -143,4 +146,4 @@ class SwarmPresence:
         return True
 
 
-__all__ = ["PeerStatusPorts", "SwarmPresence"]
+__all__ = ["PEER_CHECKED_OUT_LOG", "PeerStatusPorts", "SwarmPresence"]

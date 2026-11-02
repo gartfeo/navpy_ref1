@@ -9,6 +9,7 @@ import {
 import { confirmNow } from '../utils/confirmClock';
 import { LONG_PRESS_MS } from '../utils/armAction';
 import useLongPress from '../hooks/useLongPress';
+import usePressGuard, { EXPIRY_OPEN_MS } from '../hooks/usePressGuard';
 
 /** Countdown colour steps (s left): green above, amber above, red at or below. */
 const TIMER_AMBER_ABOVE_SEC = 5;
@@ -29,6 +30,8 @@ const ROW_CONTROL_PX = 32;
 const PENDING_STILL_PX = 160;
 /** The opened still of a decided row (ConfirmStill), smaller than a pending card's still. */
 const OPEN_STILL_MAX_PX = 120;
+/** Approve and Deny while a press would be refused. */
+const PRESS_GUARD_OPACITY = 0.6;
 /** How often an open still re-reads the clock for its age. */
 const OPEN_STILL_TICK_MS = 1000;
 
@@ -78,6 +81,8 @@ export default function TaskConfirmCard({
   now = null,
   fired = false,
   onAutoFire = null,
+  // The list's scrolling element: tells the operator's scroll from a move.
+  scrollRef = null,
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
@@ -94,6 +99,12 @@ export default function TaskConfirmCard({
   });
   const effectiveTimeout = confirmWaitSec(timeoutSec).sec;
   const deadlineMs = confirmDeadlineMs(entry, timeoutSec);
+  const guard = usePressGuard({
+    active: pending,
+    roundKey,
+    scrollRef,
+    isExpiring: () => msLeft(deadlineMs, confirmNow()) <= EXPIRY_OPEN_MS,
+  });
   // Only re-renders a standalone card each second; the render reads the clock.
   const [, setRemaining] = useState(0);
 
@@ -299,7 +310,12 @@ export default function TaskConfirmCard({
       </div>
 
       {/* Actions */}
-      <div style={{ display: 'flex', gap: 8 }}>
+      <div
+        ref={guard.rowRef}
+        data-press-guard={guard.dimmed ? 'on' : 'off'}
+        data-press-moves={guard.moves}
+        style={{ display: 'flex', gap: 8, opacity: guard.dimmed && !forced ? PRESS_GUARD_OPACITY : 1 }}
+      >
         {forced ? (
           // CONF-03 (D-19): a forced (gate-overridden) popup's approve
           // requires press-and-hold, mirroring the "Ask me anyway" button
@@ -320,23 +336,25 @@ export default function TaskConfirmCard({
           </button>
         ) : (
           <button
+            onClickCapture={guard.clickCapture('approve')}
             onClick={() => onApprove(sysId)}
             style={{
               flex: 1, padding: '8px 0', background: colors.success, color: '#fff',
               border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
             }}
           >
-            {t('task.approve')}
+            {t(guard.refused === 'approve' ? 'task.pressAgain' : 'task.approve')}
           </button>
         )}
         <button
+          onClickCapture={guard.clickCapture('deny')}
           onClick={() => onDeny(sysId)}
           style={{
             flex: 1, padding: '8px 0', background: colors.error, color: '#fff',
             border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
           }}
         >
-          {t('task.deny')}
+          {t(guard.refused === 'deny' ? 'task.pressAgain' : 'task.deny')}
         </button>
       </div>
     </div>

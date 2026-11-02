@@ -1834,6 +1834,25 @@
   the installed version proved it, and upstream's changelog and tags showed the first fixed
   release. Do both before designing around a rendering fault.
 
+## Lockstep load and parallel runs (todo 65, 2026-11-01)
+
+- A lockstep budget that counts handoffs turns a model's own yields into load. Before calling a stress failure a product bug, count what spends the cap per tick; here the reader's per-packet yield did, and the product reader had stopped yielding per packet long before.
+- Do not start several `eval_gcs_demo_lockstep_matrix.py` at once: their CPU-load cells overlap and a spawn misses the 30 s step deadline, a host fault. Run them one at a time, or use plain parallel runs (N = 8 holds on a host other chats are not loading; on a saturated one plain runs host-fault too, so budget for reruns).
+- A matrix hashes the source tree per cell. Editing even a doc while one runs fails its artifact comparison on `input_manifest.json`. Freeze the tree, or run from a separate worktree.
+- A simplified load script is not the same load: mine timed out at WSL setup with 20 busy processes that the real matrix survives. To check a fault, repeat the exact command that gave it.
+- Participants do not inherit the shell's env. For a temporary counter, print to stderr (the host logs it) and add temporary profiles.
+- When a fix removes a reproduction, grep the plan for rules that require it. I removed `stress`'s todo-65 mode and left section 4's "`stress` must reproduce todo 65" standing; the final review caught it, and only the owner could change the rule.
+- Do not write one cause for several seeds from a shared outcome. My commit message put seed 24 under the per-packet cause; it ran batch 4 with healthy observation and failed a swarm task drop. Read each seed's draw and its log before grouping it.
+- A check the design lists is a promise. "Combinations" stayed in the design with no test behind them, and they found the parked reader's behaviour (todo 200) once written. Before reporting, map each listed check to a test or run, and mark timings with no retained log as your own observation.
+- Do not label a failure "out of scope" beside "cause not checked". Run the one comparison that classes it (here, the seed with no cap).
+- Stop and look when a retry repeats its digest on a fault that is not a wall-time one. I retried stress seed 212 eleven times as a host fault; each run that got past registration gave the same digest and tick. `HostFault` there only meant an unflushed end. A wall fault at a spawn repeats a digest too, because replay is the same up to that tick (tick 1, and mid-run at ticks 4826 and 8990), so judge by the fault's kind.
+- When a tick counter says "cap used up", exclude freeze ticks: their cap is 0, they run nothing. My first starved-tick counts included them and were wrong.
+- A counterfactual is "the same run plus one change" only until its journal splits. Report where it leaves the base run. Changing B leaves it at tick 5 because the backend's reader takes the same path; only the cap change stays equal to tick 9842. Other seeds with the same draw are what rule out a re-roll, not more arms on one seed.
+- Prove a review finding with a small test, and run that test on the baseline too. Codex's timer starvation is real on the prototype; the same script shows it on the baseline for a reader below its budget, which changes what the finding means.
+- Check a scheduling change against every scheduling model before a full run. Form 3 fixed the inputs-first path and demoted the reader under `timers_first` (drain at tick 18 instead of 11). A small table of packets served per model and case shows that in seconds.
+- A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
+- A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
+- On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
 ## Todo 71: the confirm still's age (2026-11-01)
 
 - A card's vitest stub returns the key and drops the arguments, so it cannot test wording
@@ -1901,6 +1920,14 @@
   printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
   report, and two reports disagree on one Armenian case with nothing saved to settle it.
 
+## Confirm card press guard (todo 166, 2026-11-02)
+
+- A 20 ms timer recorder and a rAF-based detector disagree on a busy page: the app's frames can be 150 ms apart, so a real
+  move looked like a count rise with no change. Time the detector's own frames before calling a rise a phantom.
+- In a live or harness press test, wait for the row to leave before timing the press: the 1 s expiry tick made a "deliberate"
+  press land inside the guard, which looked like a guard bug.
+- `fireEvent.click` has `detail` 0, which the guard reads as a keyboard click, so it passes; a test of a pointer press must send
+  `pointerdown` and a click with `detail: 1`. CDP input does this for real; `element.click()` does not.
 ## Delivery demo audit and ready plan (2026-11-02)
 - Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
   test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
@@ -1913,3 +1940,61 @@
   23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
   line; Codex caught it, and a sweep of the `corrected` fields then found five more
   overstatements. Read those fields before writing, not after.
+
+## Dev sim step 7: scheduled faults (2026-11-02)
+
+- Try every new gate on real runs before building on it. "Sent after the heal" matched repeated heartbeat
+  bytes first in, first out per receiver. It passed its hand-built journals and failed `hw` seeds 21 and 54
+  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. The
+  first fix, a queue per SITL, still failed on real journals, as a copy a SITL never passed on stayed queued.
+  Measure before choosing the rule: a SITL holds a copy at most 14 ticks and the same bytes come back at least
+  252 ticks later (38 runs), so what it emits is the newest copy. A real run's case became a test.
+- A new kind of event reaches sim code that only ever ran on the ground. The first NavPy restarted in flight
+  lost a whole detection lap (hw seeds 48, 50; seed 34 lost its approval). It looked like a product bug. The
+  sim gimbal's plant started in LOCK, and its switch to FOLLOW read the mount's body yaw as a world yaw, so
+  the camera looked off to the side. Walk the mechanism before logging a product todo.
+- Prove a gate on real evidence as well as doubles: load a passing run, remove one kind of evidence in memory
+  and expect that gate's exact error (`broken.py` this time, 18 breaks). Mutations prove the tests, this
+  proves the gate reads the real journal.
+- A mutation run on a private copy needs what the tests read through the tree: the terrain tiles, and a git
+  repository of its own (the input manifest runs `git diff HEAD`). Each missing piece showed up as a failed
+  baseline, not as a survivor. Count a kill only on pytest's exit 1 and print the test that failed.
+- A faults-off baseline is what separates a fault's effect from a known failure. A temporary profile, `hw`
+  without the four faults, draws the same other models on the same seed, as each model's draw is independent
+  of the profile. Without it every windy miss looked like the fault's. Remove the profile before committing.
+- On a starved host, runs fail with `exchange deadline ran out in the register wait`, a relay deadline or a
+  WSL timeout: NavPy's imports can pass the SITL's 30 s tick limit. Those are host faults. Check the load with
+  `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
+  limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
+- A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
+  because its first imports land in the measured window (todo 192). Rerunning it with a neighbour showed that.
+- `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.
+- Codex writes `.agents/skills/` and `.codex/agents/{janitor,live-tester}.toml` into its checkout. They fail
+  `test_gen_codex_agents` and change `input_manifest.json`. Run it on a detached worktree of the commit.
+- A measurement that needs a code change goes in a throwaway worktree, so a matrix running from this one keeps
+  its manifest. `dbgview` measured DEBUG on `hw` seed 19 that way while three gate sets ran.
+- A saturated host still gives host faults at boot with staggered starts. A driver that moves a host-faulted
+  cell aside and reruns only that cell kept the matrix valid. Say how many cells it reran.
+- A git copy's objects are read-only, so `shutil.rmtree` fails on Windows and a mutation copy dir cannot be
+  reused. Take a fresh name, delete them all with `Remove-Item -Recurse -Force` at the end.
+- A delivery is not recovery: it shows a packet reached the participant, not that anything took it. Product
+  evidence often exists only at DEBUG, and DEBUG lines go through DONE into the digest. So a level has to be
+  decided per run, in the role record (the participant environment is hermetic), and only where it is needed.
+- A proof that a run fails needs its own check that the fault was made. The kill script read a JSON array as one
+  record and killed nothing; the run ended clean, and only its exit 0 showed it. Print what was killed.
+- A new log line in a swarm file can trip a source-scanning guard far from the fault tests. Run `tests/guards` and
+  `tests/scripts` after each such round, not only the fault tests.
+
+## Hand demo check and input record (2026-11-02)
+- Read `cpu_share.py --list` and free memory before a real launch. Four launches ran as
+  background on a busy PC and failed in the parameter step, at two different points.
+  Starting the second and third without reading the first's cause cost about 7 minutes,
+  and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- To show a new launch step is not the cause, run the launch once from a scratch script that
+  replaces that one function, with no edit to the tree. Off, it failed with the same error.
+- A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
+  either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
+- To tell a slow launch from a broken one, list the `http_request_finished` durations of
+  `/params` and `/parameters` from the run's timeline and compare with a passing run.
+- A single string search can miss a message built from parts: "AAS write failed" is
+  `{label} write failed`. Search the fixed part.

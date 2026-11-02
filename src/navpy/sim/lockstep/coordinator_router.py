@@ -51,6 +51,7 @@ from navpy.sim.lockstep.coordinator_mavlink import (
     ROUTER_FILTERED,
     ROUTER_LINK,
     ROUTER_SKIPPED_BYTES,
+    RADIO_FAULT,
     MavlinkTally,
 )
 from navpy.sim.lockstep.coordinator_members import Member, Roster
@@ -221,11 +222,17 @@ class RoutedPorts:
         self._account.settle(device, stream, base, base + framer.held_start)
 
     def _route(self, record: TickRecord, endpoint: str, link: str, pieces: list[Piece]) -> None:
-        """Route ``endpoint``'s packets in byte order; ``link`` is its tally link."""
+        """Route ``endpoint``'s packets in byte order; ``link`` is its tally link. A scheduled
+        fault's cut (``radio_cuts``) ends a source before the router learns from it, a copy when made."""
         skipped = 0
+        cuts = self.radio.cuts
         for packet_id, piece, packet, _start in pieces:
             if packet_id is None or packet is None:
                 skipped += len(piece)
+                continue
+            fault = cuts.source(endpoint)
+            if fault is not None:
+                self.tally.count(record.data, link, RADIO_FAULT, [self._book.end(packet_id, RADIO_FAULT, fault)])
                 continue
             route = self._router.route(endpoint, packet)
             destinations = route.destinations
@@ -237,6 +244,11 @@ class RoutedPorts:
             for destination in destinations:
                 device = self._endpoint_device[destination]
                 copy = self._book.copy(packet_id, device)
+                fault = cuts.path(endpoint, destination)
+                if fault is not None:
+                    self.tally.count(record.data, self._link(device), RADIO_FAULT,
+                                     [self._book.end(copy, RADIO_FAULT, fault)])
+                    continue
                 self.tally.count(record.data, self._link(device), ROUTED_OUT, [packet_key(packet)])
                 if device == self._endpoint_device[BACKEND_ENDPOINT]:
                     self._ledger.add_whole(device, copy, piece)
