@@ -99,7 +99,8 @@
 - wsl.exe hands `bash -lc '...'` to the login shell, so `$VAR` inside it expands there
   (often to empty), and Git Bash rewrites /mnt/c/... arguments. Run scripts with
   `MSYS_NO_PATHCONV=1 wsl -e bash script.sh` when they need neither the login PATH nor
-  path rewriting.
+  path rewriting. With `MSYS_NO_PATHCONV=1`, `git -C` needs a `C:/` path. For a one-liner
+  use `wsl --exec bash -c`: plain `wsl bash -c` breaks on `$(...)`.
 - To check a hand-back between controllers that run at different rates, measure after
   the slower one's first update. The TECS hand-back check sampled the 50 Hz output
   before TECS's first 10 Hz update and reported a 0 % throttle step, while the real
@@ -824,6 +825,9 @@
 ## Todo 65 load (2026-10-18)
 - A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
   interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+  CPU readings have the same trap: Start-Process on it reads the launcher (0%), not the interpreter (19.4% in one
+  test). Find the child by command line. The registry's `backend_pid` is the launcher too (50464, while the share
+  held pid 10472), so find a stack's share by its label.
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
@@ -1694,8 +1698,9 @@
   ran at one height (300 m) and passed. Check a geometric bound over the whole range of
   every input (latitude, height, scale, still segments), in both directions.
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
-  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
-  and check line endings with `file` after any scripted edit.
+  in Git Bash turned a CRLF file into LF. Put such a `cd` in a subshell, or start each
+  command with `cd` to the worktree, and check line endings with `file` after any
+  scripted edit.
 - A Windows path written into a Python string through the Bash tool lost one of its
   doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
   control character in place of the run folder. Build backslashes with chr(92) and
@@ -1864,3 +1869,16 @@
 - Mark what came from a reviewer's prose and what from a saved result. Harness output that is only
   printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
   report, and two reports disagree on one Armenian case with nothing saved to settle it.
+
+## Delivery demo audit and ready plan (2026-11-02)
+- Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
+  test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
+  file lacks those types, test with a file that has them.
+- `swarm_run.py` takes `--defaults` while `gcs_launch.py` takes `--sitl-defaults`; mixing
+  them fails the launch with unrecognized arguments.
+- Copying an agent's work folder as evidence took in 42 MB of private repo copies. List
+  it first and keep only results.
+- Quote an audit number in its verified form and keep its reference. Todo 170 carried
+  23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
+  line; Codex caught it, and a sweep of the `corrected` fields then found five more
+  overstatements. Read those fields before writing, not after.
