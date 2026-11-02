@@ -192,7 +192,7 @@ off, nav_cwt 30) a missed card rejects the dock.
    to. The vehicle's own timeout rule is not on the card;
    it is the cached estimate described above. Follow-up (new todo): send the
    policy with the request (the TASK_CONFIRM_REQUEST dialect bump, with todos
-   88 and 71), after which the card can name the vehicle's outcome.
+   88 and 163), after which the card can name the vehicle's outcome.
    Alternative (the brief's wording): "Rejects in 0:21" / "Approves in 0:21
    if still tracked". Not recommended: both state a vehicle outcome the GCS
    cannot know (delivery and the vehicle's round are unconfirmed), and "if
