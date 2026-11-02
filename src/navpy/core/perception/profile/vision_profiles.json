@@ -757,6 +757,15 @@
         }
       }
     },
+    "siyi_zr10_hitl_encoded": {
+      "extends": "siyi_zr10",
+      "detector": {
+        "camera_index": "gstreamer+rtsp://127.0.0.1:18554/main.264?decoder=nvh265dec&latency_ms=50",
+        "tracker": {
+          "backend": "custom"
+        }
+      }
+    },
     "zenfone7pro": {
       "detector": {
         "detect_hz": 15.0,

@@ -117,6 +117,7 @@ class DetectionLoop:
 
     def run(self) -> None:
         next_at = self._timing.monotonic()
+        last_sequence = None
         while self._run_state.is_running:
             now_s = self._timing.monotonic()
             sleep_s = next_at - now_s
@@ -126,8 +127,10 @@ class DetectionLoop:
             next_at = next_loop_deadline(next_at, self._period_s, now_s)
             reservation = self._generation.reserve()
             snapshot = self._frame_provider.get_frame_snapshot()
-            if snapshot.frame is None:
+            # A picture is measured once: the loop's period can beat the stream's.
+            if snapshot.frame is None or snapshot.sequence == last_sequence:
                 continue
+            last_sequence = snapshot.sequence
             try:
                 frame = snapshot.frame.copy()
                 association = self._association_builder.capture(snapshot, frame)

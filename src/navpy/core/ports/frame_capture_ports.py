@@ -31,16 +31,27 @@ class CaptureStampKind(Enum):
 
 
 @dataclass(frozen=True)
+class FrameSourceIdentity:
+    """Which picture of which open: the media PTS, kept as the sender stamped it."""
+
+    open_id: str
+    sequence: int
+    pts_ns: int
+
+
+@dataclass(frozen=True)
 class CaptureStamp:
     """Earliest observable capture time for one frame, and its meaning.
 
     `captured_at_s` shares the ATTITUDE receipt wall clock. A frame published
     WITHOUT a stamp is never frame-atomic downstream; capture time is never
-    synthesized from publication time.
+    synthesized from publication time. `source` is set by a backend that reads
+    a timestamped stream.
     """
 
     captured_at_s: float
     kind: CaptureStampKind
+    source: FrameSourceIdentity | None = None
 
 
 class BoardClock(Protocol):
@@ -86,4 +97,5 @@ __all__ = [
     "CaptureStampKind",
     "FrameCaptureBackend",
     "FramePublisher",
+    "FrameSourceIdentity",
 ]
