@@ -888,4 +888,5 @@ Reject, two findings.
 ### Codex final diff, round 11
 
 Approve, for its narrow scope only: round 10's fix, its tests, the changed fixture, and that the
-note states finding 1 fairly. It does not close round 10's finding 1, which stays the owner's.
+note states finding 1 fairly. Round 10's finding 1 went to the owner, who accepted the limit on 2026-11-02
+and kept todo 169 as its fix.
