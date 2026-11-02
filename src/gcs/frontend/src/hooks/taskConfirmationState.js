@@ -70,6 +70,7 @@ export function confirmRequest(state, data) {
       lon: data.lon,
       alt: data.alt ?? null,
       imageB64: null,
+      imageAt: null,
       status: CONFIRM_STATUS.PENDING,
       action: null,
       receivedAt: data.receivedAt,
@@ -95,7 +96,9 @@ export function confirmImage(state, data) {
   // A thumbnail from a round this card has moved past is not this POI's
   // current picture.
   if (isOtherRound(entry, data)) return state;
-  return { ...state, [data.sys_id]: { ...entry, imageB64: data.image_b64 } };
+  // imageAt is the delay measure only: when this browser got the picture, not
+  // how old the picture is (gcs_still_age.md).
+  return { ...state, [data.sys_id]: { ...entry, imageB64: data.image_b64, imageAt: data.receivedAt } };
 }
 
 export function confirmResponse(state, data) {
@@ -229,6 +232,14 @@ export function msLeft(deadlineMs, now) {
 /** Whole seconds left, rounded up: what the card and the chip both show. */
 export function secondsLeft(deadlineMs, now) {
   return Math.ceil(msLeft(deadlineMs, now) / 1000);
+}
+
+/**
+ * Whole seconds since this browser received the request, never negative. The
+ * still was taken before the request, so this is a low estimate of its age.
+ */
+export function confirmAgeSec(entry, now) {
+  return Math.floor(Math.max(0, now - entry.receivedAt) / 1000);
 }
 
 /**
