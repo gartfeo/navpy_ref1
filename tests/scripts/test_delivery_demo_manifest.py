@@ -89,6 +89,21 @@ def test_a_failed_write_only_warns(monkeypatch, tmp_path, failure):
     assert "The launch goes on." in warnings[0]
 
 
+@pytest.mark.parametrize("stderr_fault", [OSError("broken pipe"), ValueError("I/O operation on closed file")])
+def test_a_warning_that_cannot_be_written_does_not_stop_the_launch(monkeypatch, tmp_path, stderr_fault):
+    class BrokenStderr:
+        def write(self, _text):
+            raise stderr_fault
+
+    def refused(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(manifest, "write_input_manifest", refused)
+    monkeypatch.setattr(manifest.sys, "stderr", BrokenStderr())
+
+    assert _record(tmp_path / "run", {}) is None
+
+
 def test_an_unreadable_plan_file_only_warns(monkeypatch, tmp_path):
     monkeypatch.setattr(manifest, "PLAN_PATH", tmp_path / "gone.json")
     warnings = []

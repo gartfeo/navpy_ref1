@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pathlib import Path
 from typing import Any, NamedTuple
 
+from navpy.core.approach.logs.log_events import STANDARD_EVENT_HEADER
 from scripts.eval_certificate_source_time import (
     SOURCE_TIME_FILE_RE,
     SOURCE_TIME_SUBDIR,
@@ -71,7 +72,15 @@ def _episode_name(identity: tuple[int, int, int, int] | None) -> str:
     return f"episode {episode} task {task} dock {dock}"
 
 
+def _require_debug_header(path: Path) -> None:
+    """An empty or cut file has no events, which does not mean no approach was flown."""
+    with path.open("r", encoding="utf-8", errors="replace") as handle:
+        if handle.readline().rstrip("\r\n") != STANDARD_EVENT_HEADER:
+            raise ValueError(f"{path.name} has no header row, so it is empty or damaged")
+
+
 def approach_outcomes(path: Path, uav: int) -> list[Outcome]:
+    _require_debug_header(path)
     episodes, failures = parse_final_approach_outcomes(path, vehicle_id=uav)
     reasons = {failure.identity: failure.reason for failure in failures}
     outcomes = []
@@ -129,6 +138,8 @@ def _log_lines(run_dir: Path, uav: int) -> list[str]:
 
 
 def _cadence_lines(run_dir: Path, uav: int) -> list[str]:
+    if debug_csv(run_dir, uav).is_file():
+        _require_debug_header(debug_csv(run_dir, uav))
     annotation = cadence_annotation(run_dir, uav)
     if not annotation["episodes"]:
         return [f"cadence: {annotation['status']}"]

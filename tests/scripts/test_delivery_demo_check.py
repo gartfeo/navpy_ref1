@@ -8,11 +8,12 @@ import sys
 
 import pytest
 
+from navpy.core.approach.logs.log_events import STANDARD_EVENT_HEADER
 from scripts import delivery_demo_check as check
 from scripts import delivery_demo_check_uav as uav_check
 
 CONFIG = "18:11:13.709,EVENT:CONFIG,min_log_interval_s=0.1;schema=primary\n"
-HEADER = "ts,event,payload\n"
+HEADER = STANDARD_EVENT_HEADER + "\n"
 
 
 def _armed(vehicle, episode=1, source_ts=4034.0, wall=1793542413.0, time="18:13:33.000"):
@@ -222,6 +223,36 @@ def test_an_open_episode_and_a_broken_debug_file_do_not_stop_the_report(tmp_path
     assert "UAV 6" in text
 
 
+@pytest.mark.parametrize("content", ["", "ts,ev", "18:11:13.709,EVENT:CONFIG,schema=primary\n"])
+def test_a_debug_file_without_its_header_is_not_read_as_no_approach(tmp_path, content):
+    run_dir = _flown_run(tmp_path)
+    (run_dir / "uav_5_navigation_debug.csv").write_text(content, encoding="utf-8")
+
+    text = check.report(run_dir)
+
+    assert "Approaches not read: UAV 5" in text
+    assert "approach: could not read: uav_5_navigation_debug.csv has no header row" in text
+    assert "cadence: could not read: uav_5_navigation_debug.csv has no header row" in text
+    assert not any(uav == "5" for uav in _no_approach_uavs(text))
+
+
+def _no_approach_uavs(text):
+    for line in text.splitlines():
+        if line.startswith("No approach ended in the debug log: UAV "):
+            return line.rsplit("UAV ", 1)[1].split(", ")
+    return []
+
+
+def test_a_header_only_debug_file_is_a_run_with_no_approach(tmp_path):
+    run_dir = _flown_run(tmp_path)
+    (run_dir / "uav_5_navigation_debug.csv").write_text(HEADER, encoding="utf-8")
+
+    text = check.report(run_dir)
+
+    assert "5" in _no_approach_uavs(text)
+    assert "Approaches not read" not in text
+
+
 def test_a_partial_manifest_says_so_and_a_broken_one_cannot_stop_the_report(tmp_path):
     run_dir = _flown_run(tmp_path)
     (run_dir / "input_manifest.json").write_text('{"source": {"git_head": "abc"', encoding="utf-8")
@@ -251,6 +282,35 @@ def test_a_launch_only_run_says_launch_was_never_called(tmp_path):
     (run_dir / "gcs" / "backend.log").write_text("2026-11-01 18:06:48 [x] INFO: noise\n", encoding="utf-8")
 
     assert check.backend_lines(run_dir) == ["Backend: 1 log lines, no warnings, 0 tracebacks, /launch never called"]
+
+
+def test_rotated_backend_text_is_read_oldest_first(tmp_path):
+    run_dir = tmp_path / "run"
+    (run_dir / "gcs").mkdir(parents=True)
+    for name, text in (
+        ("backend.log.10", "t [x] INFO: CPU share granted [cpu_share_holder] first\n"),
+        ("backend.log.2", "t [x] INFO: /launch called: second\n"),
+        ("backend.log", "t [x] WARNING: later\n"),
+        ("backend.log.bak", "t [x] WARNING: not a rotated file\n"),
+    ):
+        (run_dir / "gcs" / name).write_text(text, encoding="utf-8")
+
+    assert check.backend_lines(run_dir) == [
+        "Backend: 3 log lines (with 2 rotated files), 1 WARNING, 0 tracebacks",
+        "  t [x] INFO: CPU share granted [cpu_share_holder] first",
+        "  t [x] INFO: /launch called: second",
+    ]
+
+
+def test_with_rotated_backend_text_a_missing_launch_is_not_called_never(tmp_path):
+    run_dir = tmp_path / "run"
+    (run_dir / "gcs").mkdir(parents=True)
+    for name in ("backend.log.1", "backend.log"):
+        (run_dir / "gcs" / name).write_text("t [x] INFO: noise\n", encoding="utf-8")
+
+    assert check.backend_lines(run_dir) == [
+        "Backend: 2 log lines (with 1 rotated files), no warnings, 0 tracebacks, no /launch call in the text kept"
+    ]
 
 
 def test_the_timeline_counts_events_bad_rows_and_failures(tmp_path):

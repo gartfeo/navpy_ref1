@@ -120,17 +120,30 @@ def backend_lines(run_dir: Path) -> list[str]:
     path = run_dir / BACKEND_LOG
     if not path.is_file():
         return [f"Backend: {BACKEND_LOG.as_posix()} is missing"]
-    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    rotated = _rotated_backend_logs(path)
+    lines = [
+        line for part in (*rotated, path)
+        for line in part.read_text(encoding="utf-8", errors="replace").splitlines()
+    ]
     levels = Counter(match.group(1) for match in map(_LEVEL_RE.search, lines) if match)
     tracebacks = sum(line.startswith("Traceback") for line in lines)
     facts = [f"  {line}" for line in lines if _BACKEND_FACT_RE.search(line)]
     launched = any("/launch called" in line for line in lines)
     told = ", ".join(f"{count} {level}" for level, count in sorted(levels.items())) or "no warnings"
+    # Rotation drops the oldest file, so with rotated files "never" cannot be known.
+    no_launch = ", no /launch call in the text kept" if rotated else ", /launch never called"
+    kept = f" (with {len(rotated)} rotated files)" if rotated else ""
     return [
-        f"Backend: {len(lines)} log lines, {told}, {tracebacks} tracebacks"
-        + ("" if launched else ", /launch never called"),
+        f"Backend: {len(lines)} log lines{kept}, {told}, {tracebacks} tracebacks"
+        + ("" if launched else no_launch),
         *facts,
     ]
+
+
+def _rotated_backend_logs(path: Path) -> list[Path]:
+    """Oldest first; the highest number is the oldest."""
+    numbered = (part for part in path.parent.glob(f"{path.name}.*") if part.suffix[1:].isdigit())
+    return sorted(numbered, key=lambda part: int(part.suffix[1:]), reverse=True)
 
 
 def timeline_lines(run_dir: Path) -> list[str]:

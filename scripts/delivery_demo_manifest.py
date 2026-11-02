@@ -8,6 +8,7 @@ evidence, not a launch step: a failure warns and the launch goes on.
 
 from __future__ import annotations
 
+import contextlib
 import sys
 from collections.abc import Callable, Mapping
 from pathlib import Path
@@ -56,7 +57,9 @@ def record_run_inputs(
         }
         write_input_manifest(run_dir, manifest_environment(env), sitl, sitl_root_host, options, scenario)
     except Exception as error:  # noqa: BLE001 - evidence only; it must not fail the launch
-        warn(f"WARNING: this run has no complete commit and input record: {error}. The launch goes on.")
+        # A closed or broken stderr must not fail it either.
+        with contextlib.suppress(Exception):
+            warn(f"WARNING: this run has no complete commit and input record: {error}. The launch goes on.")
 
 
 __all__ = ["MANIFEST_ENV", "manifest_environment", "record_run_inputs"]
