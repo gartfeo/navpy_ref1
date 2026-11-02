@@ -1882,3 +1882,13 @@
   23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
   line; Codex caught it, and a sweep of the `corrected` fields then found five more
   overstatements. Read those fields before writing, not after.
+
+## Hand demo check and input record (2026-11-02)
+- Read `cpu_share.py --list` and free memory before a real launch. Three launches ran as
+  background on a busy PC and failed in the parameter step, at two different points.
+  Starting the second and third without reading the first's cause cost about 7 minutes,
+  and I read memory only after them: commit free was 1.3 of 64.5 GB.
+- To tell a slow launch from a broken one, list the `http_request_finished` durations of
+  `/params` and `/parameters` from the run's timeline and compare with a passing run.
+- A single string search can miss a message built from parts: "AAS write failed" is
+  `{label} write failed`. Search the fixed part.
