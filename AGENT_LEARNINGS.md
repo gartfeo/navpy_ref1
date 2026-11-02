@@ -2097,3 +2097,15 @@
 - Prove a clock test catches the mix: put `rt.time()` back in one place at a time (association, board clock, freshness) and see it fail, then restore.
 - In Git Bash, `PYTHONPATH="$PWD/src;..."` becomes `C:\c\Users\...` and Python silently imports the main checkout's packages. Use `W=$(pwd -W)` and print `navpy.__path__` before trusting a test run.
 - Python `open(..., 'w')` in text mode writes LF; on this Windows checkout that turned CRLF files into "w/mixed" or LF. Git normalizes, but byte-hashed files do not.
+
+## Status texts wait; a failed hold names its bound (ready plan step 4, 2026-11-02)
+- Validate a new run-check script on the run the audit measured before trusting it on new
+  runs: mine reproduced 81 of 474 lost frames and the 134-284 ms lag exactly on 17:38.
+- BIN text recounts: ArduPilot opens the BIN at arming, so texts sent before that (ONHOLD:
+  DISARMED, sometimes the first ONHOLD: WAYPOINT) are in no BIN. Compare the send time with
+  each BIN's first MSG row before calling a text lost.
+- The wall delivery eval (`eval_gcs_navigation_demo.py --scenario delivery`) gives NAV
+  worker rows, both ATTITUDE arrival streams and three BINs (in WSL `~/navpy-eval-roots/
+  <run-dir name>-<hash>/N/logs`) in about 3 minutes, with no owner approval needed.
+- Renaming a function can break an AST guard that finds it by name
+  (`test_frozen_inventories.py`); grep tests for the old name before renaming.
