@@ -326,7 +326,9 @@ The zone goes to the third vehicle in the UI list.
    checkout already runs a stack.
 3. Frontend wait, then `wait_for_vehicles` (auto-connect connects them).
 4. `configure_vehicle_params` and `verify_aas_profile`.
-5. Open the UI, then print the plan file path and the stop command.
+5. Open the UI, then print the plan file path, the stop command and the stack's
+   CPU share: its CPUs, its end time, and a warning below 8 CPUs (8 is not proven
+   enough, see `bounded_cpu_share.md`).
 
 Stop with `gcs_stop.py`.
 
