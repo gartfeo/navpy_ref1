@@ -2152,3 +2152,22 @@
 - On the UniRC the backend serves a dist copied into the device worktree; check the
   page's script name against `dist/index.html` after a reload, since the APK has a
   service worker.
+
+## Written pose rows leave memory; GC record (ready plan step 5, 2026-11-03)
+- The Bash tool turned `\r\n` and `\\n` inside a heredoc Python edit script into real line
+  breaks, which broke a string literal in source. For edits that contain escapes, use the
+  Edit tool, or build the characters with `chr()`.
+- `sed -i` and plain text-mode Python writes turn this repo's CRLF files into LF. Check
+  with `file` after any scripted edit and keep each file's line endings.
+- Before adding a pose-cadence stream, read the audit's solution notes
+  (`.logs/demo-20261101-audit/solutions/sol_navpy.txt`). They named three traps that apply:
+  `source_time_summary` refuses an unknown stream; pose_cadence_debug.py sits at the
+  300-line SOLID limit; a new stdlib import (`gc`) must be added to the runtime-time lint's
+  `EXTERNAL_IMPORTS`.
+- A race test where a few threads append is over before the flush loop runs once. Set
+  `sys.setswitchinterval(1e-5)` for the test, and assert that flushes really interleaved.
+- To hold a hand-demo stack for a timed run with no UI, call `launch_stack(headless=True,
+  browser=False, ...)` with delivery_demo's settings and environment (scratch driver
+  `hold_stack.py`, with `stalls.py`, under step5/ in the ready plan's side-session notes
+  folder). Each checkout gets its own registry slot, so its sysids can differ between runs. On the ground with no plan, each NavPy
+  writes about 1260 rows/s, the same as in flight.

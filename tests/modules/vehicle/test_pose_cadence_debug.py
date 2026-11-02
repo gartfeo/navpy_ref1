@@ -6,6 +6,7 @@ patched environment. Every test restores the disabled import-time state.
 """
 import importlib
 import os
+import sys
 
 import pytest
 
@@ -141,7 +142,7 @@ def test_every_stream_has_a_header():
     # data row is consumed as the header by every reader.
     for stream in ("attitude_arrival", "position_arrival", "telemetry_reject",
                    "detector_pose", "detector_poll", "observation", "worker",
-                   "frame_lineage"):
+                   "frame_lineage", "gc"):
         assert pcd._HEADERS.get(stream), stream
 
 
@@ -165,6 +166,125 @@ def test_incremental_append_writes_only_new_rows(monkeypatch, tmp_path):
     assert path.read_text(encoding="utf-8").splitlines() == [
         "wall_s,boot_ms", "1.0,10", "2.0,20",
     ]
+
+
+def _attitude_lines(path):
+    return path.read_text(encoding="utf-8").splitlines()
+
+
+def test_written_rows_leave_memory(monkeypatch, tmp_path):
+    mod = _reload(monkeypatch, str(tmp_path))
+    mod.stop_flusher()
+    for i in range(5):
+        mod.record_attitude_arrival(9, float(i), i)
+    rows = mod._buffers[(9, "attitude_arrival")]
+
+    mod.dump_all()
+
+    assert mod._buffers[(9, "attitude_arrival")] is rows  # the recorders' list, kept
+    assert rows == []
+    assert mod._written[(9, "attitude_arrival")] == 5
+    path = tmp_path / f"pose_cadence_attitude_arrival_uav_9_pid_{os.getpid()}.csv"
+    assert _attitude_lines(path) == ["wall_s,boot_ms"] + [f"{float(i)},{i}" for i in range(5)]
+
+
+def test_a_row_appended_during_the_write_stays_for_the_next_flush(monkeypatch, tmp_path):
+    mod = _reload(monkeypatch, str(tmp_path))
+    mod.stop_flusher()
+    mod.record_attitude_arrival(9, 1.0, 1)
+    mod.record_attitude_arrival(9, 2.0, 2)
+    real_write = mod.write_rows
+
+    def write_while_a_recorder_appends(path, header, lines):
+        mod.record_attitude_arrival(9, 3.0, 3)  # lands after the len() read
+        real_write(path, header, lines)
+
+    monkeypatch.setattr(mod, "write_rows", write_while_a_recorder_appends)
+    mod.dump_all()
+    assert mod._buffers[(9, "attitude_arrival")] == [(3.0, 3)]
+
+    monkeypatch.setattr(mod, "write_rows", real_write)
+    mod.dump_all()
+    path = tmp_path / f"pose_cadence_attitude_arrival_uav_9_pid_{os.getpid()}.csv"
+    assert _attitude_lines(path) == ["wall_s,boot_ms", "1.0,1", "2.0,2", "3.0,3"]
+    assert mod._buffers[(9, "attitude_arrival")] == []
+
+
+def test_a_failed_write_keeps_its_rows_and_the_retry_starts_the_file(monkeypatch, tmp_path):
+    mod = _reload(monkeypatch, str(tmp_path))
+    mod.stop_flusher()
+    mod.record_attitude_arrival(9, 1.0, 1)
+    real_write = mod.write_rows
+
+    def fail(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(mod, "write_rows", fail)
+    mod.dump_all()
+    assert mod._buffers[(9, "attitude_arrival")] == [(1.0, 1)]
+    assert (9, "attitude_arrival") not in mod._written
+    with pytest.raises(OSError):
+        mod.dump_all(strict=True)
+
+    monkeypatch.setattr(mod, "write_rows", real_write)
+    mod.record_attitude_arrival(9, 2.0, 2)
+    mod.dump_all()
+    path = tmp_path / f"pose_cadence_attitude_arrival_uav_9_pid_{os.getpid()}.csv"
+    assert _attitude_lines(path) == ["wall_s,boot_ms", "1.0,1", "2.0,2"]
+
+
+def test_flushes_racing_recorders_lose_reorder_and_duplicate_nothing(monkeypatch, tmp_path):
+    import threading
+
+    mod = _reload(monkeypatch, str(tmp_path))
+    mod.stop_flusher()
+    count, threads = 40_000, 3
+    flushes = []
+
+    def record(thread):
+        for i in range(count):
+            mod.record_attitude_arrival(9, float(thread), i)
+
+    writers = [threading.Thread(target=record, args=(t,)) for t in range(threads)]
+    # Switch threads often, so flushes land between single appends.
+    previous = sys.getswitchinterval()
+    sys.setswitchinterval(1e-5)
+    try:
+        for writer in writers:
+            writer.start()
+        while any(writer.is_alive() for writer in writers):
+            mod.dump_all()
+            flushes.append(len(mod._buffers.get((9, "attitude_arrival"), ())))
+    finally:
+        sys.setswitchinterval(previous)
+    mod.dump_all()
+
+    path = tmp_path / f"pose_cadence_attitude_arrival_uav_9_pid_{os.getpid()}.csv"
+    lines = _attitude_lines(path)
+    assert lines[0] == "wall_s,boot_ms"
+    by_thread = {}
+    for line in lines[1:]:
+        thread, i = line.split(",")
+        by_thread.setdefault(thread, []).append(int(i))
+    assert by_thread == {f"{float(t)}": list(range(count)) for t in range(threads)}
+    assert len(flushes) > 1  # the flushes really interleaved with the appends
+    assert mod._buffers[(9, "attitude_arrival")] == []
+    assert mod._written[(9, "attitude_arrival")] == count * threads
+
+
+def test_a_flush_after_the_buffer_emptied_appends_to_the_pid_file(monkeypatch, tmp_path):
+    # An emptied buffer must not read as a key's first write, which would
+    # truncate the file and write the header again.
+    mod = _reload(monkeypatch, str(tmp_path))
+    mod.stop_flusher()
+    mod.record_attitude_arrival(9, 1.0, 1)
+    mod.dump_all()
+    mod.dump_all()
+    mod.record_attitude_arrival(9, 2.0, 2)
+    mod.dump_all()
+
+    path = tmp_path / f"pose_cadence_attitude_arrival_uav_9_pid_{os.getpid()}.csv"
+    assert _attitude_lines(path) == ["wall_s,boot_ms", "1.0,1", "2.0,2"]
 
 
 def test_explicit_directory_path_is_used_verbatim(monkeypatch, tmp_path):

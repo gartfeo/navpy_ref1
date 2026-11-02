@@ -41,6 +41,12 @@ Event streams, keyed by ``(sys_id, stream)``:
   ``unissued`` / ``stale`` (not executed). A fresh observation with no row was
   still unfinished when the log ended.
 
+- ``gc`` -- one row per garbage collection in a wall NavPy process
+  (``pose_cadence_gc``, started by ``navpy.main``): the start on the
+  ``rt.time`` (``wall_s``) and ``rt.perf_counter`` (``perf_s``) clocks, the
+  generation, ``dur_ms`` from the start to the stop callback (an upper bound:
+  other callbacks run inside it), and the collected and uncollectable counts.
+
 Emitted ``detector_pose`` rows carry an ``epoch`` too: the count of
 source-discontinuity publications drained before that frame, which matches
 the final-approach generation while every emitted discontinuity reaches it.
@@ -58,6 +64,7 @@ HEADERS = {
     "observation": "wall_s,obs_ts,src_now_s,outcome,epoch\n",
     "worker": "wall_start_s,exec_ms,obs_ts,src_now_s,source,outcome,work_cpu_ms,epoch\n",
     "frame_lineage": "wall_s,stage,epoch,frame_ts,disposition\n",
+    "gc": "wall_s,perf_s,generation,dur_ms,collected,uncollectable\n",
 }
 
 __all__ = ["HEADERS"]

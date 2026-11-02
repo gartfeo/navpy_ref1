@@ -116,3 +116,13 @@ def test_source_time_summary_reads_the_new_streams(tmp_path: Path) -> None:
     assert streams["frame_lineage"]["dispositions"] == {"worker/consumed": 1}
     assert streams["frame_lineage"]["reconciliation"]["fresh_without_disposition"] == 0
     assert streams["worker"]["cpu_fraction_per_second"]["p50"] == pytest.approx(0.6)
+
+
+def test_a_wall_run_gc_record_is_read_not_refused(tmp_path: Path) -> None:
+    _write(tmp_path, "gc", ["1.0,2.0,2,45.5,10,0"])
+    _write(tmp_path, "worker", ["1.0,5.0,1.0,1.02,measured,fresh,3.0,0"])
+
+    summary = source_time_summary(tmp_path, sys_id=4)
+
+    assert summary["streams"]["worker"]["rows"] == 1
+    assert "gc" not in summary["streams"]

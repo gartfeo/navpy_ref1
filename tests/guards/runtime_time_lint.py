@@ -93,7 +93,7 @@ EXTERNAL_IMPORTS = frozenset({
     "boxmot.trackers.bbox.strongsort.strongsort", "builtins", "collections",
     "collections.abc", "contextlib", "contextvars", "copy", "csv", "ctypes", "cv2",
     "dataclasses", "datetime", "enum", "fastapi", "fastapi.middleware.cors",
-    "fastapi.responses", "fastapi.staticfiles", "geopy.distance", "geopy.point",
+    "fastapi.responses", "fastapi.staticfiles", "gc", "geopy.distance", "geopy.point",
     "gi", "gi.repository", "glob", "hashlib", "http.server", "importlib", "io", "ipaddress", "itertools", "json",
     "logging", "logging.handlers", "math", "numbers", "numpy", "orjson", "os",
     "pathlib", "pydantic", "pymap3d", "pymavlink", "pymavlink.dialects.v20.ardupilotmega",
