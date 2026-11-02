@@ -7,10 +7,12 @@ from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.kernel.logging.status_logger import IStatusLogger
 
-# Send time a deferred flush may spend, besides its pacing sleeps, before it
-# leaves the rest pending. The flush runs on the NAV-exit thread and each send
-# may wait for the bus lock (vehicle_messaging.STATUS_TEXT_SEND_WAIT_S), so the
-# flush adds at most this plus one send's wait, however many texts are queued.
+# Send time one drain of pending texts may spend, besides its pacing sleeps,
+# before it leaves the rest pending. Each send may wait for the bus lock
+# (vehicle_messaging.STATUS_TEXT_SEND_WAIT_S), so a drain takes at most this plus
+# one send's wait, however many texts are queued. That bounds the NAV-exit flush
+# on the navigation thread and, on the logger worker, how long a drain holds the
+# status output lock that the navigation thread's defer call takes.
 DEFERRED_FLUSH_SEND_BUDGET_S = 0.1
 
 
@@ -48,10 +50,12 @@ class GroundStationLoggerNetwork(IStatusLogger):
                 self._pending_status_texts.append(msg)
                 return
             if self._pending_status_texts:
-                # Left by a budgeted NAV-exit flush: send them first, in order,
-                # here on the logger worker rather than the navigation thread.
+                # Left by a budgeted drain: send them first, in order, here on
+                # the logger worker; the rest waits for the next text or close.
                 self._pending_status_texts.append(msg)
-                self._flush_pending_log(budget_s=None, stop_on_drop=True)
+                self._flush_pending_log(
+                    budget_s=DEFERRED_FLUSH_SEND_BUDGET_S, stop_on_drop=True,
+                )
                 return
             self.vehicle.send_status_text(msg)
 
@@ -70,21 +74,23 @@ class GroundStationLoggerNetwork(IStatusLogger):
         *,
         budget_s: float | None,
         stop_on_drop: bool,
-    ) -> None:
-        """Send the pending texts in order on the caller's thread.
+    ) -> list[str]:
+        """Send the pending texts in order on the caller's thread; return those not sent.
 
-        It stops once its sends took ``budget_s`` (the NAV-exit flush, on the
-        navigation thread) or, with ``stop_on_drop``, after the first text not
-        sent (dropped and logged by the vehicle); the rest stays pending for
-        the next status text or close.
+        It stops once its sends took ``budget_s`` or, with ``stop_on_drop``,
+        after the first text not sent (dropped and logged by the vehicle); the
+        rest stays pending for the next status text or close.
         """
         logs = self._pending_status_texts
         rest: list[str] = []
+        unsent: list[str] = []
         spent_s = 0.0
         for index, l in enumerate(logs):
             started_s = rt.monotonic()
             sent = self.vehicle.send_status_text(l)
             spent_s += rt.monotonic() - started_s
+            if sent is False:
+                unsent.append(l)
             if (sent is False and stop_on_drop) or (
                 budget_s is not None and spent_s >= budget_s
             ):
@@ -92,11 +98,17 @@ class GroundStationLoggerNetwork(IStatusLogger):
                 break
             rt.sleep(0.01)
         self._pending_status_texts = rest
+        return unsent
 
-    def close(self):
-        """Send every pending text; each one not sent is logged by the vehicle."""
+    def close(self) -> list[str]:
+        """Send every pending text; return those not sent.
+
+        The vehicle's own drop warning goes through the logger worker, which
+        has stopped by now, so the caller logs the returned texts itself.
+        """
         if self._pending_status_texts and not self._defer_status_texts:
-            self._flush_pending_log(budget_s=None, stop_on_drop=False)
+            return self._flush_pending_log(budget_s=None, stop_on_drop=False)
+        return []
 
     @classmethod
     def create(cls, sys_id, logger_args: LoggerArgs, ground_station_id=0):

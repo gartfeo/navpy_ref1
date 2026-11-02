@@ -80,12 +80,14 @@ class CacheStatusOutput:
             if self._sink is not None:
                 self._sink.defer_status_texts(enable, flush=flush)
 
-    def close(self) -> None:
+    def close(self) -> list[str]:
+        """Close the sink once; return the status texts it could not send."""
         with self._lock:
             sink = self._sink
             self._sink = None
-        if sink is not None:
-            sink.close()
+        if sink is None:
+            return []
+        return list(sink.close() or [])
 
 
 class CacheLogOutput:

@@ -159,10 +159,54 @@ def test_a_flush_whose_every_send_waits_stops_at_its_budget():
     assert sent in (queued[:1], queued[:2])
     assert sent + status._pending_status_texts == queued
 
-    # The next text (on the logger worker) sends the rest first, in order.
+    # The next text (on the logger worker) sends the rest first, in order, with
+    # the same budget; close sends whatever is still left.
+    expected = queued + ["READY"]
+    before = len(sent)
+    started = time.perf_counter()
     status.send_log("READY", LogStatusDest.DRONE)
-    assert sent == queued + ["READY"]
-    assert status._pending_status_texts == []
+    waited_s = time.perf_counter() - started
+    assert waited_s < budget_s + STATUS_TEXT_SEND_WAIT_S + 0.5
+    assert len(sent) - before in (1, 2)
+    assert sent + status._pending_status_texts == expected
+    assert status.close() == []
+    assert sent == expected
+
+
+def test_a_worker_drain_holds_the_status_lock_only_for_its_budget():
+    from navpy.core.kernel.config.logger_args import LogStatusDest
+    from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+    from navpy.core.kernel.logging.cache_log_output import CacheStatusOutput
+    from navpy.core.link import status_logger_network
+    from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
+
+    class _SlowVehicle:
+        def send_status_text(self, message):
+            time.sleep(STATUS_TEXT_SEND_WAIT_S * 0.9)
+            return True
+
+    status = GroundStationLoggerNetwork(
+        1, SimpleNamespace(status_dest=[LogStatusDest.DRONE], defer_status_logs=True), 0,
+    )
+    status.vehicle = _SlowVehicle()
+    status._pending_status_texts = [f"NAV {index}" for index in range(30)]
+    output = CacheStatusOutput(
+        SimpleNamespace(status_level=CacheLogLevel.ERROR, status_update_interval=0.0),
+        status,
+    )
+
+    # The logger worker emits a text, which drains the pending ones under the output lock.
+    worker = threading.Thread(target=output.emit, args=("READY", CacheLogLevel.INFO))
+    worker.start()
+    time.sleep(STATUS_TEXT_SEND_WAIT_S / 2)
+    started = time.perf_counter()
+    output.defer(True, flush=False)  # NAV entry, on the navigation thread
+    waited_s = time.perf_counter() - started
+    worker.join(10.0)
+
+    budget_s = status_logger_network.DEFERRED_FLUSH_SEND_BUDGET_S
+    assert waited_s < budget_s + STATUS_TEXT_SEND_WAIT_S + 0.5
+    assert len(status._pending_status_texts) > 20  # the rest waits for later
 
 
 def test_close_sends_every_text_left_by_a_budgeted_flush():
@@ -188,5 +232,36 @@ def test_close_sends_every_text_left_by_a_budgeted_flush():
     status.defer_status_texts(False, flush=True)
     assert sent != queued  # the budget left some
 
-    status.close()
+    assert status.close() == []
     assert sent == queued
+
+
+def test_close_returns_the_texts_it_could_not_send():
+    from navpy.core.kernel.config.logger_args import LogStatusDest
+    from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
+
+    class _BusyVehicle:
+        def send_status_text(self, message):
+            return message != "NAV 1"
+
+    status = GroundStationLoggerNetwork(
+        1, SimpleNamespace(status_dest=[LogStatusDest.DRONE], defer_status_logs=True), 0,
+    )
+    status.vehicle = _BusyVehicle()
+    status._pending_status_texts = ["NAV 0", "NAV 1", "NAV 2"]
+    assert status.close() == ["NAV 1"]
+    assert status._pending_status_texts == []
+
+
+def test_logger_close_writes_unsent_status_texts_to_the_text_log():
+    from navpy.core.kernel.config.logger_args import LoggerArgsStub
+    from navpy.core.kernel.logging.cache_logger import CacheLogger
+
+    text = MagicMock()
+    sink = MagicMock()
+    sink.close.return_value = ["NAV 7"]
+    logger = CacheLogger(LoggerArgsStub(), text, sink)
+    logger.close()
+
+    warnings = [call[0][0] for call in text.warning.call_args_list]
+    assert any("status text not sent at close" in w and "'NAV 7'" in w for w in warnings)

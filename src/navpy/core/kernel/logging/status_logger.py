@@ -11,5 +11,6 @@ class IStatusLogger(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def close(self):
+    def close(self) -> list[str] | None:
+        """Release the sink; return the status texts it could not send, if any."""
         raise NotImplementedError
