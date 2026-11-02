@@ -142,36 +142,14 @@ class TestRadioModes(unittest.TestCase):
             self.assertTrue(r, f"{mode} should be in RADIO_MODES")
 
 
-class TestQuickModes(unittest.TestCase):
-    def test_quick_modes_count(self):
-        r = _run_js('console.log(JSON.stringify(QUICK_MODES.length))')
-        self.assertEqual(r, 3)
+class TestPickerModes(unittest.TestCase):
+    def test_picker_modes_order(self):
+        r = _run_js('console.log(JSON.stringify(PICKER_MODES))')
+        self.assertEqual(r, ["AUTO", "FBWA", "RTL", "MANUAL", "LOITER", "GUIDED", "STABILIZE", "CIRCLE", "CRUISE", "FBWB"])
 
-    def test_quick_modes_order(self):
-        r = _run_js('console.log(JSON.stringify(QUICK_MODES))')
-        self.assertEqual(r, ["AUTO", "FBWA", "RTL"])
-
-    def test_quick_modes_subset_of_all(self):
-        r = _run_js('console.log(JSON.stringify(QUICK_MODES.every(m => ALL_MODES.includes(m))))')
-        self.assertTrue(r)
-
-
-class TestOtherModes(unittest.TestCase):
-    def test_other_modes_count(self):
-        r = _run_js('console.log(JSON.stringify(OTHER_MODES.length))')
-        self.assertEqual(r, 7)
-
-    def test_other_modes_order(self):
-        r = _run_js('console.log(JSON.stringify(OTHER_MODES))')
-        self.assertEqual(r, ["MANUAL", "LOITER", "GUIDED", "STABILIZE", "CIRCLE", "CRUISE", "FBWB"])
-
-    def test_other_modes_subset_of_all(self):
-        r = _run_js('console.log(JSON.stringify(OTHER_MODES.every(m => ALL_MODES.includes(m))))')
-        self.assertTrue(r)
-
-    def test_no_overlap_with_quick(self):
-        r = _run_js('console.log(JSON.stringify(QUICK_MODES.some(m => OTHER_MODES.includes(m))))')
-        self.assertFalse(r)
+    def test_picker_modes_are_all_modes_once(self):
+        r = _run_js('console.log(JSON.stringify([PICKER_MODES.length, new Set(PICKER_MODES).size, ALL_MODES.every(m => PICKER_MODES.includes(m))]))')
+        self.assertEqual(r, [10, 10, True])
 
 
 if __name__ == "__main__":

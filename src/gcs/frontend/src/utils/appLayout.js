@@ -180,3 +180,53 @@ export function rcListPlacement({ paneWidth, paneHeight, left, right, top, botto
     raised: true,
   };
 }
+
+/** The HUD speed and altitude tapes' height where the pane has room. */
+export const HUD_TAPE_MAX_PX = 200;
+/** Below this the speed readout (centre) and the GS line (8 px above the bottom) overlap. */
+export const HUD_TAPE_MIN_PX = 80;
+
+/**
+ * RC HUD tapes (docs/design/gcs_rc_physical_sticks.md): centred on the pane as
+ * long as they fit between the heading-tape row and the sticks, else clamped
+ * into that band and shortened to it. A band shorter than the minimum keeps the
+ * minimum from the band's top, over the sticks: the tapes take no taps.
+ *
+ * @param {object} p
+ * @param {number} p.paneHeight
+ * @param {number} p.top - the band's top: below the heading-tape row.
+ * @param {number} p.bottom - the band's bottom inset: above the sticks, plus the gap.
+ * @returns {{top: number, height: number}}
+ */
+export function hudTapeBox({ paneHeight, top, bottom }) {
+  const band = paneHeight - top - bottom;
+  if (band < HUD_TAPE_MIN_PX) return { top, height: HUD_TAPE_MIN_PX };
+  const height = Math.min(HUD_TAPE_MAX_PX, band);
+  const centred = (paneHeight - height) / 2;
+  return { top: Math.min(Math.max(centred, top), top + band - height), height };
+}
+
+/**
+ * RC speed tape: at the left edge below the flight-mode column, from its bottom
+ * plus the gap to the sticks' band bottom, at most HUD_TAPE_MAX_PX. Unmeasured
+ * (columnBottom null), or with less than HUD_TAPE_MIN_PX there, it goes right of
+ * the column in the shared band (hudTapeBox).
+ *
+ * @param {object} p
+ * @param {number} p.paneHeight
+ * @param {number|null} p.columnBottom - the column's bottom edge, px from the pane top.
+ * @param {number} p.top - the shared band's top.
+ * @param {number} p.bottom - the band's bottom inset: above the sticks, plus the gap.
+ * @param {number} p.gap
+ * @param {number} p.edgeLeft - the column's left edge.
+ * @param {number} p.besideLeft - first free x right of the column.
+ * @returns {{left: number, top: number, height: number}}
+ */
+export function speedTapeBox({ paneHeight, columnBottom, top, bottom, gap, edgeLeft, besideLeft }) {
+  if (columnBottom != null) {
+    const below = columnBottom + gap;
+    const room = paneHeight - bottom - below;
+    if (room >= HUD_TAPE_MIN_PX) return { left: edgeLeft, top: below, height: Math.min(HUD_TAPE_MAX_PX, room) };
+  }
+  return { left: besideLeft, ...hudTapeBox({ paneHeight, top, bottom }) };
+}

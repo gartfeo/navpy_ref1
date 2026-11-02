@@ -54,7 +54,7 @@ import useElementSize from './hooks/useElementSize';
 import useSidePanel from './hooks/useSidePanel';
 import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { isPending } from './hooks/taskConfirmationState';
-import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, panelHostStyle, rcListPlacement } from './utils/appLayout';
+import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
@@ -77,6 +77,9 @@ const RC_CONFIRM_Z_INDEX = 9;
 const RC_HELD_LEFT_PX = MODE_COLUMN_INSET_PX + MODE_BUTTON_WIDTH_PX + RC_CONFIRM_GAP_PX;
 const RC_HELD_RIGHT_PX = RC_CONFIRM_RIGHT_PX + sidebarWidth + RC_CONFIRM_GAP_PX;
 const RC_HELD_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_HELD_OFFSET_PX;
+// RC HUD tapes (docs/design/gcs_rc_physical_sticks.md): below the heading-tape
+// row, above the sticks; the speed tape below the flight-mode column, or beside it.
+const RC_TAPE_BOTTOM_PX = STICK_INSET_PX + STICK_SIZE_PX + RC_CONFIRM_GAP_PX;
 /** Desktop map pane, used until the real pane is measured. */
 const FALLBACK_PANE = { width: 1280, height: 800 };
 
@@ -140,6 +143,8 @@ export default function App() {
   const poseSourceRef = useRef(null);
   const mapPaneRef = useRef(null);
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
+  // The RC flight-mode column's height, reported by the column; null until measured.
+  const [rcColumnPx, setRcColumnPx] = useState(null);
   // The right panel's rule starts from the real width, so the map never mounts
   // in the sliver a docked panel would leave on a phone.
   const rootRef = useRef(null);
@@ -900,13 +905,28 @@ export default function App() {
                     onArmDisarm={commands.handleArmDisarm}
                     onToggleManualControl={mc.handleToggleManualControl}
                     listRaised={rcConfirmShown && rcList.raised}
+                    paneHeight={mapPane.height}
+                    onHeight={setRcColumnPx}
                   />
                 );
               })()}
             </>
           )}
           {mc.manualControlEnabled && mc.manualControlTarget != null && (
-              <TelemetryHud key={mc.manualControlTarget} sysId={mc.manualControlTarget} />
+              <TelemetryHud
+                key={mc.manualControlTarget}
+                sysId={mc.manualControlTarget}
+                tapeBox={hudTapeBox({ paneHeight: mapPane.height, top: RC_FPV_TAG_TOP_PX, bottom: RC_TAPE_BOTTOM_PX })}
+                speedBox={speedTapeBox({
+                  paneHeight: mapPane.height,
+                  columnBottom: rcColumnPx == null ? null : MODE_COLUMN_INSET_PX + rcColumnPx,
+                  top: RC_FPV_TAG_TOP_PX,
+                  bottom: RC_TAPE_BOTTOM_PX,
+                  gap: RC_CONFIRM_GAP_PX,
+                  edgeLeft: MODE_COLUMN_INSET_PX,
+                  besideLeft: RC_HELD_LEFT_PX,
+                })}
+              />
           )}
           {/* The collapsed list can reach the toast's place: it moves over the top
               controls for its 3 s and takes no taps, so it never covers Approve or Deny. */}
