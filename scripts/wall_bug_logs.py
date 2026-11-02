@@ -12,10 +12,11 @@ lag rises :data:`STALL_MIN_MS` or more above it, and its length is the peak.
 That is a NavPy that ran nothing, or whose reader did not, for that long in
 aircraft time: the lockstep ``process_freeze`` model's unit.
 
-Failures come from each UAV's ``navigation.log`` (``NAV_FAIL``/``DOCK_FAILED``
-lines), the run's ``report.json`` errors, as :func:`failure_kinds`, which
-reads a lockstep run's errors the same way, and its cadence episodes: a
-source-time gap over the gate, which lockstep's gate measures in sim time.
+Failures are what failed on the wall: each UAV's ``navigation.log``
+(``NAV_FAIL``/``DOCK_FAILED`` lines) and the run's ``report.json`` gate errors,
+as :func:`failure_kinds`, which reads a lockstep run's errors the same way. A
+long source-time gap in the cadence episodes is no failure: the wall gate
+measures wall time, and at 10x a 740 ms source gap is 74 ms of it.
 """
 
 from __future__ import annotations
@@ -40,8 +41,7 @@ ARRIVALS = "pose_cadence_attitude_arrival_uav_{uav}_"
 STALL_MIN_MS = 200
 #: A GCS packet older than this at a NavPy arrival does not give the aircraft's time (a GCS gap).
 GROUND_STALE_S = 0.2
-#: The observation-gap gate (``max observation gap``), in aircraft time as lockstep scores it. The wall eval
-#: gates wall-time gaps; its cadence episodes give the aircraft-time (source) gap this compares.
+#: The observation-gap gate (``max observation gap``), in aircraft time as lockstep scores it.
 GAP_GATE_MS = round(1000 * CadenceLimits().max_wall_gap_s)
 _LOG_TIME = re.compile(r"^(\d{4}-\d\d-\d\d \d\d:\d\d:\d\d,\d{3}) \w+ (.*)$")
 _NAV_ENTRY = "INIT: NAV MODE"
@@ -173,7 +173,7 @@ def _boot_s(pairs: Sequence[UavArrivals], wall_s: float) -> float | None:
 
 def wall_failures(run_dir: Path, uav: int, pairs: Sequence[UavArrivals] = ()) -> list[WallFailure]:
     """The UAV's logged NAV failures, with their aircraft time after the NAV entry before them, then its
-    report errors of a known kind."""
+    report's gate errors of a known kind."""
     failures = []
     log = run_dir / f"uav_{uav}_navigation.log"
     entry: float | None = None
@@ -190,9 +190,6 @@ def wall_failures(run_dir: Path, uav: int, pairs: Sequence[UavArrivals] = ()) ->
         if vehicle.get("sys_id") == uav:
             failures += [WallFailure(uav, kind, error) for error in vehicle.get("errors", [])
                          for kind in sorted(failure_kinds([error]))]
-            failures += [WallFailure(uav, "observation_gap", f"longest source gap {gap:.0f} ms")
-                         for episode in (vehicle.get("cadence") or {}).get("episodes", [])
-                         if (gap := episode.get("longest_gap_ms") or 0) > GAP_GATE_MS]
     return failures
 
 

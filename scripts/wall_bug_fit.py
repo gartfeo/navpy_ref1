@@ -7,17 +7,18 @@
   stalls, pooled over the runs and UAVs: lengths from :data:`STALL_MIN_MS` up to
   the longest stall below the bound the wall's failures depend on
   (:func:`tail_bound_ms`: the command source-age bound for a stale command,
-  else the observation-gap gate), and past it as far as keeps the wall's share
-  of stalls at or over that bound, so the stalls that can fail the run alone
-  keep their share; the gap between freezes averages the wall's time between
-  stalls. The rest is the wall sim's setup on ``quiet``'s ranges: no line rate,
+  else the observation-gap gate), and past it as far as gives the stalls at or
+  over that bound, which can fail the run alone, at least the wall's share; the
+  gap between freezes averages the wall's time between stalls. Uniform lengths
+  only approximate the wall's: the share and the mean length come out higher. The rest is the wall sim's setup on ``quiet``'s ranges: no line rate,
   no camera latency (the wall sim camera had none), thread order always on.
   Wind, loss and faults stay off, as on the wall. It prints the profile entry
   for ``sim_profiles.json`` and writes ``fit.json`` with the evidence.
 - ``search --profile NAME --wall RUN_DIR...`` runs seeds of a profile in
   lockstep, as the seed sweep does (``eval_seed_sweep``: background priority,
   a failing seed rerun for its digest), until one fails, confirmed, with a
-  failure kind the wall runs had (``wall_bug_logs.failure_kinds``). That seed
+  failure kind the wall runs failed with (``wall_bug_logs.failure_kinds``),
+  read from the confirmed run. That seed
   reproduces the wall bug. Without one in the budget it is an unreproduced bug
   (section 3).
 """
@@ -74,7 +75,7 @@ def freeze_fit(found: Sequence[Stall], seconds: float, tail_ms: int) -> dict[str
     """``process_freeze``'s parameters from stalls over ``seconds`` of NavPy time (module docstring).
 
     Uniform integer lengths from ``lo`` to ``hi`` ticks put a share ``(hi - g + 1) / (hi - lo + 1)`` at
-    or over the tail bound's ``g`` ticks; ``hi`` is the smallest that reaches the wall's share, at
+    or over the tail bound's ``g`` ticks; ``hi`` is the smallest that reaches at least the wall's share, at
     least the longest stall below ``g`` and at most the longest stall."""
     if not found or seconds <= 0:
         raise ValueError("no stall to fit")
@@ -129,10 +130,14 @@ def fit(runs: Sequence[Path]) -> dict[str, Any]:
 
 
 def run_kinds(result: dict[str, Any], base: Path) -> set[str]:
-    """A settled seed's failure kinds: its first run's errors and its NavPys' logged NAV failures."""
-    first = result["attempts"][0]
-    texts = list(first["errors"])
-    for log in sorted((base / first["run"]).glob("uav_*_navigation.log")):
+    """A confirmed seed's failure kinds: the errors and NavPys' logged NAV failures of the run its rerun
+    confirmed. ``settle`` confirms a failure with its last two attempts, at one digest; earlier attempts
+    (a host or setup fault, an end not repeated) are not that failure."""
+    confirmed, again = result["attempts"][-2:]
+    if confirmed["digest"] is None or confirmed["digest"] != again["digest"]:
+        raise ValueError(f"seed {result['seed']}: no confirmed pair of runs")
+    texts = list(confirmed["errors"])
+    for log in sorted((base / confirmed["run"]).glob("uav_*_navigation.log")):
         texts += log.read_text(encoding="utf-8", errors="replace").splitlines()
     return failure_kinds(texts)
 

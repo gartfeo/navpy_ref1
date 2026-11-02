@@ -65,8 +65,10 @@ def test_a_stall_just_under_and_at_the_threshold():
     assert [s.length_ms for s in stalls(_uav(stall_at_ms=5_000, stall_ms=STALL_MIN_MS))] == [STALL_MIN_MS]
 
 
-def test_a_stall_at_the_end_of_the_log_still_counts():
-    found = stalls(_uav(stall_at_ms=59_000, stall_ms=980))
+def test_a_stall_still_open_at_the_end_of_the_log_still_counts():
+    uav = _uav(stall_at_ms=59_000, stall_ms=2_000, seconds=62)
+    held = [(wall, boot) for wall, boot in uav.navpy if boot < 59_500]  # the log ends inside the stall
+    found = stalls(UavArrivals(1, held, uav.ground))
     assert len(found) == 1 and found[0].boot_ms == 59_000
 
 
@@ -130,7 +132,7 @@ def test_a_logged_nav_failure_has_its_kind_and_its_aircraft_time_after_the_nav_e
     assert wall_failures(tmp_path, 1)[0].after_nav_s is None  # no arrivals: no aircraft time
 
 
-def test_report_errors_and_a_source_gap_over_the_gate_are_failures(tmp_path):
+def test_report_gate_errors_are_failures_and_a_long_source_gap_is_not(tmp_path):
     episodes = [{"longest_gap_ms": GAP_GATE_MS + 240.0}, {"longest_gap_ms": GAP_GATE_MS}]
     report = {"vehicles": [
         {"sys_id": 3, "errors": ["max roll-command step 56.90deg > 50.00deg", "something else"],
@@ -138,8 +140,7 @@ def test_report_errors_and_a_source_gap_over_the_gate_are_failures(tmp_path):
         {"sys_id": 1, "errors": [], "cadence": {"episodes": [{"longest_gap_ms": None}]}}]}
     (tmp_path / "report.json").write_text(json.dumps(report), encoding="utf-8")
     assert [(f.kind, f.text) for f in wall_failures(tmp_path, 3)] == [
-        ("roll_step", "max roll-command step 56.90deg > 50.00deg"),
-        ("observation_gap", f"longest source gap {GAP_GATE_MS + 240} ms")]
+        ("roll_step", "max roll-command step 56.90deg > 50.00deg")]
     assert wall_failures(tmp_path, 1) == []
 
 
@@ -211,9 +212,15 @@ def test_fit_pools_the_runs_and_names_the_walls_failures(tmp_path):
 # --- search ---
 
 
+def _attempt(run: str, cls: str, digest: str | None, errors: list[str]) -> dict:
+    return {"run": run, "class": cls, "digest": digest, "errors": errors}
+
+
 def _result(seed: int, status: str, errors: list[str]) -> dict:
-    return {"profile": "wall_todo65", "seed": seed, "status": status,
-            "attempts": [{"run": f"wall_todo65-{seed}", "errors": errors}]}
+    """A settled seed; a failing one confirmed by its rerun at one digest."""
+    first = _attempt(f"wall_todo65-{seed}", "pass" if status == "pass" else "product", f"d{seed}", errors)
+    rerun = [] if status == "pass" else [{**first, "run": f"wall_todo65-{seed}-r1"}]
+    return {"profile": "wall_todo65", "seed": seed, "status": status, "attempts": [first, *rerun]}
 
 
 def test_the_search_stops_at_the_first_confirmed_failure_of_a_wall_kind(monkeypatch, tmp_path):
@@ -231,6 +238,13 @@ def test_the_search_stops_at_the_first_confirmed_failure_of_a_wall_kind(monkeypa
     assert [r["kinds"] for r in record["tried"]] == [[], [], [], ["observation_gap"]]
 
 
+def test_a_known_todos_failure_of_a_wall_kind_reproduces(monkeypatch, tmp_path):
+    monkeypatch.setattr(fit, "settle", lambda job, base, runner: _result(
+        job.seed, "known", ["vehicle 1: max observation gap 0.700s > 0.500s"]))
+    record = fit.search("wall_todo65", {"observation_gap"}, [5], tmp_path, lambda job, d: 0, 1)
+    assert record["reproduced"] and record["seed"] == 5
+
+
 def test_a_search_without_a_match_in_its_budget_is_unreproduced(monkeypatch, tmp_path):
     monkeypatch.setattr(fit, "settle", lambda job, base, runner: _result(
         job.seed, "product", ["vehicle 1: max roll-command step 60.00deg > 50.00deg"]))
@@ -246,3 +260,14 @@ def test_a_seeds_kinds_include_its_navpys_logged_failures(tmp_path):
     result = _result(3, "product", ["vehicle 2: final-approach episode reached SNAP without DOCKED"])
     result["attempts"][0]["run"] = run.name
     assert fit.run_kinds(result, tmp_path) == {"source_command_stale"}
+
+
+def test_a_seeds_kinds_come_from_the_run_its_rerun_confirmed(tmp_path):
+    result = {"seed": 6, "attempts": [
+        _attempt("wall_todo65-6", "setup", None, ["vehicle 1: max roll-command step 60.00deg > 50.00deg"]),
+        _attempt("wall_todo65-6-r1", "product", "d6", ["vehicle 2: max observation gap 0.880s > 0.500s"]),
+        _attempt("wall_todo65-6-r2", "product", "d6", ["vehicle 2: max observation gap 0.880s > 0.500s"])]}
+    assert fit.run_kinds(result, tmp_path) == {"observation_gap"}
+    result["attempts"][-1]["digest"] = "other"
+    with pytest.raises(ValueError, match="no confirmed pair"):
+        fit.run_kinds(result, tmp_path)
