@@ -184,6 +184,7 @@ export default function ConfirmCardList({
                     now,
                     fired: fired[id] != null,
                     onAutoFire: cue.onAutoFire,
+                    scrollRef,
                   })}
                 </div>
               );
