@@ -1945,3 +1945,17 @@
   record and killed nothing; the run ended clean, and only its exit 0 showed it. Print what was killed.
 - A new log line in a swarm file can trip a source-scanning guard far from the fault tests. Run `tests/guards` and
   `tests/scripts` after each such round, not only the fault tests.
+
+## Hand demo check and input record (2026-11-02)
+- Read `cpu_share.py --list` and free memory before a real launch. Four launches ran as
+  background on a busy PC and failed in the parameter step, at two different points.
+  Starting the second and third without reading the first's cause cost about 7 minutes,
+  and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- To show a new launch step is not the cause, run the launch once from a scratch script that
+  replaces that one function, with no edit to the tree. Off, it failed with the same error.
+- A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
+  either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
+- To tell a slow launch from a broken one, list the `http_request_finished` durations of
+  `/params` and `/parameters` from the run's timeline and compare with a passing run.
+- A single string search can miss a message built from parts: "AAS write failed" is
+  `{label} write failed`. Search the fixed part.

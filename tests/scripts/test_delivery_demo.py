@@ -12,6 +12,7 @@ from types import SimpleNamespace
 import pytest
 
 from scripts import delivery_demo as demo
+from scripts import delivery_demo_manifest as manifest
 from scripts import delivery_demo_plan as plan
 from scripts.eval_gcs_demo_execution import SystemClock
 
@@ -97,10 +98,12 @@ class FakeApi:
         self.closed = True
 
 
-def _start(monkeypatch, tmp_path, calls, owner=None, failing=None):
+def _start(monkeypatch, tmp_path, calls, owner=None, failing=None, real_record=False):
     sitl_root = SimpleNamespace(launch_arguments=lambda: ["--sitl-root", "r"])
     monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (sitl_root, {}, "r"))
     monkeypatch.setattr(demo, "owner_settings", lambda: owner or {})
+    if not real_record:
+        monkeypatch.setattr(demo, "record_run_inputs", lambda *args: calls.append(("record", *args)))
     api = FakeApi()
 
     def launch_stack(env, timeout_s, arguments, **kwargs):
@@ -126,7 +129,9 @@ def test_start_launches_a_normal_stack_sets_params_then_opens_the_ui(monkeypatch
     calls = []
     run_dir = _start(monkeypatch, tmp_path, calls, owner=OWNER)
 
-    (_name, env, arguments, kwargs), *steps = calls
+    # The input record comes before the launch, from the launch's own environment.
+    recorded, (_name, env, arguments, kwargs), *steps = calls
+    assert recorded == ("record", run_dir, env, {}, "r", SCENARIO, demo.CPU_SHARE_DEFAULT_MIN)
     assert arguments == ["--sitl-root", "r"]
     assert (kwargs["headless"], kwargs["browser"]) == (False, False)
     # The plain fixture scenario: no POI ordinals, so every UAV gets
@@ -146,6 +151,20 @@ def test_start_launches_a_normal_stack_sets_params_then_opens_the_ui(monkeypatch
     assert env["GCS_SETTINGS_PATH"] == str((run_dir / demo.SETTINGS_NAME).resolve())
 
 
+def test_a_failed_input_record_only_warns_and_the_launch_goes_on(monkeypatch, tmp_path, capsys):
+    def refused(*_args):
+        raise OSError("disk full")
+
+    monkeypatch.setattr(manifest, "write_input_manifest", refused)
+    calls = []
+    run_dir = _start(monkeypatch, tmp_path, calls, owner=OWNER, real_record=True)
+
+    assert calls[0][0] == "launch_stack"
+    assert calls[-1] == ("open", "http://localhost:3100")
+    assert run_dir.is_dir()
+    assert "WARNING: this run has no complete commit and input record: disk full" in capsys.readouterr().err
+
+
 def test_start_names_the_stop_command_when_a_step_fails(monkeypatch, tmp_path):
     calls = []
 
@@ -163,6 +182,7 @@ def test_start_refuses_a_running_stack(monkeypatch, tmp_path):
 
     monkeypatch.setattr(demo, "prepare_sitl_root", lambda _d: (SimpleNamespace(launch_arguments=list), {}, ""))
     monkeypatch.setattr(demo, "owner_settings", dict)
+    monkeypatch.setattr(demo, "record_run_inputs", lambda *_args: None)
     monkeypatch.setattr(demo, "launch_stack", busy)
 
     with pytest.raises(models.RegressionError, match="gcs_stop.py"):

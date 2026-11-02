@@ -25,6 +25,7 @@ for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
     if str(_import_root) not in sys.path:
         sys.path.insert(0, str(_import_root))
 
+from scripts.delivery_demo_manifest import record_run_inputs  # noqa: E402
 from scripts.delivery_demo_plan import PLAN_PATH  # noqa: E402
 from scripts.eval_delivery_fixture import FIXTURE_PATH, delivery_scenario, load_fixture  # noqa: E402
 from scripts.eval_gcs_demo_config import (  # noqa: E402
@@ -160,7 +161,8 @@ def start(
         json.dumps(demo_settings(owner_settings(), fixture), indent=2), encoding="utf-8"
     )
     env = demo_environment(run_dir)
-    sitl_root, _, _ = prepare_sitl_root(run_dir)
+    sitl_root, sitl_inputs, sitl_root_host = prepare_sitl_root(run_dir)
+    record_run_inputs(run_dir, env, sitl_inputs, sitl_root_host, scenario, cpu_share_min)
     try:
         context = launch_stack(
             env, STACK_TIMEOUT_S, sitl_root.launch_arguments(),
