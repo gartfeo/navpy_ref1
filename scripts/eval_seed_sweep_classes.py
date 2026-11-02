@@ -18,7 +18,8 @@ explanations are narrow on purpose, so a new failure is never hidden:
   journal's radio records the packet as a ``false`` emission (a frame byte
   loss made);
 - todo 77: with the ``wind`` model on, a UAV that misses its dock (SNAP
-  without ``DOCKED``, no reset marker, a roll-command step, ``no_detection``).
+  without ``DOCKED``, no reset marker, ``no_detection``), and a roll-command
+  step on a UAV that also missed.
 """
 
 from __future__ import annotations
@@ -44,10 +45,13 @@ _FILTERED = re.compile(r"forwarding: NAVLINK (\[.*\]) router_filtered at tick \d
 _DOCK_MISS = (
     re.compile(r"final-approach episode reached SNAP without DOCKED"),
     re.compile(r"missing coordinate pass reset marker"),
-    re.compile(r"max roll-command step [\d.]+deg > [\d.]+deg"),
     re.compile(r"(NAV_FAIL|DOCK_FAILED): no_detection"),
-    re.compile(r"vehicle \d+: workflow ticks: no reset marker"),
+    re.compile(r"workflow ticks: no reset marker"),
 )
+#: A saturated roll command, part of todo 77's mode only on a UAV that also missed (it fails without
+#: wind too, todo 220).
+_ROLL_STEP = re.compile(r"max roll-command step [\d.]+deg > [\d.]+deg")
+_VEHICLE = re.compile(r"vehicle (\d+)")
 
 
 @dataclass(frozen=True)
@@ -97,9 +101,16 @@ def _radio_false(journal: Sequence[Mapping[str, Any]]) -> set[tuple]:
     return {tuple(event[2]) for event in radio_events(journal) if event[0] == "false"}
 
 
-def _explainers(run_dir: Path, journal: Sequence[Mapping[str, Any]]) -> list[Callable[[str], str | None]]:
+def _vehicle(error: str) -> str | None:
+    match = _VEHICLE.search(error)
+    return match.group(1) if match else None
+
+
+def _explainers(run_dir: Path, journal: Sequence[Mapping[str, Any]],
+                errors: Sequence[str]) -> list[Callable[[str], str | None]]:
     false = _radio_false(journal)
     windy = "wind" in _models_on(run_dir)
+    missed = {_vehicle(e) for e in errors if any(p.search(e) for p in _DOCK_MISS)} - {None}
 
     def radio_frame(error: str) -> str | None:
         match = _FILTERED.fullmatch(error)
@@ -112,14 +123,18 @@ def _explainers(run_dir: Path, journal: Sequence[Mapping[str, Any]]) -> list[Cal
         return "121(a)" if packet in false else None
 
     def windy_miss(error: str) -> str | None:
-        return "77" if windy and any(p.search(error) for p in _DOCK_MISS) else None
+        if not windy:
+            return None
+        if any(p.search(error) for p in _DOCK_MISS):
+            return "77"
+        return "77" if _ROLL_STEP.search(error) and _vehicle(error) in missed else None
 
     return [radio_frame, windy_miss]
 
 
 def known_todos(run_dir: Path, journal: Sequence[Mapping[str, Any]], errors: Sequence[str]) -> list[str]:
     """The todos that explain every error, or empty if one is unexplained (or there are none)."""
-    explainers = _explainers(run_dir, journal)
+    explainers = _explainers(run_dir, journal, errors)
     todos = []
     for error in errors:
         todo = next((t for t in (explain(error) for explain in explainers) if t), None)
@@ -144,18 +159,20 @@ def _lines_before(run_dir: Path, tick: int) -> list[str]:
 
 
 def replays_until(first: Path, again: Path, tick: int) -> bool:
-    """The rerun's journal holds every record the first run journaled before ``tick``, unchanged, and goes
-    on past it: the run is deterministic up to its fault, so a fault that did not repeat had an outside
-    cause (a process killed, a write the OS refused)."""
+    """The rerun's journal holds every record the first run journaled before ``tick``, unchanged, and a
+    record of a later tick: the run is deterministic up to its fault, so a fault that did not repeat had
+    an outside cause (a process killed, a write the OS refused). The fault tick itself is not compared:
+    the outside cause may already have changed the first run's records there."""
     before = _lines_before(first, tick)
     if not before:
         return False
     try:
         with (again / JOURNAL_FILE).open(encoding="utf-8") as journal:
-            lines = [line for _ in range(len(before) + 1) if (line := journal.readline())]
-    except OSError:
+            if [journal.readline() for _ in before] != before:
+                return False
+            return any(json.loads(line).get("k", -1) > tick for line in journal)
+    except (OSError, ValueError):
         return False
-    return lines[:len(before)] == before and len(lines) > len(before)
 
 
 def classify(run_dir: Path, exit_code: int) -> RunVerdict:

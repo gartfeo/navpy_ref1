@@ -13,7 +13,8 @@ rerun; the first record is kept, a rerun only adds to it:
 - a product failure is rerun once: the same digest *confirms* it (``product``,
   or ``known`` when a known todo explains every error). A run a
   ``ParticipantFault`` ended whose rerun replays its journal up to that tick
-  unchanged and goes on is ``host``: the fault had an outside cause (todo 202).
+  unchanged and goes past it is ``host``: the fault had an outside cause (todo
+  202). If that rerun still fails, it is judged as a first run instead, once.
   Any other different digest is a ``determinism_bug``, which is worse;
 - a host fault or setup error is rerun once. If the rerun faults the same way
   with the same digest it is ``repeated_fault``: a fault that repeats is not
@@ -47,7 +48,7 @@ for directory in (ROOT, ROOT / "src"):
 
 from gcs.backend.cpu_share_background import apply_background
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
-from scripts.eval_seed_sweep_classes import HOST, PRODUCT, SETUP, RunVerdict, classify, replays_until
+from scripts.eval_seed_sweep_classes import HOST, PASS, PRODUCT, SETUP, RunVerdict, classify, replays_until
 
 SEEDS_FILE = ROOT / "scripts" / "eval_seed_sweep_seeds.json"
 SWEEP_FILE = "sweep.json"
@@ -90,6 +91,18 @@ def regression_jobs(path: Path = SEEDS_FILE) -> list[Job]:
     return [Job(entry["profile"], int(entry["seed"]), True) for entry in data["regression"]]
 
 
+def unique_jobs(jobs: Sequence[Job]) -> list[Job]:
+    """Each (profile, seed) once, as its first job: a new seed that is also a regression seed runs once, as
+    a regression seed (both would write the same run directory)."""
+    seen: set[tuple[str, int]] = set()
+    unique = []
+    for job in jobs:
+        if (job.profile, job.seed) not in seen:
+            seen.add((job.profile, job.seed))
+            unique.append(job)
+    return unique
+
+
 def run_eval(job: Job, directory: Path) -> int:
     """The real :data:`Runner`: one CLI run; its console output goes to ``<dir>.out`` beside it."""
     command = [sys.executable, str(ROOT / "scripts" / "eval_gcs_navigation_demo.py"), "--lockstep",
@@ -103,14 +116,13 @@ def _same_fault(first: RunVerdict, again: RunVerdict) -> bool:
             and first.fault is not None and first.fault == again.fault)
 
 
-def _fault_not_repeated(first: RunVerdict, again: RunVerdict, first_dir: Path, again_dir: Path) -> bool:
-    """A run a ``ParticipantFault`` ended, whose rerun replays its journal up to that tick and does not
-    fault there: the replay is deterministic, so the fault had an outside cause (a process killed, a
-    write the OS refused) and is the host's (todo 202). A real product fault repeats with the digest."""
+def _fault_not_repeated(first: RunVerdict, first_dir: Path, again_dir: Path) -> bool:
+    """A run a ``ParticipantFault`` ended, whose rerun replays its journal up to that tick and goes past
+    it (so it did not fault there): the replay is deterministic, so the fault had an outside cause (a
+    process killed, a write the OS refused) and is the host's (todo 202). A real product fault repeats
+    with the digest."""
     tick = first.fault.get("tick") if first.fault and first.fault.get("fault") == "ParticipantFault" else None
-    if not isinstance(tick, int) or (again.fault is not None and again.fault.get("tick") == tick):
-        return False
-    return replays_until(first_dir, again_dir, tick)
+    return isinstance(tick, int) and replays_until(first_dir, again_dir, tick)
 
 
 def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
@@ -123,6 +135,21 @@ def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
         attempts.append((name, verdict))
         return verdict
 
+    def confirm(first: RunVerdict, retry: bool) -> tuple[str, RunVerdict]:
+        """Rerun a product failure. A rerun past an outside-caused end that still fails is itself judged
+        as a first run, once, so a failure the end hid is not lost; a second outside end leaves it
+        unconfirmed."""
+        again = attempt()
+        if again.cls in (HOST, SETUP):
+            return "unconfirmed", first
+        if again.cls == PRODUCT and again.digest is not None and again.digest == first.digest:
+            return ("known" if first.known else "product"), first
+        if _fault_not_repeated(first, base / attempts[-2][0], base / attempts[-1][0]):
+            if again.cls == PASS:
+                return "host", again
+            return confirm(again, False) if retry else ("unconfirmed", again)
+        return "determinism_bug", first
+
     verdict = attempt()
     status = "pass"
     if verdict.cls in (HOST, SETUP):
@@ -131,15 +158,7 @@ def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
             status = "repeated_fault" if _same_fault(verdict, again) else "host"
         verdict = again
     if verdict.cls == PRODUCT:
-        again = attempt()
-        if again.cls in (HOST, SETUP):
-            status = "unconfirmed"
-        elif again.cls == PRODUCT and again.digest is not None and again.digest == verdict.digest:
-            status = "known" if verdict.known else "product"
-        elif _fault_not_repeated(verdict, again, base / attempts[-2][0], base / attempts[-1][0]):
-            status = "host"
-        else:
-            status = "determinism_bug"
+        status, verdict = confirm(verdict, True)
     lagging = sorted({f"{name}: {reader}" for name, v in attempts for reader in v.lagging})
     return {"profile": job.profile, "seed": job.seed, "regression": job.regression, "status": status,
             "known": list(verdict.known) if status == "known" else [], "lagging_readers": lagging,
@@ -189,7 +208,7 @@ def main(argv: list[str] | None = None) -> int:
     commit = _commit()
     seeds = args.seeds if args.seeds else new_seeds(commit, args.count)
     jobs = ([] if args.no_regression else regression_jobs()) + [Job(args.profile, s) for s in seeds]
-    jobs = list(dict.fromkeys(jobs))  # a new seed that is also a regression seed runs once
+    jobs = unique_jobs(jobs)
     base.mkdir(parents=True, exist_ok=True)
     apply_background()  # the runs inherit it (bounded_cpu_share.md)
     print(f"sweep at {commit}: {[job.name for job in jobs]}", flush=True)

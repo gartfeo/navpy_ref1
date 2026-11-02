@@ -32,6 +32,11 @@ def test_new_seeds_skip_a_seed_drawn_twice(monkeypatch):
     assert sorted(sweep.new_seeds("caed2cb4", 3)) == [1, 2, 3]
 
 
+def test_a_seed_runs_once_and_as_a_regression_seed_if_it_is_one():
+    jobs = [sweep.Job("stress", 40, True), sweep.Job("hw", 5), sweep.Job("stress", 40), sweep.Job("hw", 5)]
+    assert sweep.unique_jobs(jobs) == [sweep.Job("stress", 40, True), sweep.Job("hw", 5)]
+
+
 def test_the_regression_list_starts_with_stress_seed_40():
     assert sweep.regression_jobs()[0] == sweep.Job("stress", 40, True)
 
@@ -177,6 +182,16 @@ def test_a_missed_dock_is_todo_77_only_with_wind_on_and_only_if_every_error_is_e
     (windy / "input_manifest.json").write_text(json.dumps({"run_options": {"sim_profile": {"models": {
         "wind": {"on": False, "params": {}}}}}}), encoding="utf-8")
     assert known_todos(windy, [], errors) == []
+    assert known_todos(windy, [], ["vehicle 2: workflow ticks: no reset marker"]) == []
+
+
+def test_a_windy_roll_step_is_todo_77_only_on_a_uav_that_missed(tmp_path):
+    """A roll step fails without wind too (todo 220), so wind alone does not explain it."""
+    windy = _run(tmp_path, report=_report(), wind=True)
+    miss, step = "vehicle 2: workflow ticks: no reset marker", "vehicle {}: max roll-command step 54.90deg > 50.00deg"
+    assert known_todos(windy, [], [miss, step.format(2)]) == ["77"]
+    assert known_todos(windy, [], [miss, step.format(1)]) == []
+    assert known_todos(windy, [], [step.format(2)]) == []
 
 
 # --- reader lag ---
@@ -264,7 +279,28 @@ def test_a_rerun_that_faults_at_the_same_tick_otherwise_or_diverges_first_is_a_d
                             [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 30))])
     stopped = _settle_on_disk(monkeypatch, tmp_path / "d", [_v(PRODUCT, D1, UNCLEAN), _v(PRODUCT, D2)],
                               [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 50))])
-    assert [r["status"] for r in (same_tick, diverged, short, stopped)] == ["determinism_bug"] * 4
+    at_tick = _settle_on_disk(monkeypatch, tmp_path / "e", [_v(PRODUCT, D1, UNCLEAN), _v(PRODUCT, D2)],
+                              [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 51))])
+    assert [r["status"] for r in (same_tick, diverged, short, stopped, at_tick)] == ["determinism_bug"] * 5
+
+
+def test_a_rerun_past_an_outside_end_that_still_fails_is_judged_as_a_first_run(monkeypatch, tmp_path):
+    """The end hid nothing: a rerun that replays past it and fails a gate is confirmed by a third run."""
+    def journals(third):
+        return [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 400)), third]
+    confirmed = _settle_on_disk(monkeypatch, tmp_path / "a", [_v(PRODUCT, D1, UNCLEAN), _v(PRODUCT, D2),
+                                                              _v(PRODUCT, D2)], journals(lambda d: _journal(d, range(1, 400))))
+    differs = _settle_on_disk(monkeypatch, tmp_path / "b", [_v(PRODUCT, D1, UNCLEAN), _v(PRODUCT, D2),
+                                                            _v(PASS, D1)], journals(lambda d: _journal(d, range(1, 400))))
+    assert [r["status"] for r in (confirmed, differs)] == ["product", "determinism_bug"]
+    assert [a["run"] for a in confirmed["attempts"]] == ["hw-7", "hw-7-r1", "hw-7-r2"]
+    assert sweep.verdict([confirmed])[0] == 1
+    later = {**UNCLEAN, "tick": 80}
+    loaded = _settle_on_disk(monkeypatch, tmp_path / "c", [_v(PRODUCT, D1, UNCLEAN), _v(PRODUCT, D2, later),
+                                                           _v(PRODUCT, "c" * 64)],
+                             [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 81), later),
+                              lambda d: _journal(d, range(1, 400))])
+    assert loaded["status"] == "unconfirmed" and len(loaded["attempts"]) == 3  # two outside ends: stop
 
 
 def test_only_a_participant_fault_the_replay_does_not_repeat_is_the_hosts(monkeypatch, tmp_path):
