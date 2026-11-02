@@ -17,6 +17,7 @@ from navpy.core.approach.vision_nav.command_executor import (
 )
 from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
+    FinalApproachFreshnessCheck,
 )
 from navpy.core.approach.vision_nav.command_hold import (
     FinalApproachCommandHold,
@@ -140,6 +141,9 @@ def compose_final_approach_runtime(
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
     on_terminal: TerminalObserver | None = None,
+    report_stale_hold: Callable[[FinalApproachFreshnessCheck], None] = (
+        lambda check: None
+    ),
 ) -> FinalApproachRuntimeComposition:
     if type(sys_id) is not int:
         raise TypeError("final-approach vehicle target_system must be an integer")
@@ -150,6 +154,7 @@ def compose_final_approach_runtime(
     freshness = FinalApproachCommandFreshness(wall_period_s)
     hold = FinalApproachCommandHold(
         actuator, source_time, worker_failures, freshness,
+        report_stale=report_stale_hold,
     )
     projector = FinalApproachFrameProjector(
         FinalApproachProjectionConfig(aircraft_sequence, aircraft_degrees)

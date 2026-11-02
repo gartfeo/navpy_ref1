@@ -34,8 +34,13 @@ class MavTransport:
         action: Callable[[mavutil.mavfile], ResultT],
         *,
         blocking: bool = False,
+        timeout: float = -1,
     ) -> ResultT | None:
-        if not self._send_lock.acquire(blocking=blocking):
+        """Run ``action`` under the send lock; ``None`` when it was not acquired.
+
+        ``timeout`` (seconds, blocking only) bounds the wait; -1 waits forever.
+        """
+        if not self._send_lock.acquire(blocking=blocking, timeout=timeout):
             return None
         try:
             return action(self._connection)

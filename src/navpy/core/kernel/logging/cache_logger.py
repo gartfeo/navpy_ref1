@@ -70,6 +70,7 @@ class CacheLogger(ILogger):
         self._prefix: object = None
         self._dedupe = CacheLogDeduplicator()
         self._status_output = CacheStatusOutput(logger_args, status_logger)
+        self._text = logger
         self._output = CacheLogOutput(logger, self._status_output)
         #: Set when a line failed to reach the output (worker or file sink).
         self.output_latch = output_latch or OutputLatch()
@@ -177,7 +178,10 @@ class CacheLogger(ILogger):
     def close(self, *, drain_unstarted: bool = False) -> None:
         self.info("Logger closed", dest=None)
         self._worker.close(drain_unstarted=drain_unstarted)
-        self._status_output.close()
+        # The worker has stopped, so texts the status sink could not send are
+        # written to the text log directly.
+        for text in self._status_output.close():
+            self._text.warning(self._prefixed(f"status text not sent at close: {text!r}"))
 
     def _prefixed(self, msg: object) -> object:
         return f"{self._prefix}: {msg}" if self._prefix else msg

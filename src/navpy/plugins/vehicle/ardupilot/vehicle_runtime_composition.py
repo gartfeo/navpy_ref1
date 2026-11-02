@@ -27,6 +27,7 @@ def assemble_vehicle_parts(
             foundation.link.transport,
             foundation.state.callbacks,
             protocols.router,
+            foundation.link.logger_ref,
         ),
         commands=VehicleCommands(
             foundation.link.identity,

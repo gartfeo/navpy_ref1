@@ -2114,3 +2114,26 @@
   such an outcome for what was observed (`not_repeated`, incomplete), not for a cause the evidence cannot prove.
 - Check every mutation string against the current code before a mutation run; a stale one stops the run at
   its assert after the earlier mutations have already run.
+
+
+## Status texts wait; a failed hold names its bound (ready plan step 4, 2026-11-02)
+- Validate a new run-check script on the run the audit measured before trusting it on new
+  runs: mine reproduced 81 of 474 lost frames and the 134-284 ms lag exactly on 17:38.
+- BIN text recounts: ArduPilot opens the BIN at arming, so texts sent before that (ONHOLD:
+  DISARMED, sometimes the first ONHOLD: WAYPOINT) are in no BIN. Compare the send time with
+  each BIN's first MSG row before calling a text lost.
+- The wall delivery eval (`eval_gcs_navigation_demo.py --scenario delivery`) gives NAV
+  worker rows, both ATTITUDE arrival streams and three BINs (in WSL `~/navpy-eval-roots/
+  <run-dir name>-<hash>/N/logs`) in about 3 minutes, with no owner approval needed.
+- Renaming a function can break an AST guard that finds it by name
+  (`test_frozen_inventories.py`); grep tests for the old name before renaming.
+- A wait bound needs every place the caller can block: a send budget that left out the 10 ms
+  pacing sleeps, and an unbudgeted drain on the logger worker under a lock the navigation
+  thread also takes, each broke the bound I claimed (Codex rounds 4-5). Measure the elapsed
+  time of the whole loop, and list who else takes each lock held during it.
+- CacheLogWorker stops accepting before it drains its FIFO, and CacheLogger closes the status
+  sink after the worker: a warning raised during either step was rejected silently. Test a
+  failure path at shutdown as well as in steady state.
+- A mutation that removes a guard against a self-deadlock hangs pytest instead of failing it;
+  run the code under test in a daemon thread with a join timeout, and run mutation checks
+  under `timeout`.

@@ -70,5 +70,5 @@ class VehicleMessagingFacet:
             source_component=source_component,
         )
 
-    def send_status_text(self, message: str) -> None:
+    def send_status_text(self, message: str) -> bool:
         return self._parts.messaging.send_status_text(message)
