@@ -1349,8 +1349,8 @@
   back-to-back E7 and E8 isolated the view (late ticks 396 to 59, steady rate 27.6 to 30.0 fps). Log WSL's load next
   to every live number.
 - Monitors can be the load. 20 sleepers waking every 2 ms and a 50 Hz thread sampler went with 23.7 fps (S12); the next
-  run without them read 28.4 fps (S13), at a similar load. The two runs are not a clean A/B, but read a run with
-  heavy monitors for where the stalls fall, not for its rate.
+  run without them read 28.4 fps (S13), but WSL's load also differed (20 against 13), so it is no clean A/B. Read a run
+  with heavy monitors for where the stalls fall, not for its rate.
 - A PNG named by PTS is only safe with rtspsrc buffer-mode=none. With the default mode a stall made PTS clamp, one PNG
   overwrote another, and I chased a "270 px error" that was the wrong frame. Check the join before the pipeline.
 - A slow reader's start can hurt a running stream: loading nvcodec in a second process took 1-9 s and held frames up to
