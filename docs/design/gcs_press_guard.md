@@ -1,6 +1,6 @@
 # GCS: a press guard on Approve and Deny (todo 166)
 
-Status: v3, after Codex rounds 1 and 2 "rework"; answers in `.logs/press-guard/design_answers_*.md`.
+Status: built. Codex rounds 1 and 2 said "rework"; every point answered (`.logs/press-guard`). `EXPIRY_OPEN_MS` waits for the owner.
 
 ## Problem
 
@@ -146,3 +146,31 @@ the tests and the live check.
 - Live (`live-tester`, sim demo): deliberate Approve and Deny work; moves counted over a round match
   the visible changes; a list move with the real backend, using unequal `AAS_NAV_CWT` for the
   insertion; View camera's width holds and Approve and Deny do not move between View camera and Viewing.
+
+## Results (2026-11-02, this branch against main 253f7af9)
+
+Evidence: `.logs/press-guard` of this checkout, not in git.
+
+- Browser, no stack (real list, headless Chrome, 320 px, stubbed fetch, real CDP input): seven list
+  moves (a lost camera on a viewed card above, on an unviewed card above, on the card itself; one and
+  two rows leaving; a sooner round; a card above decided), en and hy. Mouse, tap and finger already down,
+  under about 100 ms after the move: 42 of 42 post Approve on main, 0 on this branch. Mouse and tap
+  650 ms after: all 28 post once on both. A press right after a wheel scroll, or on a button scroll
+  anchoring held, posts. A Deny right after a move in the last 2 s posts. Auto-fire: same actions and times.
+- Cost: three pending cards, one 10 s sample each, two runs: script 29 and 25 ms on main, 66 and 77 ms here;
+  layout, style and task time within the two runs' spread. No device.
+- Android WebView 101 in the repo's shell, on an emulator, real `adb` taps on a test page: a tap's click has
+  `detail` 1 and `buttons` 0; `timeStamp` is on the `performance.now()` clock; with the buttons swapped
+  during a press, `pointerdown` was on one button and the click on the other, so rule 1 applies. The guard itself was
+  not run there.
+- Live (`live-tester`, real stack and SITL, headless Chrome, real input): View camera to Viewing moves nothing
+  in en and hy (button 110.6 and 163.5 px wide before and after; Approve and Deny unmoved; no move counted). Deliberate
+  mouse and touch Approve and Deny each post once. A press 45 ms after a real card above decided: no POST, PRESS AGAIN, dim;
+  a press at 733 and 760 ms posts once. A Deny 170 ms after a move at 0:02 posts. 54 timeouts: each a Deny at 29.8 to 30.8 s,
+  as labelled. 90 images: none moved anything by itself. Moves per round at most 8. No console or backend errors.
+  Not reached live: a denied row expiring under a press and an inserted sooner round (both covered in the browser run above).
+- Moves with no rectangle change in the live recorder: 114 of 177 by its count. The saved runs hold 41; 34 come 88 to 294 ms after a
+  visible change. A run with 150 ms frames reproduces this: the rectangle changes at once and the count rises one frame later. So
+  on a busy page a move is seen up to a frame late and the guard runs that much longer, never shorter (a press re-reads the
+  position). The other 7 were not separated; each adds at most one more guard time.
+- vitest: 21 of the 31 new tests fail without the fix; the other 10 check what must pass.

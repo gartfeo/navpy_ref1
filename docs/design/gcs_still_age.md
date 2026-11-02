@@ -3,7 +3,7 @@
 Status: v3. Codex round 1 "rework", round 2 "approve with changes" (both round 2
 points taken in here). The owner approved all six decisions (2026-11-01), before the
 press paths in todo 166 (a lost camera, an expiring pinned row, a sooner round inserted
-above) were measured, so the owner has not accepted those; todo 166 holds that choice.
+above) were measured; todo 166 has since fixed those with a press guard (`gcs_press_guard.md`).
 The header wrap is separate: its words were in the text recorded with the approval at
 7aa91c52, without numbers; whether the owner saw them is not recorded. The final reviews
 added View camera's one width (under Change) and the section on press paths.
@@ -93,9 +93,8 @@ Decisions for the owner, with the recommendation first.
    with two approved rows, about 50 px is left to scroll in, as today, so Approve and
    Deny are further down that scroll. Other choice: keep the 60 px box and the jump.
 
-   The list can still move under a press: see "The list can move under a press" below.
-   The owner approved this decision and the other five before those paths were measured,
-   so none of them is accepted yet; todo 166 holds the choice.
+   The list can still move: see "The list can move under a press" below. The press guard
+   (`gcs_press_guard.md`) now refuses a press that movement would misdirect.
 
 The caption also appears on the opened still of an approved round (`ConfirmStill`),
 where the same question comes up before a Cancel task. `ConfirmCardList` is not
@@ -134,8 +133,8 @@ edited: its tick runs only while a round is pending, so `ConfirmStill` runs its 
 
 ## The list can move under a press (todo 166)
 
-This is the complete record; todo 166 and the PR give the short form. The owner decides
-from this text, and approved the six decisions before any of it was measured.
+This is the record of the hazard without a guard, before `gcs_press_guard.md`. The sizes still
+describe where the buttons land; "posts" no longer holds for a press inside the guard.
 
 All numbers: width 320 (the App's only width, `styles.js:92`), the real list and hooks in
 headless Chrome on this PC, fetch stubbed, the app's font unless named, the list unscrolled
@@ -316,17 +315,13 @@ Other paths, which do not reduce the three larger cases.
   reviewer's script covered more image states and reported that a second press after deciding
   reaches no decision button of the next card (no saved output).
 
-### Options, none built or measured
+### Options at the time (the press guard was built)
 
-- Merge as it is, with the larger cases above and todo 166 open.
 - Once a pending card has shown the row, keep it for the round, with the button disabled while
   there is no stream. Camera-loss paths only: not a first stream's arrival, row expiry or
   insertion.
-- A short press guard on Approve and Deny after the button moves or appears. By reasoning it
-  covers all three larger cases for a press within its time. Chromium's own dialogs ignore
-  mouse, touch and gesture input for one double-click interval, 500 ms by default, after the
-  view is shown or its window moves (`ui/views/input_event_activation_protector.h`). The fix's
-  design is a later task.
+- A short press guard on Approve and Deny after the button moves or appears: built,
+  `gcs_press_guard.md`.
 - Keep the note under the button. The one-row gap only: by arithmetic English row 82 px and gap
   about 61 px, so one row clears and two rows overlap about 11 px; the card is about 37 px
   taller; the first case still posts.
