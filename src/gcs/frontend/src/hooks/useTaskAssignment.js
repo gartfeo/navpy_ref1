@@ -10,19 +10,30 @@ import {
  * over the pure taskAssignmentState reducer, which owns the rules.
  *
  * availableTasks — advertised tasks keyed `${owner}:${task}`.
- * assignments — pending rounds keyed `${owner}:${task}` (waiting) and
- *   assigned tasks keyed `helper:${id}`; see the reducer.
+ * assignments — pending rounds keyed `${owner}:${task}` (waiting), assigned
+ *   tasks keyed `helper:${id}`, and the map's own docks and handled docks
+ *   (`own:...`, `handled:...`); see the reducer.
  */
 export default function useTaskAssignment() {
   const [state, dispatch] = useReducer(reduceTaskAssignment, INITIAL_ASSIGNMENT_STATE);
 
-  // A FREE heartbeat retires the rounds its helper has left; each beat once.
+  // Heartbeats retire rounds and end approved docks; each beat once. A dropped
+  // socket may have hidden rounds, which the reducer must know.
   useEffect(() => {
     const lastBeat = {};
+    const wasStale = {};
+    let connected = telemetryStore.isConnected();
     return telemetryStore.subscribe(() => {
+      const nowConnected = telemetryStore.isConnected();
+      if (connected && !nowConnected) dispatch({ type: 'link_gap' });
+      connected = nowConnected;
       for (const vehicle of telemetryStore.getVehicleList()) {
         const swarm = vehicle.swarm;
-        if (!swarm || swarm.state !== 'FREE') continue;
+        if (!swarm) continue;
+        if (swarm.stale && !wasStale[vehicle.sys_id]) {
+          dispatch({ type: 'link_gap', data: { sys_id: vehicle.sys_id } });
+        }
+        wasStale[vehicle.sys_id] = swarm.stale;
         const beat = `${swarm.boot}:${swarm.seq}`;
         if (lastBeat[vehicle.sys_id] === beat) continue;
         lastBeat[vehicle.sys_id] = beat;
@@ -42,7 +53,7 @@ export default function useTaskAssignment() {
       handleAssignResponse: on('task_assign_response'),
       handleAssignAck: on('task_assign_ack'),
       handleDisarmAfterGuidedCleanup: on('disarm_after_guided'),
-      handleConfirmingStatus: onTask('task_confirming'),
+      handleConfirmingStatus: on('task_confirming'),
       handleConfirmedStatusByTask: onTask('task_confirmed'),
       handleResolvedCleanupByTask: onTask('task_resolved'),
       handleDeniedCleanup: (sysId) => dispatch({ type: 'vehicle_reset', data: { sys_id: sysId } }),

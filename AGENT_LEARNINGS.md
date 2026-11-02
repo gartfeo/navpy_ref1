@@ -1734,3 +1734,34 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+- A live run with a Vite dev server reads the working tree, so a source edit mid-run
+  reloads its page. Prepare review fixes in a script and apply them when the run ends,
+  then replay its recorded /ws/telemetry through the changed reducer to check that real
+  traffic reads the same.
+- "Hung" pytest on 2026-11-01 was memory pressure (712 MB free, 126 Python processes):
+  a two-hour run, with Node 5 s timeouts and thread-timing failures that passed alone.
+  py-spy dump tells the two apart. Output sent to a log leaves the task output empty.
+- Before adding GCS logic for a producer's race, read the producer: the outcome and phase
+  were atomic on the navigation thread, so the late-outcome wait for them was not needed.
+- Read a live run's screenshots yourself, even after a passing report: a handled marker
+  that newly stays on the map collided with the hub label above it, and only the pictures
+  showed that the word could not be read. Have a second reader check the report against
+  the logs too: one found a stale count and a label the tester had edited by hand.
+- A rule like "lasts until mission reset" needs a check of every path that starts a
+  mission. The design named Restart, but a landed container fleet is offered only the
+  launch, so handled markers carried into the next mission until an audit traced it.
+- Edit scripts: collect every edit, check them all, then write. A "dry run" made by
+  patching the write line with sed wrote for real because the sed did not match.
+- Write scripts with the Write tool: a Bash heredoc was cut at a quote by the harness.
+- Derive a receiver's rules for copies and reordering from the sender's code, not from guesses
+  on the receiver's side. Three review rounds patched the dock marker reducer for late requests
+  and APPLIEDs, each fix opening the next sequence. Reading the owner's lock order settled it in
+  one pass: it removed a branch and two limits. Check the fixtures against that order too: the
+  test helpers had the owner send requests after its APPLIED, which it never does.
+  Keep the rule to what that order covers: treating a UAV's own round as a step of it dropped a
+  valid assignment, and moving a test's value to fit hid that. Before moving a value, show that the
+  sender cannot produce the old one.
+- A drawing fault that does not follow from the data can be the map engine's. A cut word
+  was Cesium 1.138 leaving a clamped label's new letters at the raw height: a bare page on
+  the installed version proved it, and upstream's changelog and tags showed the first fixed
+  release. Do both before designing around a rendering fault.

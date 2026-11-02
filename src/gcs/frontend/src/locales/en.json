@@ -420,6 +420,17 @@
       "docked": "docked (sim)",
       "missed": "missed (sim)",
       "aborted": "aborted (sim)"
+    },
+    "dockState": {
+      "detected": "detected",
+      "offered": "offered to UAV {{uav}}",
+      "confirm": "confirm?",
+      "assigned": "assigned",
+      "approved": "approved",
+      "docked": "docked (sim contact)",
+      "dockFailed": "dock failed (sim)",
+      "canceled": "canceled",
+      "outcomeUnknown": "outcome unknown"
     }
   },
   "mapStopped": {

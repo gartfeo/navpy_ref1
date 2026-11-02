@@ -260,6 +260,7 @@ def test_response_waits_for_in_flight_resend_transaction() -> None:
     failure_policy.status.return_value = ConfirmationStatus.TIMEOUT_REJECTED
     runner = ConfirmationRoundRunner(
         sys_id=1,
+        is_simulation=False,
         state=state,
         network=lambda: network,
         wait_time_s=lambda: 1.0,
@@ -329,6 +330,7 @@ def test_response_winning_gate_window_prevents_resend_from_starting() -> None:
     failure_policy.status.return_value = ConfirmationStatus.TIMEOUT_REJECTED
     runner = ConfirmationRoundRunner(
         sys_id=1,
+        is_simulation=False,
         state=state,
         network=current_network,
         wait_time_s=lambda: 1.0,
@@ -415,6 +417,7 @@ def test_late_network_loss_leaves_no_pending_confirmation_round() -> None:
     failure_policy.status.return_value = ConfirmationStatus.TIMEOUT_REJECTED
     runner = ConfirmationRoundRunner(
         sys_id=1,
+        is_simulation=False,
         state=state,
         network=lambda: None,
         wait_time_s=lambda: 1.0,
@@ -449,6 +452,7 @@ def _runner_for_outbound_failure(
     failure_policy.status.return_value = ConfirmationStatus.TIMEOUT_REJECTED
     runner = ConfirmationRoundRunner(
         sys_id=1,
+        is_simulation=False,
         state=state,
         network=lambda: network,
         wait_time_s=lambda: 1.0,

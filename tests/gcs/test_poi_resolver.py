@@ -601,5 +601,26 @@ class TestDecodeBitmaskArray(unittest.TestCase):
         self.assertEqual(result, [2, 5, 7])
 
 
+
+class TestPlannedDocksToShow(unittest.TestCase):
+    """Dock location rule: no static sim dock during monitoring."""
+
+    def _run(self, phase, docks):
+        src = open(os.path.join(_MAP_UTILS_DIR, "dockResolver.js"), encoding="utf-8").read()
+        code = _strip_es_modules(src) + (
+            f"\nconsole.log(JSON.stringify(plannedDocksToShow({json.dumps(phase)}, {json.dumps(docks)})));"
+        )
+        result = run_node(code, timeout=5)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        return json.loads(result.stdout)
+
+    def test_planning_shows_them(self):
+        self.assertEqual(self._run("PLANNING", [{"lat": 40, "lon": 44}]), [{"lat": 40, "lon": 44}])
+        self.assertEqual(self._run("PLANNING", None), [])
+
+    def test_monitoring_hides_them(self):
+        self.assertEqual(self._run("MONITORING", [{"lat": 40, "lon": 44}]), [])
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -62,9 +62,41 @@ describe('task assignment routing', () => {
     }));
     act(() => handlers.task_confirm_response({ sys_id: 3, task_id: 6, is_confirmed: false }));
 
-    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith(2, 5, '3:40');
+    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith({
+      sys_id: 2, task_id: 5, round_uid: '3:40',
+    });
     expect(taskAssign.handleConfirmedStatusByTask).toHaveBeenCalledExactlyOnceWith(2, 5, '3:40');
     expect(taskAssign.handleResolvedCleanupByTask).toHaveBeenCalledExactlyOnceWith(3, 6, undefined);
+  });
+
+  it('passes a confirm request\'s position on to the assignment state', () => {
+    const { handlers, taskAssign } = setup();
+    const request = { sys_id: 2, task_id: 5, round_uid: '3:40', task_type: 'DOCK', lat: 41, lon: 45, alt: 0 };
+
+    act(() => handlers.task_confirm_request(request));
+
+    expect(taskAssign.handleConfirmingStatus).toHaveBeenCalledExactlyOnceWith(request);
+  });
+
+  it('a new mission clears the whole map; an E-STOP only ends the listed UAVs', () => {
+    const messageHandlersRef = { current: {} };
+    const taskConfirm = { handleConfirmReset: vi.fn() };
+    const taskAssign = { handleDeniedCleanup: vi.fn(), reset: vi.fn() };
+    renderHook(() => useWsHandlers({
+      messageHandlersRef, taskConfirm, taskAssign, setUploadProgress: vi.fn(),
+    }));
+
+    const newMission = { sys_ids: [1, 2], reason: 'new_mission' };
+    act(() => messageHandlersRef.current.task_confirm_reset(newMission));
+    expect(taskConfirm.handleConfirmReset).toHaveBeenLastCalledWith(newMission);
+    expect(taskAssign.reset).toHaveBeenCalledOnce();
+    expect(taskAssign.handleDeniedCleanup).not.toHaveBeenCalled();
+
+    const eStop = { sys_ids: [1, 2] };
+    act(() => messageHandlersRef.current.task_confirm_reset(eStop));
+    expect(taskConfirm.handleConfirmReset).toHaveBeenLastCalledWith(eStop);
+    expect(taskAssign.reset).toHaveBeenCalledOnce();
+    expect(taskAssign.handleDeniedCleanup.mock.calls).toEqual([[1], [2]]);
   });
 });
 
