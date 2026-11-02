@@ -12,9 +12,8 @@ export const ALL_MODES = [...PRIMARY_MODES, ...SECONDARY_MODES];
 /** Modes unsafe to leave without active control — need stick input or GCS commands. */
 export const RADIO_MODES = ['MANUAL', 'FBWA', 'FBWB', 'STABILIZE', 'GUIDED', 'CRUISE'];
 
-export const QUICK_MODES = ['AUTO', 'FBWA', 'RTL'];
-
-export const OTHER_MODES = ['MANUAL', 'LOITER', 'GUIDED', 'STABILIZE', 'CIRCLE', 'CRUISE', 'FBWB'];
+/** The RC mode picker's list, in a fixed order (docs/design/gcs_rc_physical_sticks.md). */
+export const PICKER_MODES = ['AUTO', 'FBWA', 'RTL', 'MANUAL', 'LOITER', 'GUIDED', 'STABILIZE', 'CIRCLE', 'CRUISE', 'FBWB'];
 
 export function isPrimaryMode(mode) {
   return PRIMARY_MODES.includes(mode);

@@ -2137,3 +2137,18 @@
 - A mutation that removes a guard against a self-deadlock hangs pytest instead of failing it;
   run the code under test in a daemon thread with a join timeout, and run mutation checks
   under `timeout`.
+
+## UniRC device check and RC mode picker (2026-11-02)
+
+- A frontend change can break Python tests that read the JSX source (`tests/gcs/*_js.py`,
+  e.g. a z-index pinned in `test_confirm_card_hosts_js.py`). I ran only vitest at first
+  and missed one. Run `pytest tests/gcs` for frontend changes too, and grep `tests/` for
+  the component name before changing its layout.
+- Codex's review rejected "sticks live" from RC_CHANNELS movement: ArduPilot reports the
+  GCS's own MANUAL_CONTROL overrides in RC_CHANNELS. Before inferring a physical input
+  from telemetry, check whether the GCS itself writes that value.
+- A popup that sends a command closed on a UAV change through a passive effect, so a tap
+  could land in between. Tie an open menu to the context it opened for, in render.
+- On the UniRC the backend serves a dist copied into the device worktree; check the
+  page's script name against `dist/index.html` after a reload, since the APK has a
+  service worker.

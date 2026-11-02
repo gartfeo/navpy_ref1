@@ -8,7 +8,17 @@ import BatteryIndicator from './hud/BatteryIndicator';
 import StatusBarIndicator from './hud/StatusBarIndicator';
 import { useTelemetryStore } from '../hooks/useTelemetryStore';
 
-export default function TelemetryHud({ sysId }) {
+// The tapes take no taps: below the RC confirm list (9) and the first-person
+// tag and held banner (8), so those win where they meet; above the attitude (5).
+const TAPE_Z_INDEX = 7;
+
+/**
+ * @param {object} p
+ * @param {number} p.sysId
+ * @param {{top: number, height: number}} p.tapeBox - the altitude tape's, from utils/appLayout.js hudTapeBox.
+ * @param {{left: number, top: number, height: number}} p.speedBox - from utils/appLayout.js speedTapeBox.
+ */
+export default function TelemetryHud({ sysId, tapeBox, speedBox }) {
   const vehicle = useTelemetryStore(s => s.getVehicles()[sysId]);
   if (!vehicle) return null;
 
@@ -57,28 +67,26 @@ export default function TelemetryHud({ sysId }) {
         <BatteryIndicator battery={battery} voltage={voltage} current={current} />
       </div>
 
-      {/* Speed tape — left center */}
+      {/* Speed tape — left, below the mode column or beside it */}
       <div style={{
         position: 'absolute',
-        top: '50%',
-        left: 12,
-        transform: 'translateY(-50%)',
+        top: speedBox.top,
+        left: speedBox.left,
         pointerEvents: 'none',
-        zIndex: 10,
+        zIndex: TAPE_Z_INDEX,
       }}>
-        <SpeedTape airSpeed={air_speed} groundSpeed={ground_speed} />
+        <SpeedTape airSpeed={air_speed} groundSpeed={ground_speed} height={speedBox.height} />
       </div>
 
-      {/* Altitude tape — right center */}
+      {/* Altitude tape — right, above the stick */}
       <div style={{
         position: 'absolute',
-        top: '50%',
+        top: tapeBox.top,
         right: 12,
-        transform: 'translateY(-50%)',
         pointerEvents: 'none',
-        zIndex: 10,
+        zIndex: TAPE_Z_INDEX,
       }}>
-        <AltitudeTape altitude={alt_rel} />
+        <AltitudeTape altitude={alt_rel} height={tapeBox.height} />
       </div>
 
       {/* STATUSTEXT warnings — bottom center */}

@@ -145,13 +145,15 @@ class TestRcHost(unittest.TestCase):
         self.assertIn("...rcList.style,\n              }}", self.rc)
         self.assertIn("heightPx={rcList.heightPx}", self.rc)
 
-    def test_the_speed_tape_stays_over_the_mode_column(self):
-        # Same z-index, the tape later in the tree: at 960 x 448 the column's
-        # "Other" button lies on the airspeed readout, and the tape takes no taps.
-        self.assertLess(self.src.index("<FlightModeColumn"), self.src.index("<TelemetryHud"))
+    def test_the_speed_tape_lies_under_the_list_and_the_mode_column(self):
+        # docs/design/gcs_rc_physical_sticks.md: the tape sits below or beside
+        # the column, under the list (9), the held banner (8) and the column's
+        # open picker (10), and takes no taps.
         hud = _read("components", "TelemetryHud.jsx")
+        self.assertIn("const TAPE_Z_INDEX = 7;", hud)
         tape = hud[hud.index("Speed tape"):]
-        self.assertIn("zIndex: 10,", tape[:tape.index("<SpeedTape")])
+        self.assertIn("zIndex: TAPE_Z_INDEX,", tape[:tape.index("<SpeedTape")])
+        self.assertIn("speedBox={speedTapeBox({", self.src)
         # Over a list only while one is raised above the sticks on a phone.
         self.assertIn("listRaised={rcConfirmShown && rcList.raised}", self.src)
 
