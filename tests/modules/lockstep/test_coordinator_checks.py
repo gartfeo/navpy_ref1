@@ -19,7 +19,7 @@ from navpy.sim.lockstep.coordinator_spawn import (
     hermetic_environment,
     validate_register,
 )
-from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, WallBudgets
+from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, ParticipantFault, RunFault, WallBudgets
 from navpy.sim.lockstep.part_socket import PartListener
 from navpy.sim.lockstep.part_wire import Register, decode
 from tests.modules.lockstep.coordinator_doubles import ScriptedSitl, build, manifest
@@ -87,7 +87,9 @@ def test_a_partial_launch_stops_every_spawned_process(tmp_path):
     plan = dataclasses.replace(plan, roles={**plan.roles, "rover": broken})
     coordinator, sitl, _operator, roster = build(
         tmp_path, plan=plan, budgets=WallBudgets(register_s=5, done_s=60, exit_s=30))
-    with pytest.raises(HostFault, match=r"spawn \(0, 2\) did not register"):
+    # Whether the broken child had finished dying when its wait ran out names the fault; either way
+    # every process stops.
+    with pytest.raises(RunFault, match=r"spawn \(0, 2\) did not register"):
         coordinator.run()
     assert [m.ordinal for m in roster.members] == [2]
     assert not any(pid_alive(m.child.pid) for m in roster.members)
@@ -104,6 +106,93 @@ def test_a_child_that_never_gets_go_exits_on_stdin_eof():
                              stdin=subprocess.PIPE, env=child_environment())
     child.stdin.close()  # the coordinator died, or refused it, before go
     assert child.wait(timeout=60) == 4
+
+
+def test_a_child_that_cannot_reach_the_coordinator_exits_as_the_hosts_failure():
+    import subprocess
+    import sys
+
+    from navpy.sim.lockstep.participant_env import ENVIRONMENT_VARIABLE, EXIT_NO_CONNECT, EnvironmentRecord
+    from tests.modules.lockstep.coordinator_doubles import child_environment
+
+    with socket.socket() as closed:  # bound, then closed: nothing listens there
+        closed.bind(("127.0.0.1", 0))
+        address = closed.getsockname()
+    role = manifest().roles["rover"]
+    record = EnvironmentRecord(address, "capability", "rover", 1, (0, 1), 1, 1, 0, role.hooks, dict(role.config))
+    child = subprocess.Popen([sys.executable, "-m", "navpy.sim.lockstep.participant_main"],
+                             stdin=subprocess.PIPE, stderr=subprocess.DEVNULL,
+                             env={**child_environment(), ENVIRONMENT_VARIABLE: record.to_json()})
+    child.stdin.write(b"go\n")
+    child.stdin.close()
+    assert child.wait(timeout=60) == EXIT_NO_CONNECT
+
+
+def test_a_queued_product_failure_is_not_hidden_by_a_later_host_fault(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    queued = ParticipantFault("unscheduled_exit", "it went away", tick=3, ordinal=1)
+    host = HostFault("exchange_budget", "the deadline ran out", tick=4)
+
+    def mission():
+        coordinator._book.faults.append(queued)
+        raise host
+
+    monkeypatch.setattr(coordinator, "_mission", mission)
+    with pytest.raises(ParticipantFault) as raised:
+        coordinator.run()
+    assert raised.value is queued and raised.value.__cause__ is host
+    record = coordinator.journal.records[-1]
+    assert (record["fault"], record["kind"]) == ("ParticipantFault", "unscheduled_exit")
+
+
+def test_a_queued_product_failure_is_not_hidden_by_a_later_raw_host_error(tmp_path, monkeypatch):
+    """A sidecar write that fails while the process that went away is being collected."""
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    queued = ParticipantFault("unscheduled_exit", "it went away", tick=3, ordinal=1)
+    raw = OSError("the sidecar could not be replaced")
+
+    def mission():
+        coordinator._book.faults.append(queued)
+        raise raw
+
+    monkeypatch.setattr(coordinator, "_mission", mission)
+    with pytest.raises(ParticipantFault) as raised:
+        coordinator.run()
+    assert raised.value is queued and raised.value.__cause__ is raw
+    record = coordinator.journal.records[-1]
+    assert (record["fault"], record["kind"]) == ("ParticipantFault", "unscheduled_exit")
+
+
+def test_a_raw_host_error_with_no_product_failure_queued_stands(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    raw = OSError("the sidecar could not be replaced")
+    monkeypatch.setattr(coordinator, "_mission", lambda: (_ for _ in ()).throw(raw))
+    with pytest.raises(OSError) as raised:
+        coordinator.run()
+    assert raised.value is raw
+    assert coordinator.journal.records[-1]["fault"] == "unexpected"
+
+
+def test_an_interrupt_stays_an_interrupt_with_a_product_failure_queued(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+
+    def mission():
+        coordinator._book.faults.append(ParticipantFault("unscheduled_exit", "it went away", tick=3, ordinal=1))
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(coordinator, "_mission", mission)
+    with pytest.raises(KeyboardInterrupt):
+        coordinator.run()
+
+
+def test_a_host_fault_with_no_product_failure_queued_stands(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    coordinator._book.faults.append(HostFault("unclean_end", "ended without a flushed end"))
+    host = HostFault("exchange_budget", "the deadline ran out", tick=4)
+    monkeypatch.setattr(coordinator, "_mission", lambda: (_ for _ in ()).throw(host))
+    with pytest.raises(HostFault) as raised:
+        coordinator.run()
+    assert raised.value is host
 
 
 class _RelayDiesAt(ScriptedSitl):

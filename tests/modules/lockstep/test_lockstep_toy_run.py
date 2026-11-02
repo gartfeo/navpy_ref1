@@ -17,7 +17,7 @@ import pytest
 
 from gcs.backend.instance_registry_runtime import pid_alive
 from navpy.sim.lockstep.coordinator_mavlink import ROUTER_LINK
-from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, WallBudgets
+from navpy.sim.lockstep.coordinator_types import CoordinatorFault, HostFault, ParticipantFault, WallBudgets
 from tests.modules.lockstep.coordinator_doubles import (
     HUB,
     ROUTER,
@@ -118,11 +118,12 @@ def test_a_missed_exit_budget_is_a_host_fault(tmp_path):
     assert not any(pid_alive(m.child.pid) for m in roster.members)
 
 
-def test_an_exit_without_an_ending_done_is_a_coordinator_fault(tmp_path):
+def test_an_exit_nobody_scheduled_is_a_product_failure(tmp_path):
     coordinator, *_ = build(tmp_path, plan=manifest(rover={"die_after_s": 1.3}))
-    with pytest.raises(CoordinatorFault, match="EOF at tick .* without an ending DONE"):
+    with pytest.raises(ParticipantFault, match="went away at tick .* without an ending DONE"):
         coordinator.run()
-    assert coordinator.journal.records[-1]["fault"] == "CoordinatorFault"
+    record = coordinator.journal.records[-1]
+    assert (record["fault"], record["kind"]) == ("ParticipantFault", "unscheduled_exit")
 
 
 def test_a_startup_failure_commits_exited_failed(tmp_path):

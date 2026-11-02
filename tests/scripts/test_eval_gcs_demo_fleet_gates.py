@@ -242,12 +242,46 @@ def test_an_advert_that_stops_short_fails_unless_sent_after_stop_all(fleet):
     assert len(errors) == 1 and errors[0].startswith(f"forwarding: advert {ADVERT} ")
     assert errors[0].endswith("from 1 to 3 stopped at ap_serial0")
     stopped = copy.deepcopy(changed)
-    stopped[5]["lifecycle"] = [{"kind": "stop"}]  # stop-all's first request, before the advert
+    stopped[5]["lifecycle"] = [{"kind": "stop", "payload": None}]  # stop-all's first request, before the advert
     assert _forwarding(stopped) == []
     # Radio loss explains only a broken serial1 write of the sender, never a missing coordinator hop.
     up = next(e for e in emitted if e[1][0] == "sitl1" and e[1][2] == "sitl1.serial1")
     tick = next(r["k"] for r, e in _events(changed) if e[0] == "emitted" and e[1] == up[1])
     assert _forwarding(_with_radio(changed, "sitl1.serial1", [(up, tick)])) == errors
+
+
+def _advert_down(records):
+    """The owner's advert: the router's copy toward SITL 3, and SITL 3's re-emission to its NavPy."""
+    _uid, emitted = _uid_events(records, ADVERT, OWNER)
+    down = next(tuple(e[1]) for e in emitted if e[1][0] == "sitl3")
+    up = {tuple(e[1]) for e in emitted if e[1][0] == OWNER or e[1][0] == f"sitl{OWNER}"}
+    to_3 = next(tuple(e[1]) for _r, e in _events(records)
+                if e[0] == "copy" and e[1][2] == "sitl3.serial1" and tuple(e[2]) in up)
+    return to_3, down
+
+
+def test_an_advert_a_scheduled_fault_cut_may_stop_at_the_cut_and_only_there(fleet):
+    records, _lines, _approvals = fleet
+    to_3, down = _advert_down(records)
+    gone = _without(records, {down})
+    gone = _drop(gone, lambda e: e[0] == "delivered" and tuple(e[1]) == to_3)
+    errors = _forwarding(gone)
+    assert len(errors) == 1 and errors[0].endswith("from 1 to 3 stopped at ap_serial1")
+    copied = next(r for r, e in _events(gone) if e[0] == "copy" and tuple(e[1]) == to_3)
+    copied["packets"].append(["radio_fault", list(to_3), "link_drop:sitl3"])
+    assert _forwarding(gone) == []
+
+
+@pytest.mark.parametrize("reason,excused", [("retired", True), ("unadmitted", True), ("drain", False)])
+def test_an_advert_may_stop_at_a_retired_navpy_and_at_no_other_discard(fleet, reason, excused):
+    records, _lines, _approvals = fleet
+    _to_3, down = _advert_down(records)
+    changed = _drop(records, lambda e: e[0] == "delivered" and tuple(e[1]) == down)
+    errors = _forwarding(changed)
+    assert len(errors) == 1 and errors[0].endswith("from 1 to 3 stopped at ap_serial0")
+    emitted = next(r for r, e in _events(changed) if e[0] == "emitted" and tuple(e[1]) == down)
+    emitted["packets"].append(["discarded", list(down), reason])
+    assert _forwarding(changed) == ([] if excused else errors)
 
 
 def _broken(device, tick, emission):

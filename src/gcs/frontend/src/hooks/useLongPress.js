@@ -117,6 +117,7 @@ export default function useLongPress({ onComplete, duration = 1000, enabled = tr
       onTouchStart: (e) => { e.preventDefault(); start(e); },
       onTouchMove: track,
       onTouchEnd: cancel,
+      // The browser took the touch, for a scroll say: the hold is over.
       onTouchCancel: cancel,
       onContextMenu: (e) => e.preventDefault(),
       // Keyboard press-and-hold. preventDefault suppresses the native button

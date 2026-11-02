@@ -5,6 +5,9 @@ import React from 'react';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import CesiumMap from './CesiumMap';
+import useAssignmentMarkers from './hooks/useAssignmentMarkers';
+import useAvailableTaskMarkers from './hooks/useAvailableTaskMarkers';
+import useDockMarkers from './hooks/useDockMarkers';
 
 const { viewerState } = vi.hoisted(() => ({ viewerState: {} }));
 vi.mock('./hooks/useCesiumViewer', () => ({ default: () => viewerState }));
@@ -72,5 +75,40 @@ describe('CesiumMap map stop', () => {
     const container = viewerState.containerRef.current;
     expect(container).not.toBeNull();
     expect(container.contains(screen.getByRole('alert'))).toBe(false);
+  });
+});
+
+describe('CesiumMap dock markers', () => {
+  beforeEach(() => setViewer({ viewerReady: true }));
+
+  it('shows the planned docks while planning only: in monitoring a dock needs a detection or peer message', () => {
+    const planned = {
+      onViewerReady: () => {},
+      simMode: true,
+      plan: { zones: [{ sys_id: 1, zone_index: 0, set_index: 0, track: [{ lat: 40, lon: 44 }] }] },
+      vehicleTargWps: { 1: 1 },
+      vehicleList: [{ sys_id: 1 }],
+      simDockWps: { 0: [0] },
+    };
+    const { rerender } = render(<CesiumMap {...planned} phase="MONITOR" />);
+    expect(useDockMarkers.mock.lastCall[3]).toEqual([]);
+    rerender(<CesiumMap {...planned} phase="PLANNING" />);
+    expect(useDockMarkers.mock.lastCall[3]).toHaveLength(1);
+  });
+
+  it('hands the marker hooks what the selector picks, each its own side', () => {
+    const onOffer = { taskId: 5, senderId: 1, lat: 45, lon: 44, requestUid: { boot_id: 7, msg_seq: 20 } };
+    render(
+      <CesiumMap
+        onViewerReady={() => {}}
+        assignments={{
+          'helper:2': { ...onOffer, key: 'helper:2', status: 'assigned', receiverId: 2 },
+          '1:5': { ...onOffer, key: '1:5', status: 'waiting', receiverId: 2 },
+        }}
+        availableTasks={{ '1:6': { key: '1:6', taskId: 6, senderId: 1, lat: 46, lon: 44, ownerBoot: 7 } }}
+      />,
+    );
+    expect(Object.keys(useAssignmentMarkers.mock.lastCall[2])).toEqual(['helper:2']);
+    expect(Object.keys(useAvailableTaskMarkers.mock.lastCall[2])).toEqual(['1:6']);
   });
 });

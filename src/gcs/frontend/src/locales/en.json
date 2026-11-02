@@ -374,6 +374,7 @@
     "hideStill": "Hide still",
     "gateOverridden": "Gate overridden — image may be small/unstable",
     "holdToApprove": "HOLD TO APPROVE",
+    "pressAgain": "PRESS AGAIN",
     "viewCamera": "View camera",
     "viewing": "Viewing",
     "viewCameraNote": "The countdown keeps running.",
@@ -426,6 +427,17 @@
       "docked": "docked (sim)",
       "missed": "missed (sim)",
       "aborted": "aborted (sim)"
+    },
+    "dockState": {
+      "detected": "detected",
+      "offered": "offered to UAV {{uav}}",
+      "confirm": "confirm?",
+      "assigned": "assigned",
+      "approved": "approved",
+      "docked": "docked (sim contact)",
+      "dockFailed": "dock failed (sim)",
+      "canceled": "canceled",
+      "outcomeUnknown": "outcome unknown"
     }
   },
   "mapStopped": {

@@ -55,6 +55,10 @@ class LockstepFault(RuntimeError):
     """A contract violation: a host fault, never a different outcome."""
 
 
+class BatonWallFault(LockstepFault):
+    """A managed thread kept the baton past its wall budget: a stall of the host, whatever it held."""
+
+
 class LockstepAborted(BaseException):
     """Raised in parked threads when the run is aborted, so they unwind."""
 
@@ -134,11 +138,11 @@ class BatonRuntime:
             steps += self.run_until_quiescent(deadline, handoffs_left(handoffs, steps))
         self.fail(f"timers still due after {MAX_TIMER_ROUNDS_PER_TICK} rounds")
 
-    def fail(self, message: str) -> NoReturn:
+    def fail(self, message: str, fault_type: type[LockstepFault] = LockstepFault) -> NoReturn:
         """Latch a contract fault; scheduling raises it even if a caller swallows it."""
         if self._fault is None:
-            self._fault = LockstepFault(message)
-        raise LockstepFault(message)
+            self._fault = fault_type(message)
+        raise fault_type(message)
 
     # -- threads ------------------------------------------------------------
     def spawn(self, target: Callable[[], object], *, name: str) -> ManagedThread:
@@ -192,10 +196,8 @@ class BatonRuntime:
             if not self._yielded.acquire(timeout=(budget_s := handoff_budget(deadline))):
                 # The holder still runs: the runtime stays poisoned (no more
                 # ticks, handoffs or abort); only ownership teardown is left.
-                self.fail(
-                    f"{thread.name} kept the baton for {budget_s:.3f} s "
-                    "(blocked on a host primitive?)"
-                )
+                self.fail(f"{thread.name} kept the baton for {budget_s:.3f} s (blocked on a host primitive?)",
+                          BatonWallFault)
             if thread.done:
                 self.threads.reap(thread)
             if self._fault is not None or self.threads.errors:
@@ -285,11 +287,8 @@ def check_no_deadlock(runtime: BatonRuntime) -> None:
 
 
 __all__ = [
-    "BATON_WALL_BUDGET_S",
-    "handoff_budget",
-    "BatonRuntime",
-    "LockstepAborted",
-    "LockstepFault",
+    "BATON_WALL_BUDGET_S", "BatonWallFault", "handoff_budget",
+    "BatonRuntime", "LockstepAborted", "LockstepFault",
     "MAX_TIMER_ROUNDS_PER_TICK",
     "ManagedThread",
     "ThreadTable",

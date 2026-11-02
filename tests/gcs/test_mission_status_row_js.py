@@ -194,6 +194,22 @@ class TestEveryStatusRendersAndIsTranslated(unittest.TestCase):
         for value in en["mapMarkers"]["closestApproach"].values():
             self.assertIn("(sim)", value)
 
+    def test_dock_marker_words_claim_no_more_than_the_sim_shows(self):
+        for name, locale in self.locales.items():
+            words = locale["mapMarkers"]["dockState"]
+            for key in ("detected", "offered", "confirm", "assigned", "approved",
+                        "docked", "dockFailed", "canceled", "outcomeUnknown"):
+                self.assertIsInstance(words[key], str, (name, key))
+            self.assertIn("{{uav}}", words["offered"], name)
+        en = self.locales["en"]["mapMarkers"]["dockState"]
+        hy = self.locales["hy"]["mapMarkers"]["dockState"]
+        for key in ("docked", "dockFailed"):
+            self.assertIn("(sim", en[key])
+            self.assertIn("(սիմ.", hy[key])
+        for word in en.values():
+            for claim in ("cargo", "receipt", "received", "delivered", "handover"):
+                self.assertNotIn(claim, word)
+
 
 if __name__ == "__main__":
     unittest.main()

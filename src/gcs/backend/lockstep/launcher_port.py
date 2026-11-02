@@ -7,7 +7,8 @@ puts a spawn request in this tick's ``DONE``; a stop a stop request. The
 answers are the coordinator's lifecycle records, carrying the ordinal and
 generation, never a PID (``lockstep_slice.md``, "Lifecycle"):
 
-- ``spawn`` (ok or error) answers the start;
+- ``spawn`` (ok or error) answers the start, and tells of a scheduled fault's
+  restart (``coordinator_faults``): the same spawn id, now the next generation;
 - ``ready`` is the companion's ``runtime_ready`` payload (``wait_ready``);
 - ``exited`` retires it: ``running`` until then, and ``exit_code`` 0 after a
   flushed end (``failed`` gives 1);
@@ -107,6 +108,10 @@ class LockstepLauncher:
             raise RuntimeError(f"lifecycle {entry.kind} for an unknown spawn {entry.request}")
         if entry.kind == "spawn":
             if entry.result == "ok":
+                if companion.generation is not None:  # a restart: this spawn's next generation
+                    companion.failed = companion.ready_payload = None
+                    companion.ready_or_exit = rt.Event()
+                    companion.started_at = rt.time()
                 companion.generation = entry.generation
             else:
                 companion.spawn_error = str(entry.payload)
@@ -146,7 +151,7 @@ class LockstepLauncher:
         if detector_debug_show:
             raise ValueError("a lockstep companion opens no debug window")
         expected = lockstep_navpy_argv(sys_id, spec["device"], vision_profile=vision_profile,
-                                       log_level=log_level)
+                                       log_level=spec.get("log_level", log_level))
         if list(spec.get("argv") or ()) != expected:
             raise ValueError(f"the lockstep companion for sys_id {sys_id} was recorded with "
                              f"{spec.get('argv')}, not {expected}")

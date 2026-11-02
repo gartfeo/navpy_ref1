@@ -1,15 +1,16 @@
 import { useEffect, useRef } from 'react';
-import { makeAvailableTaskIcon } from '../constants/icons';
-
-const AVAILABLE_COLOR = '#ff9800';
+import { useTranslation } from 'react-i18next';
+import { AVAILABLE_TASK_COLOR, makeAvailableTaskIcon } from '../constants/icons';
+import { dockLabelStyle, dockMarkerPosition, dockPadScale, dockWordRange } from '../utils/dockLabel';
 
 /**
  * Renders dashed orange circle markers for available (pre-assignment) tasks.
  * - Billboard: dashed orange circle with center dot
- * - Label: "#taskId taskType" in orange
+ * - Label: "#taskId taskType: detected" in orange
  */
 export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableTasks, viewerReady) {
   const markersRef = useRef({});   // `${owner}:${task}` -> entity
+  const { t, i18n } = useTranslation();
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -23,36 +24,39 @@ export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableT
       if (entry.lat == null || entry.lon == null) continue;
       seen.add(key);
 
-      const labelText = `#${entry.taskId} ${entry.taskType}`;
-      const position = Cesium.Cartesian3.fromDegrees(entry.lon, entry.lat, entry.alt || 0);
+      const labelText = `#${entry.taskId} ${entry.taskType}: ${t('mapMarkers.dockState.detected')}`;
+      const style = dockLabelStyle(Cesium, AVAILABLE_TASK_COLOR, entry.labelRow);
+      const position = dockMarkerPosition(Cesium, viewer, entry);
 
       if (existing[key]) {
         existing[key].position = position;
-        existing[key].label.text = labelText;
+        existing[key].billboard.show = !entry.hidePad;
+        Object.assign(existing[key].label, { text: labelText, ...style });
       } else {
         existing[key] = viewer.entities.add({
           position,
           billboard: {
             image: makeAvailableTaskIcon(32),
+            show: !entry.hidePad,
             width: 32,
             height: 32,
-            scaleByDistance: new Cesium.NearFarScalar(500, 1.0, 20000, 0.3),
+            scaleByDistance: dockPadScale(Cesium),
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
           },
           label: {
             text: labelText,
             font: 'bold 11px sans-serif',
-            fillColor: Cesium.Color.fromCssColorString(AVAILABLE_COLOR),
-            outlineColor: Cesium.Color.BLACK,
             outlineWidth: 2,
             style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-            verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-            pixelOffset: new Cesium.Cartesian2(0, -18),
+            // Below the pad: hub and closest-approach labels sit above this same spot.
+            verticalOrigin: Cesium.VerticalOrigin.TOP,
             scaleByDistance: new Cesium.NearFarScalar(500, 1.0, 20000, 0.3),
-            pixelOffsetScaleByDistance: new Cesium.NearFarScalar(500, 1.0, 20000, 0.3),
+            pixelOffsetScaleByDistance: dockPadScale(Cesium),
+            distanceDisplayCondition: dockWordRange(Cesium),
             heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
             disableDepthTestDistance: Number.POSITIVE_INFINITY,
+            ...style,
           },
         });
       }
@@ -65,5 +69,6 @@ export default function useAvailableTaskMarkers(cesiumRef, viewerRef, availableT
         delete existing[key];
       }
     }
-  }, [availableTasks, viewerReady]);
+    // i18n.language re-runs so labels follow a live locale switch.
+  }, [availableTasks, viewerReady, i18n.language]);
 }

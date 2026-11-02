@@ -288,7 +288,7 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   width between the mode column and the list. Measured at 600 x 808 with a round: the banner is
   26 px wide, on 9 lines, every word cut, behind the list. From 602 to 730 px by calculation: under
   about 640 px the warning that the picture is frozen cannot be read until the round is decided.
-  As on origin/main, by reading. Todo 168.
+  As on origin/main, by reading. Todo 221.
 - In RC under a 542 px pane the raised list keeps room for three banner lines with or without
   a banner, so it has 18 px less height than it would with room for two: 215 px at 375 x 667,
   188 px at 360 x 640, 116 px at 320 x 568, where Approve, Deny and a second Cancel task can each
@@ -317,8 +317,10 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   ending with the window open. The top controls rewrapping on a plan label change, with the window
   open or closed (38 px; of 320, 360 and 375 px panes in English and Armenian, only English at 360 px
   rewraps: "Start Planning" takes two rows, "Edit Plan" one). A rotation, or a browser bar resizing the pane, which can also cross the
-  boundary above. A tap at that moment can land on another row. Warning rows, the credit line and
-  the "View held" banner move nothing. Todo 171.
+  boundary above. A tap at that moment can land on another row. Main's press guard (todo 166) refuses
+  Approve and Deny begun within 500 ms of such a move, outside a round's last 2 s; a decided row's
+  Cancel task has no guard. Warning rows, the credit line and the "View held" banner move nothing.
+  Todo 224.
 - A row arriving or leaving moves the rows after it, docked and collapsed, as on
   origin/main: the chip by 34 px, a decided row by 36 px, a card by its height; a card's header
   rewrapping moves what follows it too. A tap at
@@ -328,13 +330,14 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   leaving or the chip going lets the scroll clamp, which moves the rows above too (calculated, not
   measured: RC at 320 x 568, three approved rows, the last row's still open and that UAV disarming:
   55 px, or 36 px with the still on another row; the collapsed list at its 160 px minimum: 11 px).
-  The owner chose a separate task on 2026-11-02, so no guard was added
-  here. Todo 171.
+  The owner chose a separate task on 2026-11-02, so this change adds no guard. Main's press guard
+  (todo 166) since covers Approve and Deny outside a round's last 2 s, in every host of the list, as it
+  watches the list's own scroll box; Cancel task stays open. Todo 224.
 - A list that first overflows gets a scrollbar with no tap, which narrows its cards by 10 px. Measured
   collapsed in Chrome, one round and a second arriving: card 273 to 263 px at 375 x 812 and 286 to 276 px
   at 960 x 600, Deny's x 5 px left, Approve and Deny's y unchanged, as the picture's height is now fixed.
   By hit test, each button's old centre still lands on it. A reserved gutter would change widths at
-  every size, so it stays with todo 171.
+  every size, so it stays with todo 224.
 - The collapsed box ends 56 px above the pane's bottom, which costs about 16 px of list with a
   28 px credit line, against an end that read the line's height, and clears a line up to 44 px by
   9 px (46 px on a 320 px pane: by 7 px). The list overlapped the line by 0 px at the seven sizes
@@ -379,7 +382,7 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   The owner accepted the earlier form on 2026-11-02, the abort staying pinned at 461 px with a tap at
   the centre working. The fixed picture of `gcs_still_age.md` made the card 48 px taller and gave these
   numbers. Asked again with these numbers, the owner accepted them on 2026-11-02: the abort stays
-  pinned and the fix stays open. Todo 167.
+  pinned and the fix stays open. Todo 220.
 - The pinned rows scroll once they and their padding exceed the box less 48 px while anything
   can scroll: in RC at 960 x 448 a chip and three decided rows, in RC at 320 x 568 a chip and one.
   Cancel task is then one scroll away, not clipped.
@@ -388,9 +391,9 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   container: the sidebar's bottom padding now lies between two margins that used to
   collapse. Nothing else moves.
 - Two faults of origin/main stay at 960 x 448 (UniRC density 320 in Chrome), and worse on
-  shorter panes. In planning, Load and Save plan lie under Reset view (todo 169). In RC, the
+  shorter panes. In planning, Load and Save plan lie under Reset view (todo 222). In RC, the
   last row of "Other" is clipped, and the mode column lies on the left stick's upper-left
-  part (todo 170).
+  part (todo 223).
 - Settings and the readiness panel are modals: full screen inside the viewport at 375 x 812 on the
   final build. No failure, no todo.
 - Planning, collapsed, with a round at 375 x 812: the list covers 64 % of the toolbar's status label
@@ -470,13 +473,13 @@ density 240 and 320, landscape and portrait, Chrome 133 and the APK on WebView 1
 1. *The pinned footer covers a timed card's Approve and Deny at 960 x 448, and scrolling
    spends the time left:* holds; `TaskConfirmCard` decides at expiry. While a round exists
    the start action is no longer pinned. The abort stays pinned: that is the one case left,
-   under Limits and todo 167.
+   under Limits and todo 220.
 
 ## Codex round 3 of the finished diff (verdict: changes required)
 
 1. *The remaining abort overlap needs the owner's decision:* holds as a decision, not as a
    code fault. The owner, given both options on 2026-11-02, kept the abort pinned; recorded
-   under Limits and in todo 167.
+   under Limits and in todo 220.
 2. *A hold survives after its button moves off screen:* holds. A round arriving moved HOLD
    TO LAUNCH from under the finger and the hold went on. It also holds on origin/main for
    content in the flow. Fixed in `useLongPress` for every cause of movement, not with a
@@ -520,11 +523,11 @@ Layout:
 2. *The "View held" banner has no usable width while the RC list is open, pane 542 to about
    730 px:* holds, minor, as on origin/main. The note said its text wraps, which is wrong and
    is corrected under Limits. Not fixed here: moving the list when a banner appears would move
-   Approve and Deny under a finger. Todo 168.
+   Approve and Deny under a finger. Todo 221.
 3. *Load and Save plan lie under Reset view at 960 x 448:* holds, minor, as on origin/main. Under
-   Limits, todo 169.
+   Limits, todo 222.
 4. *In RC the last row of "Other" is clipped, and the mode column lies on the left stick:* holds,
-   minor, as on origin/main. Under Limits, todo 170.
+   minor, as on origin/main. Under Limits, todo 223.
 5. *View camera in the drawer opens the window under the drawer, and the card says "Viewing"
    with no picture while its time runs:* holds, minor, new with the drawer. Fixed: the tap
    closes the drawer.
@@ -546,7 +549,7 @@ Wide screens:
    on origin/main has the same order and the same one-tap Cancel task, Approve and Deny. This
    change removed what it added, the bottom anchor. A guard would change the confirm flow at
    every width. The owner, given both options on 2026-11-02, chose a separate task: under
-   Limits and todo 171.
+   Limits and todo 224.
 2. *A hold checks where the finger pressed, not where it is:* holds; Codex reproduced a valid
    hold cancelling and a hold completing with the button gone from the finger. Fixed: the hook
    follows the pressing finger by its identifier, and a mouse by its moves, with an 8 px slop
@@ -569,14 +572,14 @@ Codex also found the changed toast expectation in `test_confirm_card_hosts_js.py
    height also changes with no tap. The raised RC list had the same fault when a banner wrapped:
    it now keeps room for two lines. Undoing each of these fails its test.
 2. *A decided row takes 36 px, not 32, so 461 px holds only with no decided row:* holds. Corrected
-   under Limits and in todo 167: it rises by 36 px per decided row. The devices affected stay the
+   under Limits and in todo 220: it rises by 36 px per decided row. The devices affected stay the
    same: the APK at 960 x 600 stays clear up to three decided rows.
 
 ## Codex round 6 of the finished diff (verdict: changes required)
 
 1. *The collapsed list still moves with no tap, where origin/main's lists do not:* holds in part,
    and new with this change. The causes that come routinely in flight are gone: warning rows, the
-   credit line and the banner reach no box. Left, under Limits and in todo 171: the window closing
+   credit line and the banner reach no box. Left, under Limits and in todo 224: the window closing
    itself on an empty fleet, a plan upload ending with the window open, the top controls rewrapping
    on a plan label, and a rotation or resize. The window's maximize state cannot flip by itself
    where the list sits under it, as the pane is at least 505 px tall there, and that would take its
@@ -605,7 +608,7 @@ Codex also found the changed toast expectation in `test_confirm_card_hosts_js.py
 Every listed change is to this note or a comment; no behaviour changed.
 
 1. *A scrolled pinned part clamps when a row leaves, which moves the rows above it:* holds,
-   calculated, and new with this change. Under Limits and in todo 171. Codex asked for no guard here,
+   calculated, and new with this change. Under Limits and in todo 224. Codex asked for no guard here,
    given the owner's deferral.
 2. *The residual causes need broader conditions:* holds. The top controls rewrapping moves the list
    with the window closed too, and a rotation or resize moves the raised RC list at 542 px. Limits
@@ -632,13 +635,13 @@ All on the note's text or the owner's answer; no code changed after it, and this
 reviewed again.
 
 1. *One tap aimed at Approve or Deny can abort the launch:* holds; the abort's handler posts with no
-   confirmation. Under Limits with the hit map. The owner accepted it on 2026-11-02, todo 167.
+   confirmation. Under Limits with the hit map. The owner accepted it on 2026-11-02, todo 220.
 2. *The limits leave out a card with View camera:* holds; added, calculated, not run. It was in the
    question to the owner.
 3. *The collapsed bullet mixes distances and what stays visible:* holds; corrected.
 4. *The list of what did not run on the final bundle is incomplete:* holds; corrected.
 5. *"Not linked to this change" has no evidence:* holds; the cause is stated as not known.
-6. *Todo 171 keeps the old 6 px:* holds; corrected.
+6. *Todo 224 keeps the old 6 px:* holds; corrected.
 
 ## Live results on the final build
 
@@ -688,10 +691,10 @@ emulator cell each for Chrome 133 and the APK at density 320 landscape ran again
 - Armenian at 375 x 812 and 960 x 448: no overflow, E-STOP inside, START not clipped.
 - View camera at 375 x 812: the drawer closes, the window opens at y 104 to 325 with the card 12 px
   under it, and the countdown runs on. With `simulation.video_test_source`, the picture plays from
-  the frontend port; from the backend-served page it is blocked (todo 173).
+  the frontend port; from the backend-served page it is blocked (todo 226).
 - With a mission on the vehicles the dock's D marker draws (template match 0.92 against the baseline's
   icon).
-- A mission upload failing in these runs was not this change: todo 172.
+- A mission upload failing in these runs was not this change: todo 225.
 - Not run on the final bundle, so their results above are from before the rebase: density 240, portrait
   and the density 320 WebView 101 shell on the emulator; real-touch holds and their cancellation;
   scripted two-finger holds; camera playback; tapped rounds, window toggles and Armenian START. Not run at all: RC on a pane from 602 to 730 px; a round raised by NavPy; a panel scroll at

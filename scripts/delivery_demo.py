@@ -25,6 +25,7 @@ for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
     if str(_import_root) not in sys.path:
         sys.path.insert(0, str(_import_root))
 
+from scripts.delivery_demo_manifest import record_run_inputs  # noqa: E402
 from scripts.delivery_demo_plan import PLAN_PATH  # noqa: E402
 from scripts.eval_delivery_fixture import FIXTURE_PATH, delivery_scenario, load_fixture  # noqa: E402
 from scripts.eval_gcs_demo_config import (  # noqa: E402
@@ -48,6 +49,7 @@ from scripts.eval_gcs_demo_stack_ops import (  # noqa: E402
 )
 from scripts.eval_certificate_source_time import SOURCE_TIME_ENV  # noqa: E402
 
+from gcs.backend.cpu_share import Share, ShareRecord  # noqa: E402
 from gcs.backend.diagnostics import SESSION_ID_ENV as DIAGNOSTICS_SESSION_ID_ENV  # noqa: E402
 from gcs.backend.runtime_paths import LOG_DIR_ENV as GCS_LOG_DIR_ENV  # noqa: E402
 from navpy.core.kernel.logging.pose_cadence_naming import NAMING_ENV as POSE_CADENCE_NAMING_ENV  # noqa: E402
@@ -68,6 +70,10 @@ SIM_DOCKS_ENV = "NAVPY_SIM_DOCKS"
 #: starved the NavPys past their freshness limit, on 8 it did not.
 CPU_SHARE_DEFAULT_MIN = 30
 CPU_SHARE_MAX_MIN = 120
+#: The Ready text warns below this many CPUs: flights on 4 had stale-command
+#: failures and flights on 8 had none, in small samples (``bounded_cpu_share.md``,
+#: the 2026-11-01 audit). It is where the warning starts, not a proven safe number.
+CPU_SHARE_WARN_BELOW = 8
 #: Run paths from the eval's environment: settings and logs only.
 RUN_ENV = (
     "GCS_SETTINGS_PATH", "NAVPY_LOG_DIR", GCS_LOG_DIR_ENV, SOURCE_TIME_ENV,
@@ -155,7 +161,8 @@ def start(
         json.dumps(demo_settings(owner_settings(), fixture), indent=2), encoding="utf-8"
     )
     env = demo_environment(run_dir)
-    sitl_root, _, _ = prepare_sitl_root(run_dir)
+    sitl_root, sitl_inputs, sitl_root_host = prepare_sitl_root(run_dir)
+    record_run_inputs(run_dir, env, sitl_inputs, sitl_root_host, scenario, cpu_share_min)
     try:
         context = launch_stack(
             env, STACK_TIMEOUT_S, sitl_root.launch_arguments(),
@@ -203,6 +210,61 @@ def wait_for_frontend(
         ) from error
 
 
+def _share_list_command() -> str:
+    return powershell_command(sys.executable, _REPOSITORY_ROOT / "scripts" / "cpu_share.py", "--list")
+
+
+def _share_summary(share: Share, now: float) -> str:
+    count = len(share.cpus)
+    cpus = f"{count} CPUs ({','.join(map(str, share.cpus))})"
+    end = dt.datetime.fromtimestamp(share.expires_at).strftime("%H:%M:%S")
+    if now >= share.expires_at:
+        return (
+            f"CPU share: {cpus} ended at {end} local time, before this launch finished. This "
+            "stack should now run as background (backend.log says if not), and a share never "
+            "grows after launch. For a new share, stop and launch again."
+        )
+    summary = (
+        f"CPU share: {cpus} until {end} local time. Finish before then: after it this stack "
+        "runs as background, and a share never grows after launch."
+    )
+    if count < CPU_SHARE_WARN_BELOW:
+        summary += (
+            f"\nWARNING: only {count} CPUs, fewer than {CPU_SHARE_WARN_BELOW}. One approach failed "
+            "with a stale command on a 4-CPU share; that is not proven the cause, and "
+            f"{CPU_SHARE_WARN_BELOW} is not proven enough. For more CPUs: stop, free them "
+            f"({_share_list_command()} shows who holds them), and launch again."
+        )
+    return summary
+
+
+def cpu_share_text(record: ShareRecord | None = None) -> str:
+    """This stack's CPU share for the Ready text; a failed read only says so."""
+    try:
+        record = record or ShareRecord()
+        # One directory, one stack: the backend labels its share with its
+        # working directory, this checkout (``cpu_share_holder.py``). The
+        # registry's backend_pid is no key: it is the venv launcher's.
+        shares = [
+            share for share, state in record.listing()
+            if share.label.endswith(f"({_REPOSITORY_ROOT})") and state != "owner gone"
+        ]
+        if not shares:
+            return (
+                "CPU share: none found for this stack, so it should run as background: the claim "
+                "was refused or the share has already ended. backend.log under the logs folder "
+                "says which (if neither, the backend may have stopped), and its Stack scheduling "
+                "line says if background could not be set. A share never grows after launch; to "
+                "get one, stop, free CPUs and launch again."
+            )
+        return _share_summary(shares[-1], record.clock())
+    except Exception as error:  # noqa: BLE001 - the stack is up; the read must not fail it
+        return (
+            f"CPU share: could not read the record ({error}), so this stack's share is unknown. "
+            f"The stack itself is up. Check with: {_share_list_command()}"
+        )
+
+
 def _share_minutes(text: str) -> float:
     minutes = float(text)
     if not 0 < minutes <= CPU_SHARE_MAX_MIN:
@@ -229,6 +291,8 @@ def main(argv: list[str] | None = None) -> int:
         f"{PLAN_PATH} (or build your own), Upload, then Launch and approve each dock.\n"
         f"Logs in {run_dir}\nStop: {_stop_command()}"
     )
+    # Last, so a busy record (a bounded wait) holds back nothing else.
+    print(cpu_share_text())
     return 0
 
 

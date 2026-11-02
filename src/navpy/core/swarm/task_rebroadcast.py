@@ -9,6 +9,7 @@ from navpy.core.link.task_message_data import (
 from navpy.core.link.location_msg import LocationMsgData
 from navpy.core.link.types import class_to_task_type
 from navpy.core.swarm.task_auction_state import TaskAuctionState
+from navpy.core.swarm.task_peer_roster import PEER_ADMITTED_LOG
 from navpy.core.swarm.task_rebroadcast_state import TaskRebroadcastState
 from navpy.core.swarm.task_messaging import TaskMessageSender
 from navpy.core.ports.detect_data import DetectedObject
@@ -62,7 +63,8 @@ class TaskRebroadcastCoordinator:
         return self._rebroadcast.send_if_available(tasks, self._sender.available)
 
     def peer_discovered(self, peer_id: int) -> None:
-        self._rebroadcast.discover_peer(peer_id, self._rebroadcast_task)
+        if self._rebroadcast.discover_peer(peer_id, self._rebroadcast_task):
+            self._logger.debug(PEER_ADMITTED_LOG.format(peer_id))
 
     def peer_heard(self, peer_id: int) -> bool:
         return self._rebroadcast.peer_heard(peer_id)

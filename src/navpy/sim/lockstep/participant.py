@@ -112,6 +112,7 @@ def bootstrap(spec: ParticipantSpec) -> Participant:
     baton = BatonRuntime()
     runtime = LockstepRuntime.create(
         baton, epoch_us=spec.epoch_us, seed=spec.seed, ordinal=spec.ordinal,
+        generation=spec.generation,
     )
     rt.bind(runtime)
     uninstalls = [install_log_stamp(runtime.clock), install_thread_guard(baton)]

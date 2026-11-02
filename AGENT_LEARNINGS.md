@@ -99,7 +99,8 @@
 - wsl.exe hands `bash -lc '...'` to the login shell, so `$VAR` inside it expands there
   (often to empty), and Git Bash rewrites /mnt/c/... arguments. Run scripts with
   `MSYS_NO_PATHCONV=1 wsl -e bash script.sh` when they need neither the login PATH nor
-  path rewriting.
+  path rewriting. With `MSYS_NO_PATHCONV=1`, `git -C` needs a `C:/` path. For a one-liner
+  use `wsl --exec bash -c`: plain `wsl bash -c` breaks on `$(...)`.
 - To check a hand-back between controllers that run at different rates, measure after
   the slower one's first update. The TECS hand-back check sampled the 50 Hz output
   before TECS's first 10 Hz update and reported a 0 % throttle step, while the real
@@ -824,6 +825,9 @@
 ## Todo 65 load (2026-10-18)
 - A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
   interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+  CPU readings have the same trap: Start-Process on it reads the launcher (0%), not the interpreter (19.4% in one
+  test). Find the child by command line. The registry's `backend_pid` is the launcher too (50464, while the share
+  held pid 10472), so find a stack's share by its label.
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
@@ -1322,6 +1326,69 @@
   Codex's claim that jammy lacks nvcodec came from that site and was wrong.
 - A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
+## Encoded publisher, HITL step 8 (2026-10-25)
+
+- The publisher, lens remap and stream check live in aas-hitl (its AGENT_LEARNINGS has the GStreamer lessons);
+  navpy only gained the NPYC v3 decoder. Keep the v3 fixture hashes in step with Unreal's header and the aas-hitl
+  decoder: one header change touches three repos.
+- rtspclientsink starts ANNOUNCE/SETUP/RECORD only on the first buffer's caps, and MediaMTX answered SETUP about
+  1 s later; a backlog guard counting from the first push trips on that handshake. Hold later frames as
+  "connecting" until MediaMTX's API reports the publisher.
+- An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
+  the path.
+- Live runs (2026-10-27): a global -NavPyNativeCameraPort makes all three gimbal actors connect to one port, and
+  accept order decides which camera streams; keep each actor's level port (UAV1 18110, UAV2 18120, UAV3 18130).
+- After a WSL listener closes, the VM-wide wslrelay keeps a stale Windows listener; a restarted publisher adds a
+  second one and Unreal's connect can land on the stale one (a void run). Before starting Unreal, check exactly one
+  Windows LISTENING socket on the port, and after it an ESTAB to python3 inside WSL. The relay exits only once the VM
+  idles out, which never happens while another chat works in WSL. On WSL 2.6.3 the order decides: a publisher that ends
+  while Unreal is sending wedges the port until the VM restarts, and Unreal sees no error; closing Unreal first stays
+  clean (reproduced on scratch ports; the cause is in wslrelay's source, fixed upstream in 3.0.4). WSL's own address
+  (hostname -I) has no relay and carried 2 to 3 times the rate under load. Use it for streams at this rate.
+- A number counted from slot log lines cannot exceed the slot rate, so "Unreal ticks at only 22-30 per second" was an
+  artifact I reported as a finding. Check how a statistic is built before reading a limit into it; Insights was the
+  real measure.
+- Compare runs on a busy PC only back to back. Runs E5 and E6 differed in Unreal's main view and also in WSL's load
+  (12.5 to low; remap p50 14.5 to 3.9 ms, socket-busy 250 to 2), so neither explained the gain alone; only the
+  back-to-back E7 and E8 isolated the view (late ticks 396 to 59, steady rate 27.6 to 30.0 fps). Log WSL's load next
+  to every live number.
+- Monitors can be the load. 20 sleepers waking every 2 ms and a 50 Hz thread sampler went with 23.7 fps (S12); the next
+  run without them read 28.4 fps (S13), but WSL's load also differed (20 against 13), so it is no clean A/B. Read a run
+  with heavy monitors for where the stalls fall, not for its rate.
+- A PNG named by PTS is only safe with rtspsrc buffer-mode=none. With the default mode a stall made PTS clamp, one PNG
+  overwrote another, and I chased a "270 px error" that was the wrong frame. Check the join before the pipeline.
+- A slow reader's start can hurt a running stream: loading nvcodec in a second process took 1-9 s and held frames up to
+  650 ms in the encoder. Load the plugin before the stream starts.
+- A frame-count bound is not a time bound: frames arrive bunched, so "more than 3" tripped after only 70 ms. Compute how
+  often each level occurs (each one was 40-60 times rarer) before reasoning about what a limit allows.
+- os.replace on /mnt/c is not atomic for a reader: the name is missing in about 5 % of reads while rewriting. On /tmp, none.
+- gcs_stop.py --eval found nothing once because the registry entry of my slot now named another chat's folder, so my
+  SITL stayed up. Check for leftover processes after a stop instead of trusting its output; stop only exact PIDs.
+- A capture at nice 19 lagged the stream by 60 s (PTS 130 s after 205 s), so it missed the last zoom moves although
+  its timer covered them. Check the last PTS it read, not its duration.
+- The WSL distro idle-stops, and \\wsl.localhost reads then fail; keep `wsl.exe --exec /bin/sleep N` running while
+  reading. From Git Bash pass //wsl.localhost/... with MSYS_NO_PATHCONV=1 ('\\wsl.localhost' arrives with one
+  backslash).
+- A check that gates on the PC must treat a failed reading as "unknown", never as "free": a failed CIM call (HRESULT
+  0x80041032) once left the busy list empty and read as QUIET, and wsl.exe once failed with Wsl/Service/0x80072747.
+  There is no quiet-PC rule any more: live runs claim a CPU share and record the load (docs/design/bounded_cpu_share.md).
+- A CPU share bounds cores, not the power limit: at 17-19 of 20 cores busy the clock fell to about 85 % of nominal. WSL's
+  vCPU threads are not touched by the share. Record load, clock and memory with every live number.
+- Unreal profiling: -csvCaptureFrames on the command line asserts (IsRayTracingAllowed before RHI init); start it
+  with ExecCmds "csvprofile frames=N". Unreal Insights exports without UI via -OpenTraceFile, -AutoQuit -NoUI and
+  -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics ..." (or ExportTimingEvents for per-call times);
+  pass the argument string through PowerShell Start-Process, as Git Bash quoting silently dropped the command.
+- Replay a hand-off design against the run's own log (ready times, measured job times) before choosing it. The
+  planned tick-quantised hold looked sufficient but reached 23-25 fps of 27-28 captured, because the game thread
+  hands off once per tick; a one-deep worker queue plus one held frame reached the capture rate.
+- orin1 has no h265parse; for a read-only RTSP rate check use rtph265depay with alignment=au.
+- Smart App Control refused a rebuilt unsigned plugin DLL (LoadLibrary GetLastError=4551). The owner turned it off
+  on 2026-10-28 and signing was dropped, so unsigned builds load. Do not state what a Windows setting allows from
+  memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
+- Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
+  anything longer than a line.
+- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback
@@ -1631,8 +1698,9 @@
   ran at one height (300 m) and passed. Check a geometric bound over the whole range of
   every input (latitude, height, scale, still segments), in both directions.
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
-  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
-  and check line endings with `file` after any scripted edit.
+  in Git Bash turned a CRLF file into LF. Put such a `cd` in a subshell, or start each
+  command with `cd` to the worktree, and check line endings with `file` after any
+  scripted edit.
 - A Windows path written into a Python string through the Bash tool lost one of its
   doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
   control character in place of the run folder. Build backslashes with chr(92) and
@@ -1734,7 +1802,57 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+- A live run with a Vite dev server reads the working tree, so a source edit mid-run
+  reloads its page. Prepare review fixes in a script and apply them when the run ends,
+  then replay its recorded /ws/telemetry through the changed reducer to check that real
+  traffic reads the same.
+- "Hung" pytest on 2026-11-01 was memory pressure (712 MB free, 126 Python processes):
+  a two-hour run, with Node 5 s timeouts and thread-timing failures that passed alone.
+  py-spy dump tells the two apart. Output sent to a log leaves the task output empty.
+- Before adding GCS logic for a producer's race, read the producer: the outcome and phase
+  were atomic on the navigation thread, so the late-outcome wait for them was not needed.
+- Read a live run's screenshots yourself, even after a passing report: a handled marker
+  that newly stays on the map collided with the hub label above it, and only the pictures
+  showed that the word could not be read. Have a second reader check the report against
+  the logs too: one found a stale count and a label the tester had edited by hand.
+- A rule like "lasts until mission reset" needs a check of every path that starts a
+  mission. The design named Restart, but a landed container fleet is offered only the
+  launch, so handled markers carried into the next mission until an audit traced it.
+- Edit scripts: collect every edit, check them all, then write. A "dry run" made by
+  patching the write line with sed wrote for real because the sed did not match.
+- Write scripts with the Write tool: a Bash heredoc was cut at a quote by the harness.
+- Derive a receiver's rules for copies and reordering from the sender's code, not from guesses
+  on the receiver's side. Three review rounds patched the dock marker reducer for late requests
+  and APPLIEDs, each fix opening the next sequence. Reading the owner's lock order settled it in
+  one pass: it removed a branch and two limits. Check the fixtures against that order too: the
+  test helpers had the owner send requests after its APPLIED, which it never does.
+  Keep the rule to what that order covers: treating a UAV's own round as a step of it dropped a
+  valid assignment, and moving a test's value to fit hid that. Before moving a value, show that the
+  sender cannot produce the old one.
+- A drawing fault that does not follow from the data can be the map engine's. A cut word
+  was Cesium 1.138 leaving a clamped label's new letters at the raw height: a bare page on
+  the installed version proved it, and upstream's changelog and tags showed the first fixed
+  release. Do both before designing around a rendering fault.
 
+## Lockstep load and parallel runs (todo 65, 2026-11-01)
+
+- A lockstep budget that counts handoffs turns a model's own yields into load. Before calling a stress failure a product bug, count what spends the cap per tick; here the reader's per-packet yield did, and the product reader had stopped yielding per packet long before.
+- Do not start several `eval_gcs_demo_lockstep_matrix.py` at once: their CPU-load cells overlap and a spawn misses the 30 s step deadline, a host fault. Run them one at a time, or use plain parallel runs (N = 8 holds on a host other chats are not loading; on a saturated one plain runs host-fault too, so budget for reruns).
+- A matrix hashes the source tree per cell. Editing even a doc while one runs fails its artifact comparison on `input_manifest.json`. Freeze the tree, or run from a separate worktree.
+- A simplified load script is not the same load: mine timed out at WSL setup with 20 busy processes that the real matrix survives. To check a fault, repeat the exact command that gave it.
+- Participants do not inherit the shell's env. For a temporary counter, print to stderr (the host logs it) and add temporary profiles.
+- When a fix removes a reproduction, grep the plan for rules that require it. I removed `stress`'s todo-65 mode and left section 4's "`stress` must reproduce todo 65" standing; the final review caught it, and only the owner could change the rule.
+- Do not write one cause for several seeds from a shared outcome. My commit message put seed 24 under the per-packet cause; it ran batch 4 with healthy observation and failed a swarm task drop. Read each seed's draw and its log before grouping it.
+- A check the design lists is a promise. "Combinations" stayed in the design with no test behind them, and they found the parked reader's behaviour (todo 200) once written. Before reporting, map each listed check to a test or run, and mark timings with no retained log as your own observation.
+- Do not label a failure "out of scope" beside "cause not checked". Run the one comparison that classes it (here, the seed with no cap).
+- Stop and look when a retry repeats its digest on a fault that is not a wall-time one. I retried stress seed 212 eleven times as a host fault; each run that got past registration gave the same digest and tick. `HostFault` there only meant an unflushed end. A wall fault at a spawn repeats a digest too, because replay is the same up to that tick (tick 1, and mid-run at ticks 4826 and 8990), so judge by the fault's kind.
+- When a tick counter says "cap used up", exclude freeze ticks: their cap is 0, they run nothing. My first starved-tick counts included them and were wrong.
+- A counterfactual is "the same run plus one change" only until its journal splits. Report where it leaves the base run. Changing B leaves it at tick 5 because the backend's reader takes the same path; only the cap change stays equal to tick 9842. Other seeds with the same draw are what rule out a re-roll, not more arms on one seed.
+- Prove a review finding with a small test, and run that test on the baseline too. Codex's timer starvation is real on the prototype; the same script shows it on the baseline for a reader below its budget, which changes what the finding means.
+- Check a scheduling change against every scheduling model before a full run. Form 3 fixed the inputs-first path and demoted the reader under `timers_first` (drain at tick 18 instead of 11). A small table of packets served per model and case shows that in seconds.
+- A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
+- A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
+- On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
 ## Todo 71: the confirm still's age (2026-11-01)
 
 - A card's vitest stub returns the key and drops the arguments, so it cannot test wording
@@ -1862,10 +1980,89 @@
 - An upload that fails in a live check is not a code result until load is ruled out. A canary
   that sleeps read "not starvation" while uploads still failed: a wake-up priority boost may explain
   that, and why the reader falls behind is not measured. Flipping one stack's priority on and off
-  toggled the failure in minutes (todo 172).
+  toggled the failure in minutes (todo 225).
 - A note's "measured" number outlives its measurement. The row height and credit line figures I
   carried from an earlier build were off by 4 px and 18 px, and "25 to 40 px" docked was a calculation
   from a mix of states. When a final run measures a number, replace the old one everywhere it appears.
 - A hit test is not a tap, and a note can read as if a state ran when none did. The final audit found
   taps, drags and whole states no build had run, behind "one drag brought them clear". Write the
   state-by-size matrix before the first live check, and keep what did not run beside the results.
+
+## Confirm card press guard (todo 166, 2026-11-02)
+
+- A 20 ms timer recorder and a rAF-based detector disagree on a busy page: the app's frames can be 150 ms apart, so a real
+  move looked like a count rise with no change. Time the detector's own frames before calling a rise a phantom.
+- In a live or harness press test, wait for the row to leave before timing the press: the 1 s expiry tick made a "deliberate"
+  press land inside the guard, which looked like a guard bug.
+- `fireEvent.click` has `detail` 0, which the guard reads as a keyboard click, so it passes; a test of a pointer press must send
+  `pointerdown` and a click with `detail: 1`. CDP input does this for real; `element.click()` does not.
+## Delivery demo audit and ready plan (2026-11-02)
+- Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
+  test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
+  file lacks those types, test with a file that has them.
+- `swarm_run.py` takes `--defaults` while `gcs_launch.py` takes `--sitl-defaults`; mixing
+  them fails the launch with unrecognized arguments.
+- Copying an agent's work folder as evidence took in 42 MB of private repo copies. List
+  it first and keep only results.
+- Quote an audit number in its verified form and keep its reference. Todo 170 carried
+  23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
+  line; Codex caught it, and a sweep of the `corrected` fields then found five more
+  overstatements. Read those fields before writing, not after.
+
+## Dev sim step 7: scheduled faults (2026-11-02)
+
+- Try every new gate on real runs before building on it. "Sent after the heal" matched repeated heartbeat
+  bytes first in, first out per receiver. It passed its hand-built journals and failed `hw` seeds 21 and 54
+  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. The
+  first fix, a queue per SITL, still failed on real journals, as a copy a SITL never passed on stayed queued.
+  Measure before choosing the rule: a SITL holds a copy at most 14 ticks and the same bytes come back at least
+  252 ticks later (38 runs), so what it emits is the newest copy. A real run's case became a test.
+- A new kind of event reaches sim code that only ever ran on the ground. The first NavPy restarted in flight
+  lost a whole detection lap (hw seeds 48, 50; seed 34 lost its approval). It looked like a product bug. The
+  sim gimbal's plant started in LOCK, and its switch to FOLLOW read the mount's body yaw as a world yaw, so
+  the camera looked off to the side. Walk the mechanism before logging a product todo.
+- Prove a gate on real evidence as well as doubles: load a passing run, remove one kind of evidence in memory
+  and expect that gate's exact error (`broken.py` this time, 18 breaks). Mutations prove the tests, this
+  proves the gate reads the real journal.
+- A mutation run on a private copy needs what the tests read through the tree: the terrain tiles, and a git
+  repository of its own (the input manifest runs `git diff HEAD`). Each missing piece showed up as a failed
+  baseline, not as a survivor. Count a kill only on pytest's exit 1 and print the test that failed.
+- A faults-off baseline is what separates a fault's effect from a known failure. A temporary profile, `hw`
+  without the four faults, draws the same other models on the same seed, as each model's draw is independent
+  of the profile. Without it every windy miss looked like the fault's. Remove the profile before committing.
+- On a starved host, runs fail with `exchange deadline ran out in the register wait`, a relay deadline or a
+  WSL timeout: NavPy's imports can pass the SITL's 30 s tick limit. Those are host faults. Check the load with
+  `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
+  limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
+- A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
+  because its first imports land in the measured window (todo 192). Rerunning it with a neighbour showed that.
+- `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.
+- Codex writes `.agents/skills/` and `.codex/agents/{janitor,live-tester}.toml` into its checkout. They fail
+  `test_gen_codex_agents` and change `input_manifest.json`. Run it on a detached worktree of the commit.
+- A measurement that needs a code change goes in a throwaway worktree, so a matrix running from this one keeps
+  its manifest. `dbgview` measured DEBUG on `hw` seed 19 that way while three gate sets ran.
+- A saturated host still gives host faults at boot with staggered starts. A driver that moves a host-faulted
+  cell aside and reruns only that cell kept the matrix valid. Say how many cells it reran.
+- A git copy's objects are read-only, so `shutil.rmtree` fails on Windows and a mutation copy dir cannot be
+  reused. Take a fresh name, delete them all with `Remove-Item -Recurse -Force` at the end.
+- A delivery is not recovery: it shows a packet reached the participant, not that anything took it. Product
+  evidence often exists only at DEBUG, and DEBUG lines go through DONE into the digest. So a level has to be
+  decided per run, in the role record (the participant environment is hermetic), and only where it is needed.
+- A proof that a run fails needs its own check that the fault was made. The kill script read a JSON array as one
+  record and killed nothing; the run ended clean, and only its exit 0 showed it. Print what was killed.
+- A new log line in a swarm file can trip a source-scanning guard far from the fault tests. Run `tests/guards` and
+  `tests/scripts` after each such round, not only the fault tests.
+
+## Hand demo check and input record (2026-11-02)
+- Read `cpu_share.py --list` and free memory before a real launch. Four launches ran as
+  background on a busy PC and failed in the parameter step, at two different points.
+  Starting the second and third without reading the first's cause cost about 7 minutes,
+  and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- To show a new launch step is not the cause, run the launch once from a scratch script that
+  replaces that one function, with no edit to the tree. Off, it failed with the same error.
+- A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
+  either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
+- To tell a slow launch from a broken one, list the `http_request_finished` durations of
+  `/params` and `/parameters` from the run's timeline and compare with a passing run.
+- A single string search can miss a message built from parts: "AAS write failed" is
+  `{label} write failed`. Search the fixed part.

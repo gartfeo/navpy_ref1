@@ -8,11 +8,13 @@ one participant's baton schedules, never what product code does:
   threads runnable at the same time varies by seed (wall threads are
   preempted by the OS and the GIL). The draws come from the model stream
   ``participant.<ordinal>.<generation>``, one per pick among two or more.
-- ``reader_budget``: each lockstep bus reader dispatches at most
-  ``packets_per_tick`` packets per tick and yields once per ``batch`` packets
-  instead of after each one (a batch at or above ``packets_per_tick`` yields
-  only at the tick's end); packets past the budget carry over, in order, to
-  the next tick (the wall reader's lag and batching, ``reader_batch.md``).
+- ``reader_budget``: each lockstep bus reader drains its delivery without a
+  yield per packet, up to ``packets_per_tick`` packets per tick (the wall
+  reader's batching, ``reader_batch.md``). Packets past the budget stay queued,
+  in order, until the reader's timer fires. Under a handoff cap it fires only
+  if a handoff is left after the input phase (with ``timers_first``, before
+  it), and the woken reader then competes for picks with no turn of its own
+  (todo 200).
 - ``timers_first``: each tick fires its due timers before its inputs, so a
   reply that lands on its waiter's deadline tick loses to the timeout (the
   wall race behind a just-late reply). Off, inputs come first. Under a handoff
@@ -49,7 +51,7 @@ def _count(params: Mapping[str, Number], name: str) -> int:
 
 def reader_budget(params: Mapping[str, Number]) -> ReaderBudget:
     """The drawn reader budget, checked."""
-    return ReaderBudget(_count(params, "packets_per_tick"), _count(params, "batch"))
+    return ReaderBudget(_count(params, "packets_per_tick"))
 
 
 def check_scheduling(models: Mapping[str, Mapping[str, Number]]) -> None:

@@ -73,7 +73,7 @@ const RC_CONFIRM_BOTTOM_PX = VEHICLE_SELECTOR_SPAN_PX + RC_CONFIRM_GAP_PX;
 const RC_CONFIRM_Z_INDEX = 9;
 // While the RC list shows, the first-person "View held" banner spans the room
 // between the flight-mode buttons and the list, so neither hides its text
-// where the pane leaves it room (todo 168).
+// where the pane leaves it room (todo 221).
 const RC_HELD_LEFT_PX = MODE_COLUMN_INSET_PX + MODE_BUTTON_WIDTH_PX + RC_CONFIRM_GAP_PX;
 const RC_HELD_RIGHT_PX = RC_CONFIRM_RIGHT_PX + sidebarWidth + RC_CONFIRM_GAP_PX;
 const RC_HELD_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_HELD_OFFSET_PX;

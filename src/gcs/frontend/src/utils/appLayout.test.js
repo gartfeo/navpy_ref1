@@ -77,7 +77,7 @@ describe('panel host style', () => {
 
   // Anchored at the bottom, a new round would lift the old card and put its own
   // Approve and Deny under the finger aimed at the old ones. A row still moves the
-  // rows after it, as in the docked list (Limits in the note, todo 171).
+  // rows after it, as in the docked list (Limits in the note, todo 224).
   it('collapsed, the list grows down from its top, so a row does not move the rows above it', () => {
     const style = panelHostStyle({ mode: 'collapsed', roundsExist: true, box });
     expect(style.top).toBe(56);

@@ -79,10 +79,8 @@ class ThreadTable:
 class ReaderBudget:
     """A lockstep bus reader's service budget (dev sim step 6, ``scheduling_models``)."""
 
-    #: Packets dispatched per tick at most; the rest carry over to the next tick.
+    #: Packets dispatched per tick at most; the rest wait, in order, for the reader's timer (todo 200).
     packets_per_tick: int
-    #: Packets dispatched between two yields.
-    batch: int
 
 
 @dataclass

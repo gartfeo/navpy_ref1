@@ -14,6 +14,7 @@ from navpy.core.ports.gimbal_abc import GimbalAbc, GimbalData
 from navpy.plugins.gimbal.siyi.siyi_convention import SIYI_GIMBAL_SEQ
 from navpy.sim.gimbal.siyi.gimbal_angles import (
     GimbalAngularPlant,
+    MODE_FOLLOW,
 )
 from navpy.sim.gimbal.siyi.gimbal_siyi_control import (
     SiyiSimControl,
@@ -48,9 +49,14 @@ def build_siyi_sim(
     logger: ILogger,
     scheduler_cadence: SchedulerCadence | None,
 ) -> SiyiSimPorts:
+    # The mount's yaw is relative to the body. Left in the plant's LOCK, start's switch to FOLLOW
+    # reads it as a world yaw and takes the aircraft's heading off it: a NavPy restarted in flight
+    # would keep looking off to the side.
+    angular = GimbalAngularPlant(data.att.pitch, data.att.yaw)
+    angular.set_motion_mode(MODE_FOLLOW)
     state = SiyiSimState(
         data=replace(data, roll_stabilize=True, pitch_stabilize=True, g_seq=SIYI_GIMBAL_SEQ),
-        angular=GimbalAngularPlant(data.att.pitch, data.att.yaw),
+        angular=angular,
         zoom=GimbalZoomPlant(),
         lock=rt.Lock(),
     )

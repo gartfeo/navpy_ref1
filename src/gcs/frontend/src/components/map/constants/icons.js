@@ -94,3 +94,51 @@ export function makeAssignmentIcon(size, color) {
   )}`;
 }
 
+// Dock states on the map (docs/design/gcs_dock_marker_states.md).
+export const AVAILABLE_TASK_COLOR = '#ff9800';
+export const AWAITING_DOCK_COLOR = '#ffc107';
+export const HANDLED_DOCK_COLOR = '#9aa7b4';
+
+const STATE_BADGES = {
+  check: { fill: '#2e7d32', mark: '<path d="M15.5 6l2 2 3-4" fill="none" stroke="#fff" stroke-width="1.6"/>' },
+  cross: { fill: '#c62828', mark: '<path d="M16 4l4 4m0-4l-4 4" stroke="#fff" stroke-width="1.6"/>' },
+  dash: { fill: '#607080', mark: '<path d="M15.5 6h5" stroke="#fff" stroke-width="1.6"/>' },
+};
+
+function badgedPadIcon(size, color, opacity, badgeName) {
+  const badge = STATE_BADGES[badgeName];
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+    // Opaque under the dimming, so nothing drawn below the marker shows through.
+    '<rect x="3" y="3" width="18" height="18" rx="3" fill="#16364a"/>' +
+    `<g opacity="${opacity}">` +
+    `<rect x="3" y="3" width="18" height="18" rx="3" fill="none" stroke="${color}" stroke-width="2"/>` +
+    `<path d="M9 7h3a5 5 0 0 1 0 10H9z" fill="none" stroke="${color}" stroke-width="2"/>` +
+    '</g>' +
+    `<circle cx="18" cy="6" r="5" fill="${badge.fill}" stroke="#000" stroke-width=".8"/>${badge.mark}` +
+    '</svg>'
+  )}`;
+}
+
+// Awaiting confirmation: amber ring with a question mark.
+export function makeAwaitingDockIcon(size) {
+  return `data:image/svg+xml,${encodeURIComponent(
+    `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 24 24">` +
+    '<circle cx="12" cy="12" r="9" fill="#16364a" stroke="#ffc107" stroke-width="2"/>' +
+    '<text x="12" y="16.5" font-size="13" font-weight="700" text-anchor="middle" fill="#ffc107" font-family="sans-serif">?</text>' +
+    '</svg>'
+  )}`;
+}
+
+// Approved: the UAV-coloured pad with a check.
+export function makeApprovedDockIcon(size, color) {
+  return badgedPadIcon(size, color, 1, 'check');
+}
+
+const HANDLED_BADGES = { docked: 'check', failed: 'cross', canceled: 'dash', unknown: 'dash' };
+
+// Handled: a dimmed grey pad with the outcome's badge.
+export function makeHandledDockIcon(size, outcome) {
+  return badgedPadIcon(size, HANDLED_DOCK_COLOR, 0.55, HANDLED_BADGES[outcome] ?? 'dash');
+}
+

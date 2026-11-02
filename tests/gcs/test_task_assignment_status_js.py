@@ -85,7 +85,12 @@ class TestTaskAssignmentStatusModel(unittest.TestCase):
         self.assertIn("ASSIGNMENT_STATUS.CONFIRMED", _function_body(self.state, "taskConfirmed"))
 
     def test_hook_exposes_the_confirm_status_handlers(self):
-        self.assertIn("handleConfirmingStatus: onTask('task_confirming')", self.source)
+        # The whole message: an own dock's entry needs its position.
+        # It closes a time gap first, so the gap flags only older rounds.
+        body = self.source[self.source.index("handleConfirmingStatus: (data) => {"):]
+        body = body[:body.index("},")]
+        self.assertLess(body.index("closeGap(data.sys_id, true);"),
+                        body.index("dispatch({ type: 'task_confirming', data });"))
         self.assertIn("handleConfirmedStatusByTask: onTask('task_confirmed')", self.source)
 
     def test_hook_routes_the_owner_applied(self):
@@ -129,10 +134,12 @@ class TestAssignmentMarkersUsesAssignedStatus(unittest.TestCase):
         with open(_ASSIGNMENT_MARKERS_FILE, encoding="utf-8") as f:
             self.source = f.read()
 
-    def test_checkmark_from_assigned_on_not_accepted(self):
-        """The checkmark shows once the owner applied it (assigned and later),
-        not on the helper's own accept and not while WAITING."""
-        self.assertIn("isAssignedOrLater(entry) ? ' \\u2713'", self.source)
+    def test_checkmark_only_once_approved(self):
+        """Assigned and approved now draw apart (gcs_dock_marker_states.md): the
+        check means the operator approved, not that the owner applied the task.
+        Behaviour: useAssignmentMarkers.test.jsx."""
+        self.assertIn("makeApprovedDockIcon(32, uavColor)", self.source)
+        self.assertNotIn("\\u2713", self.source)
         self.assertNotIn("=== 'accepted'", self.source)
 
     def test_markers_keyed_by_entry_key(self):

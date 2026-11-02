@@ -6,7 +6,7 @@
   input, never the host clock. Both are integer microseconds, so ``time`` and
   ``now`` are exact.
 - **Threads:** :class:`~navpy.sim.lockstep.baton_threads.LockstepThreads`.
-- **Entropy:** one generator per participant, ``Random(seed, ordinal)``
+- **Entropy:** one generator per participant generation, ``Random(seed, ordinal, generation)``
   (:func:`participant_seed`); ``uuid4`` and ``token_urlsafe`` draw from it.
 
 ``now(None)`` is a naive UTC ``datetime``: the host time zone is not a run
@@ -71,19 +71,22 @@ class LockstepClock:
         sleep(self._baton, seconds)
 
 
-def participant_seed(seed: int, ordinal: int) -> int:
-    """SHA-256 of ``"<domain>:<seed>:<ordinal>"`` as a 256-bit integer.
+def participant_seed(seed: int, ordinal: int, generation: int = 1) -> int:
+    """SHA-256 of ``"<domain>:<seed>:<ordinal>"`` as a 256-bit integer, with
+    ``":<generation>"`` added for a respawn.
 
     One run seed gives every participant its own independent stream, and the
-    same seed and ordinal always give the same stream.
+    same seed and ordinal always give the same stream. A respawned process draws
+    a new one, as a real restart does (its boot id differs).
     """
-    material = f"{ENTROPY_DOMAIN}:{int(seed)}:{int(ordinal)}".encode("ascii")
+    suffix = "" if generation == 1 else f":{int(generation)}"
+    material = f"{ENTROPY_DOMAIN}:{int(seed)}:{int(ordinal)}{suffix}".encode("ascii")
     return int.from_bytes(hashlib.sha256(material).digest(), "big")
 
 
 class LockstepEntropy:
-    def __init__(self, seed: int, ordinal: int) -> None:
-        self._random = random.Random(participant_seed(seed, ordinal))
+    def __init__(self, seed: int, ordinal: int, generation: int = 1) -> None:
+        self._random = random.Random(participant_seed(seed, ordinal, generation))
 
     def rng(self) -> random.Random:
         return self._random
@@ -103,11 +106,12 @@ class LockstepRuntime(rt.RuntimeTime):
     baton: BatonRuntime
 
     @classmethod
-    def create(cls, baton: BatonRuntime, *, epoch_us: int, seed: int, ordinal: int) -> "LockstepRuntime":
+    def create(cls, baton: BatonRuntime, *, epoch_us: int, seed: int, ordinal: int,
+               generation: int = 1) -> "LockstepRuntime":
         return cls(
             clock=LockstepClock(baton, epoch_us),
             threads=LockstepThreads(baton),
-            entropy=LockstepEntropy(seed, ordinal),
+            entropy=LockstepEntropy(seed, ordinal, generation),
             baton=baton,
         )
 

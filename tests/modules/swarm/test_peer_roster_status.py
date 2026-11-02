@@ -10,7 +10,9 @@ from navpy.core.link.types import MsgType
 from navpy.core.swarm.task_msg_refs import MsgRef
 from navpy.core.swarm.task_peer_roster import (
     MAX_REMOTE_PEERS,
+    PEER_HEARD_AGAIN_LOG,
     PEER_SILENCE_EXPIRY_S,
+    PEER_SILENT_LOG,
     PeerRoster,
     sent_after,
 )
@@ -142,6 +144,33 @@ def test_unheard_peer_falls_silent_and_its_next_beat_revives_it():
     roster.heard(2)
     assert roster.busy() == set()
     assert roster.status(2).last_heard_s == clock.now_s
+
+
+def test_a_peer_falling_silent_and_coming_back_is_noted_once_each():
+    clock = FakeClock()
+    notes: list[str] = []
+    roster = PeerRoster(threading.RLock(), clock, notes.append)
+    roster.add(2)
+    roster.add(3)
+
+    clock.now_s += PEER_SILENCE_EXPIRY_S + 0.1
+    roster.heard(3)  # present all along: no line
+    roster.expire_silent()
+    roster.expire_silent()
+    assert notes == ["Peer 2 silent"] == [PEER_SILENT_LOG.format(2)]
+
+    roster.heard(2)
+    roster.heard(2)
+    assert notes == ["Peer 2 silent", "Peer 2 heard again"] == [PEER_SILENT_LOG.format(2), PEER_HEARD_AGAIN_LOG.format(2)]
+
+
+def test_a_check_out_is_not_noted_as_silence():
+    notes: list[str] = []
+    roster = PeerRoster(threading.RLock(), FakeClock(), notes.append)
+    roster.add(2)
+    roster.silence(2)
+    roster.expire_silent()
+    assert notes == []
 
 
 def test_check_out_silences_at_once():

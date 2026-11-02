@@ -33,7 +33,9 @@ HEADER = struct.Struct("<8sHB")
 REGISTER, DONE, TICK = 1, 2, 3
 #: Lifecycle record kinds (``lifecycle[]``): a spawn's result, a stop for its
 #: target, a stop's result for its requester, readiness, and retirement.
-LIFECYCLE_KINDS = ("spawn", "stop", "stop_result", "ready", "exited")
+#: A scheduled fault's freeze of a participant; its loop reads it (``participant_loop``).
+FREEZE = "freeze"
+LIFECYCLE_KINDS = ("spawn", "stop", "stop_result", "ready", "exited", FREEZE)
 
 Ports = tuple[tuple[str, bytes], ...]
 

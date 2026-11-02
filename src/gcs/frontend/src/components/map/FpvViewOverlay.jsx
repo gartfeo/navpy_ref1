@@ -23,7 +23,7 @@ export const FPV_HELD_ROOM_PX = 3 * TAG_LINE_PX + 2 * TAG_PAD_PX + 2;
  * `heldLeft` and `heldRight` are the banner's insets. While the RC confirm
  * list lies at the right, App narrows the banner to the room between the
  * flight-mode buttons and the list, so neither hides the banner's text where the
- * pane leaves it room (todo 168). A raised list lies under the banner's row:
+ * pane leaves it room (todo 221). A raised list lies under the banner's row:
  * `heldLeft` then clears the buttons with or without a list, and `heldRight` is the margin.
  * `tagLeft` does the same for the tag on a pane too narrow to centre it clear
  * of the buttons: the tag ellipsizes at its end, and "SYNTHETIC" stays readable.

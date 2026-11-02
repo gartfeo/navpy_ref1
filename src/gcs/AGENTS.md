@@ -76,8 +76,9 @@ Frontend:
   `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`
   for the 1-UAV slice, or without `--scenario` for the certified 3-UAV fleet; the
   run and the matrix take `--sim-profile <name>`, lockstep only, default `hw`, from
-  `src/navpy/sim/lockstep/sim_profiles.json` (wind and seeded SITL noise, `sitl_models.py`;
-  `none` turns both off); the
+  `src/navpy/sim/lockstep/sim_profiles.json` (wind and seeded SITL noise, `sitl_models.py`,
+  and in `hw` scheduled faults, `fault_schedule.py`; `none` turns all off; exit 1 is a failed
+  gate or a product failure, exit 2 a failed setup or a host fault, to rerun); the
   repeatable gate is `python scripts\eval_gcs_demo_lockstep_matrix.py --run-dir <dir>`:
   five seed-1 certified runs one at a time (two plain, host delay seeds 7 and 13, CPU
   load), passing only with every report passed, one journal digest and byte-equal

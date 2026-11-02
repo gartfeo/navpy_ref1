@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write; ``radio_fault``: a scheduled fault cut it; or ``receiver_retired``: a scheduled restart ended its receiver, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -38,7 +38,7 @@ from navpy.core.link.swarm_ack_msg import ACK_STATUS_APPLIED, ACK_STATUS_RECEIVE
 from navpy.core.link.types import MsgType
 from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
 from navpy.sim.lockstep.coordinator_types import serial0_device
-from navpy.sim.lockstep.navlink_trace import RADIO_BROKEN, NavlinkTrace, trace_navlink
+from navpy.sim.lockstep.navlink_trace import RADIO_BROKEN, RADIO_FAULT, RECEIVER_RETIRED, NavlinkTrace, trace_navlink
 from navpy.sim.lockstep.packet_journal import PacketJournal
 from navpy.sim.lockstep.radio_link import radio_events
 from scripts.eval_gcs_demo_slice_gates import GCS_SYSTEM
@@ -49,6 +49,8 @@ RESPONSE = mavlink.MAVLINK_MSG_ID_TASK_ASSIGN_RESPONSE
 ACK = mavlink.MAVLINK_MSG_ID_SWARM_ACK
 #: A free peer's availability advert and the owner's offer.
 ADVERT_IDS = (mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_REQUEST, mavlink.MAVLINK_MSG_ID_AVAILABLE_TASK_RESPONSE)
+#: Where an advert may stop: the radio broke it, a scheduled fault cut it, or its receiver is gone.
+_ADVERT_EXCUSES = (RADIO_BROKEN, RADIO_FAULT, RECEIVER_RETIRED)
 
 
 def packet_events(records: Iterable[Mapping[str, Any]]) -> Iterator[tuple[int, list[Any]]]:
@@ -198,7 +200,7 @@ def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
     for trace in trace_navlink(records, sys_ids):
         if trace.msgid not in ADVERT_IDS or (stop is not None and trace.hops[0][1] >= stop):
             continue
-        if not trace.ambiguous and trace.hops[-1][0] == RADIO_BROKEN:
+        if not trace.ambiguous and trace.hops[-1][0] in _ADVERT_EXCUSES:
             continue
         if not trace.complete or trace.ambiguous:
             errors.append(f"forwarding: advert {trace.msgid} {list(trace.uid)} from {trace.sender} "
@@ -231,8 +233,9 @@ def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
 
 def forwarding_errors(records: Sequence[Mapping[str, Any]], owner: int, peers: Sequence[int],
                       sys_ids: Sequence[int]) -> list[str]:
-    """The radio's own journal (``radio_link``) says what its byte loss broke: an advert may
-    stop only at ``radio_broken``, and only a ``false`` emission may come from any source."""
+    """The radio's own journal (``radio_link``) says what its byte loss broke: an advert may stop
+    only where the journal says the radio or a fault ended it, and only a ``false`` emission may
+    come from any source."""
     return (_assignment_errors(records, owner, peers, sys_ids) + _advert_errors(records, sys_ids)
             + _source_errors(records, sys_ids))
 

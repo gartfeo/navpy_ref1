@@ -11,7 +11,8 @@ no sim time, so a starved process is one that gets fewer handoffs:
   first tick at or after it, so tick rounding does not add up. Its inputs
   still queue and sim time goes on. On resume, work already runnable runs
   first, then the work the queued inputs woke, in tick order, then the timers
-  that came due, in ``(due, park seq)`` order with their deadlines unchanged.
+  that came due, in ``(due, park seq)`` order with their deadlines unchanged
+  (``thread_order`` and ``timers_first`` change this order).
 - ``cpu_budget`` (a host under load): at most ``handoffs`` handoffs per tick;
   the rest stay runnable, and due timers stay due, for the next tick.
 
