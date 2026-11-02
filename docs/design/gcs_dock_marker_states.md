@@ -115,7 +115,8 @@ map, is a delayed copy and changes nothing, so it cannot take a slot back. A den
 leaves no entry (Known limits).
 
 A WebSocket drop means rounds and their answers may have been missed. When the
-store's connection goes down, `useTaskAssignment` dispatches `link_gap`: every open
+store's connection goes down, or one UAV's beat goes stale (for that UAV only),
+`useTaskAssignment` dispatches `link_gap`: every open
 round, approved or still pending, gets `noWord`, and an `awaitingOutcome` entry stops
 waiting. An approved entry still moves to handled by the rules above, but reads
 outcome unknown. A flagged pending own entry goes at the first later beat whose phase
@@ -322,6 +323,12 @@ marker until a position exists; that follow-up goes in the todo list.
   label in TO_TASK and CONFIRM, where main kept the old confirmed slot and showed none.
   So a UAV card can change there; the new label is the right one, because the helper is
   on that task. It needs a RESET on both sides, in cyclic mode.
+- A real outcome heard after a stale beat span reads outcome unknown, even with the socket up.
+- A handled dock's marker and word stay hidden while another owner's advert sits at the same
+  position: the dock reads detected until that owner assigns it or disarms, or a new mission
+  starts. The offer is still open and the UAV card keeps the outcome. Sim only (real-build
+  positions from two UAVs would not match exactly); found by the pre-merge review, no recording
+  shows it.
 - A wrong word is still possible when a later approach's round is not heard (auto-approve
   turned on in mid-mission, or a timeout approval with its messages lost), and every beat
   between the approved approach and that later one's end is lost in gaps each shorter than
