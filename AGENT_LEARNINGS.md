@@ -1998,3 +1998,13 @@
   `/params` and `/parameters` from the run's timeline and compare with a passing run.
 - A single string search can miss a message built from parts: "AAS write failed" is
   `{label} write failed`. Search the fixed part.
+
+## MAVLink record in the hand demo (2026-11-02)
+- On Windows `os.replace` onto a file another process has open fails. A status file replaced
+  once a second lost its last write, the one with the stop reason, while a test polled it.
+  Retry a replace briefly, and test the final write with a reader polling.
+- `test_new_production_definitions_are_fully_annotated` wants every new parameter annotated,
+  `**options` and file objects too. Run `tests/guards/test_solid_architecture.py` first: with
+  `-x` at the end of a 10-minute suite it was the only failure.
+- `swarm_run.py` and `delivery_demo.py` sit near the 300-line guard. A hook that lives in its
+  own module (`mavlink_recorder.start_for_chat`) costs the launcher two lines.

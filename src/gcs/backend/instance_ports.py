@@ -12,6 +12,8 @@ Port layout (vehicle ``i = 1..VEHICLES_PER_CHAT``, global vehicle index
     Backend  (uvicorn)         8000 + N
     Mission Planner (2nd GCS)  14550 + N       (chat 0 = 14550 -> MP auto-connects)
     Our GCS monitor            15550 + N       (all UAVs, multiplexed via router)
+    Launch verify / record     16550 + N       (router mirror: swarm_run verifies, then a
+                                                hand demo records it, mavlink_recorder.py)
     NavPy companion (sys_id g) udp 5760 + 10*(g-1)  (companion binds; SITL streams in)
     Eval telemetry (sys_id g)  udp 24000 + (g-1)   (scorer binds; SITL serial1 in)
     Sim video MediaMTX         RTSP tcp 20550 + N, WebRTC (WHEP) http 21550 + N,
@@ -41,10 +43,12 @@ BACKEND_BASE = 8000
 MISSION_PLANNER_BASE = 14550
 # Our GCS monitor (also the per-run default connection injected into settings).
 GCS_MONITOR_BASE = 15550
-# A dedicated UDP port the SITL router also mirrors telemetry to, used ONLY by
-# swarm_run.py at launch time to verify every instance is actually streaming
-# heartbeats (not just that a serial0 socket opened). Its own band so it never
-# contends with the backend's monitor port or Mission Planner.
+# A dedicated UDP port the SITL router also mirrors telemetry to. swarm_run.py
+# listens there at launch to verify every instance is actually streaming
+# heartbeats (not just that a serial0 socket opened); after verification, and
+# only when NAVPY_MAVLINK_TLOG is set (delivery_demo.py), its recorder binds it
+# exclusively and writes a tlog. Its own band so it never contends with the
+# backend's monitor port or Mission Planner.
 GCS_VERIFY_BASE = 16550
 # The in-backend ESP32 launch simulator (TCP, loopback only). Slot-derived so
 # concurrent stacks never contend for it and a run's port does not depend on

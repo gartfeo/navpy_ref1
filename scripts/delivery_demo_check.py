@@ -32,6 +32,7 @@ from scripts.delivery_demo_check_uav import (  # noqa: E402
     uav_ids,
     uav_lines,
 )
+from scripts.delivery_demo_mavlink import record_lines  # noqa: E402
 from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST  # noqa: E402
 
 BACKEND_LOG = Path("gcs") / "backend.log"
@@ -176,6 +177,7 @@ RUN_SECTIONS: tuple[tuple[str, Callable[[Path], list[str]]], ...] = (
     ("Commit and inputs", input_lines),
     ("Backend", backend_lines),
     ("Timeline", timeline_lines),
+    ("MAVLink record", record_lines),
     ("UAVs", uav_lines),
 )
 

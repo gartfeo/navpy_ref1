@@ -40,6 +40,9 @@ class RuntimeServices:
     retract: Callable[[int], None]
     retire_relays: Callable[..., None]
     launch_command: Callable[..., str]
+    #: Starts the optional MAVLink record (``mavlink_recorder``) for a chat;
+    #: returns something with ``stop()``, or ``None`` when nothing records.
+    start_recorder: Callable[[int], Any] = lambda chat: None
 
 
 @dataclass
@@ -102,9 +105,35 @@ def run_supervisor(
                 runtime=runtime,
                 max_attempts=max_attempts,
             )
-    code = outcome.process.wait()
-    runtime.retire_relays(chat, outcome.relays, reaped=True)
+    recorder = _start_recorder(chat, runtime)
+    try:
+        code = outcome.process.wait()
+        runtime.retire_relays(chat, outcome.relays, reaped=True)
+    finally:
+        _stop_recorder(chat, recorder, runtime)
     sys.exit(code)
+
+
+def _start_recorder(chat: int, runtime: RuntimeServices) -> Any:
+    """The record must never change the launch: a failure is only reported."""
+    try:
+        recorder = runtime.start_recorder(chat)
+    except Exception as exc:  # noqa: BLE001
+        runtime.emit(f"SITL chat {chat}: MAVLink record not started ({exc})", err=True)
+        return None
+    if recorder is not None:
+        runtime.emit(f"SITL chat {chat}: MAVLink record to {recorder.tlog}")
+    return recorder
+
+
+def _stop_recorder(chat: int, recorder: Any, runtime: RuntimeServices) -> None:
+    if recorder is None:
+        return
+    try:
+        if not recorder.stop():
+            runtime.emit(f"SITL chat {chat}: MAVLink record did not stop in time", err=True)
+    except Exception as exc:  # noqa: BLE001
+        runtime.emit(f"SITL chat {chat}: MAVLink record stop failed ({exc})", err=True)
 
 
 def _launch_with_retries(

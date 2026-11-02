@@ -44,7 +44,11 @@ def force_speedup(
     """Attempt SIM_SPEEDUP writes and report possible sends and observed echoes."""
     port = ip.verify_port(chat)
     try:
-        connection = mavutil.mavlink_connection(f"udpin:0.0.0.0:{port}")
+        connection = mavutil.mavlink_connection(
+            f"udpin:0.0.0.0:{port}",
+            source_system=model.LAUNCHER_SOURCE_SYSTEM,
+            source_component=model.LAUNCHER_SOURCE_COMPONENT,
+        )
     except OSError as exc:
         return SpeedCorrectionResult(False, False, f"could not bind verify port {port} ({exc})")
     confirmed: dict[int, float] = {}
