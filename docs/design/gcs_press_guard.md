@@ -1,6 +1,6 @@
 # GCS: a press guard on Approve and Deny (todo 166)
 
-Status: built. Codex rounds 1 and 2 said "rework"; every point answered (`.logs/press-guard`). `EXPIRY_OPEN_MS` waits for the owner.
+Status: built. Codex rounds 1 and 2 said "rework"; every point answered (`.logs/press-guard`). The owner kept `EXPIRY_OPEN_MS` at 2 s (2026-11-02).
 
 ## Problem
 
@@ -78,8 +78,8 @@ refuses only a press that did not begin on this button.
 
 A press refused with more time left is not lost silently: the pressed button's label reads
 "Press again" for `REFUSED_LABEL_MS = 1500`, in the same space. Without another press the timer
-still acts at zero, so a cooldown cannot be absolute on this point; `EXPIRY_OPEN_MS` is the owner's
-to accept (Codex's round 2 point 1).
+still acts at zero, so a cooldown cannot be absolute on this point; the owner accepted `EXPIRY_OPEN_MS`
+(2026-11-02) (Codex's round 2 point 1).
 
 **What is not refused.**
 
