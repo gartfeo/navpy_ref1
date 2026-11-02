@@ -49,7 +49,7 @@ _DOCK_MISS = (
     re.compile(r"workflow ticks: no reset marker"),
 )
 #: A saturated roll command, part of todo 77's mode only on a UAV that also missed (it fails without
-#: wind too, todo 220).
+#: wind too, todo 229).
 _ROLL_STEP = re.compile(r"max roll-command step [\d.]+deg > [\d.]+deg")
 _VEHICLE = re.compile(r"vehicle (\d+)")
 

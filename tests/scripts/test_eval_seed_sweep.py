@@ -186,7 +186,7 @@ def test_a_missed_dock_is_todo_77_only_with_wind_on_and_only_if_every_error_is_e
 
 
 def test_a_windy_roll_step_is_todo_77_only_on_a_uav_that_missed(tmp_path):
-    """A roll step fails without wind too (todo 220), so wind alone does not explain it."""
+    """A roll step fails without wind too (todo 229), so wind alone does not explain it."""
     windy = _run(tmp_path, report=_report(), wind=True)
     miss, step = "vehicle 2: workflow ticks: no reset marker", "vehicle {}: max roll-command step 54.90deg > 50.00deg"
     assert known_todos(windy, [], [miss, step.format(2)]) == ["77"]

@@ -1955,7 +1955,7 @@
   source files, so a full pytest or a review running there at the same time may see a mutant; both had to be
   rerun.
 - A planted-bug result needs a clean-tree control on the same seeds. `hw` 576840 failed on the clean tree too,
-  in another way (todo 220), which only the control showed.
+  in another way (todo 229), which only the control showed.
 - A known-todo explainer must match the todo's mechanism, not its symptom words. "Wind on and a roll step"
   hid a roll step on a UAV that docked (`stress` 30); todo 77 is a dock miss, so the roll step is explained
   only on a UAV that also missed. Re-class saved runs after narrowing a rule to see what it uncovers.
