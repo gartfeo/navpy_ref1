@@ -17,11 +17,14 @@ from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegist
 from navpy.core.ports.subscription import Subscription
 
 # Longest a status text waits for the bus send lock before it is dropped and
-# logged. Every holder of that lock encodes and writes one frame to a
-# non-blocking socket (bench waits: max 14-21 ms), so a text normally waits
-# for one send. The bound keeps an unexpected long holder from stalling the
+# logged. Every holder of that lock encodes and writes one or two frames
+# (GuidedNavigation sends SET_MODE and the target in one transaction); on the
+# UDP links used so far the socket is non-blocking (bench waits: max 14-21 ms).
+# A serial write can block longer, and this bounds only the wait for the lock,
+# not a holder's own write. The bound keeps a long holder from stalling the
 # logger worker that sends texts, and through its status lock a navigation
-# thread's defer or flush call (nav_entry, nav_exit_cleanup).
+# thread's defer call (nav_entry, nav_exit_cleanup); a deferred flush stops at
+# the first text not sent (status_logger_network).
 STATUS_TEXT_SEND_WAIT_S = 0.1
 
 class VehicleMessaging:
@@ -74,7 +77,7 @@ class VehicleMessaging:
     ) -> None:
         self._transport.send(message, source_component=source_component)
 
-    def send_status_text(self, message: str) -> None:
+    def send_status_text(self, message: str) -> bool:
         payload = message.encode("utf-8")[:50]
 
         def _send(connection: mavutil.mavfile) -> bool:
@@ -95,3 +98,5 @@ class VehicleMessaging:
                 f"{STATUS_TEXT_SEND_WAIT_S:.3f} s: {message!r}",
                 key="vehicle",
             )
+            return False
+        return True

@@ -52,13 +52,19 @@ class GroundStationLoggerNetwork(IStatusLogger):
             self._flush_pending_log()
 
     def _flush_pending_log(self) -> None:
+        """Send the deferred texts in order; stop at the first one not sent.
+
+        The flush runs on the caller's thread (NAV exit), so a busy bus costs it
+        one send wait, not one per text. The text not sent is dropped (and
+        logged by the vehicle); the rest stays pending for the next flush or
+        close.
+        """
         logs = self._pending_status_texts
         self._pending_status_texts = []
-        if len(logs) == 0:
-            return
-
-        for l in logs:
-            self.vehicle.send_status_text(l)
+        for index, l in enumerate(logs):
+            if self.vehicle.send_status_text(l) is False:
+                self._pending_status_texts = logs[index + 1:]
+                return
             rt.sleep(0.01)
 
     def close(self):
