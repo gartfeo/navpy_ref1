@@ -21,7 +21,9 @@ Event streams, keyed by ``(sys_id, stream)``, and their CSV headers:
 Rows buffer in memory (append-only lists; list.append is atomic in CPython). A
 daemon thread flushes every ``_FLUSH_INTERVAL_S``, APPENDING only the rows added
 since the last flush (O(new) per flush, so a long run never pays a growing
-whole-file rewrite that could perturb the cadence it measures). A daemon flush --
+whole-file rewrite that could perturb the cadence it measures), then deletes
+the written rows from memory, so a long run does not keep every row alive for
+the garbage collector to walk (todo 171). A daemon flush --
 not ``atexit`` -- is used because NavPy subprocesses are hard-terminated on
 Windows (``TerminateProcess``), so ``atexit`` cannot be relied on; the flush
 interval bounds how much tail a hard kill can lose.
@@ -78,7 +80,8 @@ _FLUSH_INTERVAL_S = 0.25
 # so per-key appends never contend. The lock guards only buffer creation.
 _buffers: Dict[Tuple[int, str], List[tuple]] = {}
 _buffers_lock = rt.Lock()
-# Rows already written to disk per key, so each flush appends only new rows.
+# Rows written to disk per key so far. A key's presence means its file was
+# started; the written rows themselves are deleted from the buffer.
 _written: Dict[Tuple[int, str], int] = {}
 # Serializes dump_all so the periodic flusher and the atexit hook can't interleave
 # their appends / _written updates for the same file.
@@ -95,6 +98,11 @@ def _buffer_for(sys_id: int, stream: str) -> List[tuple]:
                 buf = []
                 _buffers[key] = buf
     return buf
+
+
+def gc_rows(sys_id: int) -> List[tuple]:
+    """The ``gc`` stream's buffer, made now so a GC callback only appends to it."""
+    return _buffer_for(int(sys_id), "gc")
 
 
 def _cell(value: object) -> object:
@@ -215,9 +223,9 @@ def record_frame_lineage(
 def dump_all(*, strict: bool = False) -> None:
     """Append newly-buffered rows to ``<dir>/pose_cadence_<stream>_uav_<sys>_pid_<pid>.csv``.
 
-    Incremental: ``_written`` tracks how many rows of each buffer are already on
-    disk, so a flush writes only the tail (O(new)) instead of rewriting the whole
-    history. The first flush of a key truncates + writes the header; later flushes
+    Incremental: each flush writes the rows buffered so far and then deletes
+    them from the buffer, so a flush is O(new) and written rows leave memory.
+    The first flush of a key truncates + writes the header; later flushes
     append. Serialized by ``_dump_lock`` so the daemon flusher and atexit can't
     race the same file. PID-keyed filenames by default: an eval that restarts
     NavPy with the same sys_ids keeps each generation apart; ``producer``
@@ -234,34 +242,33 @@ def dump_all(*, strict: bool = False) -> None:
         owner = file_owner(_NAMING, _producer)
         for key in keys:
             rows = _buffers[key]
-            start = _written.get(key, 0)
-            # Snapshot ONLY the unwritten tail. Copying whole buffers every
-            # flush is O(total history) and its growing cost would perturb the
-            # cadence being measured. Recorders only ever append, so reading
-            # len() and slicing up to it without their lock is safe: rows
-            # appended after the len() read are simply left for the next
-            # flush.
+            # Recorders only ever append, without a lock: rows appended after
+            # this len() read stay at the end for the next flush.
             end = len(rows)
-            if start >= end:
+            if end == 0:
                 continue
-            tail = rows[start:end]
+            tail = rows[:end]
             sys_id, stream = key
             path = os.path.join(
                 _OUTPUT_DIR, f"pose_cadence_{stream}_uav_{sys_id}_{owner}.csv"
             )
             try:
-                fresh = starts_fresh(_NAMING, path, start == 0)
+                fresh = starts_fresh(_NAMING, path, key not in _written)
                 write_rows(
                     path,
                     _HEADERS.get(stream, "") if fresh else None,
                     (",".join(str(c) for c in row) + "\n" for row in tail),
                 )
-                _written[key] = end
             except OSError:
                 # The periodic flush retries later; the final (strict) one
                 # must not report a complete flush that lost rows.
                 if strict:
                     raise
+                continue
+            # Delete the written prefix in place. Clearing or rebinding the
+            # list would lose rows a recorder appended after the len() read.
+            del rows[:end]
+            _written[key] = _written.get(key, 0) + end
 
 
 # One periodic-flush daemon for this module generation, wired to this module's

@@ -107,13 +107,13 @@ def test_navpy_main_raises_only_from_normal_at_high_qos(start_class, expected) -
     if sys.platform != "win32":
         pytest.skip("Windows scheduling policy")
     script = (
-        "import ctypes, navpy.main as m\n"
+        "import argparse, ctypes, navpy.main as m\n"
         "from navpy.core.kernel.windows_process_qos import PowerThrottlingState\n"
         "class Stop(Exception): pass\n"
         "def stop(_args): raise Stop\n"
         "m.compose_runtime = stop\n"
         "try:\n"
-        "    m.main(None)\n"
+        "    m.main(argparse.Namespace(source_system=1))\n"
         "except Stop:\n"
         "    pass\n"
         "k = ctypes.WinDLL('kernel32'); k.GetCurrentProcess.restype = ctypes.c_void_p\n"
