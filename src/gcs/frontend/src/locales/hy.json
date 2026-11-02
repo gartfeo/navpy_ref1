@@ -425,6 +425,17 @@
       "docked": "կցվեց (սիմ.)",
       "missed": "վրիպեց (սիմ.)",
       "aborted": "ընդհատվեց (սիմ.)"
+    },
+    "dockState": {
+      "detected": "հայտնաբերված",
+      "offered": "առաջարկված է ԱԹՍ {{uav}}-ին",
+      "confirm": "հաստատե՞լ",
+      "assigned": "նշանակված",
+      "approved": "հաստատված",
+      "docked": "կցված (սիմ. հպում)",
+      "dockFailed": "կցումը ձախողվեց (սիմ.)",
+      "canceled": "չեղարկված",
+      "outcomeUnknown": "արդյունքն անհայտ է"
     }
   },
   "mapStopped": {

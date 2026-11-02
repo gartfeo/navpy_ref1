@@ -24,7 +24,11 @@ async function loadModule() {
   const {
     makeAvailableTaskIcon,
     makeAssignmentIcon,
+    makeAwaitingDockIcon,
+    makeApprovedDockIcon,
+    makeHandledDockIcon,
   } = await loadModule();
+  const svgOf = (uri) => decodeURIComponent(uri.split(',')[1]);
 
   (function testAvailableTaskIconIsDashedOrangeCircle() {
     const uri = makeAvailableTaskIcon(32);
@@ -49,6 +53,53 @@ async function loadModule() {
     assert.strictEqual((svg.match(/<rect/g) || []).length, 1);
     assert.strictEqual((svg.match(/<path/g) || []).length, 1);
     assert.ok(svg.includes('M9 7h3a5 5 0 0 1 0 10H9z'));
+  })();
+
+  (function testEachDockStateHasItsOwnIcon() {
+    const icons = [
+      makeAvailableTaskIcon(32),
+      makeAwaitingDockIcon(32),
+      makeAssignmentIcon(32, '#00ff88'),
+      makeApprovedDockIcon(32, '#00ff88'),
+      makeHandledDockIcon(32, 'docked'),
+      makeHandledDockIcon(32, 'failed'),
+      makeHandledDockIcon(32, 'canceled'),
+    ];
+    assert.strictEqual(new Set(icons).size, icons.length);
+    assert.strictEqual(makeHandledDockIcon(32, 'unknown'), makeHandledDockIcon(32, 'canceled'));
+    const handled = decodeURIComponent(makeHandledDockIcon(32, 'docked').split(',')[1]);
+    assert.ok(handled.includes('opacity="0.55"'), 'handled is dimmed');
+  })();
+
+  (function testEachOutcomeDrawsItsOwnBadge() {
+    const CHECK = 'M15.5 6l2 2 3-4';
+    const CROSS = 'M16 4l4 4m0-4l-4 4';
+    const DASH = 'M15.5 6h5';
+    assert.ok(svgOf(makeHandledDockIcon(32, 'docked')).includes(CHECK));
+    assert.ok(svgOf(makeApprovedDockIcon(32, '#00ff88')).includes(CHECK));
+    assert.ok(svgOf(makeHandledDockIcon(32, 'failed')).includes(CROSS));
+    assert.ok(svgOf(makeHandledDockIcon(32, 'canceled')).includes(DASH));
+    assert.ok(svgOf(makeHandledDockIcon(32, 'unknown')).includes(DASH));
+    assert.ok(svgOf(makeHandledDockIcon(32, undefined)).includes(DASH), 'no word it knows claims nothing');
+  })();
+
+  (function testApprovedIsTheUavColourUndimmedAndHandledIsGrey() {
+    const approved = svgOf(makeApprovedDockIcon(32, '#00ff88'));
+    assert.ok(approved.includes('stroke="#00ff88"'));
+    assert.ok(approved.includes('<g opacity="1"'));
+    assert.ok(svgOf(makeHandledDockIcon(32, 'docked')).includes('stroke="#9aa7b4"'));
+  })();
+
+  (function testAwaitingIsAmberWithAQuestionMark() {
+    const svg = svgOf(makeAwaitingDockIcon(32));
+    assert.ok(svg.includes('stroke="#ffc107"'));
+    assert.ok(svg.includes('>?</text>'));
+  })();
+
+  (function testHandledPadIsOpaqueUnderItsDimming() {
+    const svg = decodeURIComponent(makeHandledDockIcon(32, 'docked').split(',')[1]);
+    const pad = svg.indexOf('fill="#16364a"');
+    assert.ok(pad >= 0 && pad < svg.indexOf('<g opacity="0.55"'), 'nothing below the marker shows through');
   })();
 
   console.log('PASS');

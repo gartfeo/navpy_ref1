@@ -6,11 +6,14 @@ backend confirmation store anymore (a per-UAV abort is the destructive E-STOP).
 from __future__ import annotations
 
 import asyncio
+from contextlib import contextmanager
 from unittest.mock import MagicMock, AsyncMock, patch
 
 import pytest
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.testclient import TestClient
+
+from gcs.backend.settings_model import GcsSettings, LaunchSettings
 
 
 @pytest.fixture
@@ -46,6 +49,7 @@ class TestEstopBroadcastsReset:
         reset = next(c.args[0] for c in mock_ws.broadcast.call_args_list
                      if c.args[0].get("type") == "task_confirm_reset")
         assert reset["sys_ids"] == [1]
+        assert "reason" not in reset, "E-STOP keeps the map's handled docks"
 
 
 class TestRestartBroadcastsReset:
@@ -54,6 +58,88 @@ class TestRestartBroadcastsReset:
         resp = tc.post("/api/control/restart", json={"sys_ids": [1], "force": True})
         assert resp.status_code == 200
         assert "task_confirm_reset" in _broadcast_types(mock_ws)
+        reset = next(c.args[0] for c in mock_ws.broadcast.call_args_list
+                     if c.args[0].get("type") == "task_confirm_reset")
+        assert reset["reason"] == "new_mission"
+
+    def test_one_uav_restarted_starts_a_new_mission(self, control_client):
+        tc, mock_ws = control_client
+        from gcs.backend.routes import control
+        entry = control.vehicle_mgr.get_vehicle.return_value
+        control.vehicle_mgr.get_vehicle.side_effect = lambda sys_id: entry if sys_id == 1 else None
+        resp = tc.post("/api/control/restart", json={"sys_ids": [1, 2], "force": True})
+        assert resp.json()["results"] == {"1": "restarted", "2": "not_connected"}
+        mock_ws.broadcast.assert_awaited_once_with(
+            {"type": "task_confirm_reset", "sys_ids": [1, 2], "reason": "new_mission"})
+
+    def test_a_restart_that_moved_no_uav_keeps_every_clients_map(self, control_client):
+        tc, mock_ws = control_client
+        from gcs.backend.routes import control
+        control.vehicle_mgr.get_vehicle.return_value = None
+        resp = tc.post("/api/control/restart", json={"sys_ids": [1, 2], "force": True})
+        assert resp.json()["results"] == {"1": "not_connected", "2": "not_connected"}
+        mock_ws.broadcast.assert_awaited_once_with({"type": "task_confirm_reset", "sys_ids": [1, 2]})
+
+    def test_a_restart_that_failed_on_every_uav_keeps_every_clients_map(self, control_client):
+        tc, mock_ws = control_client
+        from gcs.backend.routes import control
+        control.vehicle_mgr.get_vehicle.return_value.vehicle.restart_mission.side_effect = RuntimeError("no link")
+        resp = tc.post("/api/control/restart", json={"sys_ids": [1], "force": True})
+        assert resp.json()["results"] == {"1": "error: no link"}
+        mock_ws.broadcast.assert_awaited_once_with({"type": "task_confirm_reset", "sys_ids": [1]})
+
+
+@contextmanager
+def _launch_client(launch_type, container_launch=None):
+    """A /launch route on a fleet of UAVs 1 and 2, with every gate open."""
+    entries = {sid: MagicMock(mission_uploaded=True, probed_search_pattern=None) for sid in (1, 2)}
+    mgr = MagicMock(vehicles=entries, get_vehicle=MagicMock(side_effect=entries.get))
+    store = MagicMock()
+    store.get.return_value = GcsSettings(launch=LaunchSettings(launch_type=launch_type))
+    ws = MagicMock(broadcast=AsyncMock())
+    from gcs.backend.routes import control
+    with patch.object(control, "vehicle_mgr", mgr), \
+         patch.object(control, "settings_store", store), \
+         patch.object(control, "ws_manager", ws), \
+         patch.object(control, "_maybe_auto_preflight_cal", AsyncMock(return_value=[])), \
+         patch.object(control, "_bungee_launch", AsyncMock(return_value={"status": "launch_complete"})), \
+         patch.object(control, "_container_launch",
+                      container_launch or AsyncMock(return_value={"status": "container_prepared"})):
+        app = FastAPI()
+        app.include_router(control.router, prefix="/api/control")
+        yield TestClient(app), ws
+
+
+class TestLaunchStartsANewMission:
+    def test_a_container_launch_resets_every_client_for_the_whole_fleet(self):
+        with _launch_client("container") as (tc, ws):
+            resp = tc.post("/api/control/launch", json={"sys_ids": [1], "force": True})
+        assert resp.status_code == 200
+        assert resp.json() == {"status": "container_prepared"}
+        ws.broadcast.assert_awaited_once_with(
+            {"type": "task_confirm_reset", "sys_ids": [1, 2], "reason": "new_mission"})
+
+    @pytest.mark.parametrize("status", [409, 503])
+    def test_a_refused_container_launch_clears_nothing(self, status):
+        refused = AsyncMock(side_effect=HTTPException(status, "refused"))
+        with _launch_client("container", refused) as (tc, ws):
+            resp = tc.post("/api/control/launch", json={"sys_ids": [1, 2], "force": True})
+        assert resp.status_code == status
+        ws.broadcast.assert_not_awaited()
+
+    def test_a_launch_blocked_by_readiness_clears_nothing(self):
+        from gcs.backend.routes import control
+        with _launch_client("container") as (tc, ws), \
+             patch.object(control, "_check_launch_readiness", return_value=["low battery"]):
+            resp = tc.post("/api/control/launch", json={"sys_ids": [1, 2]})
+        assert resp.status_code == 409
+        ws.broadcast.assert_not_awaited()
+
+    def test_a_bungee_launch_continues_the_mission(self):
+        with _launch_client("bungee") as (tc, ws):
+            resp = tc.post("/api/control/launch", json={"sys_ids": [1], "force": True})
+        assert resp.status_code == 200
+        ws.broadcast.assert_not_awaited()
 
 
 class TestDisarmAfterGuidedStillBroadcasts:

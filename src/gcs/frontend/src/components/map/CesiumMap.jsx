@@ -27,7 +27,8 @@ import useUavPoseSource from './hooks/useUavPoseSource';
 import { observeHeight } from './utils/observeHeight';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
 import MapStoppedNotice from './MapStoppedNotice';
-import { resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
+import { plannedDocksToShow, resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
+import { dockMarkerEntries } from '../../utils/taskAssignmentState';
 
 export { pointInPolygon };
 
@@ -103,8 +104,8 @@ function CesiumMap({
   resetViewRef,
   flyToRef,
   pendingConfirms,
-  assignments,
-  availableTasks,
+  assignments: taskAssignments,
+  availableTasks: offeredTasks,
   simMode,
   simDockWps,
   onToggleSimDock,
@@ -302,6 +303,11 @@ function CesiumMap({
     terrainReady,
   );
   useCoverageLayer(cesiumRef, viewerRef, storeRef, plan, showCoverage, showVision, trackResetKey, historyResetKey, hiddenSysIds, historyPaused, viewerReady, plannerReady);
+  // One marker per offer, at its highest state.
+  const { assignments, availableTasks } = useMemo(
+    () => dockMarkerEntries(taskAssignments || {}, offeredTasks || {}),
+    [taskAssignments, offeredTasks],
+  );
   useAssignmentMarkers(cesiumRef, viewerRef, assignments || {}, storeRef, viewerReady);
   useAvailableTaskMarkers(cesiumRef, viewerRef, availableTasks || {}, viewerReady);
 
@@ -317,28 +323,7 @@ function CesiumMap({
     return resolveSimDocks(plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleList);
   }, [simMode, phase, plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleSysIdKey, simDockWpsKey]);
 
-  // Cache POIs so they persist even after a vehicle disconnects mid-flight.
-  // Clear the cache when all vehicles are gone (full disconnect).
-  const poiCacheRef = useRef(new Map());
-  const stablePois = useMemo(() => {
-    // Planning-mode POIs (user-selected, no vehicles needed) — pass through directly
-    if (phase === 'PLANNING' && simDocks?.length > 0) return simDocks;
-
-    if (!vehicleList || vehicleList.length === 0) {
-      poiCacheRef.current.clear();
-      return [];
-    }
-    // Prune entries for connected vehicles — they'll be re-added from simDocks.
-    // Disconnected vehicle entries survive (the cache's purpose).
-    const connectedIds = new Set(vehicleList.map(v => v.sys_id));
-    for (const [key, t] of poiCacheRef.current) {
-      if (connectedIds.has(t.sys_id)) poiCacheRef.current.delete(key);
-    }
-    for (const t of (simDocks || [])) {
-      poiCacheRef.current.set(`${t.sys_id}_${t.wpNumber}`, t);
-    }
-    return [...poiCacheRef.current.values()];
-  }, [simDocks, vehicleSysIdKey, phase]);
+  const stablePois = useMemo(() => plannedDocksToShow(phase, simDocks), [phase, simDocks]);
 
   useDockMarkers(cesiumRef, viewerRef, entitiesRef, stablePois, viewerReady);
 

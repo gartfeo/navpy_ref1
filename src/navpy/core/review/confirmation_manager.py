@@ -79,6 +79,7 @@ class ConfirmationManager(ListenerAbc):
         )
         self._round_runner = ConfirmationRoundRunner(
             sys_id=sys_id,
+            is_simulation=is_simulation,
             state=self._state,
             network=self._network_slot.get,
             wait_time_s=lambda: args.confirm_wait_time_sec,

@@ -36,8 +36,8 @@ class TestHandleDeniedCleanupHook(unittest.TestCase):
     def test_function_defined(self):
         self.assertIn("handleDeniedCleanup", self.source)
 
-    def test_filters_by_receiver_id(self):
-        self.assertIn("entry.receiverId === sysId", self.state_source)
+    def test_filters_by_the_uav_of_the_entry(self):
+        self.assertIn("!isHandled(entry) && uavOf(entry) === sysId", self.state_source)
 
     def test_exposed_as_a_handler(self):
         self.assertIn("handleDeniedCleanup: (sysId) =>", self.source)

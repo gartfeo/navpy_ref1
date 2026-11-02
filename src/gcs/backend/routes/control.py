@@ -164,6 +164,7 @@ async def launch_sequence(req: LaunchRequest):
         _check_launch_readiness=_check_launch_readiness,
         _container_launch=_container_launch,
         _bungee_launch=_bungee_launch,
+        ws_manager=ws_manager,
     )
 
 
