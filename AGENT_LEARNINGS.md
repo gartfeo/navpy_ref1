@@ -99,7 +99,8 @@
 - wsl.exe hands `bash -lc '...'` to the login shell, so `$VAR` inside it expands there
   (often to empty), and Git Bash rewrites /mnt/c/... arguments. Run scripts with
   `MSYS_NO_PATHCONV=1 wsl -e bash script.sh` when they need neither the login PATH nor
-  path rewriting.
+  path rewriting. With `MSYS_NO_PATHCONV=1`, `git -C` needs a `C:/` path. For a one-liner
+  use `wsl --exec bash -c`: plain `wsl bash -c` breaks on `$(...)`.
 - To check a hand-back between controllers that run at different rates, measure after
   the slower one's first update. The TECS hand-back check sampled the 50 Hz output
   before TECS's first 10 Hz update and reported a 0 % throttle step, while the real
@@ -824,6 +825,9 @@
 ## Todo 65 load (2026-10-18)
 - A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
   interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+  CPU readings have the same trap: Start-Process on it reads the launcher (0%), not the interpreter (19.4% in one
+  test). Find the child by command line. The registry's `backend_pid` is the launcher too (50464, while the share
+  held pid 10472), so find a stack's share by its label.
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
@@ -1322,6 +1326,69 @@
   Codex's claim that jammy lacks nvcodec came from that site and was wrong.
 - A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
+## Encoded publisher, HITL step 8 (2026-10-25)
+
+- The publisher, lens remap and stream check live in aas-hitl (its AGENT_LEARNINGS has the GStreamer lessons);
+  navpy only gained the NPYC v3 decoder. Keep the v3 fixture hashes in step with Unreal's header and the aas-hitl
+  decoder: one header change touches three repos.
+- rtspclientsink starts ANNOUNCE/SETUP/RECORD only on the first buffer's caps, and MediaMTX answered SETUP about
+  1 s later; a backlog guard counting from the first push trips on that handshake. Hold later frames as
+  "connecting" until MediaMTX's API reports the publisher.
+- An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
+  the path.
+- Live runs (2026-10-27): a global -NavPyNativeCameraPort makes all three gimbal actors connect to one port, and
+  accept order decides which camera streams; keep each actor's level port (UAV1 18110, UAV2 18120, UAV3 18130).
+- After a WSL listener closes, the VM-wide wslrelay keeps a stale Windows listener; a restarted publisher adds a
+  second one and Unreal's connect can land on the stale one (a void run). Before starting Unreal, check exactly one
+  Windows LISTENING socket on the port, and after it an ESTAB to python3 inside WSL. The relay exits only once the VM
+  idles out, which never happens while another chat works in WSL. On WSL 2.6.3 the order decides: a publisher that ends
+  while Unreal is sending wedges the port until the VM restarts, and Unreal sees no error; closing Unreal first stays
+  clean (reproduced on scratch ports; the cause is in wslrelay's source, fixed upstream in 3.0.4). WSL's own address
+  (hostname -I) has no relay and carried 2 to 3 times the rate under load. Use it for streams at this rate.
+- A number counted from slot log lines cannot exceed the slot rate, so "Unreal ticks at only 22-30 per second" was an
+  artifact I reported as a finding. Check how a statistic is built before reading a limit into it; Insights was the
+  real measure.
+- Compare runs on a busy PC only back to back. Runs E5 and E6 differed in Unreal's main view and also in WSL's load
+  (12.5 to low; remap p50 14.5 to 3.9 ms, socket-busy 250 to 2), so neither explained the gain alone; only the
+  back-to-back E7 and E8 isolated the view (late ticks 396 to 59, steady rate 27.6 to 30.0 fps). Log WSL's load next
+  to every live number.
+- Monitors can be the load. 20 sleepers waking every 2 ms and a 50 Hz thread sampler went with 23.7 fps (S12); the next
+  run without them read 28.4 fps (S13), but WSL's load also differed (20 against 13), so it is no clean A/B. Read a run
+  with heavy monitors for where the stalls fall, not for its rate.
+- A PNG named by PTS is only safe with rtspsrc buffer-mode=none. With the default mode a stall made PTS clamp, one PNG
+  overwrote another, and I chased a "270 px error" that was the wrong frame. Check the join before the pipeline.
+- A slow reader's start can hurt a running stream: loading nvcodec in a second process took 1-9 s and held frames up to
+  650 ms in the encoder. Load the plugin before the stream starts.
+- A frame-count bound is not a time bound: frames arrive bunched, so "more than 3" tripped after only 70 ms. Compute how
+  often each level occurs (each one was 40-60 times rarer) before reasoning about what a limit allows.
+- os.replace on /mnt/c is not atomic for a reader: the name is missing in about 5 % of reads while rewriting. On /tmp, none.
+- gcs_stop.py --eval found nothing once because the registry entry of my slot now named another chat's folder, so my
+  SITL stayed up. Check for leftover processes after a stop instead of trusting its output; stop only exact PIDs.
+- A capture at nice 19 lagged the stream by 60 s (PTS 130 s after 205 s), so it missed the last zoom moves although
+  its timer covered them. Check the last PTS it read, not its duration.
+- The WSL distro idle-stops, and \\wsl.localhost reads then fail; keep `wsl.exe --exec /bin/sleep N` running while
+  reading. From Git Bash pass //wsl.localhost/... with MSYS_NO_PATHCONV=1 ('\\wsl.localhost' arrives with one
+  backslash).
+- A check that gates on the PC must treat a failed reading as "unknown", never as "free": a failed CIM call (HRESULT
+  0x80041032) once left the busy list empty and read as QUIET, and wsl.exe once failed with Wsl/Service/0x80072747.
+  There is no quiet-PC rule any more: live runs claim a CPU share and record the load (docs/design/bounded_cpu_share.md).
+- A CPU share bounds cores, not the power limit: at 17-19 of 20 cores busy the clock fell to about 85 % of nominal. WSL's
+  vCPU threads are not touched by the share. Record load, clock and memory with every live number.
+- Unreal profiling: -csvCaptureFrames on the command line asserts (IsRayTracingAllowed before RHI init); start it
+  with ExecCmds "csvprofile frames=N". Unreal Insights exports without UI via -OpenTraceFile, -AutoQuit -NoUI and
+  -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics ..." (or ExportTimingEvents for per-call times);
+  pass the argument string through PowerShell Start-Process, as Git Bash quoting silently dropped the command.
+- Replay a hand-off design against the run's own log (ready times, measured job times) before choosing it. The
+  planned tick-quantised hold looked sufficient but reached 23-25 fps of 27-28 captured, because the game thread
+  hands off once per tick; a one-deep worker queue plus one held frame reached the capture rate.
+- orin1 has no h265parse; for a read-only RTSP rate check use rtph265depay with alignment=au.
+- Smart App Control refused a rebuilt unsigned plugin DLL (LoadLibrary GetLastError=4551). The owner turned it off
+  on 2026-10-28 and signing was dropped, so unsigned builds load. Do not state what a Windows setting allows from
+  memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
+- Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
+  anything longer than a line.
+- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback
@@ -1631,8 +1698,9 @@
   ran at one height (300 m) and passed. Check a geometric bound over the whole range of
   every input (latitude, height, scale, still segments), in both directions.
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
-  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
-  and check line endings with `file` after any scripted edit.
+  in Git Bash turned a CRLF file into LF. Put such a `cd` in a subshell, or start each
+  command with `cd` to the worktree, and check line endings with `file` after any
+  scripted edit.
 - A Windows path written into a Python string through the Bash tool lost one of its
   doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
   control character in place of the run folder. Build backslashes with chr(92) and
@@ -1735,6 +1803,25 @@
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
 
+## Lockstep load and parallel runs (todo 65, 2026-11-01)
+
+- A lockstep budget that counts handoffs turns a model's own yields into load. Before calling a stress failure a product bug, count what spends the cap per tick; here the reader's per-packet yield did, and the product reader had stopped yielding per packet long before.
+- Do not start several `eval_gcs_demo_lockstep_matrix.py` at once: their CPU-load cells overlap and a spawn misses the 30 s step deadline, a host fault. Run them one at a time, or use plain parallel runs (N = 8 holds on a host other chats are not loading; on a saturated one plain runs host-fault too, so budget for reruns).
+- A matrix hashes the source tree per cell. Editing even a doc while one runs fails its artifact comparison on `input_manifest.json`. Freeze the tree, or run from a separate worktree.
+- A simplified load script is not the same load: mine timed out at WSL setup with 20 busy processes that the real matrix survives. To check a fault, repeat the exact command that gave it.
+- Participants do not inherit the shell's env. For a temporary counter, print to stderr (the host logs it) and add temporary profiles.
+- When a fix removes a reproduction, grep the plan for rules that require it. I removed `stress`'s todo-65 mode and left section 4's "`stress` must reproduce todo 65" standing; the final review caught it, and only the owner could change the rule.
+- Do not write one cause for several seeds from a shared outcome. My commit message put seed 24 under the per-packet cause; it ran batch 4 with healthy observation and failed a swarm task drop. Read each seed's draw and its log before grouping it.
+- A check the design lists is a promise. "Combinations" stayed in the design with no test behind them, and they found the parked reader's behaviour (todo 200) once written. Before reporting, map each listed check to a test or run, and mark timings with no retained log as your own observation.
+- Do not label a failure "out of scope" beside "cause not checked". Run the one comparison that classes it (here, the seed with no cap).
+- Stop and look when a retry repeats its digest on a fault that is not a wall-time one. I retried stress seed 212 eleven times as a host fault; each run that got past registration gave the same digest and tick. `HostFault` there only meant an unflushed end. A wall fault at a spawn repeats a digest too, because replay is the same up to that tick (tick 1, and mid-run at ticks 4826 and 8990), so judge by the fault's kind.
+- When a tick counter says "cap used up", exclude freeze ticks: their cap is 0, they run nothing. My first starved-tick counts included them and were wrong.
+- A counterfactual is "the same run plus one change" only until its journal splits. Report where it leaves the base run. Changing B leaves it at tick 5 because the backend's reader takes the same path; only the cap change stays equal to tick 9842. Other seeds with the same draw are what rule out a re-roll, not more arms on one seed.
+- Prove a review finding with a small test, and run that test on the baseline too. Codex's timer starvation is real on the prototype; the same script shows it on the baseline for a reader below its budget, which changes what the finding means.
+- Check a scheduling change against every scheduling model before a full run. Form 3 fixed the inputs-first path and demoted the reader under `timers_first` (drain at tick 18 instead of 11). A small table of packets served per model and case shows that in seconds.
+- A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
+- A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
+- On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
 ## Todo 71: the confirm still's age (2026-11-01)
 
 - A card's vitest stub returns the key and drops the arguments, so it cannot test wording
@@ -1810,3 +1897,15 @@
   press land inside the guard, which looked like a guard bug.
 - `fireEvent.click` has `detail` 0, which the guard reads as a keyboard click, so it passes; a test of a pointer press must send
   `pointerdown` and a click with `detail: 1`. CDP input does this for real; `element.click()` does not.
+## Delivery demo audit and ready plan (2026-11-02)
+- Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
+  test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
+  file lacks those types, test with a file that has them.
+- `swarm_run.py` takes `--defaults` while `gcs_launch.py` takes `--sitl-defaults`; mixing
+  them fails the launch with unrecognized arguments.
+- Copying an agent's work folder as evidence took in 42 MB of private repo copies. List
+  it first and keep only results.
+- Quote an audit number in its verified form and keep its reference. Todo 170 carried
+  23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
+  line; Codex caught it, and a sweep of the `corrected` fields then found five more
+  overstatements. Read those fields before writing, not after.

@@ -67,7 +67,8 @@ packet, keep dispatching packets that are already decodable without blocking
   (`lockstep_bus.py:97,110,132`); wall and lockstep reader scheduling now
   differ, and the parity wording says so. Since dev sim step 6 the sim
   profile's `reader_budget` gives the lockstep reader a seeded per-tick
-  budget and batch (`deterministic_dev_sim.md`, section 2).
+  budget, and it then drains as the wall reader does: its turn ends when the
+  delivery is drained or at the budget (`todo65_root_cause.md`).
 
 Not in this change: a reader-lag fail-closed check (separate design, see
 `reader_lag.md` review), and the lag-independent `no_detection` seen at
