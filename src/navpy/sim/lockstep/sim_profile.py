@@ -77,7 +77,7 @@ CATALOGUE: Mapping[str, ModelSpec] = {
     "process_freeze": ModelSpec("process_freeze", {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),
     "radio_partition": ModelSpec("radio_partition", {"start_s": "float", "duration_s": "float"}),
-    "reader_budget": ModelSpec("reader_budget", {"packets_per_tick": "int", "batch": "int"}),
+    "reader_budget": ModelSpec("reader_budget", {"packets_per_tick": "int"}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
     "thread_order": ModelSpec("thread_order", {}),
     "timers_first": ModelSpec("timers_first", {}),
@@ -193,6 +193,14 @@ def _entry(name: str, raw: object, spec: ModelSpec, where: str) -> ModelEntry:
                              for param in sorted(params)})
 
 
+def _check_capped_reader(models: Mapping[str, ModelEntry], where: str) -> None:
+    """A handoff cap over a per-packet reader is an artifact, not load (``todo65_root_cause.md``):
+    each packet's yield would cost a handoff no wall reader spends."""
+    cap, reader = models.get("cpu_budget"), models.get("reader_budget")
+    if cap and cap.p_on > 0.0 and (not reader or reader.p_on != 1.0):
+        raise ValueError(f"{where}: cpu_budget needs reader_budget with p_on 1")
+
+
 def parse_profile(name: str, raw: object, catalogue: Mapping[str, ModelSpec]) -> SimProfile:
     """A profile's JSON object, checked against the built models."""
     where = f"sim profile {name!r}"
@@ -205,6 +213,7 @@ def parse_profile(name: str, raw: object, catalogue: Mapping[str, ModelSpec]) ->
         models[model] = _entry(model, entry, catalogue[model], f"{where}.{model}")
     if name == NONE_PROFILE and models:
         raise ValueError(f"sim profile {NONE_PROFILE!r} must list no model")
+    _check_capped_reader(models, where)
     text = json.dumps(raw, sort_keys=True, separators=(",", ":"))
     return SimProfile(name, hashlib.sha256(text.encode("utf-8")).hexdigest(), models)
 
