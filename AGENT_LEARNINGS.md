@@ -1889,6 +1889,14 @@
   printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
   report, and two reports disagree on one Armenian case with nothing saved to settle it.
 
+## Confirm card press guard (todo 166, 2026-11-02)
+
+- A 20 ms timer recorder and a rAF-based detector disagree on a busy page: the app's frames can be 150 ms apart, so a real
+  move looked like a count rise with no change. Time the detector's own frames before calling a rise a phantom.
+- In a live or harness press test, wait for the row to leave before timing the press: the 1 s expiry tick made a "deliberate"
+  press land inside the guard, which looked like a guard bug.
+- `fireEvent.click` has `detail` 0, which the guard reads as a keyboard click, so it passes; a test of a pointer press must send
+  `pointerdown` and a click with `detail: 1`. CDP input does this for real; `element.click()` does not.
 ## Delivery demo audit and ready plan (2026-11-02)
 - Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
   test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
