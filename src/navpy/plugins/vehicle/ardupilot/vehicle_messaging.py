@@ -23,8 +23,8 @@ from navpy.core.ports.subscription import Subscription
 # A serial write can block longer, and this bounds only the wait for the lock,
 # not a holder's own write. The bound keeps a long holder from stalling the
 # logger worker that sends texts, and through its status lock a navigation
-# thread's defer call (nav_entry, nav_exit_cleanup); a deferred flush stops at
-# the first text not sent (status_logger_network).
+# thread's defer call (nav_entry, nav_exit_cleanup); a deferred flush has its
+# own send-time budget (status_logger_network).
 STATUS_TEXT_SEND_WAIT_S = 0.1
 
 class VehicleMessaging:

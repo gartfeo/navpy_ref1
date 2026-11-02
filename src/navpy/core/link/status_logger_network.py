@@ -7,6 +7,12 @@ from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.kernel.logging.status_logger import IStatusLogger
 
+# Send time a deferred flush may spend, besides its pacing sleeps, before it
+# leaves the rest pending. The flush runs on the NAV-exit thread and each send
+# may wait for the bus lock (vehicle_messaging.STATUS_TEXT_SEND_WAIT_S), so the
+# flush adds at most this plus one send's wait, however many texts are queued.
+DEFERRED_FLUSH_SEND_BUDGET_S = 0.1
+
 
 class GroundStationLoggerNetwork(IStatusLogger):
     def __init__(self, sys_id: int, args: LoggerArgs, ground_station_id):
@@ -52,17 +58,24 @@ class GroundStationLoggerNetwork(IStatusLogger):
             self._flush_pending_log()
 
     def _flush_pending_log(self) -> None:
-        """Send the deferred texts in order; stop at the first one not sent.
+        """Send the deferred texts in order, within a send-time budget.
 
-        The flush runs on the caller's thread (NAV exit), so a busy bus costs it
-        one send wait, not one per text. The text not sent is dropped (and
-        logged by the vehicle); the rest stays pending for the next flush or
-        close.
+        The flush runs on the caller's thread (NAV exit). It stops at the first
+        text not sent (dropped and logged by the vehicle) or once its sends
+        took ``DEFERRED_FLUSH_SEND_BUDGET_S``; the rest stays pending for the
+        next flush or close.
         """
         logs = self._pending_status_texts
         self._pending_status_texts = []
+        spent_s = 0.0
         for index, l in enumerate(logs):
-            if self.vehicle.send_status_text(l) is False:
+            started_s = rt.monotonic()
+            sent = self.vehicle.send_status_text(l)
+            spent_s += rt.monotonic() - started_s
+            if sent is False:
+                self._pending_status_texts = logs[index + 1:]
+                return
+            if spent_s >= DEFERRED_FLUSH_SEND_BUDGET_S:
                 self._pending_status_texts = logs[index + 1:]
                 return
             rt.sleep(0.01)

@@ -122,3 +122,38 @@ def test_a_deferred_flush_waits_once_on_a_stuck_lock_and_keeps_the_rest():
     status.close()  # the rest, in order, once the bus is free
     sent = [call[0][1] for call in mav.statustext_send.call_args_list]
     assert sent == [b"NAV 1", b"NAV 2", b"NAV 3", b"NAV 4"]
+
+
+def test_a_flush_whose_every_send_waits_stops_at_its_budget():
+    from navpy.core.kernel.config.logger_args import LogStatusDest
+    from navpy.core.link import status_logger_network
+    from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
+
+    sent = []
+
+    class _SlowVehicle:
+        """Every send succeeds after most of the lock bound, as behind a holder that keeps clearing late."""
+
+        def send_status_text(self, message):
+            time.sleep(STATUS_TEXT_SEND_WAIT_S * 0.9)
+            sent.append(message)
+            return True
+
+    status = GroundStationLoggerNetwork(
+        1, SimpleNamespace(status_dest=[LogStatusDest.DRONE], defer_status_logs=True), 0,
+    )
+    status.vehicle = _SlowVehicle()
+    status.defer_status_texts(True)
+    for index in range(20):
+        status.send_log(f"NAV {index}", LogStatusDest.DRONE)
+
+    started = time.perf_counter()
+    status.defer_status_texts(False, flush=True)
+    waited_s = time.perf_counter() - started
+
+    budget_s = status_logger_network.DEFERRED_FLUSH_SEND_BUDGET_S
+    # At most the budget plus one send's wait (and pacing), not 20 waits.
+    assert waited_s < budget_s + STATUS_TEXT_SEND_WAIT_S + 0.5
+    # One or two sends, by timer resolution; the rest stays pending, in order.
+    assert sent in (["NAV 0"], ["NAV 0", "NAV 1"])
+    assert sent + status._pending_status_texts == [f"NAV {index}" for index in range(20)]
