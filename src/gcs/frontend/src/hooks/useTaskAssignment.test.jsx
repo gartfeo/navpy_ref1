@@ -183,6 +183,39 @@ describe('useTaskAssignment', () => {
       expect(result.current.assignments['own:2:3:60'].status).toBe('confirmed');
     });
 
+    const staleSearch = [{
+      sys_id: 2, swarm: { state: 'BUSY', phase: 'SEARCH', outcome: null, boot: 3, seq: 50, stale: true },
+    }];
+
+    it('keeps its word when the old beat goes stale after it, approved first', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      now.mockReturnValue(7000);
+      ask(result);
+      approve(result);
+      now.mockReturnValue(7100);
+      publish(staleSearch);
+      now.mockReturnValue(7200);
+      publish(beatOf('APPROACH', 61));
+      now.mockReturnValue(8200);
+      publish(beatOf('HOLD', 62, 'docked'));
+      expect(result.current.assignments['handled:2:3:60'].outcome).toBe('docked');
+    });
+
+    it('keeps its marker when the old beat goes stale after it, approved last', () => {
+      const { result } = renderHook(() => useTaskAssignment());
+      publish(beatOf('SEARCH', 50));
+      now.mockReturnValue(7000);
+      ask(result);
+      now.mockReturnValue(7100);
+      publish(staleSearch);
+      now.mockReturnValue(7200);
+      publish(beatOf('APPROACH', 61));
+      expect(result.current.assignments['own:2:3:60']).toBeDefined();
+      approve(result);
+      expect(result.current.assignments['own:2:3:60'].status).toBe('confirmed');
+    });
+
     it('still ends the older round with no word', () => {
       const { result } = renderHook(() => useTaskAssignment());
       publish(beatOf('SEARCH', 50));

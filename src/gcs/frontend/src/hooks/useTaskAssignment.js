@@ -20,8 +20,10 @@ const BEAT_TTL_MS = 5000;
 export default function useTaskAssignment() {
   const [state, dispatch] = useReducer(reduceTaskAssignment, INITIAL_ASSIGNMENT_STATE);
   const lastHeardAt = useRef({});
+  const roundSinceBeat = useRef({});
   // A gap ends at what ended it, and that message's round is not behind the gap.
-  const closeGap = useRef((sysId) => {
+  const closeGap = useRef((sysId, isRound) => {
+    roundSinceBeat.current[sysId] = isRound;
     const now = performance.now();
     if (now - lastHeardAt.current[sysId] > BEAT_TTL_MS) {
       dispatch({ type: 'link_gap', data: { sys_id: sysId } });
@@ -44,14 +46,15 @@ export default function useTaskAssignment() {
       for (const vehicle of telemetryStore.getVehicleList()) {
         const swarm = vehicle.swarm;
         if (!swarm) continue;
-        if (swarm.stale && !wasStale[vehicle.sys_id]) {
+        // A round heard after the stale beat closed its gap already.
+        if (swarm.stale && !wasStale[vehicle.sys_id] && !roundSinceBeat.current[vehicle.sys_id]) {
           dispatch({ type: 'link_gap', data: { sys_id: vehicle.sys_id } });
         }
         wasStale[vehicle.sys_id] = swarm.stale;
         const beat = `${swarm.boot}:${swarm.seq}`;
         if (lastBeat[vehicle.sys_id] === beat) continue;
         lastBeat[vehicle.sys_id] = beat;
-        closeGap(vehicle.sys_id);
+        closeGap(vehicle.sys_id, false);
         dispatch({ type: 'swarm_heartbeat', data: { sys_id: vehicle.sys_id, swarm } });
       }
     });
@@ -69,7 +72,7 @@ export default function useTaskAssignment() {
       handleAssignAck: on('task_assign_ack'),
       handleDisarmAfterGuidedCleanup: on('disarm_after_guided'),
       handleConfirmingStatus: (data) => {
-        closeGap(data.sys_id);
+        closeGap(data.sys_id, true);
         dispatch({ type: 'task_confirming', data });
       },
       handleConfirmedStatusByTask: onTask('task_confirmed'),

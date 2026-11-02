@@ -86,7 +86,11 @@ class TestTaskAssignmentStatusModel(unittest.TestCase):
 
     def test_hook_exposes_the_confirm_status_handlers(self):
         # The whole message: an own dock's entry needs its position.
-        self.assertIn("handleConfirmingStatus: on('task_confirming')", self.source)
+        # It closes a time gap first, so the gap flags only older rounds.
+        body = self.source[self.source.index("handleConfirmingStatus: (data) => {"):]
+        body = body[:body.index("},")]
+        self.assertLess(body.index("closeGap(data.sys_id, true);"),
+                        body.index("dispatch({ type: 'task_confirming', data });"))
         self.assertIn("handleConfirmedStatusByTask: onTask('task_confirmed')", self.source)
 
     def test_hook_routes_the_owner_applied(self):
