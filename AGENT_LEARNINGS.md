@@ -99,7 +99,8 @@
 - wsl.exe hands `bash -lc '...'` to the login shell, so `$VAR` inside it expands there
   (often to empty), and Git Bash rewrites /mnt/c/... arguments. Run scripts with
   `MSYS_NO_PATHCONV=1 wsl -e bash script.sh` when they need neither the login PATH nor
-  path rewriting.
+  path rewriting. With `MSYS_NO_PATHCONV=1`, `git -C` needs a `C:/` path. For a one-liner
+  use `wsl --exec bash -c`: plain `wsl bash -c` breaks on `$(...)`.
 - To check a hand-back between controllers that run at different rates, measure after
   the slower one's first update. The TECS hand-back check sampled the 50 Hz output
   before TECS's first 10 Hz update and reported a 0 % throttle step, while the real
@@ -824,6 +825,9 @@
 ## Todo 65 load (2026-10-18)
 - A process priority set at spawn on a venv `python.exe` does not reach NavPy: the venv exe is a launcher and its child
   interpreter starts Normal. Check the real interpreter with Get-Process; set the priority inside the process.
+  CPU readings have the same trap: Start-Process on it reads the launcher (0%), not the interpreter (19.4% in one
+  test). Find the child by command line. The registry's `backend_pid` is the launcher too (50464, while the share
+  held pid 10472), so find a stack's share by its label.
 - On a hybrid CPU, Windows EcoQoS runs a windowless process on E-cores under load (work 2x slower). Opt out with
   SetProcessInformation(ProcessPowerThrottling) and measure with a small benchmark first.
 - On Windows Python 3.11 `time.monotonic` ticks at 15.6 ms. Never time 1-10 ms of work with it; use perf_counter.
@@ -1322,6 +1326,69 @@
   Codex's claim that jammy lacks nvcodec came from that site and was wrong.
 - A session hook refuses writes to another session's worktree; branch inside this session's own worktree.
 
+## Encoded publisher, HITL step 8 (2026-10-25)
+
+- The publisher, lens remap and stream check live in aas-hitl (its AGENT_LEARNINGS has the GStreamer lessons);
+  navpy only gained the NPYC v3 decoder. Keep the v3 fixture hashes in step with Unreal's header and the aas-hitl
+  decoder: one header change touches three repos.
+- rtspclientsink starts ANNOUNCE/SETUP/RECORD only on the first buffer's caps, and MediaMTX answered SETUP about
+  1 s later; a backlog guard counting from the first push trips on that handshake. Hold later frames as
+  "connecting" until MediaMTX's API reports the publisher.
+- An AF_UNIX socket path under the repo on /mnt/c is too long and unreliable; use mkdtemp under /tmp and record
+  the path.
+- Live runs (2026-10-27): a global -NavPyNativeCameraPort makes all three gimbal actors connect to one port, and
+  accept order decides which camera streams; keep each actor's level port (UAV1 18110, UAV2 18120, UAV3 18130).
+- After a WSL listener closes, the VM-wide wslrelay keeps a stale Windows listener; a restarted publisher adds a
+  second one and Unreal's connect can land on the stale one (a void run). Before starting Unreal, check exactly one
+  Windows LISTENING socket on the port, and after it an ESTAB to python3 inside WSL. The relay exits only once the VM
+  idles out, which never happens while another chat works in WSL. On WSL 2.6.3 the order decides: a publisher that ends
+  while Unreal is sending wedges the port until the VM restarts, and Unreal sees no error; closing Unreal first stays
+  clean (reproduced on scratch ports; the cause is in wslrelay's source, fixed upstream in 3.0.4). WSL's own address
+  (hostname -I) has no relay and carried 2 to 3 times the rate under load. Use it for streams at this rate.
+- A number counted from slot log lines cannot exceed the slot rate, so "Unreal ticks at only 22-30 per second" was an
+  artifact I reported as a finding. Check how a statistic is built before reading a limit into it; Insights was the
+  real measure.
+- Compare runs on a busy PC only back to back. Runs E5 and E6 differed in Unreal's main view and also in WSL's load
+  (12.5 to low; remap p50 14.5 to 3.9 ms, socket-busy 250 to 2), so neither explained the gain alone; only the
+  back-to-back E7 and E8 isolated the view (late ticks 396 to 59, steady rate 27.6 to 30.0 fps). Log WSL's load next
+  to every live number.
+- Monitors can be the load. 20 sleepers waking every 2 ms and a 50 Hz thread sampler went with 23.7 fps (S12); the next
+  run without them read 28.4 fps (S13), but WSL's load also differed (20 against 13), so it is no clean A/B. Read a run
+  with heavy monitors for where the stalls fall, not for its rate.
+- A PNG named by PTS is only safe with rtspsrc buffer-mode=none. With the default mode a stall made PTS clamp, one PNG
+  overwrote another, and I chased a "270 px error" that was the wrong frame. Check the join before the pipeline.
+- A slow reader's start can hurt a running stream: loading nvcodec in a second process took 1-9 s and held frames up to
+  650 ms in the encoder. Load the plugin before the stream starts.
+- A frame-count bound is not a time bound: frames arrive bunched, so "more than 3" tripped after only 70 ms. Compute how
+  often each level occurs (each one was 40-60 times rarer) before reasoning about what a limit allows.
+- os.replace on /mnt/c is not atomic for a reader: the name is missing in about 5 % of reads while rewriting. On /tmp, none.
+- gcs_stop.py --eval found nothing once because the registry entry of my slot now named another chat's folder, so my
+  SITL stayed up. Check for leftover processes after a stop instead of trusting its output; stop only exact PIDs.
+- A capture at nice 19 lagged the stream by 60 s (PTS 130 s after 205 s), so it missed the last zoom moves although
+  its timer covered them. Check the last PTS it read, not its duration.
+- The WSL distro idle-stops, and \\wsl.localhost reads then fail; keep `wsl.exe --exec /bin/sleep N` running while
+  reading. From Git Bash pass //wsl.localhost/... with MSYS_NO_PATHCONV=1 ('\\wsl.localhost' arrives with one
+  backslash).
+- A check that gates on the PC must treat a failed reading as "unknown", never as "free": a failed CIM call (HRESULT
+  0x80041032) once left the busy list empty and read as QUIET, and wsl.exe once failed with Wsl/Service/0x80072747.
+  There is no quiet-PC rule any more: live runs claim a CPU share and record the load (docs/design/bounded_cpu_share.md).
+- A CPU share bounds cores, not the power limit: at 17-19 of 20 cores busy the clock fell to about 85 % of nominal. WSL's
+  vCPU threads are not touched by the share. Record load, clock and memory with every live number.
+- Unreal profiling: -csvCaptureFrames on the command line asserts (IsRayTracingAllowed before RHI init); start it
+  with ExecCmds "csvprofile frames=N". Unreal Insights exports without UI via -OpenTraceFile, -AutoQuit -NoUI and
+  -ExecOnAnalysisCompleteCmd="TimingInsights.ExportTimerStatistics ..." (or ExportTimingEvents for per-call times);
+  pass the argument string through PowerShell Start-Process, as Git Bash quoting silently dropped the command.
+- Replay a hand-off design against the run's own log (ready times, measured job times) before choosing it. The
+  planned tick-quantised hold looked sufficient but reached 23-25 fps of 27-28 captured, because the game thread
+  hands off once per tick; a one-deep worker queue plus one held frame reached the capture rate.
+- orin1 has no h265parse; for a read-only RTSP rate check use rtph265depay with alignment=au.
+- Smart App Control refused a rebuilt unsigned plugin DLL (LoadLibrary GetLastError=4551). The owner turned it off
+  on 2026-10-28 and signing was dropped, so unsigned builds load. Do not state what a Windows setting allows from
+  memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
+- Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
+  anything longer than a line.
+- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+
 ## Todo 105: bounded mission transfers (2026-10-23)
 
 - An "exact" check against autopilot state needs its differences logged from the first version. The readback
@@ -1631,8 +1698,9 @@
   ran at one height (300 m) and passed. Check a geometric bound over the whole range of
   every input (latitude, height, scale, still segments), in both directions.
 - `cd` into a run folder in Bash moved the session's working directory, and `sed -i`
-  in Git Bash turned a CRLF file into LF. Start each command with `cd` to the worktree,
-  and check line endings with `file` after any scripted edit.
+  in Git Bash turned a CRLF file into LF. Put such a `cd` in a subshell, or start each
+  command with `cd` to the worktree, and check line endings with `file` after any
+  scripted edit.
 - A Windows path written into a Python string through the Bash tool lost one of its
   doubled backslashes, so \2026... became the octal escape \202 and todo 147 got a
   control character in place of the run folder. Build backslashes with chr(92) and
@@ -1754,3 +1822,82 @@
 - A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
 - A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
 - On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
+## Todo 71: the confirm still's age (2026-11-01)
+
+- A card's vitest stub returns the key and drops the arguments, so it cannot test wording
+  or interpolation. A test file can `vi.mock('react-i18next')` over the setup file's mock
+  and resolve the real en.json. Assert values through `data-*` attributes, as the
+  countdown's `data-time` does.
+- For "does this move", a layout check in jsdom proves nothing. Compare the styles in
+  vitest, then measure `getBoundingClientRect` live before and after the event.
+- `delivery_demo.py` opens the owner's browser, and that window stays connected and answers
+  rounds. Rounds then end early, so close it or expect it when driving the page elsewhere.
+- vitest's "Timeout waiting for worker to respond" means the files that worker held did not
+  run: the suite failed and coverage is incomplete, but results from files that ran still count
+  (todo 165). In one `--maxWorkers=1` run none of its 5 files ran. I first blamed CPU load, but the CPU read 3 %: free RAM was about 5 GB of 31, 750 pages/s,
+  with other chats' Python jobs holding over 50 GB. Memory pressure is the suspect, not proven.
+  Check memory as well as CPU. 14 tests/gcs tests also failed in a full run. 13 passed in a
+  group rerun and the last alone; the failures I could read were Node timeouts of 5 to 10 s.
+- A PowerShell line holding both `Select-String -Pattern '...\s...'` and `Remove-Item` was
+  blocked as a removal of system path `\s`. Keep removals in their own command.
+- I measured the View camera press in English only (1 px in the live check) and wrote
+  "Armenian was not measured". That hid a real regression in Armenian: with my new flex basis
+  the button's width decided the note's side there too, as it already did in English on
+  origin/main (23 px at width 320), so the label switch moved Approve 22 px in Armenian at
+  width 320 with the app's font, and up to 37 px over the fonts and widths.
+  Measure each language for each operator action. It is cheap and needs no stack: bundle the
+  real component with esbuild, open it in headless Chrome (`--dump-dom
+  --virtual-time-budget`) and read `getBoundingClientRect` over fonts and widths.
+- `vi.useFakeTimers` alone leaves `Date` at today's time. My tests with t0 = 1_000_000 passed
+  `now` as a prop, so they read fine while the card's real auto-fire ran at mount (its tick
+  reads `confirmNow()`, not the prop). Call `vi.setSystemTime`, and in a test that says
+  "unfired", assert the handler was not called.
+- A number in a PR text needs its conditions. An audit of my text found one font on one card
+  written as "at width 320", a mock's estimate written as a cost, and two live checks a commit
+  older than the text said. Give the font, width and card with each number, say what is a
+  measurement and what an estimate, and name the commit each check ran on.
+- A press can land on what moved under it. A row above Approve that goes during a round puts
+  Approve under a finger aimed at the row, and that called the real approve handler (todo 166;
+  fetch was stubbed). When attacking a layout fix, also try the events that add or remove a
+  control near a decision button, with real input, not only the event the fix is about. The
+  final review found two more such events: a pinned row expiring and a sooner round inserted
+  above.
+- I wrote "This is not new in this PR" about that press after an attack that never pressed View
+  camera on the card above. In that state the PR does change the result (English, app's font,
+  width 320: origin/main posts nothing, the PR posts approve). Before writing "not new" or "the
+  same", compare base and head in each state, including row-height differences: a 23 px row
+  difference was what kept Approve away on origin/main, by accident. Unless frequency was
+  measured, say changes in size, not in likelihood.
+- Hidden text stays findable by `getByText`. After I added the hidden label, one presence check
+  could pass on the hidden span, so forcing every card to Viewing passed all the card tests; two
+  clicks could pass on it too, so swapping the labels failed only 3 tests. When a change adds
+  hidden text, find the tests that match that text, use `getByRole` with the name, and show it
+  with a mutation.
+- On Windows, `chrome.exe --version` does not print a version. It starts the browser: it prints
+  "Opening in existing browser session", so a window or tab probably opened in the owner's Chrome
+  (inferred), or a new Chrome starts on the owner's default profile; whether that changed the
+  profile's session or history files was not checked. It happened in four agents on this PR,
+  three of them in the final review. Read the file's version resource instead
+  (`(Get-Item $chrome).VersionInfo.ProductVersion`), and always start Chrome with
+  `--headless=new` and a temporary `--user-data-dir`.
+- I copied one long record into three documents and they drifted: an audit found conditions in one
+  copy that another lacked. Keep one complete record, and let the others give a short form that
+  points to it, generated from one source if they must say the same thing.
+- I cut a failing test run's error with `tail -n 8`: the run ended "1 error" and the error text was
+  gone, so its cause stays unknown. Save the whole output of any run that can fail, then read it.
+- Mark what came from a reviewer's prose and what from a saved result. Harness output that is only
+  printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
+  report, and two reports disagree on one Armenian case with nothing saved to settle it.
+
+## Delivery demo audit and ready plan (2026-11-02)
+- Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
+  test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
+  file lacks those types, test with a file that has them.
+- `swarm_run.py` takes `--defaults` while `gcs_launch.py` takes `--sitl-defaults`; mixing
+  them fails the launch with unrecognized arguments.
+- Copying an agent's work folder as evidence took in 42 MB of private repo copies. List
+  it first and keep only results.
+- Quote an audit number in its verified form and keep its reference. Todo 170 carried
+  23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
+  line; Codex caught it, and a sweep of the `corrected` fields then found five more
+  overstatements. Read those fields before writing, not after.
