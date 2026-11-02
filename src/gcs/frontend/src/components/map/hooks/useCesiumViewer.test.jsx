@@ -1,4 +1,4 @@
-// Main map stop detection with a fake Cesium
+// Main map base layer and stop detection with a fake Cesium
 // (docs/design/gcs_map_stopped_notice.md, todo 87(a)).
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, act, waitFor } from '@testing-library/react';
@@ -6,10 +6,16 @@ import useCesiumViewer from './useCesiumViewer';
 
 const { fake } = vi.hoisted(() => {
   const event = () => ({ addEventListener() {}, removeEventListener() {} });
-  const fake = { viewers: [] };
+  const fake = { viewers: [], ionToken: '' };
+  class ImageryLayer {
+    constructor(imageryProvider) { this.imageryProvider = imageryProvider; }
+  }
   class Viewer {
     constructor(container, options) {
       this.options = options;
+      // Cesium 1.138 Viewer.js: a defined imageryProvider only turns the
+      // widget's default base layer off; only baseLayer adds imagery.
+      const layers = options.baseLayer ? [options.baseLayer] : [];
       this.canvas = document.createElement('canvas');
       container.appendChild(this.canvas);
       // Cesium's own panel: the render loop calls the widget's showErrorPanel
@@ -22,7 +28,11 @@ const { fake } = vi.hoisted(() => {
       };
       this.clock = {};
       this.camera = { setView() {}, moveEnd: event(), flyTo() {} };
-      this.imageryLayers = { removeAll() {}, addImageryProvider() {} };
+      this.imageryLayers = {
+        layers,
+        removeAll() { layers.length = 0; },
+        addImageryProvider(provider) { layers.push(new ImageryLayer(provider)); },
+      };
       this.scene = {
         globe: { tileLoadProgressEvent: event() },
         skyAtmosphere: {},
@@ -40,14 +50,19 @@ const { fake } = vi.hoisted(() => {
   }
   fake.Cesium = {
     Viewer,
-    OpenStreetMapImageryProvider: class {},
+    ImageryLayer,
+    OpenStreetMapImageryProvider: class { constructor(options) { this.url = options.url; } },
+    IonImageryProvider: { fromAssetId: async (id) => ({ ionAssetId: id }) },
+    CesiumTerrainProvider: {
+      fromIonAssetId: async () => ({ requestTileGeometry: async () => {} }),
+    },
     ScreenSpaceEventType: { LEFT_DOUBLE_CLICK: 'LEFT_DOUBLE_CLICK' },
     Ion: {},
   };
   return { fake };
 });
 vi.mock('cesium', () => fake.Cesium);
-vi.mock('../../../utils/cesiumConfig', () => ({ cesiumIonToken: () => '' }));
+vi.mock('../../../utils/cesiumConfig', () => ({ cesiumIonToken: () => fake.ionToken }));
 
 function Harness({ onState }) {
   const state = useCesiumViewer(null, null, undefined, {});
@@ -62,9 +77,34 @@ async function start() {
   return { viewer: fake.viewers.at(-1), current: () => state };
 }
 
+const providers = (viewer) => viewer.imageryLayers.layers.map((l) => l.imageryProvider);
+
+describe('useCesiumViewer base layer', () => {
+  beforeEach(() => {
+    fake.viewers = [];
+    fake.ionToken = '';
+  });
+
+  it('without an Ion token the map draws OpenStreetMap imagery', async () => {
+    const { viewer } = await start();
+    const [osm, ...rest] = providers(viewer);
+    expect(osm).toBeInstanceOf(fake.Cesium.OpenStreetMapImageryProvider);
+    expect(osm.url).toBe('https://tile.openstreetmap.org/');
+    expect(rest).toEqual([]);
+  });
+
+  it('with an Ion token Ion imagery replaces OpenStreetMap', async () => {
+    fake.ionToken = 'token';
+    const { viewer, current } = await start();
+    await waitFor(() => expect(current().terrainReady).toBe(true));
+    expect(providers(viewer)).toEqual([{ ionAssetId: 3 }]);
+  });
+});
+
 describe('useCesiumViewer map stop', () => {
   beforeEach(() => {
     fake.viewers = [];
+    fake.ionToken = '';
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 
