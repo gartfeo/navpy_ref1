@@ -178,3 +178,31 @@ def test_the_supervisor_hook_records_the_chats_verify_port(monkeypatch):
     monkeypatch.setattr(rec, "start_from_environment", lambda port: seen.append(port))
     rec.start_for_chat(7)
     assert seen == [rec.ip.verify_port(7)]
+
+
+def test_a_wall_clock_step_back_does_not_hold_the_writes_back(tmp_path, monkeypatch):
+    monkeypatch.setattr(rec, "WRITE_INTERVAL_S", 0.05)
+    wall = iter([1.8e9] + [1.8e9 - 300.0] * 100000)  # stepped back five minutes after the start
+    tlog = tmp_path / "mavlink.tlog"
+    bound = Bound()
+    recorder = rec.MavlinkRecorder(tlog, 16550, bind=bound, clock=lambda: next(wall))
+    recorder.start()
+    _send(bound.port, _frame(1))
+    try:
+        assert _wait_for(lambda: _status(tlog)["bytes"] > 0, timeout=2.0)
+    finally:
+        recorder.stop()
+
+
+def test_an_existing_file_counts_toward_the_cap(tmp_path, monkeypatch):
+    monkeypatch.setattr(rec, "WRITE_INTERVAL_S", 0.05)
+    record = 8 + len(_frame(1))
+    tlog = tmp_path / "mavlink.tlog"
+    tlog.write_bytes(bytes(record))
+    bound = Bound()
+    recorder = rec.MavlinkRecorder(tlog, 16550, bind=bound, max_bytes=2 * record + 1)
+    recorder.start()
+    _send(bound.port, _frame(1), _frame(1))
+    assert _wait_for(lambda: _status(tlog)["stop_reason"] is not None)
+    assert tlog.stat().st_size == _status(tlog)["bytes"] == 2 * record
+    assert recorder.stop() is True

@@ -116,12 +116,14 @@ class MavlinkRecorder:
     def __init__(
         self, tlog: Path, port: int, *,
         clock: Callable[[], float] = time.time,
+        monotonic: Callable[[], float] = time.monotonic,
         bind: Callable[[int], socket.socket] = bind_exclusive,
         max_bytes: int = MAX_BYTES,
     ) -> None:
         self.tlog = tlog
         self.port = port
         self._clock = clock
+        self._monotonic = monotonic
         self._bind = bind
         self._max_bytes = max_bytes
         self._stop = threading.Event()
@@ -136,6 +138,8 @@ class MavlinkRecorder:
         self._status["started"] = _iso(self._clock())
         try:
             self.tlog.parent.mkdir(parents=True, exist_ok=True)
+            # An existing file is appended to, so it counts toward the cap.
+            self._status["bytes"] = self.tlog.stat().st_size if self.tlog.is_file() else 0
             sock = self._bind(self.port)
         except OSError as error:
             self._status["error"] = f"could not bind verify port {self.port}: {error}"
@@ -169,7 +173,8 @@ class MavlinkRecorder:
 
     def _copy(self, sock: socket.socket, out: BinaryIO) -> str:
         pending = bytearray()
-        next_write = self._clock() + WRITE_INTERVAL_S
+        # Monotonic, so a wall-clock step cannot hold the writes back.
+        next_write = self._monotonic() + WRITE_INTERVAL_S
         while not self._stop.is_set():
             try:
                 datagram = sock.recv(DATAGRAM_MAX)
@@ -185,9 +190,9 @@ class MavlinkRecorder:
                     return f"size cap {self._max_bytes} bytes reached; later traffic not recorded"
                 pending += record
                 self._status["records"] += 1
-            if now >= next_write:
+            if self._monotonic() >= next_write:
                 self._flush(out, pending)
-                next_write = now + WRITE_INTERVAL_S
+                next_write = self._monotonic() + WRITE_INTERVAL_S
         self._flush(out, pending)
         return "supervisor exit"
 

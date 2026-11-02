@@ -119,10 +119,10 @@ def _start_recorder(chat: int, runtime: RuntimeServices) -> Any:
     try:
         recorder = runtime.start_recorder(chat)
     except Exception as exc:  # noqa: BLE001
-        runtime.emit(f"SITL chat {chat}: MAVLink record not started ({exc})", err=True)
+        _report(runtime, f"SITL chat {chat}: MAVLink record not started ({exc})", err=True)
         return None
     if recorder is not None:
-        runtime.emit(f"SITL chat {chat}: MAVLink record to {recorder.tlog}")
+        _report(runtime, f"SITL chat {chat}: MAVLink record to {recorder.tlog}")
     return recorder
 
 
@@ -130,10 +130,20 @@ def _stop_recorder(chat: int, recorder: Any, runtime: RuntimeServices) -> None:
     if recorder is None:
         return
     try:
-        if not recorder.stop():
-            runtime.emit(f"SITL chat {chat}: MAVLink record did not stop in time", err=True)
+        stopped = recorder.stop()
     except Exception as exc:  # noqa: BLE001
-        runtime.emit(f"SITL chat {chat}: MAVLink record stop failed ({exc})", err=True)
+        _report(runtime, f"SITL chat {chat}: MAVLink record stop failed ({exc})", err=True)
+        return
+    if not stopped:
+        _report(runtime, f"SITL chat {chat}: MAVLink record did not stop in time", err=True)
+
+
+def _report(runtime: RuntimeServices, text: str, *, err: bool = False) -> None:
+    """A recorder line is best effort: a failed write must not stop the supervisor."""
+    try:
+        runtime.emit(text, err=err)
+    except Exception:  # noqa: BLE001
+        pass
 
 
 def _launch_with_retries(

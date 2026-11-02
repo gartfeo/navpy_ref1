@@ -130,3 +130,39 @@ def test_the_launcher_speaks_as_255_190_on_the_verify_port():
     with patch.object(speed_control.mavutil, "mavlink_connection", side_effect=OSError("stop")) as connect:
         speed_control.force_speedup(1, {4, 5, 6}, 10)
     assert _identity(connect.call_args) == (255, 190)
+
+
+def _supervise_with_broken_output(events, start_recorder, code):
+    """As _supervise, but every recorder line fails to print (closed pipe, full disk)."""
+    def emit(text, err=False):
+        if "MAVLink" in text:
+            raise OSError("output closed")
+
+    launch = runner.LaunchServices(
+        start=lambda command: (Process(events, code), []),
+        verify=lambda *a: SimpleNamespace(rates={4: 10.0, 5: 10.0, 6: 10.0}),
+        passed=lambda *a: True, describe=lambda *a: "", speed_fault=lambda *a: False,
+        force_speed=lambda *a: None, kill=lambda *a: None,
+    )
+    registry = MagicMock()
+    registry.sitl_launch_lock.return_value = contextlib.nullcontext(True)
+    runtime = runner.RuntimeServices(
+        registry, MagicMock(), lambda chat: None, emit, lambda *a, **k: None, lambda chat: None,
+        lambda *a, **k: events.append("retire"), lambda *a, **k: "cmd", start_recorder,
+    )
+    args = SimpleNamespace(instances=3, speedup=10, dist=0, single_boot=True)
+    with pytest.raises(SystemExit) as exit_info:
+        runner.run_supervisor(1, args, launch=launch, runtime=runtime, max_attempts=1)
+    return exit_info.value.code
+
+
+@pytest.mark.parametrize("start_recorder", [
+    lambda chat: (_ for _ in ()).throw(OSError("verify port in use")),
+    lambda chat: Recorder([], fails=True),
+    lambda chat: Recorder([], stopped=False),
+    lambda chat: Recorder([]),
+])
+def test_a_recorder_line_that_cannot_be_printed_changes_nothing(start_recorder):
+    events = []
+    assert _supervise_with_broken_output(events, start_recorder, code=4) == 4
+    assert events == ["wait", "retire"]
