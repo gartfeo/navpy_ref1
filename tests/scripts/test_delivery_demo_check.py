@@ -249,8 +249,8 @@ def test_a_debug_file_cut_inside_a_row_says_so(tmp_path):
 
     text = check.report(run_dir)
 
-    assert "approaches: uav_5_navigation_debug.csv stops inside a row, so its last row was not read" in text
-    assert "uav_4_navigation_debug.csv stops inside a row" not in text
+    assert "approaches: uav_5_navigation_debug.csv has no final line end, so its last row may be cut" in text
+    assert "uav_4_navigation_debug.csv has no final line end" not in text
 
 
 def test_a_header_only_debug_file_is_a_run_with_no_approach(tmp_path):

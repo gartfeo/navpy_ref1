@@ -113,13 +113,13 @@ def _approach_lines(run_dir: Path, uav: int) -> list[str]:
     if not path.is_file():
         return [f"approaches: {path.name} is missing"]
     outcomes = approach_outcomes(path, uav)
-    cut = [f"approaches: {path.name} stops inside a row, so its last row was not read"] if _stops_inside_row(path) else []
+    cut = [f"approaches: {path.name} has no final line end, so its last row may be cut"] if _no_final_line_end(path) else []
     if not outcomes:
         return [*cut, "approaches: none ended in the debug log"]
     return [*cut, *(f"approach: {item.name}: {item.result}, {item.detail}" for item in outcomes)]
 
 
-def _stops_inside_row(path: Path) -> bool:
+def _no_final_line_end(path: Path) -> bool:
     """A killed process can leave half a row, and the parsers skip an event they do not know."""
     with path.open("rb") as handle:
         handle.seek(-1, os.SEEK_END)
