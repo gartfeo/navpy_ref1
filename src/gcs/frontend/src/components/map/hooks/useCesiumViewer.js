@@ -165,13 +165,14 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       containerRef.current.innerHTML = '';
       containerRef.current.appendChild(viewDiv);
 
-      // OSM imagery as initial base layer
+      // OSM imagery as initial base layer. Cesium 1.138 has no imageryProvider
+      // option: passing one only turns the default layer off, leaving no imagery.
       const osmImagery = new Cesium.OpenStreetMapImageryProvider({
         url: 'https://tile.openstreetmap.org/',
       });
 
       const viewer = new Cesium.Viewer(viewDiv, {
-        imageryProvider: osmImagery,
+        baseLayer: new Cesium.ImageryLayer(osmImagery),
         terrainProvider: undefined,
         infoBox: false,
         selectionIndicator: false,
