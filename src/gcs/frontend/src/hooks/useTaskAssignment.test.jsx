@@ -117,6 +117,31 @@ describe('useTaskAssignment', () => {
     expect(result.current.assignments['handled:3:3:60'].outcome).toBe('docked');
   });
 
+  it.each([[5001, 'unknown'], [5000, 'docked']])(
+    'after beats %i ms apart with no stale snapshot between them, reads %s',
+    (gapMs, word) => {
+      const now = vi.spyOn(performance, 'now').mockReturnValue(1000);
+      const { result } = renderHook(() => useTaskAssignment());
+      for (const sysId of [2, 3]) {
+        act(() => result.current.handleConfirmingStatus({
+          sys_id: sysId, task_id: 7, round_uid: '3:60', task_type: 'DOCK', lat: 41 + sysId, lon: 45, alt: 0,
+        }));
+        act(() => result.current.handleConfirmedStatusByTask(sysId, 7, '3:60'));
+      }
+      publish([{ sys_id: 2, swarm: { state: 'BUSY', phase: 'APPROACH', outcome: null, boot: 3, seq: 61, stale: false } }]);
+      now.mockReturnValue(1000 + gapMs);
+      publish([
+        { sys_id: 2, swarm: { state: 'BUSY', phase: 'HOLD', outcome: 'docked', boot: 3, seq: 90, stale: false } },
+        { sys_id: 3, swarm: { state: 'BUSY', phase: 'APPROACH', outcome: null, boot: 3, seq: 61, stale: false } },
+      ]);
+      now.mockRestore();
+
+      expect(result.current.assignments['handled:2:3:60'].outcome).toBe(word);
+      // Its first beat here is no gap, and another UAV's gap is not its own.
+      expect(result.current.assignments['own:3:3:60'].noWord).toBeUndefined();
+    },
+  );
+
   it('takes the outcome word away when the socket drops', () => {
     const { result } = renderHook(() => useTaskAssignment());
     act(() => result.current.handleConfirmingStatus({

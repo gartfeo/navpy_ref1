@@ -14,14 +14,20 @@ import {
  *   tasks keyed `helper:${id}`, and the map's own docks and handled docks
  *   (`own:...`, `handled:...`); see the reducer.
  */
+// The sender's TTL for SWARM_HEARTBEAT (`ttl_defaults.py`).
+const BEAT_TTL_MS = 5000;
+
 export default function useTaskAssignment() {
   const [state, dispatch] = useReducer(reduceTaskAssignment, INITIAL_ASSIGNMENT_STATE);
 
   // Heartbeats retire rounds and end approved docks; each beat once. A dropped
-  // socket may have hidden rounds, which the reducer must know.
+  // socket, or a gap between a UAV's beats longer than their TTL (seen as a stale
+  // beat, or as a jump when snapshots stalled too), may have hidden rounds, which
+  // the reducer must know.
   useEffect(() => {
     const lastBeat = {};
     const wasStale = {};
+    const lastBeatAt = {};
     let connected = telemetryStore.isConnected();
     return telemetryStore.subscribe(() => {
       const nowConnected = telemetryStore.isConnected();
@@ -37,6 +43,11 @@ export default function useTaskAssignment() {
         const beat = `${swarm.boot}:${swarm.seq}`;
         if (lastBeat[vehicle.sys_id] === beat) continue;
         lastBeat[vehicle.sys_id] = beat;
+        const now = performance.now();
+        if (now - lastBeatAt[vehicle.sys_id] > BEAT_TTL_MS) {
+          dispatch({ type: 'link_gap', data: { sys_id: vehicle.sys_id } });
+        }
+        lastBeatAt[vehicle.sys_id] = now;
         dispatch({ type: 'swarm_heartbeat', data: { sys_id: vehicle.sys_id, swarm } });
       }
     });
