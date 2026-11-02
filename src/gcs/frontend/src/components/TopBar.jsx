@@ -39,6 +39,10 @@ export default function TopBar({
   autoScan,
   devMode,
   onEstop,
+  compact = false,
+  panelOpen = false,
+  onTogglePanel,
+  pendingCount = 0,
 }) {
   const { t } = useTranslation();
   const dropdownRef = useRef(null);
@@ -62,7 +66,12 @@ export default function TopBar({
   // never scrolls, so no card can push it out of view (todo 69). With no
   // vehicles there is nothing to stop.
   const showEstop = uavCount > 0 && !!onEstop;
+  const uavText = uavCount > 0 ? t('topBar.uavCount', { count: uavCount }) : t('topBar.noUavs');
+  const planning = phase === 'PLANNING';
 
+  // The left group clips and the right group never shrinks, so nothing can push
+  // E-STOP off screen. Compact is below the panel's docking width
+  // (docs/design/gcs_handheld_layout.md).
   return (
     <>
       <div
@@ -73,19 +82,21 @@ export default function TopBar({
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: '0 16px',
+          padding: compact ? '0 8px' : '0 16px',
           color: colors.text,
           flexShrink: 0,
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <img src="/aas-logo.svg" alt="AAS" style={{ height: 28 }} />
-          <span style={{ fontWeight: 700, fontSize: 16, color: colors.textBright }}>
-            {t('app.gcs')}
-          </span>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0, overflow: 'hidden' }}>
+          {!(compact && planning) && <img src="/aas-logo.svg" alt="AAS" style={{ height: 28 }} />}
+          {!compact && (
+            <span style={{ fontWeight: 700, fontSize: 16, color: colors.textBright }}>
+              {t('app.gcs')}
+            </span>
+          )}
           {/* Branch badge is a dev/instance-distinguishing aid — hidden for
               operators in non-dev mode. */}
-          {APP_BRANCH && devMode && (() => {
+          {APP_BRANCH && devMode && !compact && (() => {
             const bc = branchColor(APP_BRANCH);
             return (
               <span
@@ -118,7 +129,7 @@ export default function TopBar({
               </span>
             );
           })()}
-          {phase === 'PLANNING' && (
+          {planning && (
             <span
               style={{
                 fontSize: 12,
@@ -127,6 +138,7 @@ export default function TopBar({
                 background: colors.surfaceLight,
                 color: colors.accent,
                 fontWeight: 600,
+                whiteSpace: 'nowrap',
               }}
             >
               {t('app.planning')}
@@ -134,11 +146,13 @@ export default function TopBar({
           )}
         </div>
 
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: compact ? 6 : 16, flexShrink: 0 }}>
           {/* Connection dropdown toggle */}
           <div style={{ position: 'relative' }} ref={dropdownRef}>
             <button
               onClick={() => setShowConn((v) => !v)}
+              title={compact ? uavText : undefined}
+              aria-label={compact ? uavText : undefined}
               style={{
                 display: 'flex',
                 alignItems: 'center',
@@ -160,15 +174,17 @@ export default function TopBar({
                   background: uavCount > 0 ? colors.success : colors.error,
                 }}
               />
-              {uavCount > 0 ? t('topBar.uavCount', { count: uavCount }) : t('topBar.noUavs')}
+              {compact ? uavCount : uavText}
             </button>
 
             {showConn && (
               <div
+                data-testid="connection-dropdown"
                 style={{
-                  position: 'absolute',
-                  top: '100%',
-                  right: 0,
+                  // Compact: no room left of the button, so it hangs from the screen edge.
+                  ...(compact
+                    ? { position: 'fixed', top: topBarHeight, right: 8, maxWidth: 'calc(100vw - 16px)' }
+                    : { position: 'absolute', top: '100%', right: 0 }),
                   marginTop: 4,
                   background: colors.bgLight,
                   border: `1px solid ${colors.border}`,
@@ -227,6 +243,56 @@ export default function TopBar({
               <circle cx="8" cy="8" r="2" stroke="currentColor" strokeWidth="1.2" fill="none"/>
             </svg>
           </button>
+
+          {/* The right panel: above it on a wide screen, the drawer on a phone.
+              The count says a round waits while the panel is shut. RC has no panel,
+              and its place stays there, so E-STOP does not move as RC starts or ends. */}
+          {onTogglePanel ? (
+            <button
+              type="button"
+              onClick={onTogglePanel}
+              aria-expanded={panelOpen}
+              aria-label={t(panelOpen ? 'topBar.hidePanel' : 'topBar.showPanel')}
+              title={t(panelOpen ? 'topBar.hidePanel' : 'topBar.showPanel')}
+              style={{
+                ...iconButtonStyle,
+                position: 'relative',
+                color: panelOpen ? colors.accent : colors.textDim,
+                touchAction: 'manipulation',
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none">
+                <rect x="1.5" y="2.5" width="13" height="11" rx="1.5" stroke="currentColor" strokeWidth="1.2"/>
+                <path d="M10 2.5v11" stroke="currentColor" strokeWidth="1.2"/>
+                {panelOpen && <rect x="10" y="2.5" width="4.5" height="11" fill="currentColor" opacity="0.5"/>}
+              </svg>
+              {pendingCount > 0 && (
+                <span
+                  data-testid="panel-pending-count"
+                  style={{
+                    position: 'absolute',
+                    top: -5,
+                    right: -5,
+                    minWidth: 16,
+                    height: 16,
+                    padding: '0 4px',
+                    boxSizing: 'border-box',
+                    borderRadius: 8,
+                    background: colors.warning,
+                    color: '#000',
+                    fontSize: 11,
+                    fontWeight: 700,
+                    lineHeight: '16px',
+                    textAlign: 'center',
+                  }}
+                >
+                  {pendingCount}
+                </span>
+              )}
+            </button>
+          ) : (
+            <div data-testid="panel-toggle-place" style={{ width: iconButtonStyle.width }} />
+          )}
         </div>
       </div>
     </>

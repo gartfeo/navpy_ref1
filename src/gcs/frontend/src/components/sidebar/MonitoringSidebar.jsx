@@ -1,9 +1,10 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import { missionWpOffset } from '../../utils/geo';
 import { computeZoneDistances } from '../../utils/missionProgress';
 import LaunchPanel from './LaunchPanel';
+import SidebarFooter from './SidebarFooter';
 import ConfirmModal from '../ConfirmModal';
 import { useTelemetryStore } from '../../hooks/useTelemetryStore';
 import { computeLaunchReadiness, launchGatesFromSettings } from '../../utils/prearmChecks';
@@ -53,6 +54,9 @@ export default function MonitoringSidebar({
   navpyStatus,
   onFlyToLocation,
   onOpenReadiness,
+  footerEl,
+  startPinned = true,
+  hidden = false,
 }) {
   // Subscribe to telemetry store for fresh vehicle data (battery, speed, etc.)
   // The prop vehicleList only updates structurally; this gives us live data.
@@ -89,12 +93,15 @@ export default function MonitoringSidebar({
         onForceConfirm={onForceConfirm}
         onFlyToLocation={onFlyToLocation}
         onOpenReadiness={onOpenReadiness}
+        footerEl={footerEl}
+        startPinned={startPinned}
+        hidden={hidden}
       />
     </div>
   );
 }
 
-function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenReadiness }) {
+function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenReadiness, footerEl, startPinned, hidden }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   // Per-launch operator ack that pitots are covered / air is calm, allowing
@@ -104,6 +111,9 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   // every connected UAV, so the button is gated behind a hold-to-arm; the hold
   // opens this modal and only a confirm here actually triggers the launch.
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
+  // Collapsing the panel closes it: the modal does not trap the keyboard, and
+  // reopening must not bring back an unfinished confirmation.
+  useEffect(() => { if (hidden) setShowLaunchConfirm(false); }, [hidden]);
 
   // Per-vehicle load stage (connecting → downloading → ready), latched at ready.
   const statusVehicleList = React.useMemo(
@@ -520,22 +530,24 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
                 />
               )}
             />
-            {pitotAckEl}
-            <ForceStartButton
-              label={t('monitor.start')}
-              armLabel={t('monitor.holdToLaunch')}
-              armReady
-              ready={allLaunchReady}
-              disabled={!canContainerLaunch || !launcher.launcherConnected || !launchRosterComplete}
-              onArm={() => setShowLaunchConfirm(true)}
-              onStart={async (opts) => {
-                // Only reached via the not-ready force path (opts.force);
-                // the ready path arms and confirms through the modal below.
-                await launcher.doContainerLaunch({ ...opts, pitotCovered: pitotCoveredAck });
-                setPitotCovered(false);
-              }}
-              large
-            />
+            <SidebarFooter slot={footerEl} pinned={startPinned}>
+              {pitotAckEl}
+              <ForceStartButton
+                label={t('monitor.start')}
+                armLabel={t('monitor.holdToLaunch')}
+                armReady
+                ready={allLaunchReady}
+                disabled={!canContainerLaunch || !launcher.launcherConnected || !launchRosterComplete}
+                onArm={() => setShowLaunchConfirm(true)}
+                onStart={async (opts) => {
+                  // Only reached via the not-ready force path (opts.force);
+                  // the ready path arms and confirms through the modal below.
+                  await launcher.doContainerLaunch({ ...opts, pitotCovered: pitotCoveredAck });
+                  setPitotCovered(false);
+                }}
+                large
+              />
+            </SidebarFooter>
           </>
         ) : (
           <>
@@ -547,25 +559,27 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
               host={launcher.esp32Host}
               port={launcher.esp32Port}
             />
-            {preLaunchActionButton()}
+            <SidebarFooter slot={footerEl} pinned={startPinned}>{preLaunchActionButton()}</SidebarFooter>
           </>
         )
       )}
 
       {/* PRE_LAUNCH + bungee */}
       {phase === MONITOR_PHASES.PRE_LAUNCH && !isContainer && (
-        hasGcsPlan ? (
-          <>
-            {pitotAckEl}
-            <ForceStartButton
-              label={t('monitor.startMission')}
-              busyLabel={t('monitor.starting')}
-              ready={allLaunchReady}
-              disabled={busy || !launchRosterComplete}
-              onStart={handleStart}
-            />
-          </>
-        ) : preLaunchActionButton()
+        <SidebarFooter slot={footerEl} pinned={startPinned}>
+          {hasGcsPlan ? (
+            <>
+              {pitotAckEl}
+              <ForceStartButton
+                label={t('monitor.startMission')}
+                busyLabel={t('monitor.starting')}
+                ready={allLaunchReady}
+                disabled={busy || !launchRosterComplete}
+                onStart={handleStart}
+              />
+            </>
+          ) : preLaunchActionButton()}
+        </SidebarFooter>
       )}
 
       {/* CONTAINER_LAUNCHING */}
@@ -575,6 +589,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
           launchStates={launchStates}
           onAbort={onAbortLaunch}
           onTriggerVehicle={onTriggerVehicle}
+          footerEl={footerEl}
           launchOrder={settings?.launch?.launch_order}
           gates={launchGates}
           launcherStatus={(

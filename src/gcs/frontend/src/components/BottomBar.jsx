@@ -60,7 +60,11 @@ export default function BottomBar({
     >
       {phase === PHASES.PLANNING && (
         <>
-          <div style={{ display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 0 }}>
+          {/* One line at every width: the stats scroll sideways, the buttons never shrink. */}
+          <div style={{
+            display: 'flex', gap: 12, alignItems: 'center', flex: 1, minWidth: 0,
+            overflowX: 'auto', whiteSpace: 'nowrap', scrollbarWidth: 'none', marginRight: 8,
+          }}>
             {hasProgress ? (
               vehicleList.map((v, i) => {
                 const p = uploadProgress[v.sys_id];
@@ -95,7 +99,7 @@ export default function BottomBar({
             )}
           </div>
 
-          <div style={{ display: 'flex', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
             <BarButton onClick={onExitPlanning}>{t('bottomBar.exitPlan')}</BarButton>
             {vehicleList.length === 0 ? (
               <BarButton primary onClick={onOpenConnect}>
@@ -157,7 +161,7 @@ function UploadProgressItem({ name, index, progress }) {
   const barColor = error ? colors.error : done ? colors.success : color;
 
   return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0 }}>
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, minWidth: 0, flexShrink: 0 }}>
       <div
         style={{
           width: 6,
@@ -246,7 +250,7 @@ function _overallProgress(vehicleList, zones, polygon, launchPoint, corridorPoin
 
 function Stat({ label, value }) {
   return (
-    <span>
+    <span style={{ flexShrink: 0 }}>
       <span style={{ color: colors.textDim }}>{label}:</span>{' '}
       <span style={{ color: colors.textBright, fontWeight: 600 }}>{value}</span>
     </span>
@@ -268,6 +272,7 @@ function BarButton({ children, onClick, disabled, primary }) {
         fontWeight: primary ? 700 : 500,
         cursor: disabled ? 'not-allowed' : 'pointer',
         opacity: disabled ? 0.5 : 1,
+        whiteSpace: 'nowrap',
       }}
     >
       {children}

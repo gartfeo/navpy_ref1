@@ -45,6 +45,16 @@ describe('FpvViewOverlay', () => {
     expect(getByRole('status').style.right).toBe('510px');
   });
 
+  it('the tag sits between tagLeft and the margin on a narrow pane, centred otherwise', () => {
+    const { getByRole, rerender } = render(<FpvViewOverlay label="UAV 1" holdReason={null} top={54} />);
+    expect(getByRole('note').style.left).toBe('50%');
+    expect(getByRole('note').style.transform).toBe('translateX(-50%)');
+    rerender(<FpvViewOverlay label="UAV 1" holdReason={null} top={54} tagLeft={100} />);
+    expect(getByRole('note').style.left).toBe('100px');
+    expect(getByRole('note').style.right).toBe('12px');
+    expect(getByRole('note').style.transform).toBe('');
+  });
+
   it('telemetry disconnected has its own held reason', () => {
     const { getByRole } = render(<FpvViewOverlay label="UAV 1" holdReason="telemetryDisconnected" top={54} />);
     expect(getByRole('status')).toHaveTextContent('fpvView.held.telemetryDisconnected 0');

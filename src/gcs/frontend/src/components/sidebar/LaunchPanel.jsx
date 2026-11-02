@@ -2,6 +2,7 @@ import React from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import UavBadge from '../UavBadge';
+import SidebarFooter from './SidebarFooter';
 import { orderVehiclesByLaunch } from '../../utils/launchSequence';
 import { computeLaunchReadiness } from '../../utils/prearmChecks';
 
@@ -32,7 +33,7 @@ function getDisplay(launchStates, v, gates) {
     : { icon: '\u25CF', key: 'launch.notReady', color: colors.warning };
 }
 
-export default function LaunchPanel({ vehicleList, launchStates, onAbort, onTriggerVehicle, launchOrder, gates, launcherStatus }) {
+export default function LaunchPanel({ vehicleList, launchStates, onAbort, onTriggerVehicle, launchOrder, gates, launcherStatus, footerEl }) {
   const { t } = useTranslation();
   // Show vehicles in the operator-defined launch order so the live sequence
   // matches the launch order.
@@ -110,23 +111,25 @@ export default function LaunchPanel({ vehicleList, launchStates, onAbort, onTrig
           just above the START button. */}
       {launcherStatus}
       {anyActive && onAbort && (
-        <button
-          onClick={onAbort}
-          style={{
-            width: '100%',
-            padding: '8px 0',
-            marginTop: 8,
-            background: colors.error,
-            color: '#fff',
-            border: 'none',
-            borderRadius: 4,
-            fontWeight: 700,
-            fontSize: 12,
-            cursor: 'pointer',
-          }}
-        >
-          {t('launch.abortLaunch')}
-        </button>
+        <SidebarFooter slot={footerEl}>
+          <button
+            onClick={onAbort}
+            style={{
+              width: '100%',
+              padding: '8px 0',
+              marginTop: 8,
+              background: colors.error,
+              color: '#fff',
+              border: 'none',
+              borderRadius: 4,
+              fontWeight: 700,
+              fontSize: 12,
+              cursor: 'pointer',
+            }}
+          >
+            {t('launch.abortLaunch')}
+          </button>
+        </SidebarFooter>
       )}
     </div>
   );

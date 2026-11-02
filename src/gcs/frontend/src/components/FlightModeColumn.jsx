@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import { QUICK_MODES, OTHER_MODES } from '../utils/flightModes';
 import { getArmAction, LONG_PRESS_MS } from '../utils/armAction';
+import { RC_RAISED_Z_INDEX } from '../utils/appLayout';
 import useLongPress from '../hooks/useLongPress';
 
 /** Arm button border/text color when disarmed. Red when prearm fails, green otherwise. */
@@ -86,7 +87,7 @@ export const formatPrearmWarning = (warning, t) => {
   return warning == null ? '' : String(warning);
 };
 
-export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmSeverity, prearmWarnings, altRel, sysId, onSetMode, onArmDisarm, onToggleManualControl }) {
+export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmSeverity, prearmWarnings, altRel, sysId, onSetMode, onArmDisarm, onToggleManualControl, listRaised = false }) {
   const { t } = useTranslation();
   const [showOther, setShowOther] = useState(false);
   const hasPoi = sysId != null;
@@ -125,7 +126,10 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
       position: 'absolute',
       top: MODE_COLUMN_INSET_PX,
       left: MODE_COLUMN_INSET_PX,
-      zIndex: 10,
+      // Over the RC confirm list: its "Other" menu holds flight commands and opens
+      // towards the list. At 10 the speed tape, later in the tree, stays readable
+      // over the column on a short screen; the list is at 9 unless raised on a phone.
+      zIndex: listRaised ? RC_RAISED_Z_INDEX + 1 : 10,
       display: 'flex',
       flexDirection: 'column',
       gap: 4,

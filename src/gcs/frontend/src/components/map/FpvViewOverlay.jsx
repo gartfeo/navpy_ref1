@@ -8,6 +8,10 @@ const TAG_LINE_PX = 18;
 const TAG_PAD_PX = 6;
 /** The tag's full height (line, padding, 1 px border); App starts the RC confirm list below it. */
 export const FPV_TAG_HEIGHT_PX = TAG_LINE_PX + 2 * TAG_PAD_PX + 2;
+/** The "View held" banner's top below the tag's top. */
+export const FPV_HELD_OFFSET_PX = 44;
+/** The banner on three lines, the most measured on a phone; App keeps this room above the raised RC list. */
+export const FPV_HELD_ROOM_PX = 3 * TAG_LINE_PX + 2 * TAG_PAD_PX + 2;
 
 /**
  * Always-on label of RC FPV, the synthetic first-person view on the main map:
@@ -16,14 +20,19 @@ export const FPV_TAG_HEIGHT_PX = TAG_LINE_PX + 2 * TAG_PAD_PX + 2;
  * last pose a full-width "View held" banner with the time held. Never takes
  * taps: everything here is pointer-events none.
  *
- * `heldLeft` and `heldRight` are the banner's insets: while the RC confirm
+ * `heldLeft` and `heldRight` are the banner's insets. While the RC confirm
  * list lies at the right, App narrows the banner to the room between the
- * flight-mode buttons and the list, so neither hides the banner's text.
+ * flight-mode buttons and the list, so neither hides the banner's text where the
+ * pane leaves it room (todo 168). A raised list lies under the banner's row:
+ * `heldLeft` then clears the buttons with or without a list, and `heldRight` is the margin.
+ * `tagLeft` does the same for the tag on a pane too narrow to centre it clear
+ * of the buttons: the tag ellipsizes at its end, and "SYNTHETIC" stays readable.
  *
- * @param {{ label: string, holdReason: string|null, top: number, heldLeft?: number, heldRight?: number }} props
+ * @param {{ label: string, holdReason: string|null, top: number, heldLeft?: number, heldRight?: number,
+ *   tagLeft?: number }} props
  */
 export default function FpvViewOverlay({
-  label, holdReason, top, heldLeft = PANEL_MARGIN_PX, heldRight = PANEL_MARGIN_PX,
+  label, holdReason, top, heldLeft = PANEL_MARGIN_PX, heldRight = PANEL_MARGIN_PX, tagLeft,
 }) {
   const { t } = useTranslation();
   const heldSeconds = useHeldSeconds(holdReason);
@@ -46,11 +55,11 @@ export default function FpvViewOverlay({
           ...text,
           position: 'absolute',
           top,
-          left: '50%',
-          transform: 'translateX(-50%)',
+          ...(tagLeft == null
+            ? { left: '50%', transform: 'translateX(-50%)', maxWidth: `calc(100% - ${2 * PANEL_MARGIN_PX}px)` }
+            : { left: tagLeft, right: PANEL_MARGIN_PX, textAlign: 'center' }),
           border: `1px solid ${colors.accent}`,
           whiteSpace: 'nowrap',
-          maxWidth: `calc(100% - ${2 * PANEL_MARGIN_PX}px)`,
           overflow: 'hidden',
           textOverflow: 'ellipsis',
         }}
@@ -63,7 +72,7 @@ export default function FpvViewOverlay({
           style={{
             ...text,
             position: 'absolute',
-            top: top + 44,
+            top: top + FPV_HELD_OFFSET_PX,
             left: heldLeft,
             right: heldRight,
             textAlign: 'center',

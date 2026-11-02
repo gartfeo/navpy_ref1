@@ -46,13 +46,16 @@ import MonitorMapOverlay from './components/map/MonitorMapOverlay';
 import NotificationBanner from './components/NotificationBanner';
 import LoadingScreen from './components/LoadingScreen';
 import VehicleWindow, { MAP_SWAPPED_Z_INDEX } from './components/VehicleWindow';
-import FpvViewOverlay, { FPV_TAG_HEIGHT_PX } from './components/map/FpvViewOverlay';
+import FpvViewOverlay, { FPV_HELD_OFFSET_PX, FPV_HELD_ROOM_PX, FPV_TAG_HEIGHT_PX } from './components/map/FpvViewOverlay';
 import useVideoFleet from './hooks/useVideoFleet';
 import useVehicleWindow from './hooks/useVehicleWindow';
 import useFpvView from './hooks/useFpvView';
 import useElementSize from './hooks/useElementSize';
+import useSidePanel from './hooks/useSidePanel';
 import useSimAutoConnect from './hooks/useSimAutoConnect';
-import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
+import { isPending } from './hooks/taskConfirmationState';
+import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, panelHostStyle, rcListPlacement } from './utils/appLayout';
+import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
 import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehicles';
@@ -69,9 +72,11 @@ const RC_CONFIRM_BOTTOM_PX = VEHICLE_SELECTOR_SPAN_PX + RC_CONFIRM_GAP_PX;
 // readable over it; above the FPV frame and tag (8) and the attitude (5).
 const RC_CONFIRM_Z_INDEX = 9;
 // While the RC list shows, the first-person "View held" banner spans the room
-// between the flight-mode buttons and the list, so neither hides its text.
+// between the flight-mode buttons and the list, so neither hides its text
+// where the pane leaves it room (todo 168).
 const RC_HELD_LEFT_PX = MODE_COLUMN_INSET_PX + MODE_BUTTON_WIDTH_PX + RC_CONFIRM_GAP_PX;
 const RC_HELD_RIGHT_PX = RC_CONFIRM_RIGHT_PX + sidebarWidth + RC_CONFIRM_GAP_PX;
+const RC_HELD_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_HELD_OFFSET_PX;
 /** Desktop map pane, used until the real pane is measured. */
 const FALLBACK_PANE = { width: 1280, height: 800 };
 
@@ -135,6 +140,12 @@ export default function App() {
   const poseSourceRef = useRef(null);
   const mapPaneRef = useRef(null);
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
+  // The right panel's rule starts from the real width, so the map never mounts
+  // in the sliver a docked panel would leave on a phone.
+  const rootRef = useRef(null);
+  const viewport = useElementSize(rootRef, { width: window.innerWidth, height: window.innerHeight });
+  const sidePanel = useSidePanel(viewport.width);
+  const [panelFooterEl, setPanelFooterEl] = useState(null);
   const [mapCreditsPx, setMapCreditsPx] = useState(0);
   const [windowCreditsPx, setWindowCreditsPx] = useState(0);
   // Null until the open window measures its bar: no picture mounts before that.
@@ -574,16 +585,44 @@ export default function App() {
   // "Viewing" only while the picture is drawn: not while closed, nor with too
   // little room for the picture.
   const pictureShown = showWindow && windowLayout.pictureFits;
+  // The picture opens over the map, under a drawer: the tap asked to see it.
+  const closeDrawer = sidePanel.mode === 'overlay' ? sidePanel.toggle : null;
   const videoActionFor = useCallback((sysId) => {
     if (!videoFleet.find((e) => e.sysId === sysId)?.streams.length) return null;
     return {
       viewing: pictureShown && viewing(sysId),
-      onView: () => viewCamera(sysId),
+      onView: () => { viewCamera(sysId); closeDrawer?.(); },
     };
-  }, [videoFleet, pictureShown, viewing, viewCamera]);
+  }, [videoFleet, pictureShown, viewing, viewCamera, closeDrawer]);
   const fpvEntry = videoFleet.find((e) => e.sysId === fpv.fpvSysId);
   // RC shows its confirm list (todo 69, decision 4c) while any round exists.
   const rcConfirmShown = mc.manualControlEnabled && Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
+  const rcList = rcListPlacement({
+    paneWidth: mapPane.width,
+    paneHeight: mapPane.height,
+    left: RC_HELD_LEFT_PX,
+    right: RC_CONFIRM_RIGHT_PX,
+    top: RC_CONFIRM_TOP_PX,
+    bottom: RC_CONFIRM_BOTTOM_PX,
+    gap: RC_CONFIRM_GAP_PX,
+    // The raised list stays put as a banner comes, goes or wraps.
+    heldBottom: RC_HELD_TOP_PX + FPV_HELD_ROOM_PX,
+  });
+  const rcHeldRight = rcList.heldRight ?? RC_HELD_RIGHT_PX;
+
+  // ---- Right panel (docs/design/gcs_handheld_layout.md) ----
+  // One list element in every mode; a round shows over the map while collapsed.
+  const panelCollapsed = sidePanel.mode === 'collapsed';
+  const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
+  const collapsedBox = collapsedListBox({
+    paneWidth: mapPane.width,
+    paneHeight: mapPane.height,
+    topControlsBottom,
+    windowBox: showWindow && !swapped ? windowLayout.window : null,
+  });
+  const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;
+  const panelToggleShown = !mc.manualControlEnabled;
+  const pendingCount = Object.values(taskConfirm.pendingConfirms || {}).filter(isPending).length;
 
   // The viewport height is set once, on #root in index.html, with a 100vh
   // fallback: Chromium before 108 (Android 13's WebView 101) drops dvh, and
@@ -598,6 +637,7 @@ export default function App() {
         flexDirection: 'column',
         overflow: 'hidden',
       }}
+      ref={rootRef}
     >
       <TopBar
         connected={connected}
@@ -618,9 +658,13 @@ export default function App() {
         autoScan={connFromSidebarRef.current}
         devMode={devMode}
         onEstop={commands.handleEstop}
+        compact={viewport.width < DOCKED_MIN_VIEWPORT_PX}
+        panelOpen={sidePanel.open}
+        onTogglePanel={panelToggleShown ? sidePanel.toggle : undefined}
+        pendingCount={pendingCount}
       />
 
-      <div style={{ display: 'flex', flex: 1, overflow: 'hidden' }}>
+      <div style={{ display: 'flex', flex: 1, overflow: 'hidden', position: 'relative' }}>
         {/* Map */}
         <div ref={mapPaneRef} style={{ flex: 1, position: 'relative', height: '100%' }}>
           {/* The map box. Swapped with the maximized vehicle window it shrinks
@@ -823,8 +867,9 @@ export default function App() {
               label={fpvEntry?.label ?? `UAV ${fpv.fpvSysId}`}
               holdReason={fleetEntryHoldReason(fpvEntry)}
               top={RC_FPV_TAG_TOP_PX}
-              heldLeft={rcConfirmShown ? RC_HELD_LEFT_PX : undefined}
-              heldRight={rcConfirmShown ? RC_HELD_RIGHT_PX : undefined}
+              heldLeft={rcConfirmShown || rcList.raised ? RC_HELD_LEFT_PX : undefined}
+              heldRight={rcConfirmShown ? rcHeldRight : undefined}
+              tagLeft={rcList.raised ? RC_HELD_LEFT_PX : undefined}
             />
           )}
           {mc.manualControlEnabled && (
@@ -854,6 +899,7 @@ export default function App() {
                     onSetMode={commands.handleSetMode}
                     onArmDisarm={commands.handleArmDisarm}
                     onToggleManualControl={mc.handleToggleManualControl}
+                    listRaised={rcConfirmShown && rcList.raised}
                   />
                 );
               })()}
@@ -862,7 +908,12 @@ export default function App() {
           {mc.manualControlEnabled && mc.manualControlTarget != null && (
               <TelemetryHud key={mc.manualControlTarget} sysId={mc.manualControlTarget} />
           )}
-          <NotificationBanner text={notification} />
+          {/* The collapsed list can reach the toast's place: it moves over the top
+              controls for its 3 s and takes no taps, so it never covers Approve or Deny. */}
+          <NotificationBanner
+            text={notification}
+            top={collapsedListShown ? PANEL_MARGIN_PX : undefined}
+          />
           {/* Confirm list in RC: beside the right stick, never over a stick or the selector */}
           {rcConfirmShown && (
             <ConfirmCardList
@@ -887,7 +938,9 @@ export default function App() {
                 borderRadius: 6,
                 boxSizing: 'border-box',
                 overflow: 'hidden',
+                ...rcList.style,
               }}
+              heightPx={rcList.heightPx}
             />
           )}
           {!mc.manualControlEnabled && <MapDisplayToggles
@@ -923,7 +976,11 @@ export default function App() {
 
         {/* Right panel — hidden during manual control for full-width map. The
             confirm list's pinned rows sit over one scrolling part: pending
-            cards, then the planning or monitor sidebar (todo 69). */}
+            cards, then the planning or monitor sidebar (todo 69), then the
+            slot the monitor sidebar renders its action into. It has no box, so
+            a pinned action sticks to the whole scrolling part: a timed round
+            outranks the start action, never the abort. Collapsed, the sidebars
+            stay mounted and the list shows over the map. */}
         {!mc.manualControlEnabled && <ConfirmCardList
           pendingConfirms={taskConfirm.pendingConfirms}
           vehicleList={vehicleList}
@@ -934,14 +991,11 @@ export default function App() {
           aasParams={aasParams}
           cue={taskConfirm.cue}
           videoActionFor={phase === PHASES.MONITOR ? videoActionFor : null}
-          style={{
-            width: sidebarWidth,
-            height: '100%',
-            background: colors.bgLight,
-            borderLeft: `1px solid ${colors.border}`,
-            flexShrink: 0,
-          }}
+          style={panelHostStyle({ mode: sidePanel.mode, roundsExist, box: collapsedBox })}
+          heightPx={panelCollapsed ? collapsedBox.height : mapPane.height}
+          childrenHidden={panelCollapsed}
         >
+          <div style={panelCollapsed ? { display: 'none' } : undefined}>
           {phase === PHASES.PLANNING && (
             <PlanningSidebar
               cameraCheck={planCameraCheck}
@@ -1016,8 +1070,13 @@ export default function App() {
               navpyStatus={ws.navpyStatus}
               onFlyToLocation={flyToLocation}
               onOpenReadiness={() => setShowReadiness(true)}
+              footerEl={panelFooterEl}
+              startPinned={!roundsExist}
+              hidden={panelCollapsed}
             />
           )}
+          </div>
+          <div ref={setPanelFooterEl} style={{ display: panelCollapsed ? 'none' : 'contents' }} />
         </ConfirmCardList>}
       </div>
 

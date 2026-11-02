@@ -1801,3 +1801,71 @@
 - Mark what came from a reviewer's prose and what from a saved result. Harness output that is only
   printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
   report, and two reports disagree on one Armenian case with nothing saved to settle it.
+
+## GCS handheld layout (todo 73, 2026-11-01)
+
+- A rule from the design can be wrong against an existing contract: my 375 px test
+  expected a 351 px vehicle window, but the contract caps it at 320 px. Read the
+  layout function before writing a number into its test.
+- A red run proves nothing for a test that needs no new code. The no-remount test
+  failed on base because it passed JSX to setup()'s own rerender, which takes props
+  ("There are no available roles"). Read why each red test fails.
+- Python on this PC prints in cp1252: printing Armenian text aborted a locale edit
+  half way, en written and hy not. Set PYTHONIOENCODING=utf-8 or print nothing, and
+  check every file after a batch edit.
+- App.jsx is pinned by source-string tests (`tests/gcs/test_*_js.py`). Grep them for
+  the block you edit before wiring props: a prop text inside the TopBar block or a
+  `/>` inside the RC host breaks them. Compute values above the JSX.
+- A sticky child of a block slot sticks to the slot, so it scrolls away with it. Make
+  the slot `display: contents`, then the scroller is the containing block.
+- A control that yields to another must not come back under the finger that just
+  tapped: START MISSION fires on a short click. Ask where it returns and when. Here it
+  returns only when no round is left, not when one is decided.
+- Live layout checks on a cold Vite server took 5 to 8 minutes per first load, and
+  `npm run build` wipes that cache. Build once and serve `dist` with GCS_FRONTEND_DIST.
+- The newest folder under Codex's bin may hold only rg.exe. Pick the newest codex.exe
+  file, not the newest folder.
+- A list of one-tap actions anchored at its bottom moves every row when one arrives, so
+  a tap lands on another UAV's Approve. I chose the bottom for reach, and three design
+  reviews and the live check passed it, as they measured still layouts. For each control
+  ask what moves it while a finger is on its way.
+- `e.touches[0]` is the first finger on the screen, not the one that pressed: a thumb on
+  a stick made every hold fail. Use `changedTouches[0]`. A test with one finger shows nothing.
+- A z-index raised "at every width" for one narrow case hid the airspeed number at
+  960 x 448, and the live check had no RC capture at that size. Raise it only in the case
+  that needs it, and list what lies under the element at each target size.
+- Workflow reviewers with `schema` and the `code-reviewer` type: 4 of 5 ended with no
+  result after about 1M tokens (cause not established). With no schema, the default agent,
+  a report file they overwrite as they go and a budget of 40 tool calls, 6 of 6 reported.
+- After changing what a function returns, run the whole suite, not the files you edited. A
+  helper in another test file went on reading the removed `bottom`, and its `overlap` check
+  still passed, as every comparison with NaN is false. Geometry test helpers now throw on a
+  non-number.
+- A saved press point is not where the finger is. My fix for a button moving away compared
+  the button with the point where the press began, so a finger that drifted got the wrong
+  answer both ways. Follow the pressing finger by its identifier.
+- I wrote "rows stay where they are" when the fix only kept the rows above a change in place.
+  Write what the code guarantees, and give a limit its own line.
+- A subagent's Write tool refuses a file named report.md ("Subagents should return findings
+  as text"). Ask a tester for its findings in its final message.
+- Anchoring a list at its top did not stop it moving: the top still read live measurements
+  (the window's warning rows, a banner's wrap, the credit line). A layout that holds one-tap
+  controls should list each input and whether it can change with no tap; those must not move
+  the controls. Compare with origin/main before calling a movement "not new".
+- Guarding a measured input lost to removing it. Three rounds tried to keep the raised RC list
+  and the collapsed box clear of a live banner height and credit line, and each guard left a
+  case. A fixed room for three banner lines and a fixed box end removed the inputs, the state
+  and the effect, and the code shrank. Ask first whether the input is needed at all.
+- Vitest at BelowNormal priority under full CPU load: workers time out ("Timeout waiting for
+  worker to respond") and whole files show as failed with no test failing. It is not a code
+  result. Run the full suite at normal priority with nothing heavy beside it.
+- An upload that fails in a live check is not a code result until load is ruled out. A canary
+  that sleeps read "not starvation" while uploads still failed: a wake-up priority boost may explain
+  that, and why the reader falls behind is not measured. Flipping one stack's priority on and off
+  toggled the failure in minutes (todo 172).
+- A note's "measured" number outlives its measurement. The row height and credit line figures I
+  carried from an earlier build were off by 4 px and 18 px, and "25 to 40 px" docked was a calculation
+  from a mix of states. When a final run measures a number, replace the old one everywhere it appears.
+- A hit test is not a tap, and a note can read as if a state ran when none did. The final audit found
+  taps, drags and whole states no build had run, behind "one drag brought them clear". Write the
+  state-by-size matrix before the first live check, and keep what did not run beside the results.

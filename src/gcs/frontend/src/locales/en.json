@@ -14,6 +14,8 @@
     "settings": "Settings",
     "fullscreen": "Full screen",
     "exitFullscreen": "Exit full screen",
+    "showPanel": "Show panel",
+    "hidePanel": "Hide panel",
     "emergencyStop": "EMERGENCY STOP",
     "disarmAll": "Disarm ALL vehicles immediately?",
     "disarmOne": "Disarm {{name}} immediately? It will stop and fall."
