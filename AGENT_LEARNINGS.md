@@ -1907,6 +1907,8 @@
   background on a busy PC and failed in the parameter step, at two different points.
   Starting the second and third without reading the first's cause cost about 7 minutes,
   and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- To show a new launch step is not the cause, run the launch once from a scratch script that
+  replaces that one function, with no edit to the tree. Off, it failed with the same error.
 - A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
   either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
 - To tell a slow launch from a broken one, list the `http_request_finished` durations of
