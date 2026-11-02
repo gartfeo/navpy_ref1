@@ -92,6 +92,7 @@ class _Pipeline:
             "buffer-mode": SimpleNamespace(value_nick="none"),
             "ntp-sync": False,
             "rfc7273-sync": False,
+            "udp-reconnect": False,
             "latency": 50,
             "sync": False,
             **(settings or {}),
@@ -178,7 +179,7 @@ def test_source_states_every_setting_or_is_refused():
 def test_pipeline_pins_what_keeps_sender_intervals():
     text = parse_gstreamer_source(SOURCE).pipeline_text()
     for pin in (
-        "protocols=udp", "buffer-mode=none", "ntp-sync=false", "rfc7273-sync=false",
+        "protocols=udp", "buffer-mode=none", "ntp-sync=false", "rfc7273-sync=false", "udp-reconnect=false",
         "latency=50", "sync=false", "drop=false",
     ):
         assert pin in text
@@ -304,7 +305,7 @@ def test_a_disconnect_ends_the_open_and_never_reconnects(short_limits, message):
     assert pipeline.states[-1] == "null"
 
 
-def test_a_lost_stream_fails_the_run_and_a_new_run_gets_a_new_open(short_limits):
+def test_a_lost_stream_fails_the_run_and_nothing_reopens_it(short_limits):
     gst = _Gst(_Pipeline([_sample(10)], [_Message(2)]))
     with patch(
         "navpy.core.perception.camera.frame_capture_runtime.open_capture_backend",
@@ -341,8 +342,9 @@ def test_no_stream_at_all_ends_at_the_deadline(short_limits, monkeypatch):
         _run(_open(_Gst(_Pipeline(messages=[_Message(1)]))))
 
 
-def test_settings_that_did_not_take_refuse_the_run():
-    gst = _Gst(_Pipeline(settings={"latency": 2000}))
+@pytest.mark.parametrize("wrong", [{"latency": 2000}, {"udp-reconnect": True}])
+def test_settings_that_did_not_take_refuse_the_run(wrong):
+    gst = _Gst(_Pipeline(settings=wrong))
     with pytest.raises(EncodedStreamReset, match="did not take"):
         _run(_open(gst))
 
@@ -355,6 +357,7 @@ def test_the_settings_are_recorded_as_read_back():
     assert capture.recorded["latency_ms"] == 50
     assert capture.recorded["ntp_sync"] is False
     assert capture.recorded["rfc7273_sync"] is False
+    assert capture.recorded["udp_reconnect"] is False
     assert capture.recorded["appsink_sync"] is False
     assert any("encoded capture settings" in line for line in logger.lines)
 

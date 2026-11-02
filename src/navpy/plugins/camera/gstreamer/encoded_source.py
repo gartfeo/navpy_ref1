@@ -23,7 +23,7 @@ class EncodedSourceSettings:
     def pipeline_text(self) -> str:
         return (
             f"rtspsrc name=src location={self.url} protocols=udp buffer-mode=none "
-            f"ntp-sync=false rfc7273-sync=false latency={self.latency_ms} "
+            f"ntp-sync=false rfc7273-sync=false udp-reconnect=false latency={self.latency_ms} "
             "! rtph265depay ! h265parse ! video/x-h265,stream-format=byte-stream,alignment=au "
             f"! {self.decoder} ! videoconvert ! video/x-raw,format=BGR "
             "! appsink name=sink sync=false async=false max-buffers=4 drop=false"

@@ -29,9 +29,12 @@ from dataclasses import asdict
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Sequence
-from unittest.mock import Mock
 
 from tools.hitl.encoded_capture_score import read_sender_pts, rescore, score_intervals, score_los
+from tools.hitl.encoded_capture_stubs import stub_mount, stub_vehicle
+
+DISCONNECT_REASONS = ("stream ended", "no frame for")     # the capture's own transport ends
+
 
 class _MeasurementRecorder:
     """Stands in for the gimbal's measurement port behind the real TrackingNavigationSink."""
@@ -51,7 +54,7 @@ def _instrument(los_rows: list[tuple[int, float]], frame_rows: list[tuple[str, i
     from navpy.app.perception import frame_capture_factory as factory
     from navpy.core.perception.detection.poi_priority import get_poi_task_id
     from navpy.core.perception.pipeline import real_tracking, real_tracking_batch
-    from navpy.plugins.camera.gstreamer.encoded_frame_gate import EncodedFrameGate
+    from navpy.plugins.camera.gstreamer.encoded_frame_gate import EncodedFrameGate, EncodedStreamReset
     from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import GstreamerFrameCapture
 
     facts: dict[str, Any] = {"opens": [], "fallback_opens": 0, "refused_frames": []}
@@ -65,7 +68,18 @@ def _instrument(los_rows: list[tuple[int, float]], frame_rows: list[tuple[str, i
         def open(source: str, logger: Any) -> Any:
             capture = GstreamerFrameCapture.open(source, logger, observe)
             facts["opens"].append(capture)
+            if capture is not None:
+                capture.run = _watched(capture.run)
             return capture
+
+    def _watched(run: Any) -> Any:
+        def watched(*args: Any) -> Any:
+            try:
+                return run(*args)
+            except EncodedStreamReset as error:
+                facts["capture_reset"] = (str(error), time.time())
+                raise
+        return watched
 
     def refused(*_args: Any, **_kwargs: Any) -> None:
         facts["fallback_opens"] += 1
@@ -106,46 +120,6 @@ def _instrument(los_rows: list[tuple[int, float]], frame_rows: list[tuple[str, i
     return facts
 
 
-def _stub_vehicle() -> Any:
-    from navpy.core.kernel.attitude import Attitude
-
-    attitude = Attitude(pitch=0.0, yaw=0.0, roll=0.0)
-    vehicle = Mock()
-    vehicle.attitude = attitude
-    vehicle.attitude_history.return_value = ()
-    vehicle.air_speed = 20.0
-    vehicle.link_identity = "encoded-capture-check"
-    vehicle.location.return_value = None
-    type(vehicle).attitude_sample = property(lambda _self: SimpleNamespace(
-        attitude=attitude, body_rates_rad_s=(0.0, 0.0, 0.0), time_boot_s=time.monotonic(), receipt_time_s=time.time(),
-    ))
-    return vehicle
-
-
-def _stub_mount() -> Any:
-    import numpy as np
-
-    from navpy.core.kernel.attitude import Attitude
-    from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
-    from navpy.core.ports.gimbal_abc import GimbalData
-
-    def state(width: int, height: int) -> CameraMountFrameState:
-        return CameraMountFrameState(
-            gimbal_data=GimbalData(att=Attitude(0, 0, 0)),
-            k=np.array([[1400.0, 0.0, width / 2], [0.0, 1400.0, height / 2], [0.0, 0.0, 1.0]]),
-            dist=np.zeros(5),
-            gimbal_timestamp_s=None,
-            gimbal_is_static=True,
-            zoom_command=None,
-            zoom_sample_id="static:encoded-capture-check",
-            zoom_sample_age_s=0.0,
-        )
-
-    mount = Mock()
-    mount.capture_frame_state.side_effect = state
-    return mount
-
-
 def _build_detector(profile_name: str, logger: Any) -> tuple[Any, str]:
     from navpy.core.perception.pipeline.detector import Detector
     from navpy.core.perception.pipeline.real_detector_config import (
@@ -179,7 +153,7 @@ def _build_detector(profile_name: str, logger: Any) -> tuple[Any, str]:
             frame_source=source,
         ),
     )
-    return Detector(DetectorDependencies(_stub_vehicle(), _stub_mount(), logger), config), source
+    return Detector(DetectorDependencies(stub_vehicle(), stub_mount(), logger), config), source
 
 
 class _Log:
@@ -215,6 +189,7 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
                 detector.raise_if_failed()
             except Exception as error:
                 failure = str(error)
+                time.sleep(args.after_failure_s)    # the stream may come back: nothing may reopen it
                 break
     finally:
         detector.stop()
@@ -227,6 +202,14 @@ def run(args: argparse.Namespace) -> dict[str, Any]:
         csv.writer(file).writerows([("pts_ns", "corrupted", "at_s"), *facts["refused_frames"]])
     (args.out / "log.txt").write_text("\n".join(log.lines), encoding="utf-8")
     return verdict(args, source, facts, frame_rows, los_rows, failure, time.monotonic() - started)
+
+
+def _disconnect_proven(facts: dict[str, Any], failure: str | None, frame_rows: Sequence[Any]) -> bool:
+    """The capture itself ended on a transport end, that ended the run, and no frame came after it."""
+    reset = facts.get("capture_reset")
+    if reset is None or failure is None or reset[0] not in failure or not reset[0].startswith(DISCONNECT_REASONS):
+        return False
+    return not [row for row in frame_rows if row[3] > reset[1]]
 
 
 def verdict(
@@ -252,7 +235,7 @@ def verdict(
         "no_duplicate_frames": gate is not None and gate.duplicates == 0,
         "no_duplicate_los": los["los_updates"] > 0 and not (los["duplicate_pictures"] or los["duplicate_times"]),
         "intervals_kept": intervals is not None and intervals.ok,
-        "ended_as_expected": bool(failure) if args.expect_disconnect else failure is None,
+        "ended_as_expected": _disconnect_proven(facts, failure, frame_rows) if args.expect_disconnect else failure is None,
         "long_enough": args.expect_disconnect or span_s >= args.seconds,
     }
     return {
@@ -269,6 +252,7 @@ def verdict(
         "intervals": None if intervals is None else asdict(intervals),
         "los": los,
         "failure": failure,
+        "capture_reset": facts.get("capture_reset"),
         "elapsed_s": elapsed_s,
         "last_frame_to_end_s": time.time() - frame_rows[-1][3] if frame_rows else None,
     }
@@ -281,6 +265,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     parser.add_argument("--first-frame-wait-s", type=float, default=280.0, help="give up if no frame came by then")
     parser.add_argument("--publisher-run", type=Path, help="the publisher's output folder")
     parser.add_argument("--expect-disconnect", action="store_true")
+    parser.add_argument("--after-failure-s", type=float, default=0.0, help="keep watching after the run failed")
     parser.add_argument("--out", type=Path, required=True)
     parser.add_argument("--rescore", action="store_true", help="only score the intervals of a finished run again")
     args = parser.parse_args(argv)

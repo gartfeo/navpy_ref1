@@ -5,7 +5,8 @@ profile that names this scheme gets this backend. Anything that stops it from
 opening is a failed start, never another decoder path.
 
 rtspsrc is pinned to ``buffer-mode=none`` (RTP clock only), ``ntp-sync=false``
-and ``rfc7273-sync=false``, with a fixed jitter-buffer latency, and appsink to
+and ``rfc7273-sync=false``, with a fixed jitter-buffer latency and its own
+reconnect off (``udp-reconnect=false``), and appsink to
 ``sync=false``, so PTS keeps the sender's intervals and the receiver clock does
 not hold frames back. A frame's PTS, its sequence in this open and the open's
 identity travel in ``CaptureStamp.source``; the stamp itself is READ, taken when
@@ -55,6 +56,9 @@ CONNECT_RETRY_S = 1.0
 # timeout is 5 s, and step 8 saw single stream gaps of up to 2.6 s under load.
 SAMPLE_GAP_LIMIT_S = 5.0
 _PULL_SLICE_NS = 100_000_000
+
+# What the pipeline text pins, as read back; udp-reconnect would otherwise let rtspsrc reconnect by itself.
+_PINNED = {"buffer_mode": "none", "ntp_sync": False, "rfc7273_sync": False, "udp_reconnect": False, "appsink_sync": False}
 
 FrameObserver = Callable[[FrameSourceIdentity, float], None]
 
@@ -225,16 +229,11 @@ class GstreamerFrameCapture:
             "buffer_mode": src.get_property("buffer-mode").value_nick,
             "ntp_sync": src.get_property("ntp-sync"),
             "rfc7273_sync": src.get_property("rfc7273-sync"),
+            "udp_reconnect": src.get_property("udp-reconnect"),
             "latency_ms": src.get_property("latency"),
             "appsink_sync": sink.get_property("sync"),
         }
-        expected = {
-            "buffer_mode": "none",
-            "ntp_sync": False,
-            "rfc7273_sync": False,
-            "latency_ms": self._settings.latency_ms,
-            "appsink_sync": False,
-        }
+        expected = {**_PINNED, "latency_ms": self._settings.latency_ms}
         wrong = {key: recorded[key] for key, value in expected.items() if recorded[key] != value}
         if wrong:
             raise EncodedStreamReset(f"pipeline settings did not take: {wrong}")

@@ -1882,3 +1882,14 @@
   23.1 s and a loss with no baseline, while the audit's verify pass said 28.3 s on a 10.3x
   line; Codex caught it, and a sweep of the `corrected` fields then found five more
   overstatements. Read those fields before writing, not after.
+
+## HITL step 9: encoded decoder (2026-11-02)
+
+- rtspsrc's `udp-reconnect` defaults to true: a "no reconnect after the first frame" rule in Python is not enough. Pin it off and read it back with the other pins (Codex caught it).
+- GStreamer 1.24's Python appsink has no `try_pull_sample` method without the GstApp typelib; `sink.emit("try-pull-sample", ns)` works with core bindings only. A scripted fake hid this: run the real-gi tests in WSL before the live run.
+- Align two PTS series by the anchor that matches most of a window, and let one sender frame match one decoded frame; a first-fit anchor or a reusable match hides a missing or retimed frame. A throwaway script with a fixed offset reported 1.3 s of lag that was 50-150 ms.
+- Score against the publisher's CSV only after the publisher ends: its last rows reach the disk late, and a live score counted them as unmatched (`--rescore`).
+- Read Unreal's own log before blaming a stream end: `RequestExit(... ViewportClosed)` at 365 s showed Unreal's window had closed 5 s before the capture's abort, so the abort was correct.
+- A full `pytest tests` at 97% CPU did 4% in 28 min. Run the touched groups, then compare each failure against origin/main in a temporary worktree; `test_param_groups_js` failed only under load and passed alone.
+- The newest Codex folder under `%LOCALAPPDATA%\OpenAI\Codexin` may hold only `rg.exe`; take the newest folder that has `codex.exe`.
+
