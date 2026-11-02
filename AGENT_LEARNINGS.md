@@ -1884,10 +1884,12 @@
   overstatements. Read those fields before writing, not after.
 
 ## Hand demo check and input record (2026-11-02)
-- Read `cpu_share.py --list` and free memory before a real launch. Three launches ran as
+- Read `cpu_share.py --list` and free memory before a real launch. Four launches ran as
   background on a busy PC and failed in the parameter step, at two different points.
   Starting the second and third without reading the first's cause cost about 7 minutes,
-  and I read memory only after them: commit free was 1.3 of 64.5 GB.
+  and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
+  either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
 - To tell a slow launch from a broken one, list the `http_request_finished` durations of
   `/params` and `/parameters` from the run's timeline and compare with a passing run.
 - A single string search can miss a message built from parts: "AAS write failed" is
