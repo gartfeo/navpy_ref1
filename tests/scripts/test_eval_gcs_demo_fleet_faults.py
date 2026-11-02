@@ -821,6 +821,25 @@ def test_a_new_generation_that_never_checked_in_ends_no_silence(tmp_path):
         f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
 
 
+def test_a_silence_over_before_the_restart_needs_no_new_line(tmp_path):
+    """The check-out was lost, and a roster that is not silent logs nothing when it hears the new generation."""
+    journal = _restart()
+    journal.lines[1] += [(START - 3, PEER_SILENT_LOG.format(2)), (START - 2, PEER_HEARD_AGAIN_LOG.format(2))]
+    assert _errors(tmp_path, journal) == []
+
+
+def test_a_silence_by_expiry_ends_with_the_roster_line_before_the_peer_generation_checks_in(tmp_path):
+    journal = _restart()
+    journal.lines[1] += [(START - 3, PEER_SILENT_LOG.format(2)), (READY_K, PEER_HEARD_AGAIN_LOG.format(2))]
+    assert _errors(tmp_path, journal) == []
+
+
+def test_a_check_out_after_an_expiry_still_waits_for_the_new_generation(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[1] += [(START, PEER_SILENT_LOG.format(2)), (READY_K, PEER_HEARD_AGAIN_LOG.format(2))]
+    assert _errors(tmp_path, journal) == [f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
+
+
 def test_a_check_out_logged_after_the_deadline_owes_nothing_yet(tmp_path):
     journal = _restart()
     journal.lines[1].append((RESTART_BY + 1, f"{PEER_CHECKED_OUT_LOG.format(2)} at location Location: 40.3."))
