@@ -16,7 +16,11 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageSample, Message
 def attitude_sample_from_message(
     message: MAVLink_message,
     receipt_time_s: float,
+    capture_receipt_s: float | None = None,
 ) -> SimpleNamespace:
+    """One ATTITUDE sample: ``receipt_time_s`` is the wall receipt kept for
+    telemetry; ``capture_receipt_s`` the same receipt on the capture clock
+    (``rt.perf_counter``), the only one frame timing may use."""
     return SimpleNamespace(
         attitude=Attitude(
             math.degrees(message.pitch),
@@ -25,6 +29,9 @@ def attitude_sample_from_message(
         ),
         time_boot_s=float(message.time_boot_ms) * 1e-3,
         receipt_time_s=float(receipt_time_s),
+        capture_receipt_s=(
+            None if capture_receipt_s is None else float(capture_receipt_s)
+        ),
         body_rates_rad_s=(
             float(message.rollspeed),
             float(message.pitchspeed),
@@ -39,6 +46,7 @@ def copy_attitude_sample(sample: SimpleNamespace) -> SimpleNamespace:
         attitude=Attitude(attitude.pitch, attitude.yaw, attitude.roll),
         time_boot_s=sample.time_boot_s,
         receipt_time_s=sample.receipt_time_s,
+        capture_receipt_s=sample.capture_receipt_s,
         body_rates_rad_s=tuple(sample.body_rates_rad_s),
     )
 
@@ -190,7 +198,9 @@ class PoseTelemetry:
         """Newest-last defensive copies of recent ATTITUDE samples."""
         samples = self._messages.recent("ATTITUDE", count)
         return tuple(
-            attitude_sample_from_message(sample.message, sample.receipt_time_s)
+            attitude_sample_from_message(
+                sample.message, sample.receipt_time_s, sample.capture_receipt_s,
+            )
             for sample in samples
         )
 
@@ -211,7 +221,9 @@ class PoseTelemetry:
         if sample is None:
             return None
         return copy_attitude_sample(
-            attitude_sample_from_message(sample.message, sample.receipt_time_s)
+            attitude_sample_from_message(
+                sample.message, sample.receipt_time_s, sample.capture_receipt_s,
+            )
         )
 
     @property

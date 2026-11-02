@@ -1,9 +1,10 @@
 """Capture-time attitude lookup: calibration contract and interpolation.
 
 Implements the vision-nav capture-time association decision
-(v7, approved). One clock domain: the ATTITUDE receipt wall axis. An attitude
+(v7, approved). One clock domain: the ATTITUDE capture-receipt axis
+(``capture_receipt_s``, ``rt.perf_counter``; never the wall clock). An attitude
 generated at exposure time E appears there at E + Da, so the frame's stamp is
-mapped to `attitude_lookup_wall_s` and the retained ATTITUDE history is
+mapped to `attitude_lookup_s` and the retained ATTITUDE history is
 interpolated strictly inside a bracket at that instant. Everything that cannot
 be done exactly fails closed.
 """
@@ -137,11 +138,11 @@ def _validate_calibration_fields(
     return None
 
 
-def attitude_lookup_wall_s(
+def attitude_lookup_s(
     stamp: CaptureStamp,
     calibration: CaptureLookupCalibration,
 ) -> float:
-    """Map a frame stamp onto the ATTITUDE receipt axis (decision doc §2).
+    """Map a frame stamp onto the ATTITUDE capture-receipt axis (decision doc §2).
 
     Exhaustive over the stamp kinds ON PURPOSE: an unrecognized kind must
     never silently ride the EXPOSURE branch.
@@ -154,11 +155,11 @@ def attitude_lookup_wall_s(
 
 
 def capture_estimate_s(
-    lookup_wall_s: float,
+    lookup_s: float,
     calibration: CaptureLookupCalibration,
 ) -> float:
     """Best available exposure-time estimate (geometry/measurement time)."""
-    return lookup_wall_s - calibration.attitude_link_delay_s
+    return lookup_s - calibration.attitude_link_delay_s
 
 
 def quarantine_window_s(
@@ -183,7 +184,7 @@ __all__ = [
     "RATE_AMPLIFICATION_LIMIT",
     "STATUS_UNCALIBRATED",
     "TIMING_RESIDUAL_BUDGET_S",
-    "attitude_lookup_wall_s",
+    "attitude_lookup_s",
     "capture_estimate_s",
     "quarantine_window_s",
     "validate_calibration",

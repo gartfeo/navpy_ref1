@@ -118,12 +118,12 @@ class GstreamerFrameCapture:
         return capture
 
     def run(self, publish: FramePublisher, is_running: CaptureRunState) -> None:
-        deadline = rt.monotonic() + FIRST_FRAME_DEADLINE_S
+        deadline = rt.perf_counter() + FIRST_FRAME_DEADLINE_S
         try:
             while is_running() and not self._stop_requested:
                 if self._read_one_connection(publish, is_running, deadline):
                     return
-                if rt.monotonic() >= deadline:
+                if rt.perf_counter() >= deadline:
                     raise EncodedStreamReset(f"no frame within {FIRST_FRAME_DEADLINE_S} s")
                 rt.sleep(CONNECT_RETRY_S)
         finally:
@@ -153,8 +153,7 @@ class GstreamerFrameCapture:
             last_frame_at = None
             while is_running() and not self._stop_requested:
                 sample = sink.emit("try-pull-sample", _PULL_SLICE_NS)    # no GstApp typelib needed
-                read_at_s = rt.time()
-                now = rt.monotonic()
+                read_at_s = now = rt.perf_counter()    # capture clock: frames and deadlines
                 if sample is not None:
                     newest_pts_ns = self.gate.last_pts_ns
                     self._handle_sample(sample, read_at_s, publish)

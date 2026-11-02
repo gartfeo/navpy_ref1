@@ -18,7 +18,7 @@ from navpy.core.ports.pose_stream_rate import (
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
 from navpy.core.perception.camera.capture_lookup import (
     CaptureLookupCalibration,
-    attitude_lookup_wall_s,
+    attitude_lookup_s,
     capture_estimate_s,
     quarantine_window_s,
     validate_calibration,
@@ -50,7 +50,7 @@ def frame_pose_from_sample(
     float | None,
     float | None,
 ] | None:
-    """Extract one cached ATTITUDE value/receipt-time association."""
+    """Extract one cached ATTITUDE value and its capture-clock receipt."""
     if attitude_sample is None:
         return None
     uas_att = attitude_sample.attitude
@@ -66,7 +66,7 @@ def frame_pose_from_sample(
         pose_time_s = None if pose_time_s is None else float(pose_time_s)
     except (TypeError, ValueError):
         pose_time_s = None
-    receipt_time_s = attitude_sample.receipt_time_s
+    receipt_time_s = getattr(attitude_sample, "capture_receipt_s", None)
     try:
         receipt_time_s = None if receipt_time_s is None else float(receipt_time_s)
     except (TypeError, ValueError):
@@ -78,7 +78,12 @@ def frame_pose_from_sample(
 
 @dataclass(frozen=True)
 class RealFrameAssociation:
-    """Pixels and every state sample frozen for one detector publication."""
+    """Pixels and every state sample frozen for one detector publication.
+
+    Frame publication, association, attitude receipt and capture timing are
+    on the capture clock (``rt.perf_counter``); ``attitude_boot_time_s`` is
+    the autopilot's boot clock.
+    """
 
     frame: np.ndarray
     frame_width: int
@@ -148,14 +153,14 @@ class FrameAssociationBuilder:
             return None, "real_frame_capture_uncalibrated", None
         calibration = self._calibration
         try:
-            lookup_s = attitude_lookup_wall_s(stamp, calibration)
+            lookup_s = attitude_lookup_s(stamp, calibration)
         except (TypeError, ValueError):
             # An unrecognized stamp kind fails closed, never rides a branch.
             return None, "real_frame_capture_timestamp_unavailable", None
         timing = CaptureTiming(
             kind=stamp.kind,
             captured_at_s=stamp.captured_at_s,
-            lookup_wall_s=lookup_s,
+            lookup_s=lookup_s,
             estimate_s=capture_estimate_s(lookup_s, calibration),
         )
         # The stream's cadence bounds follow the scheduler-derived runtime
@@ -184,7 +189,7 @@ class FrameAssociationBuilder:
             uas_att = interpolated.attitude
             body_rates = interpolated.body_rates_rad_s
             attitude_boot_time_s = interpolated.time_boot_s
-            attitude_receipt_time_s = capture_timing.lookup_wall_s
+            attitude_receipt_time_s = capture_timing.lookup_s
         else:
             # Display/diagnostics path only: the latest sample keeps the
             # association representable; the gate below refuses atomicity.
@@ -211,7 +216,7 @@ class FrameAssociationBuilder:
             c_g_loc = copy.deepcopy(self._location_reader())
         except Exception:
             c_g_loc = None
-        associated_at_s = rt.time()
+        associated_at_s = rt.perf_counter()
         body_rates = finite_body_rates(body_rates)
         air_speed_mps = finite_time(self._air_speed_reader())
         if air_speed_mps is not None and air_speed_mps <= 0.0:

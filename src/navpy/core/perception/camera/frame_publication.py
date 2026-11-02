@@ -34,7 +34,7 @@ class FramePublicationStore:
 
     def __init__(
         self,
-        wall_time: Callable[[], float] | None = None,
+        clock: Callable[[], float] | None = None,
         monotonic: Callable[[], float] | None = None,
     ) -> None:
         self._condition = rt.Condition(rt.Lock())
@@ -43,7 +43,9 @@ class FramePublicationStore:
         # Sequence of the newest publication when the capture last started:
         # a stop does not clear the slot, so older frames are not this run's.
         self._run_start_sequence = 0
-        self._wall_time = wall_time
+        # Capture clock (rt.perf_counter): publication times share it with
+        # capture stamps, so no age here mixes in the wall clock.
+        self._clock = clock
         self._monotonic = monotonic
 
     def set_running(self, running: bool) -> None:
@@ -70,7 +72,7 @@ class FramePublicationStore:
                 or snapshot.sequence <= self._run_start_sequence
             ):
                 return False
-            now_s = rt.time() if self._wall_time is None else self._wall_time()
+            now_s = rt.perf_counter() if self._clock is None else self._clock()
             return now_s - snapshot.published_at_s <= max_age_s
 
     def publish(
@@ -91,9 +93,9 @@ class FramePublicationStore:
                 height=height,
                 sequence=self._snapshot.sequence + 1,
                 published_at_s=(
-                    rt.time()
-                    if self._wall_time is None
-                    else self._wall_time()
+                    rt.perf_counter()
+                    if self._clock is None
+                    else self._clock()
                 ),
                 capture=capture,
             )
@@ -130,7 +132,7 @@ class FramePublicationStore:
         timeout: Optional[float] = None,
     ) -> Optional[Tuple[Optional[np.ndarray], int, int, int]]:
         """Block until a publication newer than ``after_seq`` is available."""
-        now = rt.monotonic if self._monotonic is None else self._monotonic
+        now = rt.perf_counter if self._monotonic is None else self._monotonic
         deadline = None if timeout is None else (now() + timeout)
         with self._condition:
             while self._snapshot.sequence <= after_seq:

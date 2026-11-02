@@ -118,6 +118,9 @@ class InboundMessageRouter:
             return
         message_type = message.get_type()
         receipt_time_s = rt.time()
+        # Capture-clock receipt: frames, ATTITUDE histories and gimbal samples
+        # are compared on rt.perf_counter only, never on the wall clock.
+        capture_receipt_s = rt.perf_counter()
         component_id = message_component_id(message)
         if (
             message_type == "HEARTBEAT"
@@ -142,6 +145,7 @@ class InboundMessageRouter:
             message_type,
             message,
             receipt_time_s=receipt_time_s,
+            capture_receipt_s=capture_receipt_s,
             boot_time_ms=boot_time_ms,
         )
         self._record_pose_arrival(message_type, receipt_time_s, boot_time_ms)

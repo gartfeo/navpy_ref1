@@ -112,7 +112,7 @@ def test_only_a_v3_header_with_overscan_says_it_has_overscan(h, overscan):
 # --- board clock ------------------------------------------------------------------------------
 
 def samples(pairs):
-    return [SimpleNamespace(time_boot_s=boot, receipt_time_s=receipt) for boot, receipt in pairs]
+    return [SimpleNamespace(time_boot_s=boot, capture_receipt_s=receipt) for boot, receipt in pairs]
 
 
 def clock_over(pairs):
@@ -123,43 +123,43 @@ def test_board_time_maps_with_the_minimum_attitude_link_offset():
     # receipt - boot: 1000.010, 1000.004 (the minimum), 1000.030 ...
     pairs = [(t * 0.02, 1000.0 + t * 0.02 + d) for t, d in
              enumerate([0.010, 0.004, 0.030, 0.012, 0.009, 0.020, 0.006, 0.011, 0.015, 0.008])]
-    wall = clock_over(pairs).wall_time_s(150_000)
+    wall = clock_over(pairs).capture_time_s(150_000)
     assert wall == pytest.approx(0.15 + 1000.004)
 
 
 def test_no_mapping_with_too_few_samples_or_far_from_the_newest_attitude():
     pairs = [(t * 0.02, 50.0 + t * 0.02) for t in range(BOARD_CLOCK_MIN_SAMPLES)]
-    assert clock_over(pairs[:-1]).wall_time_s(100_000) is None
+    assert clock_over(pairs[:-1]).capture_time_s(100_000) is None
     clock = clock_over(pairs)
     newest = pairs[-1][0]
-    assert clock.wall_time_s(int((newest - BOARD_CLOCK_MAX_GAP_S + 0.01) * 1e6)) is not None
-    assert clock.wall_time_s(int((newest - BOARD_CLOCK_MAX_GAP_S - 0.01) * 1e6)) is None
-    assert clock.wall_time_s(int((newest + BOARD_CLOCK_MAX_GAP_S + 0.01) * 1e6)) is None
+    assert clock.capture_time_s(int((newest - BOARD_CLOCK_MAX_GAP_S + 0.01) * 1e6)) is not None
+    assert clock.capture_time_s(int((newest - BOARD_CLOCK_MAX_GAP_S - 0.01) * 1e6)) is None
+    assert clock.capture_time_s(int((newest + BOARD_CLOCK_MAX_GAP_S + 0.01) * 1e6)) is None
 
 
 def test_a_reboot_in_the_history_keeps_only_the_new_boot():
     old_boot = [(100.0 + t * 0.02, 10.0 + t * 0.02) for t in range(20)]      # offset -90
     new_boot = [(t * 0.02, 20.0 + t * 0.02) for t in range(BOARD_CLOCK_MIN_SAMPLES)]   # offset +20
-    assert clock_over(old_boot + new_boot).wall_time_s(100_000) == pytest.approx(20.1)
-    assert clock_over(old_boot + new_boot[:3]).wall_time_s(20_000) is None
+    assert clock_over(old_boot + new_boot).capture_time_s(100_000) == pytest.approx(20.1)
+    assert clock_over(old_boot + new_boot[:3]).capture_time_s(20_000) is None
     # A frame from a short old boot, inside the 2 s window but before the new boot's first sample.
     short_old = [(1.0 + t * 0.02, 30.0 + t * 0.02) for t in range(10)]
     later_new = [(0.5 + t * 0.02, 40.0 + t * 0.02) for t in range(BOARD_CLOCK_MIN_SAMPLES)]
     clock = clock_over(short_old + later_new)
-    assert clock.wall_time_s(400_000) is None
-    assert clock.wall_time_s(600_000) == pytest.approx(0.6 + 39.5)
+    assert clock.capture_time_s(400_000) is None
+    assert clock.capture_time_s(600_000) == pytest.approx(0.6 + 39.5)
 
 
 def test_the_mapping_reads_only_the_two_clock_fields_never_a_pose():
     class TimingOnly:
         def __init__(self, boot, receipt):
-            self.time_boot_s, self.receipt_time_s = boot, receipt
+            self.time_boot_s, self.capture_receipt_s = boot, receipt
 
         def __getattr__(self, name):          # attitude, rates, anything else
             raise AssertionError(f"board clock read {name}")
 
     history = [TimingOnly(t * 0.02, 5.0 + t * 0.02) for t in range(BOARD_CLOCK_MIN_SAMPLES)]
-    assert AttitudeBoardClock(lambda count: history).wall_time_s(0) == pytest.approx(5.0)
+    assert AttitudeBoardClock(lambda count: history).capture_time_s(0) == pytest.approx(5.0)
 
 
 # --- backend over loopback TCP ----------------------------------------------------------------
@@ -169,7 +169,7 @@ class FixedClock:
         self.wall = wall
         self.asked = []
 
-    def wall_time_s(self, board_time_us):
+    def capture_time_s(self, board_time_us):
         self.asked.append(board_time_us)
         return self.wall
 

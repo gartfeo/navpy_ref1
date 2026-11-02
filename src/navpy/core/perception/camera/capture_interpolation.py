@@ -1,4 +1,7 @@
-"""Strictly bracketed attitude interpolation on the receipt axis.
+"""Strictly bracketed attitude interpolation on the capture-receipt axis.
+
+Every receipt read here is ``capture_receipt_s`` (``rt.perf_counter``), the
+clock frame stamps use; the wall ``receipt_time_s`` is never read.
 
 Split from `capture_lookup.py`, which owns the calibration contract and the
 clock algebra; this module owns turning a lookup instant plus the retained
@@ -33,6 +36,7 @@ BRACKET_MAX_WIDTH_S = POSE_FRAME_ASSOCIATION_MAX_PERIODS / POSE_STREAM_RATE_HZ
 STATUS_UNBRACKETED = "real_frame_pose_unbracketed"
 STATUS_GAP = "real_frame_pose_gap"
 STATUS_CLOCK_SEAM = "real_frame_pose_clock_seam"
+STATUS_NO_CAPTURE_RECEIPT = "real_frame_pose_capture_receipt_unavailable"
 
 
 @dataclass(frozen=True)
@@ -62,7 +66,7 @@ def _pair_is_seam(
     later: SimpleNamespace,
     seam_tolerance_s: float = CLOCK_SEAM_TOLERANCE_S,
 ) -> bool:
-    receipt_delta = later.receipt_time_s - earlier.receipt_time_s
+    receipt_delta = later.capture_receipt_s - earlier.capture_receipt_s
     if receipt_delta < 0.0:
         return True
     earlier_boot = _finite(earlier.time_boot_s)
@@ -78,12 +82,12 @@ def _pair_is_seam(
 
 def interpolate_attitude_at(
     history: Sequence[SimpleNamespace],
-    lookup_wall_s: float,
+    lookup_s: float,
     quarantine_s: float,
     bracket_max_width_s: float = BRACKET_MAX_WIDTH_S,
     seam_tolerance_s: float = CLOCK_SEAM_TOLERANCE_S,
 ) -> tuple[AttitudeAtLookup | None, str]:
-    """Strictly bracketed interpolation on the receipt axis, or a refusal.
+    """Strictly bracketed interpolation on the capture-receipt axis, or a refusal.
 
     Refusals (decision doc §3c): no bracket (including a lookup newer than
     the newest sample by ANY margin), a bracket wider than the stream's
@@ -95,16 +99,23 @@ def interpolate_attitude_at(
     """
     if len(history) < 2:
         return None, STATUS_UNBRACKETED
+    if any(
+        _finite(getattr(sample, "capture_receipt_s", None)) is None
+        for sample in history
+    ):
+        # A sample without a capture-clock receipt cannot be placed on the
+        # frame's axis; the wall receipt is never a substitute.
+        return None, STATUS_NO_CAPTURE_RECEIPT
 
     seam_receipts: list[float] = []
     for index in range(1, len(history)):
         if _pair_is_seam(history[index - 1], history[index], seam_tolerance_s):
-            seam_receipts.append(history[index].receipt_time_s)
+            seam_receipts.append(history[index].capture_receipt_s)
 
     bracket = None
     for index in range(1, len(history)):
         earlier, later = history[index - 1], history[index]
-        if earlier.receipt_time_s <= lookup_wall_s <= later.receipt_time_s:
+        if earlier.capture_receipt_s <= lookup_s <= later.capture_receipt_s:
             bracket = (earlier, later)
     if bracket is None:
         return None, STATUS_UNBRACKETED
@@ -112,16 +123,16 @@ def interpolate_attitude_at(
     if _pair_is_seam(earlier, later, seam_tolerance_s):
         return None, STATUS_CLOCK_SEAM
     for seam_receipt in seam_receipts:
-        if lookup_wall_s - quarantine_s < seam_receipt <= lookup_wall_s:
+        if lookup_s - quarantine_s < seam_receipt <= lookup_s:
             return None, STATUS_CLOCK_SEAM
-    width = later.receipt_time_s - earlier.receipt_time_s
+    width = later.capture_receipt_s - earlier.capture_receipt_s
     if width > bracket_max_width_s:
         return None, STATUS_GAP
 
     if width <= 0.0:
         fraction = 0.0
     else:
-        fraction = (lookup_wall_s - earlier.receipt_time_s) / width
+        fraction = (lookup_s - earlier.capture_receipt_s) / width
     first_att, second_att = earlier.attitude, later.attitude
     attitude = Attitude(
         pitch=_lerp_angle_deg(first_att.pitch, second_att.pitch, fraction),
@@ -153,6 +164,7 @@ __all__ = [
     "CLOCK_SEAM_TOLERANCE_S",
     "STATUS_CLOCK_SEAM",
     "STATUS_GAP",
+    "STATUS_NO_CAPTURE_RECEIPT",
     "STATUS_UNBRACKETED",
     "interpolate_attitude_at",
 ]

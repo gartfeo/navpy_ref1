@@ -143,7 +143,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.rt.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.perf_counter",
                 return_value=100.1,
         ):
             self.assertFalse(channel.should_run())
@@ -153,7 +153,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=3))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.rt.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.perf_counter",
                 return_value=100.1,
         ):
             self.assertTrue(channel.should_run())
@@ -163,7 +163,7 @@ class TestDetectorDeepSearch(unittest.TestCase):
         overlays.publish([], _track(7, missed=0, timestamp=99.0))
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_state.rt.time",
+                "navpy.core.perception.pipeline.real_detector_state.rt.perf_counter",
                 return_value=100.0,
         ):
             self.assertTrue(channel.should_run())

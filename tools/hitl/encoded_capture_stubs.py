@@ -20,6 +20,7 @@ def stub_vehicle() -> Any:
     vehicle.location.return_value = None
     type(vehicle).attitude_sample = property(lambda _self: SimpleNamespace(
         attitude=attitude, body_rates_rad_s=(0.0, 0.0, 0.0), time_boot_s=time.monotonic(), receipt_time_s=time.time(),
+        capture_receipt_s=time.perf_counter(),
     ))
     return vehicle
 

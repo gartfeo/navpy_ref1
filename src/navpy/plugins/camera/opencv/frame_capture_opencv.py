@@ -189,7 +189,7 @@ class OpenCvFrameCapture:
                 # the earliest point this process can observe the frame. The
                 # camera-path delay upstream of this stamp is invisible here,
                 # which is exactly what CaptureStampKind.READ declares.
-                grabbed_at_s = rt.time()
+                grabbed_at_s = rt.perf_counter()
                 if grabbed:
                     ok, frame = self._capture.retrieve()
                 else:

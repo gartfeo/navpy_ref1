@@ -207,7 +207,7 @@ class TestSiyiSdk(unittest.TestCase):
         sdk = SIYISDK()
         try:
             with patch(
-                "navpy.plugins.gimbal.siyi.siyi_sdk.monotonic",
+                "navpy.plugins.gimbal.siyi.siyi_sdk.rt.perf_counter",
                 return_value=12.5,
             ):
                 self.assertTrue(sdk.parseCurrentZoomLevelMsg("0305", 42))
@@ -222,7 +222,7 @@ class TestSiyiSdk(unittest.TestCase):
         try:
             payload = "640038ff3200000000000000"
             with patch(
-                "navpy.plugins.gimbal.siyi.siyi_sdk.time",
+                "navpy.plugins.gimbal.siyi.siyi_sdk.rt.perf_counter",
                 return_value=123.45,
             ):
                 self.assertTrue(sdk.parseAttitudeMsg(payload, 9))

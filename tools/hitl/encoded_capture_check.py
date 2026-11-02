@@ -77,7 +77,7 @@ def _instrument(los_rows: list[tuple[int, float]], frame_rows: list[tuple[str, i
             try:
                 return run(*args)
             except EncodedStreamReset as error:
-                facts["capture_reset"] = (str(error), time.time())
+                facts["capture_reset"] = (str(error), time.perf_counter())
                 raise
         return watched
 
@@ -89,7 +89,7 @@ def _instrument(los_rows: list[tuple[int, float]], frame_rows: list[tuple[str, i
     def admit(self: Any, frame: Any) -> Any:
         sequence = gate_admit(self, frame)
         if sequence is None:
-            facts["refused_frames"].append((frame.pts_ns, frame.corrupted, time.time()))
+            facts["refused_frames"].append((frame.pts_ns, frame.corrupted, time.perf_counter()))
         return sequence
 
     EncodedFrameGate.admit = admit
@@ -254,7 +254,7 @@ def verdict(
         "failure": failure,
         "capture_reset": facts.get("capture_reset"),
         "elapsed_s": elapsed_s,
-        "last_frame_to_end_s": time.time() - frame_rows[-1][3] if frame_rows else None,
+        "last_frame_to_end_s": time.perf_counter() - frame_rows[-1][3] if frame_rows else None,
     }
 
 

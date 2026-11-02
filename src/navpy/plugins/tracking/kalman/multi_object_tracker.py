@@ -115,7 +115,7 @@ class MultiObjectTracker:
 
     def update(self, dets: List[Detection], frame_w: int,
                frame_h: int) -> List[TrackedObject]:
-        ts_now = rt.time()
+        ts_now = rt.perf_counter()
         self._cleanup_lost(ts_now)
 
         for track in self._tracks:

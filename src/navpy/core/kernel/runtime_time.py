@@ -203,7 +203,7 @@ def time() -> float:
     return _binding.current().clock.time()
 
 
-def perf_counter() -> float:
+def perf_counter() -> float:  # capture clock: frames, receipts; never minus time()/monotonic()
     return _binding.current().clock.perf_counter()
 
 

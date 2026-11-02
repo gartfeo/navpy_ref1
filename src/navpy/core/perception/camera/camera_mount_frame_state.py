@@ -95,7 +95,7 @@ class MountFrameStateCapture:
                     zoom_sample_id = str(sample_id)
                     zoom_sample_age_s = candidate_age_s + max(
                         0.0,
-                        rt.monotonic() - sample_read_s,
+                        rt.perf_counter() - sample_read_s,
                     )
                 else:
                     zoom_command = self._readback.camera_zoom_key()
@@ -125,7 +125,7 @@ class MountFrameStateCapture:
             zoom_level = None
             sample_age_s = None
             sample_id = None
-        sample_read_s = rt.monotonic()
+        sample_read_s = rt.perf_counter()
         if not isinstance(gimbal_data, GimbalData):
             return None
         return (

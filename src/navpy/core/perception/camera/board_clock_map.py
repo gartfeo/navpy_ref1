@@ -1,12 +1,12 @@
-"""Board (autopilot) clock to ATTITUDE receipt wall clock, from ATTITUDE itself.
+"""Board (autopilot) clock to the capture clock, from ATTITUDE itself.
 
 A simulated camera frame (Unreal, NPYC v2) carries the board time of the
 pose it was rendered from: the HIL ``time_usec`` of the bridge frame, the
 same autopilot clock as ATTITUDE ``time_boot_ms``. Capture stamps live on
-the ATTITUDE receipt wall clock (``CaptureStamp``), so the board time is
-mapped with the ATTITUDE samples navpy already keeps:
+the capture clock (``CaptureStamp``: ``rt.perf_counter``), so the board time
+is mapped with the ATTITUDE samples' capture receipts navpy already keeps:
 
-    wall(board_t) = board_t + min_i(receipt_i - time_boot_i)
+    capture(board_t) = board_t + min_i(capture_receipt_i - time_boot_i)
 
 over the newest run of samples of one boot. The minimum is the lower
 envelope of the link: the receipt time an ATTITUDE generated at board_t
@@ -47,7 +47,7 @@ AttitudeHistoryReader = Callable[[int], Sequence[Any]]
 
 
 class AttitudeBoardClock:
-    """``BoardClock`` from the vehicle's ATTITUDE history (time_boot_s, receipt_time_s)."""
+    """``BoardClock`` from the vehicle's ATTITUDE history (time_boot_s, capture_receipt_s)."""
 
     def __init__(
         self,
@@ -57,7 +57,7 @@ class AttitudeBoardClock:
         self._history = history
         self._count = int(count)
 
-    def wall_time_s(self, board_time_us: int) -> float | None:
+    def capture_time_s(self, board_time_us: int) -> float | None:
         run, rebooted = _newest_boot_run(self._history(self._count))
         if len(run) < BOARD_CLOCK_MIN_SAMPLES:
             return None
@@ -76,7 +76,7 @@ def _newest_boot_run(samples: Sequence[Any]) -> tuple[list[tuple[float, float]],
     for sample in samples:
         try:
             boot = float(sample.time_boot_s)
-            receipt = float(sample.receipt_time_s)
+            receipt = float(sample.capture_receipt_s)
         except (AttributeError, TypeError, ValueError):
             continue
         if run and boot < run[-1][0]:

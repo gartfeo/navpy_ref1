@@ -113,7 +113,7 @@ class FfmpegFrameCapture:
             # carries no PTS; everything upstream (camera, network, ffmpeg
             # process) is invisible here — CaptureStampKind.READ declares
             # exactly that.
-            read_at_s = rt.time()
+            read_at_s = rt.perf_counter()
             if len(raw) != self._frame_size:
                 if is_running():
                     self._logger.warning("FrameProvider: ffmpeg pipe closed")

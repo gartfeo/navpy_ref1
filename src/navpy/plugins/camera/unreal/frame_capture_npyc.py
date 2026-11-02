@@ -164,7 +164,7 @@ class NpycFrameCapture:
                 if not self._stop_requested:
                     self._logger.warning(f"FrameProvider: {self._source} read failed: {error}")
                 return
-            read_at_s = rt.time()
+            read_at_s = rt.perf_counter()
             stamp = self._stamp(header, read_at_s)
             frame = _pixels(header, payload)
             self.frames += 1
@@ -174,7 +174,7 @@ class NpycFrameCapture:
 
     def _stamp(self, header: NpycHeader, read_at_s: float) -> CaptureStamp:
         if header.exposure_on_board_clock and self._board_clock is not None:
-            exposure_s = self._board_clock.wall_time_s(header.board_time_us)
+            exposure_s = self._board_clock.capture_time_s(header.board_time_us)
             if exposure_s is not None:
                 return CaptureStamp(exposure_s, CaptureStampKind.EXPOSURE)
         return CaptureStamp(read_at_s, CaptureStampKind.READ)

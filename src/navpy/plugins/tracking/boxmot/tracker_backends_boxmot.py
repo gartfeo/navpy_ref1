@@ -96,7 +96,7 @@ class BotSortTrackerBackend:
                 "BoT-SORT tracker requires the current frame for ReID embeddings "
                 "and camera-motion compensation"
             )
-        now = rt.time()
+        now = rt.perf_counter()
         if not detections:
             self._memory.prune(set(), now)
             return self._memory.coast(now, max_age_seconds=_EMPTY_DETECTION_COAST_SECONDS)
@@ -197,7 +197,7 @@ class StrongSortTrackerBackend:
     ) -> List[TrackedObject]:
         if frame is None:
             raise ValueError("StrongSORT tracker requires the current frame for ReID embeddings")
-        now = rt.time()
+        now = rt.perf_counter()
         if not detections:
             self._memory.prune(set(), now)
             return self._memory.coast(now, max_age_seconds=_EMPTY_DETECTION_COAST_SECONDS)
