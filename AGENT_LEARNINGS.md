@@ -1806,8 +1806,10 @@
 
 - Try every new gate on real runs before building on it. "Sent after the heal" matched repeated heartbeat
   bytes first in, first out per receiver. It passed its hand-built journals and failed `hw` seeds 21 and 54
-  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. Now
-  each SITL's copies are queued, and a real run's case became a test.
+  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. The
+  first fix, a queue per SITL, still failed on real journals, as a copy a SITL never passed on stayed queued.
+  Measure before choosing the rule: a SITL holds a copy at most 14 ticks and the same bytes come back at least
+  252 ticks later (38 runs), so what it emits is the newest copy. A real run's case became a test.
 - A new kind of event reaches sim code that only ever ran on the ground. The first NavPy restarted in flight
   lost a whole detection lap (hw seeds 48, 50; seed 34 lost its approval). It looked like a product bug. The
   sim gimbal's plant started in LOCK, and its switch to FOLLOW read the mount's body yaw as a world yaw, so
@@ -1828,3 +1830,18 @@
 - A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
   because its first imports land in the measured window (todo 171). Rerunning it with a neighbour showed that.
 - `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.
+- Codex writes `.agents/skills/` and `.codex/agents/{janitor,live-tester}.toml` into its checkout. They fail
+  `test_gen_codex_agents` and change `input_manifest.json`. Run it on a detached worktree of the commit.
+- A measurement that needs a code change goes in a throwaway worktree, so a matrix running from this one keeps
+  its manifest. `dbgview` measured DEBUG on `hw` seed 19 that way while three gate sets ran.
+- A saturated host still gives host faults at boot with staggered starts. A driver that moves a host-faulted
+  cell aside and reruns only that cell kept the matrix valid. Say how many cells it reran.
+- A git copy's objects are read-only, so `shutil.rmtree` fails on Windows and a mutation copy dir cannot be
+  reused. Take a fresh name, delete them all with `Remove-Item -Recurse -Force` at the end.
+- A delivery is not recovery: it shows a packet reached the participant, not that anything took it. Product
+  evidence often exists only at DEBUG, and DEBUG lines go through DONE into the digest. So a level has to be
+  decided per run, in the role record (the participant environment is hermetic), and only where it is needed.
+- A proof that a run fails needs its own check that the fault was made. The kill script read a JSON array as one
+  record and killed nothing; the run ended clean, and only its exit 0 showed it. Print what was killed.
+- A new log line in a swarm file can trip a source-scanning guard far from the fault tests. Run `tests/guards` and
+  `tests/scripts` after each such round, not only the fault tests.
