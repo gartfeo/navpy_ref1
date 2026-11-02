@@ -290,15 +290,17 @@ def test_rotated_backend_text_is_read_oldest_first(tmp_path):
     for name, text in (
         ("backend.log.10", "t [x] INFO: CPU share granted [cpu_share_holder] first\n"),
         ("backend.log.2", "t [x] INFO: /launch called: second\n"),
+        ("backend.log.1", "t [x] INFO: Stack scheduling: third\n"),
         ("backend.log", "t [x] WARNING: later\n"),
         ("backend.log.bak", "t [x] WARNING: not a rotated file\n"),
     ):
         (run_dir / "gcs" / name).write_text(text, encoding="utf-8")
 
     assert check.backend_lines(run_dir) == [
-        "Backend: 3 log lines (with 2 rotated files), 1 WARNING, 0 tracebacks",
+        "Backend: 4 log lines (with 3 rotated files), 1 WARNING, 0 tracebacks",
         "  t [x] INFO: CPU share granted [cpu_share_holder] first",
         "  t [x] INFO: /launch called: second",
+        "  t [x] INFO: Stack scheduling: third",
     ]
 
 
