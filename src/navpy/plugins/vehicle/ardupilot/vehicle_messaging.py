@@ -11,10 +11,18 @@ from navpy.core.ports.admission_tap import (
     RulingCallback,
 )
 from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
+from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.core.ports.subscription import Subscription
 
+# Longest a status text waits for the bus send lock before it is dropped and
+# logged. Every holder of that lock encodes and writes one frame to a
+# non-blocking socket (bench waits: max 14-21 ms), so a text normally waits
+# for one send. The bound keeps an unexpected long holder from stalling the
+# logger worker that sends texts, and through its status lock a navigation
+# thread's defer or flush call (nav_entry, nav_exit_cleanup).
+STATUS_TEXT_SEND_WAIT_S = 0.1
 
 class VehicleMessaging:
     def __init__(
@@ -22,10 +30,12 @@ class VehicleMessaging:
         transport: MavTransport,
         callbacks: CallbackRegistry,
         router: InboundMessageRouter,
+        logger_ref: LoggerRef,
     ) -> None:
         self._transport = transport
         self._callbacks = callbacks
         self._router = router
+        self._logger_ref = logger_ref
 
     def feed_message(self, message: MAVLink_message) -> None:
         self._router.ingest(message)
@@ -66,9 +76,22 @@ class VehicleMessaging:
 
     def send_status_text(self, message: str) -> None:
         payload = message.encode("utf-8")[:50]
-        self._transport.try_call(
-            lambda connection: connection.mav.statustext_send(
+
+        def _send(connection: mavutil.mavfile) -> bool:
+            connection.mav.statustext_send(
                 mavutil.mavlink.MAV_SEVERITY_INFO, payload,
-            ),
-            blocking=False,
+            )
+            return True
+
+        sent = self._transport.try_call(
+            _send,
+            blocking=True,
+            timeout=STATUS_TEXT_SEND_WAIT_S,
         )
+        if sent is not True:
+            # Text log only: a status-bound line here would queue another text.
+            self._logger_ref.value.warning(
+                f"status text dropped: bus send lock busy for "
+                f"{STATUS_TEXT_SEND_WAIT_S:.3f} s: {message!r}",
+                key="vehicle",
+            )

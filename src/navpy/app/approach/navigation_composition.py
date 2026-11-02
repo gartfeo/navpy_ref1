@@ -117,6 +117,7 @@ def _vision_runtime_factory(
     vehicle: IVehicle,
     geo_ref: GeoRefCalc,
     navigation_logger: NavigationLogger,
+    logger: ILogger,
     wall_period_s: Callable[[float], float],
     on_terminal: Optional[TerminalObserver],
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
@@ -140,6 +141,10 @@ def _vision_runtime_factory(
             navigation_logger=navigation_logger,
             wall_period_s=wall_period_s,
             on_terminal=on_terminal,
+            report_stale_hold=lambda check: logger.warning(
+                f"NAV hold stale: {check.describe()}",
+                key="nav",
+            ),
         )
         final_approach = NavigationFinalApproachCapabilities(
             status=built.runtime.session,
@@ -201,6 +206,7 @@ def compose_navigation(
         vehicle=vehicle,
         geo_ref=geo_ref,
         navigation_logger=navigation_logger,
+        logger=logger,
         wall_period_s=wall_period,
         on_terminal=on_terminal,
     )
