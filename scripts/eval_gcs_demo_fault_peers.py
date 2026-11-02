@@ -61,17 +61,19 @@ def heard_errors(run: FaultRun, span: FaultSpan, pairs: Iterable[tuple[int, int]
 def silence_over_errors(run: FaultRun, span: FaultSpan, receiver: int, sender: int) -> list[str]:
     """``receiver``'s generation has ``sender`` out of silence at the deadline, by its own lines in order.
     A check-out has the roster mark the peer silent with no line of the roster's. A delivery since then
-    ends nothing: the roster says so when it hears the peer, or admits it if it had not yet."""
+    ends nothing: the roster says so when it hears the peer, or admits it if it had not yet. Only a line
+    from the sender's generation's check-in on counts: one before it took what an older generation sent."""
     by = run.by_tick(span)
     begins = (PEER_SILENT_LOG.format(sender), PEER_CHECKED_OUT_LOG.format(sender))
     ends = (PEER_HEARD_AGAIN_LOG.format(sender), PEER_ADMITTED_LOG.format(sender))
     spawned = run.spawned_at(receiver, by)
+    started = run.line_at(sender, PRESENCE_MARKER, run.spawned_at(sender, by), by)
     silent = False
     for k, line in sorted(run.lines[receiver], key=lambda row: row[0]):
         if spawned < k <= by:
             if any(text in line for text in begins):
                 silent = True
-            elif any(text in line for text in ends):
+            elif started is not None and k >= started and any(text in line for text in ends):
                 silent = False
     return [f"fault {span.id}: {receiver} did not log peer {sender} heard again by tick {by}"] if silent else []
 

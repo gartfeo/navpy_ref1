@@ -23,6 +23,9 @@ from navpy.sim.lockstep.fault_schedule import (
     FaultPlan,
 )
 from navpy.sim.lockstep.part_wire import FREEZE
+from scripts.eval_gcs_demo_fault_evidence import FaultRun
+from scripts.eval_gcs_demo_fault_peers import silence_over_errors
+from scripts.eval_gcs_demo_fault_schedule import fault_spans
 from scripts.eval_gcs_demo_fleet_faults import IN_SERVICE_MARKER, fault_recovery_errors
 from tests.scripts.fault_journal_evidence import (
     BACKEND,
@@ -793,6 +796,29 @@ def test_an_incumbent_that_had_not_taken_the_peer_at_its_check_out_ends_the_sile
     journal.admitted.add((1, 1, 2))
     journal.lines[1].append((READY_K + 3, PEER_ADMITTED_LOG.format(2)))
     assert _errors(tmp_path, journal) == []
+
+
+def test_a_line_before_the_new_generation_checked_in_took_only_what_the_last_one_sent(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[1].append((READY_K, PEER_HEARD_AGAIN_LOG.format(2)))  # it checks in at READY_K + 1
+    assert _errors(tmp_path, journal) == [f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
+
+
+def test_a_line_in_the_tick_the_new_generation_checked_in_ends_the_silence(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[1].append((READY_K + 1, PEER_HEARD_AGAIN_LOG.format(2)))
+    assert _errors(tmp_path, journal) == []
+
+
+def test_a_new_generation_that_never_checked_in_ends_no_silence(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[2] = [row for row in journal.lines[2] if PRESENCE_MARKER not in row[1]]
+    journal.lines[2].append((PRESENCE_K, PRESENCE_MARKER))  # the last generation's
+    journal.lines[1].append((READY_K + 3, PEER_HEARD_AGAIN_LOG.format(2)))
+    records = journal.build()
+    span = next(span for span in fault_spans(records) if span.id == RESTART)
+    assert silence_over_errors(FaultRun(records, journal.lines, {}, {}), span, 1, 2) == [
+        f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
 
 
 def test_a_check_out_logged_after_the_deadline_owes_nothing_yet(tmp_path):
