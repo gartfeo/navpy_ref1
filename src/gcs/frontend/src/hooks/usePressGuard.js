@@ -18,28 +18,29 @@ function readPlace(row, scroller) {
     left: rect.left,
     width: rect.width,
     height: rect.height,
-    // Unchanged by a scroll: the row's place in the scrolled content.
-    contentTop: rect.top + (scroller?.scrollTop ?? 0),
+    scrollTop: scroller?.scrollTop ?? 0,
     scrollHeight: scroller?.scrollHeight ?? 0,
   };
 }
 
 /**
  * Compare a reading with the baseline. Returns whether the row moved and the
- * next baseline. Top moved with the content and scroll length unchanged is the
- * operator's scroll; top held is scroll anchoring. A difference under the
- * epsilon stays in the baseline, so slow drift adds up.
+ * next baseline. Top moved by exactly the scroll, with the scroll length
+ * unchanged, is the operator's scroll; top held is scroll anchoring, so the
+ * scroll is taken into the baseline. A position difference under the epsilon
+ * stays in the baseline, so slow drift adds up.
  */
 export function comparePlace(base, next) {
   const resized = differs(base.left, next.left) || differs(base.width, next.width)
     || differs(base.height, next.height);
   const topMoved = differs(base.top, next.top);
-  const contentChanged = differs(base.contentTop, next.contentTop)
+  // The row's place in the scrolled content: unchanged by a scroll.
+  const contentChanged = differs(base.top + base.scrollTop, next.top + next.scrollTop)
     || differs(base.scrollHeight, next.scrollHeight);
   if (resized || (topMoved && contentChanged)) return { moved: true, base: next };
   return {
     moved: false,
-    base: { ...base, top: topMoved ? next.top : base.top, contentTop: next.contentTop, scrollHeight: next.scrollHeight },
+    base: { ...base, top: topMoved ? next.top : base.top, scrollTop: next.scrollTop, scrollHeight: next.scrollHeight },
   };
 }
 

@@ -210,8 +210,8 @@ describe('what is not a move', () => {
     expect(handlers.onApprove).not.toHaveBeenCalled();
   });
 
-  it('adds up slow drift against the baseline', () => {
-    const base = { top: 100, left: 0, width: 10, height: 10, contentTop: 100, scrollHeight: 0 };
+  it('adds up slow drift in size against the baseline', () => {
+    const base = { top: 100, left: 0, width: 10, height: 10, scrollTop: 0, scrollHeight: 0 };
     let state = base;
     let moved = false;
     for (let i = 1; i <= 3; i += 1) {
@@ -219,6 +219,32 @@ describe('what is not a move', () => {
       ({ moved, base: state } = comparePlace(state, next));
     }
     expect(moved).toBe(true);
+  });
+
+  it('adds up slow vertical drift, through the card', () => {
+    const list = scroller();
+    const { handlers, approve } = setup({ scroller: list });
+    advance(PRESS_GUARD_MS * 2);
+    for (let i = 0; i < 3; i += 1) {
+      rect = { ...rect, top: rect.top + 0.4 };
+      advance(FRAME_MS);
+    }
+    press(approve());
+    expect(handlers.onApprove).not.toHaveBeenCalled();
+  });
+
+  it('takes anchoring into the baseline, so a later scroll is still not a move', () => {
+    const list = scroller();
+    const { handlers, approve } = setup({ scroller: list });
+    advance(PRESS_GUARD_MS * 2);
+    list.scrollTop += 57;
+    list.scrollHeight += 57;
+    advance(FRAME_MS);
+    list.scrollTop += 100;
+    rect = { ...rect, top: rect.top - 100 };
+    advance(FRAME_MS);
+    press(approve());
+    expect(handlers.onApprove).toHaveBeenCalledTimes(1);
   });
 });
 
