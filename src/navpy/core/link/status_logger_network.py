@@ -47,6 +47,12 @@ class GroundStationLoggerNetwork(IStatusLogger):
             if self._defer_status_texts:
                 self._pending_status_texts.append(msg)
                 return
+            if self._pending_status_texts:
+                # Left by a budgeted NAV-exit flush: send them first, in order,
+                # here on the logger worker rather than the navigation thread.
+                self._pending_status_texts.append(msg)
+                self._flush_pending_log(budget_s=None, stop_on_drop=True)
+                return
             self.vehicle.send_status_text(msg)
 
     def defer_status_texts(self, enable: bool, *, flush: bool = True) -> None:
@@ -55,34 +61,42 @@ class GroundStationLoggerNetwork(IStatusLogger):
 
         self._defer_status_texts = enable
         if not enable and flush:
-            self._flush_pending_log()
+            self._flush_pending_log(
+                budget_s=DEFERRED_FLUSH_SEND_BUDGET_S, stop_on_drop=True,
+            )
 
-    def _flush_pending_log(self) -> None:
-        """Send the deferred texts in order, within a send-time budget.
+    def _flush_pending_log(
+        self,
+        *,
+        budget_s: float | None,
+        stop_on_drop: bool,
+    ) -> None:
+        """Send the pending texts in order on the caller's thread.
 
-        The flush runs on the caller's thread (NAV exit). It stops at the first
-        text not sent (dropped and logged by the vehicle) or once its sends
-        took ``DEFERRED_FLUSH_SEND_BUDGET_S``; the rest stays pending for the
-        next flush or close.
+        It stops once its sends took ``budget_s`` (the NAV-exit flush, on the
+        navigation thread) or, with ``stop_on_drop``, after the first text not
+        sent (dropped and logged by the vehicle); the rest stays pending for
+        the next status text or close.
         """
         logs = self._pending_status_texts
-        self._pending_status_texts = []
+        rest: list[str] = []
         spent_s = 0.0
         for index, l in enumerate(logs):
             started_s = rt.monotonic()
             sent = self.vehicle.send_status_text(l)
             spent_s += rt.monotonic() - started_s
-            if sent is False:
-                self._pending_status_texts = logs[index + 1:]
-                return
-            if spent_s >= DEFERRED_FLUSH_SEND_BUDGET_S:
-                self._pending_status_texts = logs[index + 1:]
-                return
+            if (sent is False and stop_on_drop) or (
+                budget_s is not None and spent_s >= budget_s
+            ):
+                rest = logs[index + 1:]
+                break
             rt.sleep(0.01)
+        self._pending_status_texts = rest
 
     def close(self):
+        """Send every pending text; each one not sent is logged by the vehicle."""
         if self._pending_status_texts and not self._defer_status_texts:
-            self._flush_pending_log()
+            self._flush_pending_log(budget_s=None, stop_on_drop=False)
 
     @classmethod
     def create(cls, sys_id, logger_args: LoggerArgs, ground_station_id=0):

@@ -144,16 +144,49 @@ def test_a_flush_whose_every_send_waits_stops_at_its_budget():
     )
     status.vehicle = _SlowVehicle()
     status.defer_status_texts(True)
-    for index in range(20):
-        status.send_log(f"NAV {index}", LogStatusDest.DRONE)
+    queued = [f"NAV {index}" for index in range(6)]
+    for text in queued:
+        status.send_log(text, LogStatusDest.DRONE)
 
     started = time.perf_counter()
-    status.defer_status_texts(False, flush=True)
+    status.defer_status_texts(False, flush=True)  # NAV exit, on the caller's thread
     waited_s = time.perf_counter() - started
 
     budget_s = status_logger_network.DEFERRED_FLUSH_SEND_BUDGET_S
-    # At most the budget plus one send's wait (and pacing), not 20 waits.
+    # At most the budget plus one send's wait (and pacing), not one wait per text.
     assert waited_s < budget_s + STATUS_TEXT_SEND_WAIT_S + 0.5
     # One or two sends, by timer resolution; the rest stays pending, in order.
-    assert sent in (["NAV 0"], ["NAV 0", "NAV 1"])
-    assert sent + status._pending_status_texts == [f"NAV {index}" for index in range(20)]
+    assert sent in (queued[:1], queued[:2])
+    assert sent + status._pending_status_texts == queued
+
+    # The next text (on the logger worker) sends the rest first, in order.
+    status.send_log("READY", LogStatusDest.DRONE)
+    assert sent == queued + ["READY"]
+    assert status._pending_status_texts == []
+
+
+def test_close_sends_every_text_left_by_a_budgeted_flush():
+    from navpy.core.kernel.config.logger_args import LogStatusDest
+    from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
+
+    sent = []
+
+    class _SlowVehicle:
+        def send_status_text(self, message):
+            time.sleep(STATUS_TEXT_SEND_WAIT_S * 0.9)
+            sent.append(message)
+            return True
+
+    status = GroundStationLoggerNetwork(
+        1, SimpleNamespace(status_dest=[LogStatusDest.DRONE], defer_status_logs=True), 0,
+    )
+    status.vehicle = _SlowVehicle()
+    status.defer_status_texts(True)
+    queued = [f"NAV {index}" for index in range(6)]
+    for text in queued:
+        status.send_log(text, LogStatusDest.DRONE)
+    status.defer_status_texts(False, flush=True)
+    assert sent != queued  # the budget left some
+
+    status.close()
+    assert sent == queued
