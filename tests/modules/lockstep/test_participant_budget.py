@@ -100,15 +100,17 @@ def test_a_bad_model_entry_is_refused(models, message):
 
 
 def test_participant_models_carry_only_the_on_models_and_refuse_a_bad_draw():
-    catalogue = {name: CATALOGUE[name] for name in (CPU_BUDGET, PROCESS_FREEZE, "wind")}
+    catalogue = {name: CATALOGUE[name] for name in (CPU_BUDGET, PROCESS_FREEZE, "reader_budget", "wind")}
     entry = parse_profile("t", {"models": {
         CPU_BUDGET: {"p_on": 1.0, "params": {"handoffs": [50, 200]}},
         PROCESS_FREEZE: {"p_on": 0.0, "params": HW_FREEZE},
+        "reader_budget": {"p_on": 1.0, "params": {"packets_per_tick": 16}},
         "wind": {"p_on": 1.0, "params": {"speed_mps": 1.0, "direction_deg": 0.0, "turbulence_mps": 0.0}},
     }}, catalogue)
     models = participant_models(realize(entry, 5))
-    assert list(models) == [CPU_BUDGET] and 50 <= models[CPU_BUDGET]["handoffs"] <= 200
-    bad = parse_profile("t", {"models": {CPU_BUDGET: {"p_on": 1.0, "params": {"handoffs": 0}}}}, catalogue)
+    assert list(models) == [CPU_BUDGET, "reader_budget"] and 50 <= models[CPU_BUDGET]["handoffs"] <= 200
+    bad = parse_profile("t", {"models": {CPU_BUDGET: {"p_on": 1.0, "params": {"handoffs": 0}},
+                                         "reader_budget": {"p_on": 1.0, "params": {"packets_per_tick": 16}}}}, catalogue)
     with pytest.raises(ValueError, match="handoffs"):
         participant_models(realize(bad, 5))
     assert SIM_MODELS_KEY == "sim_models"

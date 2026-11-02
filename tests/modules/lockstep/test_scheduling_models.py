@@ -25,7 +25,7 @@ from navpy.sim.lockstep.scheduling_models import (
     check_scheduling,
     scheduling_subset,
 )
-from navpy.sim.lockstep.sim_profile import CATALOGUE, load_profile, model_stream, realize
+from navpy.sim.lockstep.sim_profile import CATALOGUE, load_profile, model_stream, parse_profile, realize
 from tests.modules.lockstep.lockstep_autopilot import ReferenceAutopilot
 from tests.modules.lockstep.test_lockstep_bus import SERIAL0, _Harness, _lines, _lockstep, _navpy_vehicle
 
@@ -213,22 +213,65 @@ def test_the_reader_yields_after_each_packet_without_a_budget():
     assert seen == list(range(1, 31))
 
 
-def test_a_reader_budget_serves_its_packets_per_tick_in_batches_and_carries_the_rest_over():
-    received, seen = _served(ReaderBudget(packets_per_tick=12, batch=5), 30, 4)
+def test_a_reader_budget_drains_up_to_its_packets_per_tick_and_carries_the_rest_over():
+    received, seen = _served(ReaderBudget(packets_per_tick=12), 30, 4)
     assert [index for _tick, index in received] == list(range(30))  # byte order kept
     assert Counter(tick for tick, _index in received) == {1: 12, 2: 12, 3: 6}
-    # A woken consumer runs only at the reader's yields: after each batch, and at each tick's end.
-    assert seen == [5, 10, 12, 17, 22, 24, 29, 30]
-    # A batch above the tick's packets yields only at the tick's end.
-    received, seen = _served(ReaderBudget(packets_per_tick=4, batch=8), 10, 4)
+    # A woken consumer runs only where the reader blocks: at the budget, or on drained input.
+    assert seen == [12, 24, 30]
+    received, seen = _served(ReaderBudget(packets_per_tick=4), 10, 4)
     assert Counter(tick for tick, _index in received) == {1: 4, 2: 4, 3: 2}
     assert seen == [4, 8, 10]
+    # A backlog several times the budget carries over the same way.
+    received, _seen = _served(ReaderBudget(packets_per_tick=4), 18, 6)
+    assert [index for _tick, index in received] == list(range(18))
+    assert Counter(tick for tick, _index in received) == {1: 4, 2: 4, 3: 4, 4: 4, 5: 2}
+
+
+def _capped_delivery(budget: ReaderBudget | None, packets: int) -> tuple[int, int, list[str]]:
+    """One capped tick (4 handoffs) with ``packets`` for an idle reader and a timer due in it:
+    the handoffs taken, the packets dispatched, and whether the timer's thread ran."""
+    with _lockstep(None) as (baton, _rng):
+        baton.runnable.scheduling.reader_budget = budget
+        link = LockstepLink(baton, SERIAL0)
+        receiver = _Receiver(baton)
+        ran: list[str] = []
+
+        def timer() -> None:
+            sleep(baton, TICK_US / 1e6)
+            ran.append("timer")
+
+        def consumer() -> None:
+            link.open(SERIAL0).reserve(1).attach(receiver)
+            sleep(baton, 0.1)
+            link.close()
+
+        baton.spawn(timer, name="timer")
+        baton.spawn(consumer, name="consumer")
+        baton.run_until_quiescent()
+        taken = baton.tick(TICK_US, lambda: link.deliver(_param_values(packets)), handoffs=4)
+        dispatched, ran_in_tick = len(receiver.received), list(ran)
+        for k in range(2, 40):
+            baton.tick(k * TICK_US)
+        assert not baton.threads.alive()
+    return taken, dispatched, ran_in_tick
+
+
+@pytest.mark.parametrize("packets", [3, 16])
+def test_a_drained_delivery_takes_one_reader_handoff_and_a_due_timer_runs_in_that_tick(packets):
+    # 16 is exactly the budget: no extra yield after the last allowed packet.
+    taken, dispatched, ran = _capped_delivery(ReaderBudget(packets_per_tick=16), packets)
+    assert taken == 2 and dispatched == packets and ran == ["timer"]
+
+
+def test_a_per_packet_reader_spends_the_cap_and_the_due_timer_waits():
+    taken, dispatched, ran = _capped_delivery(None, 16)
+    assert taken == 4 and dispatched == 4 and ran == []  # todo 65's starvation, with no reader budget
 
 
 def test_a_close_wakes_a_reader_waiting_out_its_budget_in_the_same_tick():
     with _lockstep(None) as (baton, _rng):
-        # A batch above the tick's packets: the reader yields only at the tick's end.
-        baton.runnable.scheduling.reader_budget = ReaderBudget(packets_per_tick=2, batch=4)
+        baton.runnable.scheduling.reader_budget = ReaderBudget(packets_per_tick=2)
         link = LockstepLink(baton, SERIAL0)
         receiver = _Receiver(baton)
 
@@ -242,6 +285,116 @@ def test_a_close_wakes_a_reader_waiting_out_its_budget_in_the_same_tick():
         baton.tick(TICK_US, lambda: link.deliver(_param_values(5)))
         assert not baton.threads.alive()
         assert receiver.received == [(1, 0), (1, 1)]
+
+
+def _through_reader(
+    models: dict, plan: list[tuple[int, int | None]], *, seed: int = 1, busy: int = 0, sleepers: int = 0
+) -> list[int]:
+    """Each packet's tick, in dispatch order, after ``plan``: per tick, the packets delivered and
+    the handoff cap. ``busy`` threads yield through the plan and ``sleepers`` re-arm a one-tick
+    timer; then uncapped ticks until all end.
+    Checks that no packet is lost, byte order holds, nothing hangs and a second run is equal."""
+    ticks = _one_pass_through_reader(models, plan, seed, busy, sleepers)
+    assert _one_pass_through_reader(models, plan, seed, busy, sleepers) == ticks
+    return ticks
+
+
+def _one_pass_through_reader(
+    models: dict, plan: list[tuple[int, int | None]], seed: int, busy: int, sleepers: int
+) -> list[int]:
+    total = sum(packets for packets, _cap in plan)
+    with _lockstep(None) as (baton, _rng):
+        apply_scheduling(baton, models, seed, 1, 1)
+        link = LockstepLink(baton, SERIAL0)
+        receiver = _Receiver(baton)
+        planned = [True]
+
+        def consumer() -> None:
+            link.open(SERIAL0).reserve(1).attach(receiver)
+            while len(receiver.received) < total:
+                sleep(baton, TICK_US / 1e6)
+            link.close()
+
+        def spinner() -> None:
+            while planned[0]:
+                yield_now(baton)
+
+        def sleeper() -> None:
+            while planned[0]:
+                sleep(baton, TICK_US / 1e6)
+
+        baton.spawn(consumer, name="consumer")
+        baton.run_until_quiescent()
+        for index in range(busy):
+            baton.spawn(spinner, name=f"busy{index}")
+        for index in range(sleepers):
+            baton.spawn(sleeper, name=f"sleeper{index}")
+        tick = 0
+        for packets, cap in plan:
+            tick += 1
+            deliver = (lambda count=packets: link.deliver(_param_values(count))) if packets else None
+            baton.tick(tick * TICK_US, deliver, handoffs=cap)
+        planned[0] = False
+        for tick in range(tick + 1, tick + 200):
+            if not baton.threads.alive():
+                break
+            baton.tick(tick * TICK_US)
+        assert not baton.threads.alive()
+    expected: list[int] = []
+    for packets, _cap in plan:
+        expected.extend(range(packets))
+    assert [index for _tick, index in receiver.received] == expected
+    return [tick for tick, _index in receiver.received]
+
+
+@pytest.mark.parametrize(("budget", "ticks"), [(4, {1: 4, 2: 4, 3: 2}), (16, {1: 10})])
+def test_a_reader_budget_with_timers_first_keeps_every_packet_in_order(budget, ticks):
+    models = {READER_BUDGET: {"packets_per_tick": budget}, TIMERS_FIRST: {}}
+    assert Counter(_through_reader(models, [(10, None)])) == ticks
+
+
+def test_timers_first_fires_a_reader_past_its_budget_before_the_other_threads_use_up_the_cap():
+    models = {READER_BUDGET: {"packets_per_tick": 4}, TIMERS_FIRST: {}}
+    plan = [(10, 4)] + [(0, 4)] * 6
+    assert Counter(_through_reader(models, plan, busy=3)) == {2: 4, 4: 4, 6: 2}
+
+
+def test_a_reader_budget_with_seeded_order_keeps_every_packet_in_order_and_one_result_per_seed():
+    models = {READER_BUDGET: {"packets_per_tick": 4}, THREAD_ORDER: {}}
+    plan = [(10, 5)] + [(0, 5)] * 7
+    schedules = [_through_reader(models, plan, seed=seed, busy=3) for seed in range(1, 7)]
+    assert len({tuple(schedule) for schedule in schedules}) > 1  # the seed moves when packets are served
+
+
+def test_a_reader_past_its_budget_gets_nothing_while_other_threads_use_up_the_cap():
+    """Todo 200, today's behaviour: the reader waits on a timer, a delivery does not wake it, and
+    timers fire only after the input phase, so a used-up cap keeps it parked. Its packets survive."""
+    plan = [(10, 4)] + [(1, 4)] * 6
+    ticks = _through_reader({READER_BUDGET: {"packets_per_tick": 4}}, plan, busy=3)
+    assert Counter(tick for tick in ticks if tick <= len(plan)) == {1: 4}
+
+
+def test_a_reader_past_its_budget_competes_for_picks_once_its_timer_fires():
+    """Todo 200, today's behaviour: threads that re-arm a timer leave handoffs after the input
+    phase, so the reader's timer fires, but the cap then serves it only on some ticks: every other
+    tick with 6 such threads under a cap of 3, every tick with 2. Tick 1 goes to the 6 new threads."""
+    plan = [(64, 3)] + [(0, 3)] * 15
+    budget = {READER_BUDGET: {"packets_per_tick": 4}}
+    ticks = _through_reader(budget, plan, sleepers=6)
+    assert sorted({tick for tick in ticks if tick <= len(plan)}) == [3, 5, 7, 9, 11, 13, 15]
+    ticks = _through_reader(budget, plan, sleepers=2)
+    assert sorted({tick for tick in ticks if tick <= len(plan)}) == list(range(1, 17))
+
+
+def test_a_reader_below_its_budget_is_woken_by_a_delivery_under_the_same_cap():
+    plan = [(4, 4), (3, 4)] + [(0, 4)] * 5
+    ticks = _through_reader({READER_BUDGET: {"packets_per_tick": 16}}, plan, busy=3)
+    assert ticks == [1] * 4 + [2] * 3
+
+
+def test_a_freeze_holds_a_reader_past_its_budget_and_resume_keeps_the_order_with_a_fresh_budget():
+    plan = [(10, None), (3, 0), (0, 0)]  # 4 served, then a 2-tick freeze with 3 more queued
+    assert Counter(_through_reader({READER_BUDGET: {"packets_per_tick": 4}}, plan)) == {1: 4, 4: 4, 5: 4, 6: 1}
 
 
 def _burst_read(budget: ReaderBudget | None) -> list[str]:
@@ -266,8 +419,8 @@ def test_a_burst_in_one_reader_batch_evicts_the_reply_and_the_read_fails_closed(
     """The wall race of ``reader_batch.md``: the burst behind the answer runs before the woken
     waiter, so the answer is evicted. The product raises; it never reads a wrong value."""
     assert _burst_read(None)[-1] == "named read: 50.0"
-    whole = RESPONSE_HISTORY_DEPTH + 1  # the answer and the full burst in one batch
-    lines = _burst_read(ReaderBudget(packets_per_tick=whole, batch=whole))
+    whole = RESPONSE_HISTORY_DEPTH + 1  # the answer and the full burst in one turn
+    lines = _burst_read(ReaderBudget(packets_per_tick=whole))
     assert lines[-1].startswith("raised MessageHistoryOverrun"), lines[-1]
 
 
@@ -282,12 +435,35 @@ def test_profiles_draw_the_scheduling_models_in_their_ranges():
     assert 0.42 < order_on < 0.58 and 0.18 < timers_on < 0.32
     draws = [realize(load_profile("stress"), seed).model(READER_BUDGET) for seed in range(1, 401)]
     stress = [draw for draw in draws if draw.on]
-    assert 0.42 < len(stress) / len(draws) < 0.58  # the default p_on: todo 65's seeds keep it off
+    assert len(stress) == len(draws)  # the CPU budget is on in every stress seed and needs it
     packets = [draw.params["packets_per_tick"] for draw in stress]
-    batches = [draw.params["batch"] for draw in stress]
     # Calibrated from measured demand (section 2, "Reader budget calibration").
-    assert min(packets) == 4 and max(packets) == 16 and min(batches) == 1 and max(batches) == 8
+    assert min(packets) == 6 and max(packets) == 16
     assert load_profile("none").models == {}
+
+
+def test_a_profile_whose_cpu_budget_is_never_on_needs_no_reader_budget():
+    models = {"cpu_budget": {"p_on": 0.0, "params": {"handoffs": 4}}}
+    assert parse_profile("x", {"models": models}, CATALOGUE).models["cpu_budget"].p_on == 0.0
+
+
+@pytest.mark.parametrize(
+    ("cap_on", "reader"),
+    [
+        (1.0, None),
+        (0.5, None),
+        (1.0, {"p_on": 0.5, "params": {"packets_per_tick": 4}}),
+        (1.0, {"p_on": 0.75, "params": {"packets_per_tick": 4}}),
+    ],
+)
+def test_a_profile_with_a_cpu_budget_needs_the_reader_budget_on(cap_on, reader):
+    models = {"cpu_budget": {"p_on": cap_on, "params": {"handoffs": 4}}}
+    if reader:
+        models["reader_budget"] = reader
+    with pytest.raises(ValueError, match="cpu_budget needs reader_budget"):
+        parse_profile("x", {"models": models}, CATALOGUE)
+    models["reader_budget"] = {"p_on": 1.0, "params": {"packets_per_tick": 4}}
+    assert parse_profile("x", {"models": models}, CATALOGUE).models["reader_budget"].p_on == 1.0
 
 
 def test_the_backend_carries_only_the_scheduling_models():
@@ -302,10 +478,9 @@ def test_apply_sets_only_the_on_models_and_refuses_a_bad_budget():
     baton = BatonRuntime()
     apply_scheduling(baton, {}, 1, 1, 1)
     assert baton.runnable.scheduling == Scheduling()
-    apply_scheduling(baton, {READER_BUDGET: {"packets_per_tick": 20, "batch": 4}}, 1, 1, 1)
-    assert baton.runnable.scheduling == Scheduling(reader_budget=ReaderBudget(20, 4))
-    for bad in ({"packets_per_tick": 4, "batch": 0}, {"packets_per_tick": 0, "batch": 1},
-                {"packets_per_tick": 20.0, "batch": 4}):
+    apply_scheduling(baton, {READER_BUDGET: {"packets_per_tick": 20}}, 1, 1, 1)
+    assert baton.runnable.scheduling == Scheduling(reader_budget=ReaderBudget(20))
+    for bad in ({"packets_per_tick": 0}, {"packets_per_tick": 20.0}):
         with pytest.raises(ValueError):
             check_scheduling({READER_BUDGET: bad})
 
@@ -316,13 +491,13 @@ def test_the_participant_process_sets_its_role_configs_scheduling_on_its_baton()
     from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY
     from navpy.sim.lockstep.participant_main import apply_sim_models
 
-    models = {THREAD_ORDER: {}, TIMERS_FIRST: {}, READER_BUDGET: {"packets_per_tick": 30, "batch": 3},
+    models = {THREAD_ORDER: {}, TIMERS_FIRST: {}, READER_BUDGET: {"packets_per_tick": 30},
               "cpu_budget": {"handoffs": 5}}
     record = SimpleNamespace(config={SIM_MODELS_KEY: models}, seed=4, ordinal=2, generation=3)
     baton = BatonRuntime()
     camera, budget = apply_sim_models(record, SimpleNamespace(runtime=SimpleNamespace(baton=baton)))
     scheduling = baton.runnable.scheduling
-    assert scheduling.timers_first and scheduling.reader_budget == ReaderBudget(30, 3)
+    assert scheduling.timers_first and scheduling.reader_budget == ReaderBudget(30)
     expected = model_stream(4, THREAD_ORDER, "participant.2.3")
     assert [scheduling.order.random() for _ in range(3)] == [expected.random() for _ in range(3)]
     assert camera is None and budget.handoffs(TICK_US) == 5
