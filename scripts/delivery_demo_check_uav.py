@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 from collections import Counter
 from collections.abc import Callable
@@ -112,9 +113,17 @@ def _approach_lines(run_dir: Path, uav: int) -> list[str]:
     if not path.is_file():
         return [f"approaches: {path.name} is missing"]
     outcomes = approach_outcomes(path, uav)
+    cut = [f"approaches: {path.name} stops inside a row, so its last row was not read"] if _stops_inside_row(path) else []
     if not outcomes:
-        return ["approaches: none ended in the debug log"]
-    return [f"approach: {item.name}: {item.result}, {item.detail}" for item in outcomes]
+        return [*cut, "approaches: none ended in the debug log"]
+    return [*cut, *(f"approach: {item.name}: {item.result}, {item.detail}" for item in outcomes)]
+
+
+def _stops_inside_row(path: Path) -> bool:
+    """A killed process can leave half a row, and the parsers skip an event they do not know."""
+    with path.open("rb") as handle:
+        handle.seek(-1, os.SEEK_END)
+        return handle.read(1) != b"\n"
 
 
 def _log_lines(run_dir: Path, uav: int) -> list[str]:

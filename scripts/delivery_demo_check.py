@@ -130,12 +130,11 @@ def backend_lines(run_dir: Path) -> list[str]:
     facts = [f"  {line}" for line in lines if _BACKEND_FACT_RE.search(line)]
     launched = any("/launch called" in line for line in lines)
     told = ", ".join(f"{count} {level}" for level, count in sorted(levels.items())) or "no warnings"
-    # Rotation drops the oldest file, so with rotated files "never" cannot be known.
-    no_launch = ", no /launch call in the text kept" if rotated else ", /launch never called"
     kept = f" (with {len(rotated)} rotated files)" if rotated else ""
     return [
         f"Backend: {len(lines)} log lines{kept}, {told}, {tracebacks} tracebacks"
-        + ("" if launched else no_launch),
+        # Rotation drops the oldest file and a log can be cut, so not "never called".
+        + ("" if launched else ", no /launch call in the text kept"),
         *facts,
     ]
 

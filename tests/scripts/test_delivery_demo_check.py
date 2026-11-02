@@ -243,6 +243,16 @@ def _no_approach_uavs(text):
     return []
 
 
+def test_a_debug_file_cut_inside_a_row_says_so(tmp_path):
+    run_dir = _flown_run(tmp_path)
+    (run_dir / "uav_5_navigation_debug.csv").write_text(HEADER + "18:13:33.000,EVENT:DOCK_AR", encoding="utf-8")
+
+    text = check.report(run_dir)
+
+    assert "approaches: uav_5_navigation_debug.csv stops inside a row, so its last row was not read" in text
+    assert "uav_4_navigation_debug.csv stops inside a row" not in text
+
+
 def test_a_header_only_debug_file_is_a_run_with_no_approach(tmp_path):
     run_dir = _flown_run(tmp_path)
     (run_dir / "uav_5_navigation_debug.csv").write_text(HEADER, encoding="utf-8")
@@ -276,12 +286,14 @@ def test_clean_and_changed_source_are_told_apart(tmp_path):
     )
 
 
-def test_a_launch_only_run_says_launch_was_never_called(tmp_path):
+def test_a_launch_only_run_says_no_launch_call_is_in_the_text_kept(tmp_path):
     run_dir = tmp_path / "run"
     (run_dir / "gcs").mkdir(parents=True)
     (run_dir / "gcs" / "backend.log").write_text("2026-11-01 18:06:48 [x] INFO: noise\n", encoding="utf-8")
 
-    assert check.backend_lines(run_dir) == ["Backend: 1 log lines, no warnings, 0 tracebacks, /launch never called"]
+    assert check.backend_lines(run_dir) == [
+        "Backend: 1 log lines, no warnings, 0 tracebacks, no /launch call in the text kept"
+    ]
 
 
 def test_rotated_backend_text_is_read_oldest_first(tmp_path):
@@ -301,17 +313,6 @@ def test_rotated_backend_text_is_read_oldest_first(tmp_path):
         "  t [x] INFO: CPU share granted [cpu_share_holder] first",
         "  t [x] INFO: /launch called: second",
         "  t [x] INFO: Stack scheduling: third",
-    ]
-
-
-def test_with_rotated_backend_text_a_missing_launch_is_not_called_never(tmp_path):
-    run_dir = tmp_path / "run"
-    (run_dir / "gcs").mkdir(parents=True)
-    for name in ("backend.log.1", "backend.log"):
-        (run_dir / "gcs" / name).write_text("t [x] INFO: noise\n", encoding="utf-8")
-
-    assert check.backend_lines(run_dir) == [
-        "Backend: 2 log lines (with 1 rotated files), no warnings, 0 tracebacks, no /launch call in the text kept"
     ]
 
 
