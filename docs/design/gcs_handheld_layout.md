@@ -292,7 +292,9 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
 - In RC under a 542 px pane the raised list keeps room for three banner lines with or without
   a banner, so it has 18 px less height than it would with room for two: 215 px at 375 x 667,
   188 px at 360 x 640, 116 px at 320 x 568, where Approve, Deny and a second Cancel task can each
-  need a drag and are not all in view at once. Three lines is the most measured at 320, 360 and
+  need a drag and are not all in view at once (measured with one card and three decided rows: at
+  320 x 568 the pinned part shows 67 of its 156 px, 1 of 3 Cancel task on top at rest, and the
+  cards' scroller is 46 px). Three lines is the most measured at 320, 360 and
   375 px wide, held 10 to 12 s: Armenian "Telemetry disconnected", 8 px above the list; English
   takes at most two. A larger text scale or a long counter could add one, which would lie 10 px
   under the list and not move it. Only a rotation or resize moves this list: crossing 542 px takes
@@ -318,9 +320,8 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   boundary above. A tap at that moment can land on another row. Warning rows, the credit line and
   the "View held" banner move nothing. Todo 171.
 - A row arriving or leaving moves the rows after it, docked and collapsed, as on
-  origin/main: the chip by 34 px, a decided row by 36 px, a card by its height; a still arriving,
-  a card's header rewrapping or View camera coming and going move what follows them too (a tap on
-  View camera shortens its own card by 23 px at 375 px, as the note beside it stops wrapping). A tap at
+  origin/main: the chip by 34 px, a decided row by 36 px, a card by its height; a card's header
+  rewrapping moves what follows it too. A tap at
   that moment can land on the next row: another UAV's one-tap Cancel task when the row above it
   ends, or another card's Approve or Deny when a round with an earlier deadline arrives. New with
   this change, on a box short enough for the pinned rows to scroll: with them scrolled down, a row
@@ -329,15 +330,11 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   55 px, or 36 px with the still on another row; the collapsed list at its 160 px minimum: 11 px).
   The owner chose a separate task on 2026-11-02, so no guard was added
   here. Todo 171.
-- A list that first overflows gets a scrollbar with no tap, which narrows its cards and stills, so
-  what follows rises about 6 px. Measured collapsed in Chrome, with one round and a second arriving
-  with a later deadline: the scrollbar takes 10 px; at 960 x 600 the card 286 to 276 px, its still
-  147.3 to 141.6 px; Approve and Deny y 390 to 384.3 at 375 x 812 and 397.3 to 391.6 at 960 x 600. The
-  list's top and the order stay. By the rects, a tap at either button's old centre still lands on it.
-  Not seen collapsed at 1920 x 1080; docked there, one round already overflows the panel. origin/main
-  has the same scroller, scrollbar style and card, so the same by reading, and its baseline shows the
-  narrowed widths with cards (START 277 against 287 px); the shift itself was not measured on a
-  running main stack. A reserved gutter would change widths at every size, so it stays with todo 171.
+- A list that first overflows gets a scrollbar with no tap, which narrows its cards by 10 px. Measured
+  collapsed in Chrome, one round and a second arriving: card 273 to 263 px at 375 x 812 and 286 to 276 px
+  at 960 x 600, Deny's x 5 px left, Approve and Deny's y unchanged, as the picture's height is now fixed.
+  By hit test, each button's old centre still lands on it. A reserved gutter would change widths at
+  every size, so it stays with todo 171.
 - The collapsed box ends 56 px above the pane's bottom, which costs about 16 px of list with a
   28 px credit line, against an end that read the line's height, and clears a line up to 44 px by
   9 px (46 px on a 320 px pane: by 7 px). The list overlapped the line by 0 px at the seven sizes
@@ -346,13 +343,15 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   a three-line toast (y 60 to 123) lies 19 px on the list's top at y 104 and a two-line one about
   2 px; a one-line toast clears it by 15 px. It takes no taps, so what is under it still does.
 - Collapsed by hand at 960 x 448, or on a phone in landscape, a timed card's Approve and
-  Deny start below the end of the box: with one round and no decided row, 48 px at 960 x 448 and
-  121 px at 812 x 375, and each decided row adds 36 px. They are inside it at 320 x 640, 360 x 740
-  and 375 x 812. Docked at 960 x 448 they are inside with no decided row (y 335 to 366, the panel
-  ends at 400) and end 2 px past it with one, then 36 px more per row, as on origin/main. The chip
-  brings only the card's top into view. One finger drag reaches them, two with a decided row
-  (measured); the chip, the countdown and the
-  card's top stay visible. A tap on the toggle gives the larger box.
+  Deny lie below the end of the box: with one round and no decided row they start 96 px and end 127 px
+  below it at 960 x 448, 169 and 200 px at 812 x 375, and each decided row adds 36 px. At 375 x 812 they are inside it, with 25 px to
+  spare; at 320 x 640 and 360 x 740 by calculation. Docked at 960 x 448 they end 14 px past the panel
+  with no decided row (y 383 to 414, the panel ends at 400) and start 19 px past it with one, then 36 px
+  more per row, as on origin/main, whose card is the same. The chip brings only the card's top into
+  view. Two finger drags of 130 px reach them at 960 x 448, with no or one decided row, and three at
+  812 x 375. Before the scroll the chip, the countdown and the card's top are visible; once the buttons
+  are in view the card's top and countdown have scrolled out, and the pinned chip stays. A tap on the
+  toggle gives the larger box.
 - While a round exists, START MISSION and HOLD TO LAUNCH need a panel scroll on a
   short screen, as they do today.
 - When the last round leaves (a denied or cancelled row ends after 8 s, an approved one
@@ -362,18 +361,25 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
   same row leaving moves START MISSION up wherever it is on screen, so the hazard is
   not new, but it now also applies on short screens. No guard timer was added: the
   rest of the app has none.
-- During a container launch on a screen under about 461 px tall (UniRC density 320 in
+- During a container launch on a screen under about 512 px tall (UniRC density 320 in
   Chrome, 960 x 448; phones in landscape), the pinned abort covers part of a round's Approve
   and Deny. It takes an airborne UAV raising a round during a staggered launch. Measured at
-  960 x 448 with one round and no decided row: 4 px of each lie under the abort button and
-  12 px under its row, and a tap at their centre works with no scroll. Each decided row above
-  the card adds 36 px, so with one they lie under the abort's row until the panel is scrolled
-  (with no decided row, one scripted panel scroll, scrollTop 178, brought them clear in the live
-  check; with a decided row not run at this size), and the 461 px rises by 36 px; the card's
-  top, its timer and the chip stay visible. The APK is not affected with up to three decided
-  rows (measured at 960 x 600 in Chrome: Approve and Deny y 443 to 474 with three, 32 px above the
-  abort's row), so with a fleet of up to four: 461 + 3 x 36 = 569 px against 600 at density 320, and
-  800 at density 240. The owner accepted this on 2026-11-02: the abort stays pinned. Todo 167.
+  960 x 448 with one round and no decided row: 9 px of each lie under the abort button and 17 px
+  under its row. At their x, y 383 to 392 hits the abort button, 392 to 400 the row's inert padding,
+  including their centre, and 400 to 414 is behind the bottom bar. So a tap aimed high on Approve or
+  Deny aborts the launch, with one tap and no confirmation, and a tap at the centre does nothing. One
+  panel scroll, scrollTop 226, brings them clear and they take the tap. They clear the button from a viewport of 497 to 504 px and the row from 505 to
+  512 px. Each decided row above the card adds 36 px to the overlap and the height; the card's
+  top, its timer and the chip stay visible. At 960 x 600, the APK at density 320: clear by 92 px with no
+  decided row and, by the same sum, with up to two; with three, y 491 to 506 takes the tap, 506 to 514
+  is inert, including their centre, and 514 to 522 hits the abort button; one panel scroll clears them.
+  A card with View camera, when its UAV advertises a stream, is 57 px taller. By calculation, not run: with
+  two decided rows Approve and Deny are at y 512 to 543, on the abort button at 514 to 544, so a fleet of
+  three reaches this at 960 x 600. Density 240, 800 px: clear.
+  The owner accepted the earlier form on 2026-11-02, the abort staying pinned at 461 px with a tap at
+  the centre working. The fixed picture of `gcs_still_age.md` made the card 48 px taller and gave these
+  numbers. Asked again with these numbers, the owner accepted them on 2026-11-02: the abort stays
+  pinned and the fix stays open. Todo 167.
 - The pinned rows scroll once they and their padding exceed the box less 48 px while anything
   can scroll: in RC at 960 x 448 a chip and three decided rows, in RC at 320 x 568 a chip and one.
   Cancel task is then one scroll away, not clipped.
@@ -390,7 +396,6 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
 - Planning, collapsed, with a round at 375 x 812: the list covers 64 % of the toolbar's status label
   ("Fence: read from UAVs", x 240 to 363) until the round is decided. All 9 toolbar buttons stay
   clear and on top. It is a label and the cards win over it. New with this change, on a phone only.
-- Collapsed at 812 x 375, Approve starts 152 px below the box's end; scrolling the list reaches it.
 - Touch size and gloves stay with todo 94. The emulator is not the device.
 
 ## Test plan
@@ -621,11 +626,28 @@ Every listed change is to this note or a comment; no behaviour changed.
 8. *The tests can fail and use the real path, browser coverage is outstanding:* agreed; that is the
    live check.
 
+## Codex round 8 of the finished diff (verdict: changes required)
+
+All on the note's text or the owner's answer; no code changed after it, and this text was not
+reviewed again.
+
+1. *One tap aimed at Approve or Deny can abort the launch:* holds; the abort's handler posts with no
+   confirmation. Under Limits with the hit map. The owner accepted it on 2026-11-02, todo 167.
+2. *The limits leave out a card with View camera:* holds; added, calculated, not run. It was in the
+   question to the owner.
+3. *The collapsed bullet mixes distances and what stays visible:* holds; corrected.
+4. *The list of what did not run on the final bundle is incomplete:* holds; corrected.
+5. *"Not linked to this change" has no evidence:* holds; the cause is stated as not known.
+6. *Todo 171 keeps the old 6 px:* holds; corrected.
+
 ## Live results on the final build
 
-Running app, 3 SITL UAVs, confirm rounds injected into the page, bundle `index-BSeLJDEm.js`; numbers
-and screenshots in `.logs/handheld/live/final`. The Limits above hold the numbers that bound a
-limit.
+Running app, 3 SITL UAVs, confirm rounds injected into the page; numbers and screenshots in
+`.logs/handheld/live/final`. The Limits above hold the numbers that bound a limit. Most of the matrix
+ran on `index-BSeLJDEm.js`, before the rebase onto origin/main 253f7af9, whose fixed picture makes a
+pending card 313 px tall. The card's positions, the toggles at three sizes, the abort, RC, and one
+emulator cell each for Chrome 133 and the APK at density 320 landscape ran again on the final
+`index-D969oMBm.js` (`rebased/`), and the numbers below are from that run where they differ.
 
 - No horizontal overflow, E-STOP inside, 6 collapse and expand toggles with 0 console errors and 0
   `DeveloperError`, the box ending 56 px above the pane's bottom: 375 x 812, 695 x 812, 1920 x 1080,
@@ -633,12 +655,11 @@ limit.
 - 1920 x 1080: START MISSION at y 657 and 287 px wide, as in the baseline.
 - No round, sticky footer: START MISSION y 349-384 at 960 x 448, 501-536 at 960 x 600, 549-584 at
   1280 x 648; container START y 335-380 at 960 x 448.
-- With rounds: Approve and Deny take the tap at their centres. When the last round clears, START
-  returns (y 744 to 349 at 960 x 448). Countdowns run on through a toggle, with no remount.
-- Abort at 960 x 448: as under Limits, clear of the button from a 453 px viewport and of its row
-  from 461 px.
+- With rounds: Approve and Deny take the tap at their centres, y 383 to 414 docked. When the last
+  round clears, START returns to its pinned y. Countdowns run on through a toggle, with no remount.
+- Abort at 960 x 448: as under Limits.
 - 375 x 812 collapsed: the list's top holds at 289 in the pane in picker, viewing and with a warning
-  row; closed and maximized 56. Approve stays at y 623 as a row comes and goes.
+  row; closed and maximized 56. Approve at y 440 to 471 with the window closed, 673 to 704 viewing.
 - Raised RC list: top 174 with no banner and with one, at every language, width and reason measured.
 - Holds, real touch in the APK and in Chrome 133 at 960 x 448: a plain hold opens the launch
   confirmation, and it stays open after release; a round arriving during a hold ends it. Scripted
@@ -651,11 +672,17 @@ limit.
   1280 x 619. Portrait, Chrome 133 and WebView 101: 600 x 808 and 600 x 803, 800 x 1128 and
   800 x 1099. The APK has no portrait (sensorLandscape).
 - APK at density 320: 6 taps on the toggle with no error; a round collapsed gives a list at x 12, y 104,
-  320 x 347, Approve y 395 to 426 on top. Container docked: START y 487 to 532, E-STOP visible.
+  320 x 347, each button on top (before the rebase). Container docked: START y 487 to 532, E-STOP
+  visible, on the final bundle too.
+- WebGL: Chrome 133 at 800 x 1128 logged "Map WebGL context lost" with a `DeveloperError` 29 to 39 s
+  after load, before any toggle, twice, on this change, in a tab open for a long session. Fresh loads gave none: two 90 s
+  runs and a full cell each on this change and on origin/main 5179baab (`main_webgl/`). The cause is not
+  known, and whether main has it is not settled, as neither build reproduced it. Toggles raised none in
+  any run.
 - Collapsed, real taps with the POST held in the page: Approve, Deny and Cancel task send the right
   request at 375 x 812 and 960 x 448, and a card left to 0:00 posts deny after 30 s.
 - Container launch: at 375 x 812 HOLD TO LAUNCH is sticky in the drawer, y 697 to 744; at 960 x 600 the
-  abort's row is y 506 to 552, clear of Approve and Deny with no and with three decided rows.
+  abort's row is y 506 to 552; Approve and Deny as under Limits.
 - 6 toggles with the window viewing and 6 maximized, at 960 x 448 and 1280 x 800: the window stays
   inside, no error.
 - Armenian at 375 x 812 and 960 x 448: no overflow, E-STOP inside, START not clipped.
@@ -665,5 +692,7 @@ limit.
 - With a mission on the vehicles the dock's D marker draws (template match 0.92 against the baseline's
   icon).
 - A mission upload failing in these runs was not this change: todo 172.
-- Not run: RC on a pane from 602 to 730 px; a round raised by NavPy; a panel scroll at 960 x 448 with
-  a decided row; the device and a physical thumb (todo 94). Armenian only at the two sizes above.
+- Not run on the final bundle, so their results above are from before the rebase: density 240, portrait
+  and the density 320 WebView 101 shell on the emulator; real-touch holds and their cancellation;
+  scripted two-finger holds; camera playback; tapped rounds, window toggles and Armenian START. Not run at all: RC on a pane from 602 to 730 px; a round raised by NavPy; a panel scroll at
+  960 x 448 with a decided row with the abort; the device and a physical thumb (todo 94).
