@@ -76,7 +76,7 @@ def silence_over_errors(run: FaultRun, span: FaultSpan, receiver: int, sender: i
             elif expired in line:
                 silent = True
             elif any(text in line for text in ends) and not (gone and (started is None or k < started)):
-                silent = gone = False
+                silent = False
     return [f"fault {span.id}: {receiver} did not log peer {sender} heard again by tick {by}"] if silent else []
 
 
