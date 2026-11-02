@@ -8,7 +8,8 @@ Copyright 2022
 """
 import socket
 from .siyi_message import *
-from time import perf_counter, sleep, time
+from time import sleep, time
+from navpy.core.kernel import runtime_time as rt  # navpy: capture clock
 import logging
 from .utils import toInt
 import threading
@@ -558,8 +559,8 @@ class SIYISDK:
         try:
             with self._attitude_lock:
                 self._att_msg.seq=seq
-                # navpy: receipts on the capture clock (perf_counter), never wall time.
-                self._att_msg.stamp=perf_counter()
+                # navpy: receipts on the capture clock (rt.perf_counter), never wall time.
+                self._att_msg.stamp=rt.perf_counter()
                 self._att_msg.yaw = toInt(msg[2:4]+msg[0:2]) /10.
                 self._att_msg.pitch = toInt(msg[6:8]+msg[4:6]) /10.
                 self._att_msg.roll = toInt(msg[10:12]+msg[8:10]) /10.
@@ -688,7 +689,7 @@ class SIYISDK:
             int_part = int('0x'+msg[0:2], base=16)
             float_part = int('0x'+msg[2:4], base=16)
             level = int_part + (float_part/10)
-            received_monotonic_s = perf_counter()
+            received_monotonic_s = rt.perf_counter()
             with self._current_zoom_level_lock:
                 self._current_zoom_level_msg.seq = seq
                 self._current_zoom_level_msg.level = level

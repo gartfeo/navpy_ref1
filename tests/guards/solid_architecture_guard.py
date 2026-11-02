@@ -121,7 +121,7 @@ VENDORED_SHA256 = {
     "src/navpy/plugins/vehicle/ardupilot/_mavftp/_upstream_mavftp.py":
         "62B9D1E436401B01EB10453B4944313093F1A1877ABA10384211610A4BECE6EA",
     "src/navpy/plugins/gimbal/siyi/siyi_sdk.py":
-        "75FF5EB4D3AF0DDE97C9A3BF4611EB92230C66216E1886F57FED763C1A42311D",  # perf_counter receipts (HITL step 10)
+        "163F097753DE83698092163187599C297AF0854C78C2EEEA74F75E9940A12FA6",  # perf_counter receipts (HITL step 10)
     "src/navpy/plugins/gimbal/siyi/siyi_message.py":
         "BB8E3BAAD0827FC41459FB488DE8C356E2050432AD25A8CDC3DFA97DCEAF904D",
 }

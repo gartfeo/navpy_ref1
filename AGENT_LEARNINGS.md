@@ -2089,7 +2089,8 @@
 
 ## HITL step 10: capture clock (2026-11-02)
 
-- Moving one clock moves every consumer that subtracts from it. Before changing a stamp, grep each field that carries it to its readers (`detection_now_s`, freshness `now_s`, tracker timestamps, check tools) and move the pair together; the step 9 check tool compared frame read times with `time.time()`.
+- Moving one clock moves every consumer that subtracts from it. Before changing a stamp, grep each field that carries it to its readers (`detection_now_s`, freshness `now_s`, tracker timestamps, check tools) and move the pair together; the step 9 check tool compared frame read times with `time.time()` Also grep the fallbacks: Codex found `gimbal_visual_tracking._observation_times` timing a lost detection with `rt.time()` against the accepted detection's `detection_now_s`, and a vendored SDK reading the host clock while its consumer read the rebound `rt`.
 - `solid_architecture_guard.VENDORED_SHA256` hashes the working file's raw bytes, so the pin is the CRLF checkout. After an intended vendored edit, write CRLF and hash with `read_bytes()`; a hash of the git blob (LF) never matches.
 - Prove a clock test catches the mix: put `rt.time()` back in one place at a time (association, board clock, freshness) and see it fail, then restore.
+- In Git Bash, `PYTHONPATH="$PWD/src;..."` becomes `C:\c\Users\...` and Python silently imports the main checkout's packages. Use `W=$(pwd -W)` and print `navpy.__path__` before trusting a test run.
 - Python `open(..., 'w')` in text mode writes LF; on this Windows checkout that turned CRLF files into "w/mixed" or LF. Git normalizes, but byte-hashed files do not.

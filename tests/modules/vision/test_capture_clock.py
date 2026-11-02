@@ -26,6 +26,7 @@ import numpy as np
 import pytest
 from pymavlink.dialects.v20.ardupilotmega import MAV_COMP_ID_AUTOPILOT1
 
+from navpy.core.command.gimbal.gimbal_visual_tracking import _observation_times
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.perception.camera.board_clock_map import AttitudeBoardClock
@@ -38,11 +39,13 @@ from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.frame_publication import FramePublicationStore
 from navpy.core.perception.pipeline.real_detector_state import FreshnessPolicy
 from navpy.core.perception.pipeline.real_frame_association import FrameAssociationBuilder
+from navpy.core.ports.detection_components import SourceTiming
 from navpy.core.ports.frame_capture_ports import CaptureStamp, CaptureStampKind
 from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.plugins.camera.opencv.frame_capture_opencv import OpenCvFrameCapture
 from navpy.plugins.gimbal.siyi.siyi_sdk import SIYISDK
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
+from tests.detection_factory import make_detected_poi
 
 REPO = Path(__file__).resolve().parents[3]
 PERF_EPOCH_S = 50_000.0          # this host's perf_counter, not the board's
@@ -301,21 +304,38 @@ def test_read_frames_and_track_freshness_use_the_capture_clock(clock) -> None:
     assert not FreshnessPolicy(0.05).is_fresh(track)
 
 
-def test_siyi_receipts_are_stamped_on_the_capture_clock() -> None:
+def test_siyi_receipts_are_stamped_on_the_capture_clock(clock) -> None:
     sdk = SIYISDK()
     try:
-        before = time.perf_counter()
+        clock.wall_jump_s += 3600.0
         assert sdk.parseAttitudeMsg("640038ff3200000000000000", 9)
+        clock.advance(0.01)
         assert sdk.parseCurrentZoomLevelMsg("0305", 4)
-        after = time.perf_counter()
         _seq, stamp, *_angles = sdk.getAttitudeSample()
         _zoom_seq, _level, zoom_receipt = sdk.getCurrentZoomLevelSample()
     finally:
         sdk.disconnect()
-    assert before <= stamp <= zoom_receipt <= after
+    assert stamp == pytest.approx(PERF_EPOCH_S)
+    assert zoom_receipt == pytest.approx(PERF_EPOCH_S + 0.01)
+
+
+def test_gimbal_loss_timing_follows_the_detection_capture_clock(clock) -> None:
+    """A lost real detection is timed on the clock its acceptance used."""
+    poi = make_detected_poi(obj_id=1, task_id=1, class_id=0)
+    poi.replace_timing(SourceTiming(
+        detection_timestamp_s=clock.perf_counter(),
+        detection_now_s=rt.perf_counter,
+    ))
+    _measured, accepted_s = _observation_times(poi, None)
+    clock.wall_jump_s += 7200.0
+    clock.advance(0.1)
+    _none, lost_s = _observation_times(None, None)
+    assert lost_s - accepted_s == pytest.approx(0.1)
 
 
 CAPTURE_PATH = (
+    "src/navpy/core/command/gimbal/gimbal_loss_recovery.py",
+    "src/navpy/core/command/gimbal/gimbal_visual_tracking.py",
     "src/navpy/core/perception/camera/board_clock_map.py",
     "src/navpy/core/perception/camera/camera_mount_frame_state.py",
     "src/navpy/core/perception/camera/capture_interpolation.py",
@@ -371,4 +391,5 @@ def test_capture_clock_ticks_finely_under_load() -> None:
         for burner in burners:
             burner.join()
     assert reported_s <= TICK_SPACING_LIMIT_S
-    assert statistics.median(spacings) <= TICK_SPACING_LIMIT_S
+    observed_s = statistics.quantiles(spacings, n=100)[98]  # p99
+    assert observed_s <= TICK_SPACING_LIMIT_S

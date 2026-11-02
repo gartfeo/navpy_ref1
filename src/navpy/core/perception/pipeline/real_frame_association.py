@@ -80,8 +80,9 @@ def frame_pose_from_sample(
 class RealFrameAssociation:
     """Pixels and every state sample frozen for one detector publication.
 
-    Every time here is on the capture clock (``rt.perf_counter``): frame
-    publication, association, attitude receipt and capture timing.
+    Frame publication, association, attitude receipt and capture timing are
+    on the capture clock (``rt.perf_counter``); ``attitude_boot_time_s`` is
+    the autopilot's boot clock.
     """
 
     frame: np.ndarray

@@ -222,7 +222,8 @@ def _observation_times(
             for value in (explicit_time, poi_now, target_time)
             if value is not None
         ),
-        rt.time(),
+        # Real detections stamp the capture clock; loss timing must match.
+        rt.perf_counter(),
     )
     return measurement_time, loss_time
 
