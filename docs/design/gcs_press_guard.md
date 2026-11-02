@@ -89,9 +89,10 @@ still acts at zero, so a cooldown cannot be absolute on this point; the owner ac
   GCS sends at zero, and when, is unchanged.
 
 **Forced cards.** The hold Approve is not click-based, and a hold can begin only on this button,
-for this round, and takes 1 s with its progress showing, so it is not guarded and a move does not
-end it (a pointer hold of the same button of the same round is still aimed there; ending it on a
-move would also end a keyboard hold, Codex's round 2 point 3). One fix: `useLongPress` has no
+for this round, and takes 1 s with its progress showing, so it is not guarded. Todo 73
+(`gcs_handheld_layout.md`) since ends a pointer hold when the press point lies more than 8 px
+outside the button, as the finger or the button moved; a keyboard hold has no press point, so a move
+does not end it (Codex's round 2 point 3). Either ends when the button's box is gone. One fix: `useLongPress` has no
 `touchcancel` handler, so a touch the browser takes for scrolling still completes a hold (review 1,
 by an in-memory check). `onTouchCancel` now cancels it; this also fixes the launch holds that use
 the hook. The forced card's Deny follows both rules.

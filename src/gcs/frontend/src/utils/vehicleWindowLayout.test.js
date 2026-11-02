@@ -9,6 +9,7 @@ import {
   MAP_CONTROL_PX, PANEL_MARGIN_PX, PICTURE_ASPECT, PICTURE_MIN_H_PX, RESET_VIEW_PX, SMALL_MAP_MAX_PX,
   PICTURE_TAG_INSET_PX, SMALL_MAP_MIN_PX, WINDOW_BORDER_PX, vehicleWindowLayout,
 } from './vehicleWindowLayout';
+import { collapsedListBox, sidePanelMode } from './appLayout';
 
 // The viewing bar on one line: the UAV group (the widest chip,
 // Camera, Synthetic; its outline and dividers take no width), one gap,
@@ -16,7 +17,8 @@ import {
 const BAR_NEED_PX = CHIP_MAX_PX + 3 * MAP_CONTROL_PX + BAR_GAP_PX + 2 * BAR_PADDING_PX;
 
 const DESKTOP = { width: 1920 - sidebarWidth, height: 1080 - topBarHeight - bottomBarHeight };
-// A 375 px map pane (the fixed 320 px sidebar is outside this design).
+// A 375 px map pane: the smallest a docked panel leaves it, and a whole phone
+// viewport with the panel collapsed (docs/design/gcs_handheld_layout.md).
 const NARROW = { width: 375, height: 812 - topBarHeight - bottomBarHeight };
 // One row of top controls on desktop; on the narrow pane they wrap to two.
 const TOP_BOTTOM = { desktop: DEFAULT_TOP_CONTROLS_BOTTOM_PX, narrow: PANEL_MARGIN_PX + 2 * MAP_CONTROL_PX + 6 };
@@ -27,7 +29,11 @@ const WINDOW_CREDITS = 24;
 const CHROME = MAP_CONTROL_PX + 2 * BAR_PADDING_PX;
 const FAILURE_ROW = 2 * 24;
 
-const rect = (x, y, w, h) => ({ x, y, w, h });
+// A missing number must fail here: overlap() is simply false on NaN.
+const rect = (x, y, w, h) => {
+  if (![x, y, w, h].every(Number.isFinite)) throw new Error(`not a rectangle: ${[x, y, w, h]}`);
+  return { x, y, w, h };
+};
 const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
 const inside = (a, b) => a.x >= b.x && a.y >= b.y && a.x + a.w <= b.x + b.w && a.y + a.h <= b.y + b.h;
 
@@ -115,6 +121,47 @@ describe.each([
     expect(windowCredits.y - (small.y + small.h)).toBeGreaterThanOrEqual(PANEL_MARGIN_PX);
     expect(overlap(small, windowCredits)).toBe(false);
     expect(overlap(small, topControls)).toBe(false);
+  });
+});
+
+describe('a full 375 x 812 viewport', () => {
+  // At this width the panel never docks, so the map pane is the whole viewport
+  // width, and the collapsed list and the window share it.
+  const PHONE_WIDTH = 375;
+  const pane = { width: PHONE_WIDTH, height: 812 - topBarHeight - bottomBarHeight };
+  const topBottom = TOP_BOTTOM.narrow;
+  const list = (extra) => {
+    const box = collapsedListBox({
+      paneWidth: pane.width, paneHeight: pane.height, topControlsBottom: topBottom, ...extra,
+    });
+    return rect(box.left, box.top, box.width, box.height);
+  };
+
+  it('never docks: the collapsed or overlaid panel leaves the map the whole width', () => {
+    expect(sidePanelMode(false, PHONE_WIDTH)).toBe('collapsed');
+    expect(sidePanelMode(true, PHONE_WIDTH)).toBe('overlay');
+  });
+
+  it('picker and viewing: the window keeps its 320 px with its bar on one line, and the list stays under it', () => {
+    const layout = layoutAt(pane, topBottom, { windowChromePx: CHROME });
+    expect(layout.window.width).toBe(DOCKED_WIDTH_PX);
+    expect(layout.window.width - 2 * WINDOW_BORDER_PX).toBeGreaterThanOrEqual(BAR_NEED_PX);
+    expect(layout.pictureFits).toBe(true);
+
+    const below = list({ windowBox: layout.window });
+    const pictureH = (layout.window.width - 2 * WINDOW_BORDER_PX) / PICTURE_ASPECT;
+    const left = PHONE_WIDTH - layout.window.right - layout.window.width;
+    const win = rect(left, layout.window.top, layout.window.width, 2 * WINDOW_BORDER_PX + CHROME + pictureH);
+    expect(overlap(below, win)).toBe(false);
+    expect(below.h).toBeGreaterThan(0);
+  });
+
+  it('maximized: the window and the small map fit, and only the top controls limit the list\'s top', () => {
+    const layout = layoutAt(pane, topBottom, { swapped: true, windowChromePx: CHROME });
+    expect(layout.canSwap).toBe(true);
+    expect(layout.smallMap.width).toBeGreaterThanOrEqual(SMALL_MAP_MIN_PX);
+    const whole = list({ windowBox: null });
+    expect(whole.y).toBe(topBottom + PANEL_MARGIN_PX);
   });
 });
 

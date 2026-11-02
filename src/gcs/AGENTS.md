@@ -142,6 +142,9 @@ Frontend:
   click. When not ready (for example low battery), holding `START` then
   confirming is the force-start override.
 - `E-STOP` requires confirmation.
+- Right panel (`docs/design/gcs_handheld_layout.md`): docked and open at 695 px
+  and wider, a drawer closed at start below that; one top-bar toggle in both.
+  Collapsed, its sidebars stay mounted and pending cards show over the map.
 - `Companion computer not connected` usually means NavPy crashed or failed to
   start — NavPy runs as separate processes, so check NavPy process logs, not
   only backend logs.
