@@ -37,6 +37,7 @@ from scripts.eval_gcs_demo_scenario import (
     resolve_demo_plan,
 )
 from scripts.eval_gcs_demo_stack_identity import flown_sys_ids
+from navpy.core.swarm import task_peer_roster
 from navpy.sim.world.navigation_poi_args import encode_wp_bitmask
 from tests.scripts.test_eval_gcs_navigation_demo import _approval_records, _write_episode
 
@@ -363,6 +364,11 @@ def _rendered(node: ast.expr) -> str | None:
     if isinstance(node, ast.BinOp) and isinstance(node.op, ast.Add):
         left, right = _rendered(node.left), _rendered(node.right)
         return None if left is None or right is None else left + right
+    if (
+        isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute) and node.func.attr == "format"
+        and isinstance(node.func.value, ast.Name) and hasattr(task_peer_roster, node.func.value.id)
+    ):
+        return re.sub(r"\{[^}]*\}", "7", getattr(task_peer_roster, node.func.value.id))
     return None
 
 

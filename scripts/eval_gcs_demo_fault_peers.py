@@ -6,10 +6,10 @@ earlier contact: a pair that first met across the fault must still meet.
 
 The roster's lines (``task_peer_roster``) show the product processed that, where a
 delivery alone would not. The receiver's generation has admitted the sender by the
-deadline (a debug line: a run with scheduled faults logs at debug). Any silence it
-logged since it last heard the sender is over by the deadline. And a pair that was
-working when the fault began, with a gap long enough to pass the roster's expiry for
-certain, logged that silence.
+deadline (a debug line: a run with scheduled faults logs at debug). Any silence of the
+sender it began, by expiry or at a check-out, is over by the deadline. And a pair that
+was working when the fault began, with a gap long enough to pass the roster's expiry
+for certain, logged that silence.
 
 All of it counts only what this receiver's and this sender's generations did: a new
 generation starts with a fresh roster, and owes nothing for the last one's peers.
@@ -22,6 +22,7 @@ from collections.abc import Iterable
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.core.swarm.swarm_heartbeat_runtime import HEARTBEAT_INTERVAL_S
+from navpy.core.swarm.swarm_presence import PEER_CHECKED_OUT_LOG
 from navpy.core.swarm.task_peer_roster import (
     PEER_ADMITTED_LOG,
     PEER_HEARD_AGAIN_LOG,
@@ -58,15 +59,21 @@ def heard_errors(run: FaultRun, span: FaultSpan, pairs: Iterable[tuple[int, int]
 
 
 def silence_over_errors(run: FaultRun, span: FaultSpan, receiver: int, sender: int) -> list[str]:
-    """A silence ``receiver``'s generation logged since it last heard ``sender`` is over by the deadline."""
+    """``receiver``'s generation has ``sender`` out of silence at the deadline, by its own lines in order.
+    A check-out has the roster mark the peer silent with no line of the roster's. A delivery since then
+    ends nothing: the roster says so when it hears the peer, or admits it if it had not yet."""
     by = run.by_tick(span)
-    before, _after, _gap = run.gap_s([d.k for d in run.received(receiver, sender, PEER_IDS)], span.heal_k)
-    since = max(before or 0, run.spawned_at(receiver, by))
-    silent_line = PEER_SILENT_LOG.format(sender)
-    silent = [k for k, line in run.lines[receiver] if since < k <= by and silent_line in line]
-    if silent and run.line_at(receiver, PEER_HEARD_AGAIN_LOG.format(sender), silent[-1] - 1, by) is None:
-        return [f"fault {span.id}: {receiver} did not log peer {sender} heard again by tick {by}"]
-    return []
+    begins = (PEER_SILENT_LOG.format(sender), PEER_CHECKED_OUT_LOG.format(sender))
+    ends = (PEER_HEARD_AGAIN_LOG.format(sender), PEER_ADMITTED_LOG.format(sender))
+    spawned = run.spawned_at(receiver, by)
+    silent = False
+    for k, line in sorted(run.lines[receiver], key=lambda row: row[0]):
+        if spawned < k <= by:
+            if any(text in line for text in begins):
+                silent = True
+            elif any(text in line for text in ends):
+                silent = False
+    return [f"fault {span.id}: {receiver} did not log peer {sender} heard again by tick {by}"] if silent else []
 
 
 def _working_pair(run: FaultRun, receiver: int, sender: int, start_k: int) -> bool:

@@ -16,6 +16,7 @@ from navpy.core.link.types import TaskDispatchStatus
 from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
 from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.swarm_presence import PEER_CHECKED_OUT_LOG
 from navpy.core.swarm.task_actor_slots import SlotState
 from navpy.core.swarm.task_dispatch import TaskDispatch
 from navpy.core.swarm.task_peer_roster import PEER_SILENCE_EXPIRY_S
@@ -225,6 +226,16 @@ def test_the_roster_logs_a_peers_admission_silence_and_return_through_the_actors
         bus.drain()
         assert lines(log.info) == ["Peer 2 silent", "Peer 2 heard again"]
         assert lines(log.debug) == ["Peer 2 admitted"]
+
+        second.checkout()
+        bus.drain()
+        assert any(call.args[0].startswith(f"{PEER_CHECKED_OUT_LOG.format(2)} at location ")
+                   for call in log.info.call_args_list)
+        assert lines(log.info) == ["Peer 2 silent", "Peer 2 heard again"]
+
+        second._presence.heartbeat()
+        bus.drain()
+        assert lines(log.info) == ["Peer 2 silent", "Peer 2 heard again", "Peer 2 heard again"]
     finally:
         for actor in actors:
             actor.reset()

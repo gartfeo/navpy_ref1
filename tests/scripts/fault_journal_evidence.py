@@ -73,6 +73,7 @@ class FaultJournal:
         self.respawn: dict[int, int] = {}
         self.same_boot = False
         #: (receiver, its generation, sender) already logged; a test adds one to keep its line from the run.
+        #: A roster takes nothing before its presence has started (``TaskMessageRouter.route``).
         self.admitted: set[tuple[int, int, int]] = set()
 
     def generation(self, i: int, k: int) -> int:
@@ -142,7 +143,8 @@ class FaultJournal:
 
     def _admit(self, k: int, receiver: int, send: _Send) -> None:
         key = (receiver, self.generation(receiver, k), send.sender[0])
-        if send.msgid == SWARM_HEARTBEAT and key not in self.admitted and k not in self.silent_navpy.get(receiver, ()):
+        if (send.msgid == SWARM_HEARTBEAT and key not in self.admitted and self._checked_in(receiver, k)
+                and k not in self.silent_navpy.get(receiver, ())):
             self.admitted.add(key)
             self.lines[receiver].append((k, PEER_ADMITTED_LOG.format(send.sender[0])))
 

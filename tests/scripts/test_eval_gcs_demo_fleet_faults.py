@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import pytest
 
+from navpy.core.swarm.swarm_presence import PEER_CHECKED_OUT_LOG
 from navpy.core.swarm.task_peer_roster import PEER_ADMITTED_LOG, PEER_HEARD_AGAIN_LOG, PEER_SILENT_LOG
 from navpy.sim.lockstep.coordinator_types import serial0_device
 from navpy.sim.lockstep.fault_schedule import (
@@ -364,10 +365,33 @@ def test_a_long_gap_with_no_heard_again_line_by_the_deadline_fails(tmp_path):
         f"fault {PARTITION}: 1 did not log peer 3 heard again by tick {DEADLINE_K}"]
 
 
-def test_a_silence_from_before_the_pair_last_met_owes_nothing(tmp_path):
-    journal = _partition(heal=START + 4, lines=False)
-    journal.lines[1].append((START - 2, PEER_SILENT_LOG.format(3)))  # an earlier generation's, say: it never logged its end
-    assert _errors(tmp_path, journal) == []
+def _silent_in_an_earlier_generation():
+    journal = _partition(uav=3, lines=False)
+    journal.lines[1].append((START - 3, PEER_SILENT_LOG.format(3)))  # it never logged its end
+    journal.respawn[1] = START - 2
+    journal.lifecycle(START - 2, "spawn", 1, 2, {"fault": "navpy_restart:uav1"}, "ok")
+    journal.lines[1].append((START + 2, PRESENCE_MARKER))
+    _peer_lines(journal, [(2, 3), (3, 2)])
+    return journal
+
+
+def test_a_silence_of_an_earlier_generation_owes_nothing(tmp_path):
+    assert _errors(tmp_path, _silent_in_an_earlier_generation()) == []
+
+
+def test_a_new_generation_that_has_not_met_the_peer_owes_an_admission_not_the_end_of_a_silence(tmp_path):
+    journal = _silent_in_an_earlier_generation()
+    journal.admitted.add((1, 2, 3))
+    assert _errors(tmp_path, journal) == [f"fault {PARTITION}: 1 did not admit peer 3 by tick {DEADLINE_K}"]
+
+
+def test_a_silence_with_no_end_is_not_answered_by_a_later_delivery(tmp_path):
+    """A stalled reader: the packets reached the NavPy, and its roster still has the peer silent."""
+    heal = START + 4
+    journal = _partition(heal=heal, lines=False)
+    journal.lines[1].append((START - 2, PEER_SILENT_LOG.format(3)))
+    assert _errors(tmp_path, journal) == [
+        f"fault {PARTITION}: 1 did not log peer 3 heard again by tick {heal + round(PEER_RECOVERY_S)}"]
 
 
 def test_a_silence_logged_before_the_gap_does_not_answer_for_it(tmp_path):
@@ -396,6 +420,15 @@ def test_a_heard_again_line_in_the_silences_own_tick_ends_it(tmp_path):
     journal = _partition(heal=START + 4, lines=False)
     journal.lines[1] += [(START + 6, PEER_SILENT_LOG.format(3)), (START + 6, PEER_HEARD_AGAIN_LOG.format(3))]
     assert _errors(tmp_path, journal) == []
+
+
+def test_a_heard_again_line_logged_before_the_silence_in_its_own_tick_does_not_end_it(tmp_path):
+    heal = START + 4
+    journal = _partition(heal=heal, lines=False)
+    journal.lines[1] += [(START + 6, PEER_SILENT_LOG.format(3)), (START + 7, PEER_HEARD_AGAIN_LOG.format(3)),
+                         (START + 7, PEER_SILENT_LOG.format(3))]
+    assert _errors(tmp_path, journal) == [
+        f"fault {PARTITION}: 1 did not log peer 3 heard again by tick {heal + round(PEER_RECOVERY_S)}"]
 
 
 def test_a_heard_again_line_before_a_new_silence_does_not_end_it(tmp_path):
@@ -485,8 +518,8 @@ def test_a_partition_that_also_cut_the_backend_link_fails(tmp_path):
 
 def test_a_partition_after_a_restart_owes_no_silence_of_the_new_generation(tmp_path):
     journal = _partition(uav=3, lines=False)
+    journal.respawn[1] = START - 2
     journal.lifecycle(START - 2, "spawn", 1, 2, {"fault": "navpy_restart:uav1"}, "ok")
-    journal.respawn[1] = START - 1
     journal.lines[1].append((START + 2, PRESENCE_MARKER))  # it checked in inside the partition
     _peer_lines(journal, [(2, 3), (3, 2)])
     assert _errors(tmp_path, journal) == []
@@ -729,6 +762,43 @@ def test_a_new_generation_and_its_present_peers_must_hear_each_other(tmp_path):
     journal.cut_paths[("sitl3", "sitl2")] = (AFTER_THE_HEAL, "elsewhere")
     assert _errors(tmp_path, journal) == [f"fault {RESTART}: 1 did not hear peer 2 by tick {RESTART_BY}",
                                           f"fault {RESTART}: 2 did not hear peer 3 by tick {RESTART_BY}"]
+
+
+def _checked_out(journal, receiver=1, sender=2):
+    """``receiver``'s presence had started: it took the check-out, and its roster marks the peer silent with no line."""
+    journal.lines[receiver].append((START + 1, f"{PEER_CHECKED_OUT_LOG.format(sender)} at location Location: 40.3."))
+    return journal
+
+
+def test_an_incumbent_that_took_a_check_out_must_log_the_new_generation_back(tmp_path):
+    """Fresh packets reach it and its admission is from before, so only this line shows it took them."""
+    assert _errors(tmp_path, _checked_out(_restart())) == [
+        f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
+
+
+def test_an_incumbent_that_logs_the_new_generation_back_passes(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[1].append((READY_K + 3, PEER_HEARD_AGAIN_LOG.format(2)))
+    assert _errors(tmp_path, journal) == []
+
+
+def test_an_incumbent_that_logs_the_new_generation_back_after_the_deadline_fails(tmp_path):
+    journal = _checked_out(_restart())
+    journal.lines[1].append((RESTART_BY + 1, PEER_HEARD_AGAIN_LOG.format(2)))
+    assert _errors(tmp_path, journal) == [f"fault {RESTART}: 1 did not log peer 2 heard again by tick {RESTART_BY}"]
+
+
+def test_an_incumbent_that_had_not_taken_the_peer_at_its_check_out_ends_the_silence_by_admitting_it(tmp_path):
+    journal = _checked_out(_restart())
+    journal.admitted.add((1, 1, 2))
+    journal.lines[1].append((READY_K + 3, PEER_ADMITTED_LOG.format(2)))
+    assert _errors(tmp_path, journal) == []
+
+
+def test_a_check_out_logged_after_the_deadline_owes_nothing_yet(tmp_path):
+    journal = _restart()
+    journal.lines[1].append((RESTART_BY + 1, f"{PEER_CHECKED_OUT_LOG.format(2)} at location Location: 40.3."))
+    assert _errors(tmp_path, journal) == []
 
 
 def test_a_new_generation_owes_its_own_admission_of_each_peer(tmp_path):

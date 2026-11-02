@@ -1759,5 +1759,5 @@
   `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
   limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
 - A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
-  because its first imports land in the measured window (todo 167). Rerunning it with a neighbour showed that.
+  because its first imports land in the measured window (todo 171). Rerunning it with a neighbour showed that.
 - `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.

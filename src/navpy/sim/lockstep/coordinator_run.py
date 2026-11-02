@@ -161,8 +161,7 @@ class LockstepCoordinator:
         }
 
     def _named(self, fault: BaseException) -> BaseException:
-        """A later fault of the host's or the coordinator's, raw or not, never hides a product failure already
-        queued (section 4)."""
+        """A later host or coordinator fault, raw or not, never hides a queued product failure (section 4)."""
         if isinstance(fault, Exception) and not isinstance(fault, ParticipantFault):
             return next((queued for queued in self._book.faults if isinstance(queued, ParticipantFault)), fault)
         return fault
