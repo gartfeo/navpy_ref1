@@ -1828,7 +1828,7 @@
   `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
   limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
 - A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
-  because its first imports land in the measured window (todo 171). Rerunning it with a neighbour showed that.
+  because its first imports land in the measured window (todo 192). Rerunning it with a neighbour showed that.
 - `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.
 - Codex writes `.agents/skills/` and `.codex/agents/{janitor,live-tester}.toml` into its checkout. They fail
   `test_gen_codex_agents` and change `input_manifest.json`. Run it on a detached worktree of the commit.
