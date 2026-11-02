@@ -291,8 +291,8 @@ class LockstepCoordinator:
             self._raise_faults(output)
         for member in self._roster.members:
             if not member.flushed:
-                raise HostFault("unclean_end", "ended unflushed", tick=member.retired_at,
-                                ordinal=member.ordinal)
+                raise ParticipantFault("unclean_end", "ended unflushed", tick=member.retired_at,
+                                       ordinal=member.ordinal)
 
 
 __all__ = ["FAULT_HOST_FILE", "LockstepCoordinator", "RunResult", "Sitl", "SitlHost", "SitlLink"]

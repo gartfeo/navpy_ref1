@@ -60,7 +60,7 @@ from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
 from scripts.eval_gcs_demo_mission import run_mission
-from scripts.eval_gcs_demo_models import ProductFailure, RegressionError
+from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
@@ -87,6 +87,8 @@ EPOCH_US = SITL_START_TIME_UTC * 1_000_000
 MISSION_BUDGET_S = 3600.0
 #: Host supervision of the participants (registration, a DONE, an exit).
 WALL_BUDGETS = WallBudgets(register_s=120, done_s=120, exit_s=60)
+#: The outcome of a run a ``ParticipantFault`` ended: no coordinator result exists.
+PRODUCT_FAILURE_OUTCOME = "product_failure"
 
 
 @dataclass(frozen=True)
@@ -128,6 +130,9 @@ class LockstepRun:
     approvals: list[dict[str, JsonValue]]
     #: The operator workflow's failure, its host paths as run tokens (``HostPathScrubber``).
     operator_error: str | None
+    #: The ``ParticipantFault`` that ended the run (section 4's product failure): the run is
+    #: still scored up to that tick (todo 202).
+    product_failure: str | None = None
 
 
 def require_wired(scenario: DemoScenario) -> None:
@@ -278,8 +283,9 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
         "result": None if result is None else asdict(result),
         "fault": None if fault is None else f"{type(fault).__name__}: {fault}",
     }, indent=2) + "\n", encoding="utf-8")
-    if isinstance(fault, ParticipantFault):
-        raise ProductFailure(f"lockstep product failure: {fault.kind}: {fault}") from fault
+    if isinstance(fault, ParticipantFault):  # scored like any failed run (todo 202)
+        return LockstepRun(journal.digest, PRODUCT_FAILURE_OUTCOME, approvals, script["error"],
+                           HostPathScrubber(run_dir)(f"lockstep product failure: {fault.kind}: {fault}"))
     if fault is not None:
         raise RegressionError(f"lockstep run fault: {type(fault).__name__}: {fault}") from fault
     return LockstepRun(journal.digest, result.outcome, approvals, script["error"])
@@ -287,6 +293,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 
 __all__ = [
     "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
+    "PRODUCT_FAILURE_OUTCOME",
     "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
     "lockstep_operator", "manifest", "operator_script", "require_wired", "sim_realization",
     "write_lines",

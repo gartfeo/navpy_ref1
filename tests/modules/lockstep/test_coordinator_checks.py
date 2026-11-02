@@ -187,7 +187,7 @@ def test_an_interrupt_stays_an_interrupt_with_a_product_failure_queued(tmp_path,
 
 def test_a_host_fault_with_no_product_failure_queued_stands(tmp_path, monkeypatch):
     coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
-    coordinator._book.faults.append(HostFault("unclean_end", "ended without a flushed end"))
+    coordinator._book.faults.append(HostFault("stop_in_drain", "stop 5 requested during drain"))
     host = HostFault("exchange_budget", "the deadline ran out", tick=4)
     monkeypatch.setattr(coordinator, "_mission", lambda: (_ for _ in ()).throw(host))
     with pytest.raises(HostFault) as raised:

@@ -87,17 +87,9 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
     assert "operator: RegressionError: stalled" in report
 
 
-@pytest.mark.parametrize(("fault", "failure", "message"), [
-    (ParticipantFault("unscheduled_exit", "went away", tick=9, ordinal=1), ProductFailure,
-     "lockstep product failure: unscheduled_exit"),
-    (HostFault("exchange_budget", "ran out", tick=9), RegressionError, "lockstep run fault: HostFault"),
-])
-def test_a_run_fault_says_whether_the_product_ended_the_run(tmp_path, monkeypatch, fault, failure, message):
-    """Section 4: an unscheduled exit is a product failure, so a failed run and not a failed setup."""
-    import json
-
+def _faulting_run(monkeypatch, fault):
     class Faulting:
-        journal = SimpleNamespace(write=lambda _path: None)
+        journal = SimpleNamespace(write=lambda _path: None, digest="d" * 64)
 
         def __init__(self, *_args, **_kwargs) -> None:
             pass
@@ -114,12 +106,44 @@ def test_a_run_fault_says_whether_the_product_ended_the_run(tmp_path, monkeypatc
     monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Faulting)
     monkeypatch.setattr(lockstep_eval, "lockstep_operator", lambda *_a: SimpleNamespace(result=None))
     monkeypatch.setattr(lockstep_eval, "write_lines", lambda *_a: None)
-    with pytest.raises(failure, match=message) as raised:
+
+
+def _host_record(tmp_path):
+    import json
+
+    return json.loads((tmp_path / "run" / lockstep_eval.RUN_HOST_FILE).read_text(encoding="utf-8"))
+
+
+@pytest.mark.parametrize("kind", ["unscheduled_exit", "unclean_end", "stop_budget"])
+def test_a_product_failure_ends_the_run_and_is_still_scored(tmp_path, monkeypatch, kind):
+    """Section 4 and todo 202: a product failure is a failed run, not a failed setup, and the
+    run is returned with its digest so the analysis scores what it did up to that tick."""
+    fault = ParticipantFault(kind, "went away", tick=9, ordinal=1)
+    _faulting_run(monkeypatch, fault)
+    run = execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
+    assert run.digest == "d" * 64
+    assert run.outcome == lockstep_eval.PRODUCT_FAILURE_OUTCOME
+    assert run.product_failure == f"lockstep product failure: {kind}: went away"
+    assert _host_record(tmp_path)["fault"] == f"ParticipantFault: {fault}"
+
+
+def test_a_host_fault_is_a_failed_setup(tmp_path, monkeypatch):
+    fault = HostFault("exchange_budget", "ran out", tick=9)
+    _faulting_run(monkeypatch, fault)
+    with pytest.raises(RegressionError, match="lockstep run fault: HostFault") as raised:
         execute_lockstep_run(tmp_path / "run", CERTIFIED, OPTIONS)
-    assert isinstance(raised.value, ProductFailure) == (failure is ProductFailure)
     assert raised.value.__cause__ is fault
-    host = json.loads((tmp_path / "run" / lockstep_eval.RUN_HOST_FILE).read_text(encoding="utf-8"))
-    assert host["fault"] == f"{type(fault).__name__}: {fault}"
+    assert _host_record(tmp_path)["fault"] == f"HostFault: {fault}"
+
+
+def test_the_cli_scores_a_product_failure_and_exits_1(tmp_path, monkeypatch):
+    run = lockstep_eval.LockstepRun("d" * 64, lockstep_eval.PRODUCT_FAILURE_OUTCOME, [], None,
+                                    "lockstep product failure: unclean_end: ended without a flushed end")
+    monkeypatch.setattr(cli, "execute_lockstep_run", lambda *_a: run)
+    status = cli.main(["--lockstep", "--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path)])
+    report = (tmp_path / "report.json").read_text(encoding="utf-8")
+    assert status == 1
+    assert "lockstep product failure: unclean_end" in report
 
 
 @pytest.mark.parametrize(("error", "code", "line"), [
