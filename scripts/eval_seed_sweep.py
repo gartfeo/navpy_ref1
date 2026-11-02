@@ -11,11 +11,14 @@ Each run is classed (``eval_seed_sweep_classes``) and each failing seed is
 rerun; the first record is kept, a rerun only adds to it:
 
 - a product failure is rerun once: the same digest *confirms* it (``product``,
-  or ``known`` when a known todo explains every error). A run a
-  ``ParticipantFault`` ended whose rerun replays its journal up to that tick
-  unchanged and goes past it is ``host``: the fault had an outside cause (todo
-  202). If that rerun still fails, it is judged as a first run instead, once.
-  Any other different digest is a ``determinism_bug``, which is worse;
+  or ``known`` when a known todo explains every error). A run an unflushed
+  end (``unclean_end``, ``stop_budget``) ended whose rerun replays its journal
+  up to that tick unchanged and goes past it, passing, is ``not_repeated``: an
+  outside cause is likely (a saturated host, todo 202), though the journal
+  cannot rule out a divergence at the fault tick itself, so it is reported
+  apart and not passed. If that rerun still fails, it is judged as a first run
+  instead, once. Any other different digest is a ``determinism_bug``, which is
+  worse;
 - a host fault or setup error is rerun once. If the rerun faults the same way
   with the same digest it is ``repeated_fault``: a fault that repeats is not
   shown to be the host's, so stop and look (todo 202); otherwise ``host``,
@@ -24,7 +27,7 @@ rerun; the first record is kept, a rerun only adds to it:
 A reader whose attitude lag passed ``READER_LAG_LIMIT_MS`` in any run is a
 ``reader_lag`` finding (todos 199, 200). The sweep passes (exit 0) when no
 seed is ``product``, ``determinism_bug`` or ``repeated_fault``, no reader lags
-and every regression seed passes; a seed left ``host`` or ``unconfirmed``
+and every regression seed passes; a seed left ``host``, ``not_repeated`` or ``unconfirmed``
 makes it incomplete (exit 2). ``sweep.json`` holds every run's record.
 """
 
@@ -56,7 +59,9 @@ SWEEP_FILE = "sweep.json"
 SEED_RANGE = 1_000_000
 #: Seed outcomes that fail the sweep, and those that leave it incomplete.
 FAILING = ("product", "determinism_bug", "repeated_fault")
-INCOMPLETE = ("host", "unconfirmed")
+INCOMPLETE = ("host", "not_repeated", "unconfirmed")
+#: The ends a product failure may have from an outside cause (todo 202); any other fault is the product's.
+UNFLUSHED_ENDS = ("unclean_end", "stop_budget")
 
 
 @dataclass(frozen=True)
@@ -117,11 +122,12 @@ def _same_fault(first: RunVerdict, again: RunVerdict) -> bool:
 
 
 def _fault_not_repeated(first: RunVerdict, first_dir: Path, again_dir: Path) -> bool:
-    """A run a ``ParticipantFault`` ended, whose rerun replays its journal up to that tick and goes past
-    it (so it did not fault there): the replay is deterministic, so the fault had an outside cause (a
-    process killed, a write the OS refused) and is the host's (todo 202). A real product fault repeats
-    with the digest."""
-    tick = first.fault.get("tick") if first.fault and first.fault.get("fault") == "ParticipantFault" else None
+    """A run an unflushed end ended, whose rerun replays its journal up to that tick and goes past it (so
+    it did not end there): likely an outside cause (a process killed, a write the OS refused; todo 202).
+    A real product fault repeats with the digest."""
+    fault = first.fault or {}
+    unflushed = fault.get("fault") == "ParticipantFault" and fault.get("kind") in UNFLUSHED_ENDS
+    tick = fault.get("tick") if unflushed else None
     return isinstance(tick, int) and replays_until(first_dir, again_dir, tick)
 
 
@@ -146,7 +152,7 @@ def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
             return ("known" if first.known else "product"), first
         if _fault_not_repeated(first, base / attempts[-2][0], base / attempts[-1][0]):
             if again.cls == PASS:
-                return "host", again
+                return "not_repeated", again
             return confirm(again, False) if retry else ("unconfirmed", again)
         return "determinism_bug", first
 

@@ -258,13 +258,22 @@ def test_an_unflushed_end_that_repeats_with_its_digest_is_the_products(monkeypat
     assert result["status"] == "product"
 
 
-def test_an_unflushed_end_the_replay_does_not_repeat_is_the_hosts(monkeypatch, tmp_path):
-    """Load: the rerun replays every record before the fault tick unchanged and runs on past it, so a
-    deterministic sim did not cause the end (a process killed, a write the OS refused)."""
-    result = _settle_on_disk(monkeypatch, tmp_path, [_v(PRODUCT, D1, UNCLEAN), _v(PASS, D2)],
-                             [lambda d: _journal(d, range(1, 51), UNCLEAN), lambda d: _journal(d, range(1, 400))])
-    assert result["status"] == "host"
+@pytest.mark.parametrize("kind", ["unclean_end", "stop_budget"])
+def test_an_unflushed_end_the_replay_does_not_repeat_is_reported_apart(monkeypatch, tmp_path, kind):
+    """Load: the rerun replays every record before the fault tick unchanged and runs on past it, so an
+    outside cause is likely (a process killed, a write the OS refused), though not proven."""
+    fault = {**UNCLEAN, "kind": kind}
+    result = _settle_on_disk(monkeypatch, tmp_path, [_v(PRODUCT, D1, fault), _v(PASS, D2)],
+                             [lambda d: _journal(d, range(1, 51), fault), lambda d: _journal(d, range(1, 400))])
+    assert result["status"] == "not_repeated"
     assert sweep.verdict([result])[0] == 2  # incomplete, not failed: load alone fails no sweep
+
+
+def test_any_other_participant_fault_the_replay_does_not_repeat_is_a_determinism_bug(monkeypatch, tmp_path):
+    exit_ = {**UNCLEAN, "kind": "unscheduled_exit"}
+    result = _settle_on_disk(monkeypatch, tmp_path, [_v(PRODUCT, D1, exit_), _v(PASS, D2)],
+                             [lambda d: _journal(d, range(1, 51), exit_), lambda d: _journal(d, range(1, 400))])
+    assert result["status"] == "determinism_bug"
 
 
 def test_a_rerun_that_faults_at_the_same_tick_otherwise_or_diverges_first_is_a_determinism_bug(monkeypatch, tmp_path):
