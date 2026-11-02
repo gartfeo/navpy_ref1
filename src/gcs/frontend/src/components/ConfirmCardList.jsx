@@ -12,20 +12,25 @@ import { AAS_DEFAULTS } from '../utils/aasParams';
 /** The list's shared clock sample period: the card labels and the chip read one `now`. */
 const LIST_TICK_MS = 1000;
 const NO_CUE = Object.freeze({ fired: {}, onAutoFire: null, soundState: 'running', unlockSound: null });
+/** The scrolling part keeps this much of a short box: a control row and its padding. */
+const SCROLL_MIN_PX = 48;
 
 /**
  * The task-confirm rounds of one host: the right panel (planning and
  * monitor) or the RC overlay. Each approved UAV's Cancel task must be
- * reachable with no scroll in every state (todo 69), so the list has:
- * - a pinned part, never scrolled: the summary chip while a round is
- *   pending (todo 67), then one 32 px row per decided round, approved before
- *   denied or canceled, each by sys_id;
+ * reachable with no scroll while the box fits its rows (todo 69), so the list has:
+ * - a pinned part, scrolled only on a box too short for it: the summary chip
+ *   while a round is pending (todo 67), then one 32 px row per decided round,
+ *   approved before denied or canceled, each by sys_id;
  * - a scrolling part: the still a row opened (here, never under its row, so
- *   no row moves; one at a time), then the full pending cards, soonest
+ *   opening it moves no row; one at a time), then the full pending cards, soonest
  *   deadline first (orderedConfirmEntries), then `children` (the right
  *   panel's planning or monitor sidebar).
  *
  * `style` places the root (the host's size, position and frame).
+ * `heightPx` is the host box's height: on a short box the pinned part scrolls,
+ * so Cancel task is never clipped and a scrolling part with content keeps room.
+ * `childrenHidden` says the host hides `children`, so they need no room.
  * `videoActionFor` gives a pending card its View camera, or is null where
  * the vehicle window cannot show (planning, RC).
  * `cue` (useTaskConfirmation's) carries the fired latch and the sound state.
@@ -41,6 +46,8 @@ export default function ConfirmCardList({
   videoActionFor = null,
   cue = NO_CUE,
   style,
+  heightPx,
+  childrenHidden = false,
   children,
 }) {
   // The open still: { sysId, roundKey }. It shows only while that round is
@@ -82,6 +89,7 @@ export default function ConfirmCardList({
   const stillEntry = still && pendingConfirms?.[still.sysId];
   const stillShown = !!stillEntry && canCancel(stillEntry) && !!stillEntry.imageB64
     && confirmRoundKey(stillEntry) === still.roundKey;
+  const scrollHasContent = stillShown || pending.length > 0 || (children != null && !childrenHidden);
 
   const toggleStill = (sid, entry) => {
     const key = confirmRoundKey(entry);
@@ -138,6 +146,11 @@ export default function ConfirmCardList({
             padding: '10px 16px 4px',
             background: colors.bgLight,
             borderBottom: `1px solid ${colors.border}`,
+            ...(heightPx != null && {
+              maxHeight: Math.max(0, heightPx - (scrollHasContent ? SCROLL_MIN_PX : 0)),
+              overflowY: 'auto',
+              overflowX: 'hidden',
+            }),
           }}
         >
           {summary && (
@@ -184,6 +197,7 @@ export default function ConfirmCardList({
                     now,
                     fired: fired[id] != null,
                     onAutoFire: cue.onAutoFire,
+                    scrollRef,
                   })}
                 </div>
               );

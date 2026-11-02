@@ -61,7 +61,8 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
         self.assertGreaterEqual(_ASSIGNMENT_SRC.count(_CLAMP), 2)
         self.assertIn("delete existing[key];", _ASSIGNMENT_SRC)
         # Gated on viewerReady (fresh-load race), not terrainReady.
-        self.assertIn("[assignments, viewerReady, sysIdKey]", compact)
+        # i18n.language: state labels follow a live locale switch.
+        self.assertIn("[assignments, viewerReady, sysIdKey, i18n.language]", compact)
         self.assertNotIn("if (!terrainReady)", _ASSIGNMENT_SRC)
 
     def test_available_task_markers_self_clamp(self):
@@ -74,7 +75,7 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
         self.assertGreaterEqual(_AVAILABLE_SRC.count(_CLAMP), 2)
         # Gated on viewerReady (PR #105's "close the class fully" consistency
         # pass), not terrainReady.
-        self.assertIn("[availableTasks, viewerReady]", compact)
+        self.assertIn("[availableTasks, viewerReady, i18n.language]", compact)
         self.assertNotIn("if (!terrainReady)", _AVAILABLE_SRC)
 
     def test_poi_markers_self_clamp(self):

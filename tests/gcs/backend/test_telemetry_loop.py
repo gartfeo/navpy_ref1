@@ -73,6 +73,38 @@ class TestHasChanged(unittest.TestCase):
         self.assertFalse(_has_changed({"swarm": free}, {"swarm": dict(free)}))
 
 
+class TestTelemetryLoopCompanionState(unittest.TestCase):
+    """The lockstep fault gates read the backend's companion status from these timeline events."""
+
+    def test_the_companion_status_reaches_the_timeline_once_per_change(self):
+        statuses = ["down", "down", "ok", "ok", "checking"]
+
+        async def run_ticks():
+            mgr = MagicMock()
+            mgr.get_all_snapshots.side_effect = [[{"sys_id": 2, "companion_status": status}] for status in statuses]
+            mgr.get_seen_ids.return_value = []
+            loop = TelemetryLoop(mgr)
+            settings = SimpleNamespace(simulation=SimpleNamespace(sim_mode=False),
+                                       connection=SimpleNamespace(ws_broadcast_interval_s=0.0))
+            left = iter(statuses[1:])
+
+            async def stop_at_the_last(_interval):
+                if next(left, None) is None:
+                    loop._stop.set()
+
+            with patch("gcs.backend.telemetry_loop.settings_store.get", return_value=settings), \
+                 patch("gcs.backend.telemetry_loop.ws_manager.broadcast", new_callable=AsyncMock), \
+                 patch("gcs.backend.telemetry_loop.emit") as emit, \
+                 patch("gcs.backend.telemetry_loop.asyncio.sleep", new=stop_at_the_last):
+                await loop._loop()
+            return emit
+
+        emit = asyncio.run(run_ticks())
+        rows = [(call.kwargs["sys_id"], call.kwargs["outcome"]) for call in emit.call_args_list
+                if call.args[0] == "vehicle_companion_state"]
+        self.assertEqual(rows, [(2, "down"), (2, "ok"), (2, "checking")])
+
+
 class TestTelemetryLoopNavpyRestart(unittest.TestCase):
     """Tests for the sim-status tick's NavPy auto-restart hook."""
 

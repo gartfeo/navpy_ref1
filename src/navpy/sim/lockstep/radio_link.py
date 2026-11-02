@@ -40,6 +40,7 @@ from typing import Any
 
 from navpy.sim.lockstep.coordinator_journal import sha256
 from navpy.sim.lockstep.coordinator_packets import PacketId, navlink_fields
+from navpy.sim.lockstep.radio_cuts import RadioCuts
 from navpy.sim.lockstep.router_entries import EntryTable
 from navpy.sim.lockstep.router_framer import RouterFramer, Segment
 from navpy.sim.lockstep.sim_profile import Realization, model_stream
@@ -179,6 +180,8 @@ class RadioLinks:
                         for device, endpoint in endpoints.items()}
         self._streams: dict[StreamKey, RadioStream] = {}
         self._events: list[list[object]] = []
+        #: The paths a scheduled fault cuts now (``coordinator_faults``).
+        self.cuts = RadioCuts()
 
     def lossy(self, device: str) -> bool:
         return self.rate > 0.0 and device in self._losses

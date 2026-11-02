@@ -29,6 +29,12 @@ ends there: a ``broken`` record on SITL i's serial1 with the packet's UID
 and bytes, written after hop 2 (claimed once, as a re-emission is). Loss on
 any other stream never stands in for it.
 
+A scheduled fault (``radio_cuts``) ends a trace on the hop it cut: ``radio_fault``
+for ArduPilot i's packet at the router, or its copy to j. And a restart ends one
+when its receiver's stream ended: ``receiver_retired`` for hop 5's packet discarded
+because the NavPy that was reading it is gone (``coordinator_inbound``). A
+gate may excuse exactly these.
+
 A trace records each hop's tick and its latency: ticks from NavPy i's
 emission to NavPy j's delivery. SITL i is sysid i and NavPy ordinal i
 (``FleetLayout``). A trace that stops short names the hop it stopped at. A
@@ -44,7 +50,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from typing import Any
 
-from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS
+from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS, RADIO_FAULT
 from navpy.sim.lockstep.coordinator_types import serial0_device, serial1_device
 from navpy.sim.lockstep.radio_link import radio_events
 
@@ -53,6 +59,8 @@ Id = tuple[Any, ...]
 HOPS = ("navpy_emitted", "sitl_serial0", "ap_serial1", "router_copy", "ap_serial0", "navpy_delivered")
 #: The hop that ends a trace whose serial1 write the radio broke.
 RADIO_BROKEN = "radio_broken"
+#: The hop that ends a trace whose packet the NavPy reading it never got, as it was retired.
+RECEIVER_RETIRED = "receiver_retired"
 #: Targets that address every peer: none (the router table's -1) or broadcast.
 _EVERY_PEER = (-1, 0)
 
@@ -79,7 +87,7 @@ class NavlinkTrace:
 
     @property
     def complete(self) -> bool:
-        return len(self.hops) == len(HOPS)
+        return self.hops[-1][0] == HOPS[-1]
 
     @property
     def latency_ticks(self) -> int | None:
@@ -92,6 +100,9 @@ class _Records:
         self.emitted: dict[Id, _Emission] = {}
         self.copies: dict[Id, list[Id]] = {}
         self.delivered: dict[Id, tuple[int, Any]] = {}
+        #: A packet's ``radio_fault`` end, and a discard by a retired or unadmitted receiver.
+        self.cut: dict[Id, int] = {}
+        self.retired: dict[Id, int] = {}
         #: ``(origin, device, uid, sha256)`` -> the unclaimed ids emitted there, in order.
         self._unclaimed: dict[tuple[Any, str, tuple, str], list[Id]] = {}
         #: ``(device, uid, sha256)`` -> the unclaimed ticks of radio-broken writes, in order.
@@ -121,6 +132,10 @@ class _Records:
             elif kind == "delivered":
                 receiver = event[2]
                 self.delivered[packet_id] = (k, tuple(receiver) if isinstance(receiver, list) else receiver)
+            elif kind == RADIO_FAULT:
+                self.cut[packet_id] = k
+            elif kind == "discarded" and event[2] in ("retired", "unadmitted"):
+                self.retired[packet_id] = k
 
     def sends(self, sender: int, emission: _Emission) -> int:
         """How often NavPy ``sender`` emitted ``emission``'s UID with its bytes."""
@@ -192,6 +207,10 @@ def _trace(book: _Records, emission: _Emission, sender: int, receiver: int, up: 
     if up is None:
         return done()
     copies = [c for c in book.copies.get(up, ()) if c[2] == serial1_device(receiver)]
+    cut = book.cut.get(up, book.cut.get(copies[0]) if len(copies) == 1 else None)
+    if cut is not None:
+        hops.append((RADIO_FAULT, cut))
+        return done()
     if len(copies) != 1 or book.delivered.get(copies[0], (None, None))[1] != serial1_device(receiver):
         return done()
     arrived = book.delivered[copies[0]][0]
@@ -202,9 +221,11 @@ def _trace(book: _Records, emission: _Emission, sender: int, receiver: int, up: 
     hops.append(("ap_serial0", book.emitted[down].tick))
     final = book.delivered.get(down)
     if final is None or not (isinstance(final[1], tuple) and final[1][0] == receiver):
+        if down in book.retired:
+            hops.append((RECEIVER_RETIRED, book.retired[down]))
         return done()
     hops.append(("navpy_delivered", final[0]))
     return done()
 
 
-__all__ = ["HOPS", "NavlinkTrace", "RADIO_BROKEN", "trace_navlink"]
+__all__ = ["HOPS", "NavlinkTrace", "RADIO_BROKEN", "RADIO_FAULT", "RECEIVER_RETIRED", "trace_navlink"]

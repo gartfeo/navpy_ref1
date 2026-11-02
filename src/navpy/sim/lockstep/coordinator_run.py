@@ -55,6 +55,7 @@ from pathlib import Path
 
 from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
+from navpy.sim.lockstep.coordinator_faults import FaultRunner
 from navpy.sim.lockstep.coordinator_fleet import Sitl, SitlFleet, SitlHost, anchor_now
 from navpy.sim.lockstep.coordinator_frames import SitlLink
 from navpy.sim.lockstep.coordinator_journal import RunJournal, TickRecord, sha256
@@ -71,9 +72,11 @@ from navpy.sim.lockstep.coordinator_types import (
     Manifest,
     OperatorHost,
     OperatorInbox,
+    ParticipantFault,
     RunFault,
 )
 from navpy.sim.lockstep.coordinator_tick import TickExchange, TickOutput
+from navpy.sim.lockstep.fault_schedule import FaultPlan
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.radio_link import RADIO_LOSS_RECORD
 from navpy.sim.lockstep.step_wire import Frame
@@ -100,14 +103,16 @@ class LockstepCoordinator:
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
                  delay: Callable[[str], None] = lambda point: None,
                  launch: Callable[[ExchangeDeadline], None] = anchor_now,
-                 radio_loss_pct: float = 0.0) -> None:
+                 radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = ()) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._operator = operator
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
-        self._exchange = TickExchange(roster, self._book, manifest.companion_roles,
-                                      RoutedPorts(manifest, roster, radio_loss_pct=radio_loss_pct))
+        ports = RoutedPorts(manifest, roster, radio_loss_pct=radio_loss_pct)
+        self._exchange = TickExchange(roster, self._book, manifest.companion_roles, ports,
+                                      FaultRunner(faults, roster, self._book, ports.radio.cuts,
+                                                  len(manifest.sitl_ports)))
         self._snaps = SnapLatch(manifest.expected_fleet)
         self._ids = ids
         self._host_dir = host_dir
@@ -129,9 +134,12 @@ class LockstepCoordinator:
             self._fleet.snapshot(parked)
             self._delay("before_stop")
             self._fleet.stop()
-        except BaseException as fault:  # any end before a clean one stops by ownership
+        except BaseException as caught:  # any end before a clean one stops by ownership
+            fault = self._named(caught)
             self._fail(fault)
-            raise
+            if fault is caught:
+                raise
+            raise fault from caught
         self._roster.close()
         self.journal.add(counts)
         self.journal.add({"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f,
@@ -140,6 +148,7 @@ class LockstepCoordinator:
 
     def _grid(self) -> dict[str, object]:
         plan = self._manifest
+        faults = None if self._exchange.faults is None else self._exchange.faults.grid()
         return {
             "max_frame_gap_us": plan.max_frame_gap_us,
             "drain_period_us": plan.drain_period_us,
@@ -148,7 +157,14 @@ class LockstepCoordinator:
             "boot_budget_us": plan.boot_budget_us,
             "expected_fleet": list(plan.expected_fleet),
             "radio_loss": {"model": RADIO_LOSS_RECORD, "loss_pct": self._exchange.ports.radio.loss_pct},
+            **({"faults": faults} if faults else {}),
         }
+
+    def _named(self, fault: BaseException) -> BaseException:
+        """A later host or coordinator fault, raw or not, never hides a queued product failure (section 4)."""
+        if isinstance(fault, Exception) and not isinstance(fault, ParticipantFault):
+            return next((queued for queued in self._book.faults if isinstance(queued, ParticipantFault)), fault)
+        return fault
 
     def _fail(self, fault: BaseException) -> None:
         if isinstance(fault, RunFault):

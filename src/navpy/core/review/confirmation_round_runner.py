@@ -41,6 +41,7 @@ class ConfirmationRoundRunner:
         self,
         *,
         sys_id: int,
+        is_simulation: bool,
         state: ConfirmationRoundStatePort,
         network: Callable[[], Optional[ConfirmationMessageBroadcaster]],
         wait_time_s: Callable[[], float],
@@ -52,6 +53,7 @@ class ConfirmationRoundRunner:
         event_factory: Callable[[], rt.Event],
     ) -> None:
         self._sys_id = sys_id
+        self._is_simulation = is_simulation
         self._state = state
         self._network = network
         self._wait_time_s = wait_time_s
@@ -192,7 +194,11 @@ class ConfirmationRoundRunner:
     ) -> TaskConfirmRequestMsg:
         if poi_id is None:
             raise ValueError("confirmation request requires a POI id")
+        # For the operator's map only, as SelfAssignmentPublisher: field reads on
+        # this worker thread, and the POI is not changed.
         source = poi.geo.projected_poi_location
+        if self._is_simulation and poi.geo.truth_poi_location is not None:
+            source = poi.geo.truth_poi_location
         # No position known (the vision approach does not geolocate the POI):
         # NaN is MAVLink's "unknown" for float fields; 0,0,0 would read as a
         # real point in the Gulf of Guinea.

@@ -34,7 +34,7 @@ export default function useWsHandlers({
   useEffect(() => {
     messageHandlersRef.current['task_confirm_request'] = (data) => {
       taskConfirm.handleConfirmRequest(data);
-      confirmingStatusRef.current?.(data.sys_id, data.task_id, data.round_uid);
+      confirmingStatusRef.current?.(data);
     };
     messageHandlersRef.current['task_confirm_image'] = taskConfirm.handleConfirmImage;
     // Response converges on ALL clients (not just the initiator's wrapper):
@@ -45,17 +45,18 @@ export default function useWsHandlers({
       if (data.is_confirmed) taskAssign.handleConfirmedStatusByTask(sysId, taskId, roundUid);
       else taskAssign.handleResolvedCleanupByTask(sysId, taskId, roundUid);
     };
-    // Mission restart / E-STOP (incl. a per-UAV E-STOP): clear cards +
-    // assignments for the listed UAVs.
+    // A new mission (fleet launch or restart) ends the whole map's history on
+    // every client; an E-STOP clears the listed UAVs' cards and keeps it.
     messageHandlersRef.current['task_confirm_reset'] = (data) => {
       taskConfirm.handleConfirmReset(data);
-      for (const sid of data.sys_ids || []) taskAssign.handleDeniedCleanup(sid);
+      if (data.reason === 'new_mission') taskAssign.reset();
+      else for (const sid of data.sys_ids || []) taskAssign.handleDeniedCleanup(sid);
     };
   }, [
     taskConfirm.handleConfirmRequest, taskConfirm.handleConfirmImage,
     taskConfirm.handleConfirmResponse, taskConfirm.handleConfirmReset,
     taskAssign.handleConfirmedStatusByTask, taskAssign.handleResolvedCleanupByTask,
-    taskAssign.handleDeniedCleanup,
+    taskAssign.handleDeniedCleanup, taskAssign.reset,
   ]);
 
   // ---- Task assignment handlers ----

@@ -358,6 +358,20 @@ def test_the_participant_seed_derivation_is_pinned():
     assert ENTROPY_DOMAIN == "navpy.lockstep.entropy.v1"
 
 
+def test_a_respawned_generation_has_its_own_entropy_and_the_first_keeps_its_stream():
+    assert participant_seed(7, 1, 1) == participant_seed(7, 1)
+    material = f"{ENTROPY_DOMAIN}:7:1:2".encode("ascii")
+    assert participant_seed(7, 1, 2) == int.from_bytes(hashlib.sha256(material).digest(), "big")
+    assert participant_seed(7, 1, 2) != participant_seed(7, 1, 3)
+    # The runtime draws from it: a restarted product gets a new boot id, not its old one.
+    baton = BatonRuntime()
+    first = LockstepRuntime.create(baton, epoch_us=0, seed=7, ordinal=1)
+    second = LockstepRuntime.create(BatonRuntime(), epoch_us=0, seed=7, ordinal=1, generation=2)
+    again = LockstepRuntime.create(BatonRuntime(), epoch_us=0, seed=7, ordinal=1, generation=2)
+    draw = _draws(first), _draws(second), _draws(again)
+    assert draw[0] != draw[1] and draw[1] == draw[2]
+
+
 # -- the module port ------------------------------------------------------------
 
 def test_module_port_serves_every_rt_function():

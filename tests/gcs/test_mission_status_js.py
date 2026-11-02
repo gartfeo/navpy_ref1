@@ -561,9 +561,9 @@ class TestApproachFenceWithTheRealReducer(unittest.TestCase):
         step('task_assign_request', offer(1));
         step('task_assign_response', doing(4));
         step('task_assign_ack', applied(2, 4));
-        // The approach is heard at seq 10; the owner's repeat of the offer
-        // gets a new "doing" (seq 11) and APPLIED during NAV.
-        step('task_assign_request', offer(3));
+        // The approach is heard at seq 10; a repeated "doing" (seq 11) gets a
+        // new APPLIED during NAV. An owner sends no request after its APPLIED
+        // unless it released the task, so nothing here is a new assignment.
         step('task_assign_response', doing(11));
         step('task_assign_ack', applied(4, 11));
         const slot = vehicleAssignment(s.assignments, HELPER);
@@ -579,8 +579,8 @@ class TestApproachFenceWithTheRealReducer(unittest.TestCase):
         """, timeout=10)
         self.assertEqual(out.returncode, 0, out.stderr)
         r = json.loads(out.stdout.strip())
-        # The probe reaches the case: the repeat refreshed "doing" only.
-        self.assertEqual(r["doing"], {"boot_id": 7, "msg_seq": 11})
+        # The probe reaches the case: the repeat moved nothing on the slot.
+        self.assertEqual(r["doing"], {"boot_id": 7, "msg_seq": 4})
         self.assertEqual(r["assigned"], {"boot_id": 7, "msg_seq": 4})
         self.assertEqual(r["status"], "approaching")
         self.assertIsNone(r["label"])

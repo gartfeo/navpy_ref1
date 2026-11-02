@@ -1,6 +1,15 @@
 import { decodeBitmaskArray } from '../../../utils/bitmask';
 
 /**
+ * The static sim docks to draw: while planning only. In monitoring the map shows
+ * only what the swarm knows (dock location rule), so no dock shows from waypoint
+ * data before a detection or peer message.
+ */
+export function plannedDocksToShow(phase, simDocks) {
+  return phase === 'PLANNING' ? simDocks || [] : [];
+}
+
+/**
  * True while a zone still holds the raw downloaded mission track — the corridor
  * prefix is part of `track`, marked by `corridor_end_index`.
  *

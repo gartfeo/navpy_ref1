@@ -35,6 +35,60 @@ class TestRightPanelHost(unittest.TestCase):
     def test_view_camera_in_monitor_only(self):
         self.assertIn("videoActionFor={phase === PHASES.MONITOR ? videoActionFor : null}", self.panel)
 
+    def test_footer_slot_has_no_box_and_a_round_outranks_the_start_action(self):
+        # With a box of its own the slot would be a pinned action's whole
+        # containing block, and the action would scroll away with the cards.
+        self.assertIn("style={{ display: panelCollapsed ? 'none' : 'contents' }}", self.panel)
+        self.assertIn("startPinned={!roundsExist}", self.panel)
+        # Any round, decided too: pending only would pin START MISSION back
+        # under the finger that just tapped Approve.
+        self.assertIn(
+            "const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;",
+            self.src,
+        )
+
+    def test_collapse_keeps_the_one_list_and_the_sidebars_mounted(self):
+        # No key and no conditional mount: a pending card's state, its auto-fire
+        # and the sidebars' form data survive a toggle.
+        opening = self.panel[:self.panel.index(">\n          <div style={panelCollapsed")]
+        self.assertNotIn("key=", opening)
+        for line in (
+            "style={panelHostStyle({ mode: sidePanel.mode, roundsExist, box: collapsedBox })}",
+            "heightPx={panelCollapsed ? collapsedBox.height : mapPane.height}",
+            "childrenHidden={panelCollapsed}",
+            "<div style={panelCollapsed ? { display: 'none' } : undefined}>",
+            "footerEl={panelFooterEl}",
+            "hidden={panelCollapsed}",
+        ):
+            self.assertIn(line, self.panel)
+
+    def test_collapsed_state_wiring(self):
+        # These come with no tap: they must not reach the list's box.
+        box = self.src[self.src.index("collapsedListBox({"):]
+        for measured in ("windowChromePx", "mapCreditsPx"):
+            self.assertNotIn(measured, box[:box.index("});")])
+        for line in (
+            "const panelCollapsed = sidePanel.mode === 'collapsed';",
+            # A maximized window is not at its normal place: no room to make under it.
+            "windowBox: showWindow && !swapped ? windowLayout.window : null,",
+            "const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;",
+            # The list can reach the toast's place, and starts below the top controls.
+            "top={collapsedListShown ? PANEL_MARGIN_PX : undefined}",
+            # The toggle's badge counts what still asks, not decided rows.
+            "const pendingCount = Object.values(taskConfirm.pendingConfirms || {}).filter(isPending).length;",
+            "onTogglePanel={panelToggleShown ? sidePanel.toggle : undefined}",
+            "pendingCount={pendingCount}",
+        ):
+            self.assertIn(line, self.src)
+
+    def test_view_camera_closes_a_drawer(self):
+        # The window lies under a drawer: the card would say "Viewing" with no picture.
+        for line in (
+            "const closeDrawer = sidePanel.mode === 'overlay' ? sidePanel.toggle : null;",
+            "onView: () => { viewCamera(sysId); closeDrawer?.(); },",
+        ):
+            self.assertIn(line, self.src)
+
     def test_cards_render_only_through_the_list(self):
         self.assertNotIn("<TaskConfirmCard", self.src)
         self.assertEqual(self.src.count("<ConfirmCardList"), 2)
@@ -60,8 +114,15 @@ class TestRcHost(unittest.TestCase):
             self.assertIn(line, self.src)
         start = self.src.index("<FpvViewOverlay")
         overlay = self.src[start:self.src.index("/>", start)]
-        self.assertIn("heldLeft={rcConfirmShown ? RC_HELD_LEFT_PX : undefined}", overlay)
-        self.assertIn("heldRight={rcConfirmShown ? RC_HELD_RIGHT_PX : undefined}", overlay)
+        # On a phone the mode buttons need the inset with or without a list, and
+        # the list may narrow or move (rcListPlacement).
+        self.assertIn("heldLeft={rcConfirmShown || rcList.raised ? RC_HELD_LEFT_PX : undefined}", overlay)
+        self.assertIn("heldRight={rcConfirmShown ? rcHeldRight : undefined}", overlay)
+        self.assertIn("const rcHeldRight = rcList.heldRight ?? RC_HELD_RIGHT_PX;", self.src)
+        # The raised list keeps room for the banner whether it shows or not: a banner
+        # coming, going or wrapping comes with no tap, and must not move a card.
+        self.assertIn("tagLeft={rcList.raised ? RC_HELD_LEFT_PX : undefined}", overlay)
+        self.assertIn("heldBottom: RC_HELD_TOP_PX + FPV_HELD_ROOM_PX,", self.src)
 
     def test_placement_derives_from_what_it_must_not_cover(self):
         for line in (
@@ -80,6 +141,19 @@ class TestRcHost(unittest.TestCase):
         self.assertIn("maxHeight: `calc(100% - ${RC_CONFIRM_TOP_PX + RC_CONFIRM_BOTTOM_PX}px)`,", self.rc)
         self.assertIn("zIndex: RC_CONFIRM_Z_INDEX,", self.rc)
         self.assertNotIn("videoActionFor", self.rc)
+        # Last in the style, so on a narrow pane the placement overrides App's numbers.
+        self.assertIn("...rcList.style,\n              }}", self.rc)
+        self.assertIn("heightPx={rcList.heightPx}", self.rc)
+
+    def test_the_speed_tape_stays_over_the_mode_column(self):
+        # Same z-index, the tape later in the tree: at 960 x 448 the column's
+        # "Other" button lies on the airspeed readout, and the tape takes no taps.
+        self.assertLess(self.src.index("<FlightModeColumn"), self.src.index("<TelemetryHud"))
+        hud = _read("components", "TelemetryHud.jsx")
+        tape = hud[hud.index("Speed tape"):]
+        self.assertIn("zIndex: 10,", tape[:tape.index("<SpeedTape")])
+        # Over a list only while one is raised above the sticks on a phone.
+        self.assertIn("listRaised={rcConfirmShown && rcList.raised}", self.src)
 
     def test_under_the_warning_strip_over_the_fpv_tag(self):
         self.assertIn("const RC_CONFIRM_Z_INDEX = 9;", self.src)

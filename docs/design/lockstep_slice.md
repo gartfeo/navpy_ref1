@@ -116,7 +116,7 @@ TCP loopback; length-prefixed, versioned, with golden vectors.
 - **Retirement is logical.** A participant retires at the tick k of its ending `DONE k`. The coordinator commits it in tick step 4, before the operator's baton runs and before `TICK k+1`. That tick is its lifecycle record. OS process exit never makes a lifecycle event:
   - after the ending `DONE`, the coordinator holds the clock and waits for the process to exit (a wall budget); the host exit code goes to the `*_host` sidecar;
   - a nonzero host exit after a flushed end, or a missed exit budget, is a host fault;
-  - an exit or EOF without an ending `DONE` is a coordinator fault, never a membership change;
+  - an exit or EOF without an ending `DONE` is never a membership change: it is the product failure `unscheduled_exit`, or the host fault `slot_stopping` if the slot's own stop caused it (`deterministic_dev_sim.md`, section 4);
   - status under lockstep reads the lifecycle records (`running` until retired, `exit_code` 0 after a flushed end), not `poll()` (`navpy_process_instance.py:175`).
   - Test: a host delay after the ending `DONE` (a stop, and a plain drain end) leaves the journal unchanged.
 

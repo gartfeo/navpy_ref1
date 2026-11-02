@@ -7,7 +7,8 @@ to SITLs 2 and 3, and each ArduPilot re-emits it on its serial0 to its NavPy.
 
 from __future__ import annotations
 
-from navpy.sim.lockstep.navlink_trace import HOPS, trace_navlink
+from navpy.sim.lockstep.navlink_trace import HOPS, RADIO_FAULT, RECEIVER_RETIRED, trace_navlink
+from scripts.lockstep_navlink_gate import first_stop_tick
 
 UID = [1, 77, 5]
 NAVLINK = 25004
@@ -143,3 +144,50 @@ def test_byte_identical_sends_of_one_uid_are_ambiguous():
     traces = trace_navlink(lost_to_3, FLEET)
     assert len(traces) == 4 and all(t.ambiguous for t in traces)
     assert not any(t.ambiguous for t in trace_navlink(records(), FLEET))
+
+
+FAULT = "link_drop:sitl1"
+
+
+def test_a_source_a_fault_cut_ends_the_trace_to_every_receiver():
+    cut = records()
+    cut[2]["packets"] = [emitted(UP), [RADIO_FAULT, UP, FAULT]]
+    cut[3:] = []
+    traces = trace_navlink(cut, FLEET)
+    assert [t.hops[-1] for t in traces] == [(RADIO_FAULT, 13)] * 2
+    assert not any(t.complete for t in traces)
+
+
+def test_a_copy_a_fault_cut_ends_only_its_receivers_trace():
+    cut = records()
+    cut[2]["packets"] = [emitted(UP), ["copy", COPY[2], UP], [RADIO_FAULT, COPY[2], FAULT], ["copy", COPY[3], UP],
+                         ["routed", UP, 2]]
+    cut[3]["packets"] = [["delivered", COPY[3], "sitl3.serial1"]]
+    cut[4]["packets"] = [emitted(DOWN[3])]
+    cut[5]["packets"] = []
+    to_2, to_3 = trace_navlink(cut, FLEET)
+    assert to_2.hops[-1] == (RADIO_FAULT, 13) and not to_2.complete
+    assert to_3.complete
+
+
+def test_a_packet_discarded_for_a_retired_navpy_ends_at_the_receiver():
+    retired = records()
+    retired[5]["packets"] = [["discarded", DOWN[2], "retired"]]
+    to_2, to_3 = trace_navlink(retired, FLEET)
+    assert to_2.hops[-1] == (RECEIVER_RETIRED, 17) and not to_2.complete
+    assert to_3.complete
+
+
+def test_stop_all_starts_at_the_first_stop_no_fault_scheduled():
+    fault_stop = {"kind": "stop", "payload": {"fault": "navpy_restart:uav1"}}
+    records = [{"grid": {}}, {"k": 5, "lifecycle": [fault_stop]}, {"k": 6},
+               {"k": 9, "lifecycle": [{"kind": "stop", "payload": None}]}]
+    assert first_stop_tick(records) == 9
+    assert first_stop_tick(records[:3]) is None
+
+
+def test_a_packet_nobody_read_for_another_reason_stays_short():
+    dropped = records()
+    dropped[5]["packets"] = [["discarded", DOWN[2], "drain"]]
+    to_2, _to_3 = trace_navlink(dropped, FLEET)
+    assert to_2.hops[-1] == ("ap_serial0", 16)

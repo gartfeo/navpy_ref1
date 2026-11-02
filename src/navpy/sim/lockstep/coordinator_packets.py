@@ -29,6 +29,8 @@ and the terminal dispositions, exactly one per id:
   ``msg_to_unknown``);
 - ``["router_filtered", id]``: no endpoint accepted it and at least one filtered it
   (``docs/design/radio_budget.md``);
+- ``["radio_fault", id, fault id]``: a scheduled fault cut it (``radio_cuts``): a
+  source before the router saw it, or a copy when it was made;
 - ``["routed", id, copies]``: a source the router copied;
 - ``["undelivered", id, bytes admitted, bytes pending]``: queued at parking.
 
@@ -42,7 +44,7 @@ from collections.abc import Hashable
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.coordinator_journal import sha256
-from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS, NO_TARGET
+from navpy.sim.lockstep.coordinator_mavlink import NAVLINK_IDS, NO_TARGET, RADIO_FAULT
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault
 from navpy.sim.lockstep.router_framer import NO_TARGET as NO_FIELD
 from navpy.sim.lockstep.router_framer import RouterPacket, Segment
@@ -50,7 +52,7 @@ from navpy.sim.lockstep.router_framer import RouterPacket, Segment
 PacketId = tuple[Hashable, int, str, int]
 ROUTER_ORIGIN = "router"
 DISCARD_REASONS = ("unadmitted", "retired", "drain")
-TERMINALS = ("delivered", "discarded", "router_dropped", "router_filtered", "routed", "undelivered")
+TERMINALS = ("delivered", "discarded", RADIO_FAULT, "router_dropped", "router_filtered", "routed", "undelivered")
 _DECODER = mavlink.MAVLink(None)
 
 

@@ -25,7 +25,7 @@ const postedBodies = (fetchSpy) => fetchSpy.mock.calls.map(([, init]) => JSON.pa
  * monitor sidebar, View camera only in monitor) and the RC overlay (its own
  * list). `host` is 'monitor' | 'planning' | 'rc'.
  */
-function Harness({ host, vehicleList = FLEET, control, videoActionFor = null }) {
+function Harness({ host, vehicleList = FLEET, control, videoActionFor = null, hostStyle = { height: '100%' }, heightPx, childrenHidden }) {
   const tc = useTaskConfirmation();
   control.current = tc;
   const common = {
@@ -38,10 +38,10 @@ function Harness({ host, vehicleList = FLEET, control, videoActionFor = null }) 
     aasParams: AAS,
   };
   if (host === 'rc') {
-    return <ConfirmCardList key="rc" {...common} style={{ position: 'absolute', maxHeight: 207 }} />;
+    return <ConfirmCardList key="rc" {...common} style={{ position: 'absolute', maxHeight: 207 }} heightPx={heightPx} />;
   }
   return (
-    <ConfirmCardList key="panel" {...common} videoActionFor={host === 'monitor' ? videoActionFor : null} style={{ height: '100%' }}>
+    <ConfirmCardList key="panel" {...common} videoActionFor={host === 'monitor' ? videoActionFor : null} style={hostStyle} heightPx={heightPx} childrenHidden={childrenHidden}>
       <div>{host} sidebar</div>
     </ConfirmCardList>
   );
@@ -76,6 +76,87 @@ const stillIn = (view, sysId) => within(row(view, sysId)).getByRole('button', { 
 async function click(element) {
   await act(async () => { fireEvent.click(element); });
 }
+
+describe('ConfirmCardList host (handheld layout)', () => {
+  it('a short box scrolls the pinned rows and keeps 48 px for a sidebar below them', () => {
+    const view = setup({ heightPx: 100 });
+    ask(view.control, 7, 107);
+    approve(view.control, 7, 107);
+    const pinned = view.getByTestId('confirm-pinned');
+    expect(pinned.style.maxHeight).toBe('52px');
+    expect(pinned.style.overflowY).toBe('auto');
+    expect(pinned.style.overflowX).toBe('hidden');
+    expect(cancelIn(view, 7)).toBeInTheDocument();
+  });
+
+  it('keeps 48 px for a pending card even with the sidebar hidden', () => {
+    const view = setup({ heightPx: 100, childrenHidden: true });
+    ask(view.control, 7, 107);
+    expect(view.getByTestId('confirm-pinned').style.maxHeight).toBe('52px');
+  });
+
+  it('with the sidebar hidden a pending card keeps Approve and Deny, a decided row its Cancel task', () => {
+    const view = setup({ childrenHidden: true });
+    ask(view.control, 7, 107);
+    ask(view.control, 8, 108); approve(view.control, 8, 108);
+    const scroll = within(view.getByTestId('confirm-scroll'));
+    expect(scroll.getByRole('button', { name: /task\.approve/ })).toBeInTheDocument();
+    expect(scroll.getByRole('button', { name: /task\.deny/ })).toBeInTheDocument();
+    expect(cancelIn(view, 8)).toBeInTheDocument();
+  });
+
+  it('an opened still takes its share of the box, with the sidebar hidden too', () => {
+    const view = setup({ heightPx: 100, childrenHidden: true });
+    ask(view.control, 7, 107);
+    approve(view.control, 7, 107);
+    expect(view.getByTestId('confirm-pinned').style.maxHeight).toBe('100px');
+    fireEvent.click(stillIn(view, 7));
+    expect(view.getByTestId('confirm-pinned').style.maxHeight).toBe('52px');
+  });
+
+  it('with nothing to scroll, the pinned rows get the whole box', () => {
+    const hidden = setup({ heightPx: 100, childrenHidden: true });
+    ask(hidden.control, 7, 107);
+    approve(hidden.control, 7, 107);
+    expect(hidden.getByTestId('confirm-pinned').style.maxHeight).toBe('100px');
+    hidden.unmount();
+
+    // The RC host has no sidebar at all: two decided rows that fit stay whole.
+    const rc = setup({ host: 'rc', heightPx: 100 });
+    ask(rc.control, 7, 107);
+    approve(rc.control, 7, 107);
+    expect(rc.getByTestId('confirm-pinned').style.maxHeight).toBe('100px');
+  });
+
+  it('never gives the pinned part a negative cap', () => {
+    const view = setup({ heightPx: 20 });
+    ask(view.control, 7, 107);
+    approve(view.control, 7, 107);
+    expect(view.getByTestId('confirm-pinned').style.maxHeight).toBe('0px');
+  });
+
+  it('with no height given the pinned part has no cap', () => {
+    const view = setup();
+    ask(view.control, 7, 107);
+    approve(view.control, 7, 107);
+    expect(view.getByTestId('confirm-pinned').style.maxHeight).toBe('');
+  });
+
+  it('a change of host style does not remount a pending card', () => {
+    const view = setup();
+    ask(view.control, 7, 107);
+    const approveBtn = view.getByRole('button', { name: /task\.approve/ });
+    for (const hostStyle of [
+      { position: 'absolute', left: 12, bottom: 38, width: 307, maxHeight: 400 },
+      { display: 'none' },
+      { position: 'absolute', top: 0, right: 0, bottom: 0, width: 320 },
+      { height: '100%' },
+    ]) {
+      view.rerender({ hostStyle });
+      expect(view.getByRole('button', { name: /task\.approve/, hidden: true })).toBe(approveBtn);
+    }
+  });
+});
 
 describe('ConfirmCardList pinned rows', () => {
   it('puts each approved CANCEL TASK in the pinned part next to its UAV badge', () => {

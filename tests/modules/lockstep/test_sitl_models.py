@@ -7,6 +7,7 @@ import math
 import pytest
 
 from navpy.sim.lockstep import sitl_models as sm
+from navpy.sim.lockstep.fault_schedule import FAULT_KINDS
 from navpy.sim.lockstep.participant_budget import PARTICIPANT_MODELS
 from navpy.sim.lockstep.radio_link import radio_loss_pct
 from navpy.sim.lockstep.sim_profile import CATALOGUE, ModelDraw, ModelEntry, ParamRange, Realization, \
@@ -24,8 +25,9 @@ def realization(*models: ModelDraw, seed: int = 7) -> Realization:
 
 def test_every_parameter_of_the_built_models_has_one_sitl_parameter():
     """Every model but ``uart_loss``, the coordinator's radio loss (``radio_link``, todo 114),
-    and the NavPy participant models (``participant_budget``, steps 4 and 5)."""
-    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE) - {"uart_loss", *PARTICIPANT_MODELS}
+    the NavPy participant models (``participant_budget``, steps 4 and 5) and the scheduled faults
+    (``fault_schedule``, step 7), which the coordinator runs."""
+    assert set(sm.SITL_PARAMETERS) == set(CATALOGUE) - {"uart_loss", *PARTICIPANT_MODELS, *FAULT_KINDS}
     for name, params in sm.SITL_PARAMETERS.items():
         assert set(params) == set(CATALOGUE[name].params)
     assert set(sm.SITL_SWITCHES) <= set(CATALOGUE)

@@ -9,8 +9,8 @@ first; this is step 3 on. Per ``TICK k`` (``lockstep_slice.md``):
 2. ``BatonRuntime.tick`` sets ``t_k`` and delivers the inputs in tick input
    order: the drain ``end``, lifecycle records, cancels, requests (id order),
    then the port bytes per device; then quiescence, then due timers, within
-   the tick's handoff cap (``participant_budget``: 0 in a process freeze, the
-   CPU budget, or none), which the end's steps share.
+   the tick's handoff cap (``participant_budget``: 0 in a process freeze or
+   a scheduled fault's freeze, the CPU budget, or none), which the end's steps share.
 3. Once the product's own end is complete (a lifecycle stop, or ``end``),
    the strict flushes run on a managed thread (:meth:`Participant.drain_flush`).
 4. ``DONE k`` carries the links' egress and the hooks' outbox; when the
@@ -31,13 +31,10 @@ from collections.abc import Callable
 
 from navpy.sim.lockstep.baton import ManagedThread
 from navpy.sim.lockstep.part_socket import PartSocket, PeerClosed
-from navpy.sim.lockstep.part_wire import Done, PartWireError, Register, Tick, check_tick
+from navpy.sim.lockstep.part_wire import FREEZE, Done, PartWireError, Register, Tick, check_tick
 from navpy.sim.lockstep.participant import Participant
+from navpy.sim.lockstep.participant_env import EXIT_COORDINATOR_GONE
 from navpy.sim.lockstep.participant_hooks import ParticipantHooks
-
-#: Exit code when the coordinator closed the link before this participant
-#: ended: the coordinator is gone (its fault, never a membership change).
-EXIT_COORDINATOR_GONE = 3
 
 
 class ParticipantLoop:
@@ -55,6 +52,8 @@ class ParticipantLoop:
         self._expected: int | None = None
         self._end_thread: ManagedThread | None = None
         self._flushed = False
+        #: A scheduled fault froze this participant (``coordinator_faults``): the loop's own, no hook's.
+        self._frozen = False
 
     def run(self, register: Register) -> int:
         """Register, then tick until the ending ``DONE``; return the exit code."""
@@ -80,7 +79,12 @@ class ParticipantLoop:
             check_tick(tick.k, self._expected)
         self._expected = tick.k + 1
         try:
-            cap = self._handoffs(tick.t_us)
+            for entry in tick.lifecycle:
+                if entry.kind == FREEZE:
+                    self._frozen = bool(entry.payload["frozen"])
+            cap = self._handoffs(tick.t_us)  # asked every tick, so its streams do not depend on a fault
+            if self._frozen:
+                cap = 0
             used = self._baton.tick(tick.t_us, lambda: self._deliver(tick), handoffs=cap)
             self._settle_end(None if cap is None else cap - used)
         except Exception as error:  # a fault: reported, then the end
@@ -95,7 +99,8 @@ class ParticipantLoop:
         if tick.end:
             hooks.on_end()
         for entry in tick.lifecycle:
-            hooks.on_lifecycle(entry)
+            if entry.kind != FREEZE:
+                hooks.on_lifecycle(entry)
         for request_id in tick.cancels:
             hooks.on_cancel(request_id)
         for request in tick.requests:
@@ -137,4 +142,4 @@ class ParticipantLoop:
         )
 
 
-__all__ = ["EXIT_COORDINATOR_GONE", "ParticipantLoop"]
+__all__ = ["ParticipantLoop"]

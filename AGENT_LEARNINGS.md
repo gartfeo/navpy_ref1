@@ -1802,7 +1802,57 @@
 - Readers timing arrival cannot alone show a producer kept time. Use what the producer
   cannot hide: SITL loses any stall over 100 ms for good, so fit wall(boot) lines before
   and after and compare them at the event (`producer_test.py`). Codex caught this gap.
+- A live run with a Vite dev server reads the working tree, so a source edit mid-run
+  reloads its page. Prepare review fixes in a script and apply them when the run ends,
+  then replay its recorded /ws/telemetry through the changed reducer to check that real
+  traffic reads the same.
+- "Hung" pytest on 2026-11-01 was memory pressure (712 MB free, 126 Python processes):
+  a two-hour run, with Node 5 s timeouts and thread-timing failures that passed alone.
+  py-spy dump tells the two apart. Output sent to a log leaves the task output empty.
+- Before adding GCS logic for a producer's race, read the producer: the outcome and phase
+  were atomic on the navigation thread, so the late-outcome wait for them was not needed.
+- Read a live run's screenshots yourself, even after a passing report: a handled marker
+  that newly stays on the map collided with the hub label above it, and only the pictures
+  showed that the word could not be read. Have a second reader check the report against
+  the logs too: one found a stale count and a label the tester had edited by hand.
+- A rule like "lasts until mission reset" needs a check of every path that starts a
+  mission. The design named Restart, but a landed container fleet is offered only the
+  launch, so handled markers carried into the next mission until an audit traced it.
+- Edit scripts: collect every edit, check them all, then write. A "dry run" made by
+  patching the write line with sed wrote for real because the sed did not match.
+- Write scripts with the Write tool: a Bash heredoc was cut at a quote by the harness.
+- Derive a receiver's rules for copies and reordering from the sender's code, not from guesses
+  on the receiver's side. Three review rounds patched the dock marker reducer for late requests
+  and APPLIEDs, each fix opening the next sequence. Reading the owner's lock order settled it in
+  one pass: it removed a branch and two limits. Check the fixtures against that order too: the
+  test helpers had the owner send requests after its APPLIED, which it never does.
+  Keep the rule to what that order covers: treating a UAV's own round as a step of it dropped a
+  valid assignment, and moving a test's value to fit hid that. Before moving a value, show that the
+  sender cannot produce the old one.
+- A drawing fault that does not follow from the data can be the map engine's. A cut word
+  was Cesium 1.138 leaving a clamped label's new letters at the raw height: a bare page on
+  the installed version proved it, and upstream's changelog and tags showed the first fixed
+  release. Do both before designing around a rendering fault.
 
+## Lockstep load and parallel runs (todo 65, 2026-11-01)
+
+- A lockstep budget that counts handoffs turns a model's own yields into load. Before calling a stress failure a product bug, count what spends the cap per tick; here the reader's per-packet yield did, and the product reader had stopped yielding per packet long before.
+- Do not start several `eval_gcs_demo_lockstep_matrix.py` at once: their CPU-load cells overlap and a spawn misses the 30 s step deadline, a host fault. Run them one at a time, or use plain parallel runs (N = 8 holds on a host other chats are not loading; on a saturated one plain runs host-fault too, so budget for reruns).
+- A matrix hashes the source tree per cell. Editing even a doc while one runs fails its artifact comparison on `input_manifest.json`. Freeze the tree, or run from a separate worktree.
+- A simplified load script is not the same load: mine timed out at WSL setup with 20 busy processes that the real matrix survives. To check a fault, repeat the exact command that gave it.
+- Participants do not inherit the shell's env. For a temporary counter, print to stderr (the host logs it) and add temporary profiles.
+- When a fix removes a reproduction, grep the plan for rules that require it. I removed `stress`'s todo-65 mode and left section 4's "`stress` must reproduce todo 65" standing; the final review caught it, and only the owner could change the rule.
+- Do not write one cause for several seeds from a shared outcome. My commit message put seed 24 under the per-packet cause; it ran batch 4 with healthy observation and failed a swarm task drop. Read each seed's draw and its log before grouping it.
+- A check the design lists is a promise. "Combinations" stayed in the design with no test behind them, and they found the parked reader's behaviour (todo 200) once written. Before reporting, map each listed check to a test or run, and mark timings with no retained log as your own observation.
+- Do not label a failure "out of scope" beside "cause not checked". Run the one comparison that classes it (here, the seed with no cap).
+- Stop and look when a retry repeats its digest on a fault that is not a wall-time one. I retried stress seed 212 eleven times as a host fault; each run that got past registration gave the same digest and tick. `HostFault` there only meant an unflushed end. A wall fault at a spawn repeats a digest too, because replay is the same up to that tick (tick 1, and mid-run at ticks 4826 and 8990), so judge by the fault's kind.
+- When a tick counter says "cap used up", exclude freeze ticks: their cap is 0, they run nothing. My first starved-tick counts included them and were wrong.
+- A counterfactual is "the same run plus one change" only until its journal splits. Report where it leaves the base run. Changing B leaves it at tick 5 because the backend's reader takes the same path; only the cap change stays equal to tick 9842. Other seeds with the same draw are what rule out a re-roll, not more arms on one seed.
+- Prove a review finding with a small test, and run that test on the baseline too. Codex's timer starvation is real on the prototype; the same script shows it on the baseline for a reader below its budget, which changes what the finding means.
+- Check a scheduling change against every scheduling model before a full run. Form 3 fixed the inputs-first path and demoted the reader under `timers_first` (drain at tick 18 instead of 11). A small table of packets served per model and case shows that in seconds.
+- A worktree hook refuses edits to another worktree's files. Keep a session's temp source copies under its own ignored `.logs`, and use `( cd ... )`: a plain `cd` in the Bash tool moves the session's primary directory.
+- A retry script that classes faults must class setup faults too. Mine read a WSL `TimeoutExpired` at tick 0 with a repeated digest as a deterministic end. Treat anything by tick 2 and any wall budget message as wall time, whatever the digest does.
+- On a saturated host, do not spend hours on tries that die of wall budgets. For a comparison run, raise the wall budgets in a temp copy, and prove the digest is unchanged against a known one. Final runs still use the commit as it is.
 ## Todo 71: the confirm still's age (2026-11-01)
 
 - A card's vitest stub returns the key and drops the arguments, so it cannot test wording
@@ -1870,6 +1920,82 @@
   printed cannot be rechecked later: on this PR the sooner-round press results exist only in a
   report, and two reports disagree on one Armenian case with nothing saved to settle it.
 
+## GCS handheld layout (todo 73, 2026-11-01)
+
+- A rule from the design can be wrong against an existing contract: my 375 px test
+  expected a 351 px vehicle window, but the contract caps it at 320 px. Read the
+  layout function before writing a number into its test.
+- A red run proves nothing for a test that needs no new code. The no-remount test
+  failed on base because it passed JSX to setup()'s own rerender, which takes props
+  ("There are no available roles"). Read why each red test fails.
+- Python on this PC prints in cp1252: printing Armenian text aborted a locale edit
+  half way, en written and hy not. Set PYTHONIOENCODING=utf-8 or print nothing, and
+  check every file after a batch edit.
+- App.jsx is pinned by source-string tests (`tests/gcs/test_*_js.py`). Grep them for
+  the block you edit before wiring props: a prop text inside the TopBar block or a
+  `/>` inside the RC host breaks them. Compute values above the JSX.
+- A sticky child of a block slot sticks to the slot, so it scrolls away with it. Make
+  the slot `display: contents`, then the scroller is the containing block.
+- A control that yields to another must not come back under the finger that just
+  tapped: START MISSION fires on a short click. Ask where it returns and when. Here it
+  returns only when no round is left, not when one is decided.
+- Live layout checks on a cold Vite server took 5 to 8 minutes per first load, and
+  `npm run build` wipes that cache. Build once and serve `dist` with GCS_FRONTEND_DIST.
+- The newest folder under Codex's bin may hold only rg.exe. Pick the newest codex.exe
+  file, not the newest folder.
+- A list of one-tap actions anchored at its bottom moves every row when one arrives, so
+  a tap lands on another UAV's Approve. I chose the bottom for reach, and three design
+  reviews and the live check passed it, as they measured still layouts. For each control
+  ask what moves it while a finger is on its way.
+- `e.touches[0]` is the first finger on the screen, not the one that pressed: a thumb on
+  a stick made every hold fail. Use `changedTouches[0]`. A test with one finger shows nothing.
+- A z-index raised "at every width" for one narrow case hid the airspeed number at
+  960 x 448, and the live check had no RC capture at that size. Raise it only in the case
+  that needs it, and list what lies under the element at each target size.
+- Workflow reviewers with `schema` and the `code-reviewer` type: 4 of 5 ended with no
+  result after about 1M tokens (cause not established). With no schema, the default agent,
+  a report file they overwrite as they go and a budget of 40 tool calls, 6 of 6 reported.
+- After changing what a function returns, run the whole suite, not the files you edited. A
+  helper in another test file went on reading the removed `bottom`, and its `overlap` check
+  still passed, as every comparison with NaN is false. Geometry test helpers now throw on a
+  non-number.
+- A saved press point is not where the finger is. My fix for a button moving away compared
+  the button with the point where the press began, so a finger that drifted got the wrong
+  answer both ways. Follow the pressing finger by its identifier.
+- I wrote "rows stay where they are" when the fix only kept the rows above a change in place.
+  Write what the code guarantees, and give a limit its own line.
+- A subagent's Write tool refuses a file named report.md ("Subagents should return findings
+  as text"). Ask a tester for its findings in its final message.
+- Anchoring a list at its top did not stop it moving: the top still read live measurements
+  (the window's warning rows, a banner's wrap, the credit line). A layout that holds one-tap
+  controls should list each input and whether it can change with no tap; those must not move
+  the controls. Compare with origin/main before calling a movement "not new".
+- Guarding a measured input lost to removing it. Three rounds tried to keep the raised RC list
+  and the collapsed box clear of a live banner height and credit line, and each guard left a
+  case. A fixed room for three banner lines and a fixed box end removed the inputs, the state
+  and the effect, and the code shrank. Ask first whether the input is needed at all.
+- Vitest at BelowNormal priority under full CPU load: workers time out ("Timeout waiting for
+  worker to respond") and whole files show as failed with no test failing. It is not a code
+  result. Run the full suite at normal priority with nothing heavy beside it.
+- An upload that fails in a live check is not a code result until load is ruled out. A canary
+  that sleeps read "not starvation" while uploads still failed: a wake-up priority boost may explain
+  that, and why the reader falls behind is not measured. Flipping one stack's priority on and off
+  toggled the failure in minutes (todo 225).
+- A note's "measured" number outlives its measurement. The row height and credit line figures I
+  carried from an earlier build were off by 4 px and 18 px, and "25 to 40 px" docked was a calculation
+  from a mix of states. When a final run measures a number, replace the old one everywhere it appears.
+- A hit test is not a tap, and a note can read as if a state ran when none did. The final audit found
+  taps, drags and whole states no build had run, behind "one drag brought them clear". Write the
+  state-by-size matrix before the first live check, and keep what did not run beside the results.
+
+## Confirm card press guard (todo 166, 2026-11-02)
+
+- A 20 ms timer recorder and a rAF-based detector disagree on a busy page: the app's frames can be 150 ms apart, so a real
+  move looked like a count rise with no change. Time the detector's own frames before calling a rise a phantom.
+- In a live or harness press test, wait for the row to leave before timing the press: the 1 s expiry tick made a "deliberate"
+  press land inside the guard, which looked like a guard bug.
+- `fireEvent.click` has `detail` 0, which the guard reads as a keyboard click, so it passes; a test of a pointer press must send
+  `pointerdown` and a click with `detail: 1`. CDP input does this for real; `element.click()` does not.
 ## Delivery demo audit and ready plan (2026-11-02)
 - Run the exact command you hand over. A reader test with `--types HEARTBEAT` was not a
   test of the handed-over `--types STATUSTEXT,COMMAND_ACK`; Codex caught it. If the real
@@ -1883,6 +2009,73 @@
   line; Codex caught it, and a sweep of the `corrected` fields then found five more
   overstatements. Read those fields before writing, not after.
 
+## Dev sim step 7: scheduled faults (2026-11-02)
+
+- Try every new gate on real runs before building on it. "Sent after the heal" matched repeated heartbeat
+  bytes first in, first out per receiver. It passed its hand-built journals and failed `hw` seeds 21 and 54
+  falsely: a copy lost on the way shifted every later match, so a fresh heartbeat read as an old one. The
+  first fix, a queue per SITL, still failed on real journals, as a copy a SITL never passed on stayed queued.
+  Measure before choosing the rule: a SITL holds a copy at most 14 ticks and the same bytes come back at least
+  252 ticks later (38 runs), so what it emits is the newest copy. A real run's case became a test.
+- A new kind of event reaches sim code that only ever ran on the ground. The first NavPy restarted in flight
+  lost a whole detection lap (hw seeds 48, 50; seed 34 lost its approval). It looked like a product bug. The
+  sim gimbal's plant started in LOCK, and its switch to FOLLOW read the mount's body yaw as a world yaw, so
+  the camera looked off to the side. Walk the mechanism before logging a product todo.
+- Prove a gate on real evidence as well as doubles: load a passing run, remove one kind of evidence in memory
+  and expect that gate's exact error (`broken.py` this time, 18 breaks). Mutations prove the tests, this
+  proves the gate reads the real journal.
+- A mutation run on a private copy needs what the tests read through the tree: the terrain tiles, and a git
+  repository of its own (the input manifest runs `git diff HEAD`). Each missing piece showed up as a failed
+  baseline, not as a survivor. Count a kill only on pytest's exit 1 and print the test that failed.
+- A faults-off baseline is what separates a fault's effect from a known failure. A temporary profile, `hw`
+  without the four faults, draws the same other models on the same seed, as each model's draw is independent
+  of the profile. Without it every windy miss looked like the fault's. Remove the profile before committing.
+- On a starved host, runs fail with `exchange deadline ran out in the register wait`, a relay deadline or a
+  WSL timeout: NavPy's imports can pass the SITL's 30 s tick limit. Those are host faults. Check the load with
+  `Get-Counter` (`Win32_Processor.LoadPercentage` read 11 % while the counter read 95 %), lower the parallel
+  limit and rerun; the same seed fails at the same tick, as its spawn tick is deterministic.
+- A wall-clock test can depend on test order. `test_auto_heal_does_not_block_the_event_loop` fails alone,
+  because its first imports land in the measured window (todo 192). Rerunning it with a neighbour showed that.
+- `python -I` ignores `PYTHONPATH`, so a scratch script that imports `navpy` or `scripts` inserts the paths.
+- Codex writes `.agents/skills/` and `.codex/agents/{janitor,live-tester}.toml` into its checkout. They fail
+  `test_gen_codex_agents` and change `input_manifest.json`. Run it on a detached worktree of the commit.
+- A measurement that needs a code change goes in a throwaway worktree, so a matrix running from this one keeps
+  its manifest. `dbgview` measured DEBUG on `hw` seed 19 that way while three gate sets ran.
+- A saturated host still gives host faults at boot with staggered starts. A driver that moves a host-faulted
+  cell aside and reruns only that cell kept the matrix valid. Say how many cells it reran.
+- A git copy's objects are read-only, so `shutil.rmtree` fails on Windows and a mutation copy dir cannot be
+  reused. Take a fresh name, delete them all with `Remove-Item -Recurse -Force` at the end.
+- A delivery is not recovery: it shows a packet reached the participant, not that anything took it. Product
+  evidence often exists only at DEBUG, and DEBUG lines go through DONE into the digest. So a level has to be
+  decided per run, in the role record (the participant environment is hermetic), and only where it is needed.
+- A proof that a run fails needs its own check that the fault was made. The kill script read a JSON array as one
+  record and killed nothing; the run ended clean, and only its exit 0 showed it. Print what was killed.
+- A new log line in a swarm file can trip a source-scanning guard far from the fault tests. Run `tests/guards` and
+  `tests/scripts` after each such round, not only the fault tests.
+
+## Hand demo check and input record (2026-11-02)
+- Read `cpu_share.py --list` and free memory before a real launch. Four launches ran as
+  background on a busy PC and failed in the parameter step, at two different points.
+  Starting the second and third without reading the first's cause cost about 7 minutes,
+  and I read memory only after them: commit free was 1.3 of 64.5 GB. Wait for a share.
+- To show a new launch step is not the cause, run the launch once from a scratch script that
+  replaces that one function, with no edit to the tree. Off, it failed with the same error.
+- A sort test with two numbered files passed with a sort by name: "10" sorts before "2"
+  either way. Use three (10, 2, 1), and run the mutation before trusting an order test.
+- To tell a slow launch from a broken one, list the `http_request_finished` durations of
+  `/params` and `/parameters` from the run's timeline and compare with a passing run.
+- A single string search can miss a message built from parts: "AAS write failed" is
+  `{label} write failed`. Search the fixed part.
+
+## MAVLink record in the hand demo (2026-11-02)
+- On Windows `os.replace` onto a file another process has open fails. A status file replaced
+  once a second lost its last write, the one with the stop reason, while a test polled it.
+  Retry a replace briefly, and test the final write with a reader polling.
+- `test_new_production_definitions_are_fully_annotated` wants every new parameter annotated,
+  `**options` and file objects too. Run `tests/guards/test_solid_architecture.py` first: with
+  `-x` at the end of a 10-minute suite it was the only failure.
+- `swarm_run.py` and `delivery_demo.py` sit near the 300-line guard. A hook that lives in its
+  own module (`mavlink_recorder.start_for_chat`) costs the launcher two lines.
 ## HITL step 9: encoded decoder (2026-11-02)
 
 - rtspsrc's `udp-reconnect` defaults to true: a "no reconnect after the first frame" rule in Python is not enough. Pin it off and read it back with the other pins (Codex caught it).

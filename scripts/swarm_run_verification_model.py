@@ -20,6 +20,12 @@ BOOT_TIME_MESSAGES = frozenset({SYSTEM_TIME_MSG, "ATTITUDE"})
 CLOCK_RATE_TOLERANCE = 0.25
 CLOCK_MIN_SPAN_S = 1.0
 SPEEDUP_PARAM = "SIM_SPEEDUP"
+#: The launcher's own MAVLink identity on the verify port. The router does not
+#: send a frame back to an endpoint where its source id was seen, so with the
+#: backend's 255/0 here the backend's frames would never reach the verify port
+#: that ``mavlink_recorder`` records. 190 is a ground-station component id.
+LAUNCHER_SOURCE_SYSTEM = 255
+LAUNCHER_SOURCE_COMPONENT = 190
 
 
 @dataclass(frozen=True)

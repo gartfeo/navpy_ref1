@@ -18,6 +18,15 @@ from gcs.backend.routes.control_readiness import (
     _readiness_gates_from_settings, ekf_recheck_for_session,
 )
 
+async def _broadcast_new_mission(ws_manager: ConnectionManager, sys_ids: list[int]) -> None:
+    """A new mission ends the old one's confirmation cards and map history on every client."""
+    await ws_manager.broadcast({
+        "type": "task_confirm_reset",
+        "sys_ids": list(sys_ids),
+        "reason": "new_mission",
+    })
+
+
 async def launch_sequence(
     req: LaunchRequest,
     *,
@@ -27,6 +36,7 @@ async def launch_sequence(
     _check_launch_readiness: Callable[..., list[str]],
     _container_launch: Callable[..., Awaitable[dict]],
     _bungee_launch: Callable[..., Awaitable[dict]],
+    ws_manager: ConnectionManager,
 ) -> dict:
     """Launch vehicles. Container mode uses prepare(); bungee mode does AUTO+ARM."""
     log.info("[launch] /launch called: sys_ids=%s, force=%s", req.sys_ids, req.force)
@@ -96,7 +106,11 @@ async def launch_sequence(
         )
 
     if settings.launch.launch_type == "container":
-        return await _container_launch(req, settings)
+        # A container launch is always the whole fleet, so a new mission. A bungee
+        # launch here is one UAV's launch or relaunch; its fleet start goes through restart.
+        result = await _container_launch(req, settings)
+        await _broadcast_new_mission(ws_manager, req.sys_ids)
+        return result
     return await _bungee_launch(req, settings)
 
 async def restart_mission(
@@ -167,9 +181,12 @@ async def restart_mission(
             results[sys_id] = f"error: {e}"
             log.error("Restart failed for vehicle %d: %s", sys_id, e)
 
-    # Mission restart ends any in-flight navigation task; tell all clients to reset
-    # their confirmation cards (cross-client convergence, not just the
-    # initiating client).
-    await ws_manager.broadcast({"type": "task_confirm_reset", "sys_ids": list(req.sys_ids)})
+    # Mission restart ends any in-flight navigation task; tell all clients
+    # (cross-client convergence, not just the initiating client). It starts a
+    # new mission only if a UAV did restart: otherwise the map keeps its history.
+    if "restarted" in results.values():
+        await _broadcast_new_mission(ws_manager, req.sys_ids)
+    else:
+        await ws_manager.broadcast({"type": "task_confirm_reset", "sys_ids": list(req.sys_ids)})
 
     return {"status": "restart_complete", "results": results}

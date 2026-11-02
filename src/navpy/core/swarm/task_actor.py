@@ -52,7 +52,7 @@ class TaskActor(ListenerAbc):
         self.logger = logger
         lock = rt.RLock()
         selection, auction_state, rebroadcast_state, confirmation = (
-            create_task_state(lock, monotonic_s)
+            create_task_state(lock, monotonic_s, logger.info)
         )
         sender = TaskMessageSender(self.id, network, logger)
         rebroadcast = TaskRebroadcastCoordinator(

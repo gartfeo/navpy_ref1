@@ -17,6 +17,11 @@ MAX_REMOTE_PEERS = 2
 
 # A peer unheard (no heartbeat or check-in) for one heartbeat TTL is silent.
 PEER_SILENCE_EXPIRY_S = get_ttl_ms(MsgType.SWARM_HEARTBEAT) / 1000.0
+#: What the roster logs when a peer's silence begins by expiry, and when it ends.
+PEER_SILENT_LOG = "Peer {} silent"
+PEER_HEARD_AGAIN_LOG = "Peer {} heard again"
+#: What is logged at debug when the roster first takes a peer: at info it would be in every run's journal.
+PEER_ADMITTED_LOG = "Peer {} admitted"
 
 
 @dataclass
@@ -59,9 +64,11 @@ class PeerRoster:
         self,
         lock: rt.RLock,
         monotonic_s: Callable[[], float] = rt.monotonic,
+        note: Callable[[str], None] = lambda _line: None,
     ) -> None:
         self._lock = lock
         self._monotonic_s = monotonic_s
+        self._note = note
         self._peers: dict[int, PeerStatus] = {}
 
     def add(self, peer_id: int) -> bool:
@@ -77,6 +84,8 @@ class PeerRoster:
             status = self._peers.get(peer_id)
             if status is not None:
                 status.last_heard_s = self._monotonic_s()
+                if status.silent:
+                    self._note(PEER_HEARD_AGAIN_LOG.format(peer_id))
                 status.silent = False
 
     def silence(self, peer_id: int) -> None:
@@ -90,9 +99,10 @@ class PeerRoster:
         """Mark peers unheard for longer than PEER_SILENCE_EXPIRY_S."""
         with self._lock:
             now_s = self._monotonic_s()
-            for status in self._peers.values():
-                if now_s - status.last_heard_s > PEER_SILENCE_EXPIRY_S:
+            for peer_id, status in self._peers.items():
+                if not status.silent and now_s - status.last_heard_s > PEER_SILENCE_EXPIRY_S:
                     status.silent = True
+                    self._note(PEER_SILENT_LOG.format(peer_id))
 
     def contains(self, peer_id: int) -> bool:
         with self._lock:
@@ -163,7 +173,10 @@ class PeerRoster:
 
 __all__ = [
     "MAX_REMOTE_PEERS",
+    "PEER_ADMITTED_LOG",
+    "PEER_HEARD_AGAIN_LOG",
     "PEER_SILENCE_EXPIRY_S",
+    "PEER_SILENT_LOG",
     "PeerRoster",
     "PeerStatus",
     "sent_after",

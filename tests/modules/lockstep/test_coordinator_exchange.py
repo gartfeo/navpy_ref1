@@ -17,7 +17,7 @@ import time
 import pytest
 
 from navpy.sim.lockstep import coordinator_members
-from navpy.sim.lockstep.baton import BATON_WALL_BUDGET_S, LockstepFault, handoff_budget
+from navpy.sim.lockstep.baton import BATON_WALL_BUDGET_S, BatonWallFault, LockstepFault, handoff_budget
 from navpy.sim.lockstep.baton_sync import sleep as baton_sleep
 from navpy.sim.lockstep.coordinator import StepLink
 from navpy.sim.lockstep.coordinator_deadline import LAUNCH, ExchangeDeadline
@@ -32,12 +32,14 @@ from navpy.sim.lockstep.coordinator_types import (
     CoordinatorFault,
     HostFault,
     OperatorInbox,
+    ParticipantFault,
     RoleSpec,
     WallBudgets,
 )
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.part_socket import PeerClosed
-from navpy.sim.lockstep.part_wire import Done, PartWireError, SpawnRequest
+from navpy.sim.lockstep.part_wire import Done, PartWireError, SpawnRequest, Tick
+from navpy.sim.lockstep.participant_env import EXIT_COORDINATOR_GONE, EXIT_NO_CONNECT, EXIT_NO_GO
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from scripts import lockstep_relay
 from scripts.lockstep_wsl_sitl import (
@@ -162,6 +164,97 @@ def test_cumulative_legal_waits_fire_exchange_budget_before_the_firmware_deadlin
     assert missed == [pytest.approx(a_k + STEP_S - MARGIN_S)]
     assert missed[0] < a_k + STEP_S
     roster.stop_all()
+
+
+class _ExitedChild(FakeChild):
+    """A process that has exited with ``code`` whenever anyone asks; None: still running."""
+
+    def __init__(self, clock: FakeClock, code: int | None) -> None:
+        super().__init__(clock, 0.0)
+        self._code = code
+
+    def wait(self, timeout_s: float) -> int | None:
+        return self._code
+
+
+class _ExitedSpawner:
+    def __init__(self, clock: FakeClock, code: int | None) -> None:
+        self._clock = clock
+        self._code = code
+
+    def spawn(self, record, environment, variable) -> FakeChild:
+        return _ExitedChild(self._clock, self._code)
+
+
+def _rover_plan():
+    return dataclasses.replace(fleet_manifest(initial=()), roles={"rover": RoleSpec("toy:rover", ("lockstep:serial0.1",))})
+
+
+def _rover_exchange(tmp_path, monkeypatch, code):
+    """A rover that registered and ends in tick 5, whose process exited with ``code``."""
+    clock = FakeClock()
+    monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
+    plan = _rover_plan()
+    roster = Roster(plan, _ExitedSpawner(clock, code), AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE), OWN)
+    ids = RequestIds(0)
+    book = LifecycleBook(roster, ids)
+    rover = roster.spawn("rover", 1, ids.next(), 0)
+    rover.link.done = Done(5, ended=True)
+    return TickExchange(roster, book, ("rover",), RoutedPorts(plan, roster)), roster, book, rover
+
+
+@pytest.mark.parametrize("code", [3, None])
+def test_an_end_nobody_scheduled_stays_the_product_failure_whatever_its_exit(tmp_path, monkeypatch, code):
+    exchange, roster, book, _rover = _rover_exchange(tmp_path, monkeypatch, code)
+    exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
+    assert [(type(f), f.kind) for f in book.faults] == [(ParticipantFault, "unscheduled_exit")]
+    roster.close()
+
+
+def test_a_scheduled_end_with_a_nonzero_exit_stays_a_host_fault(tmp_path, monkeypatch):
+    exchange, roster, book, rover = _rover_exchange(tmp_path, monkeypatch, 3)
+    book.begin_tick(TickRecord(4, "mission", 900_000))
+    book.stop_scheduled(rover, 900_000, "navpy_restart:uav1")
+    with pytest.raises(HostFault) as raised:
+        exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
+    assert raised.value.kind == "exit_nonzero" and book.faults == []
+    roster.close()
+
+
+@pytest.mark.parametrize(("code", "stopping", "fault", "kind"), [
+    (1, False, ParticipantFault, "unscheduled_exit"),  # it died on its own before its REGISTER
+    (None, False, HostFault, "register_missed"),  # still running: the wait was too short
+    (1, True, HostFault, "register_missed"),  # the slot's own stop took it
+    (EXIT_COORDINATOR_GONE, False, HostFault, "register_missed"),  # the host's doing, by its own word
+    (EXIT_NO_GO, False, HostFault, "register_missed"),
+    (EXIT_NO_CONNECT, False, HostFault, "register_missed"),
+])
+def test_a_register_wait_that_failed_names_a_process_gone_on_its_own(tmp_path, monkeypatch, code, stopping, fault, kind):
+    clock = FakeClock()
+    monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
+    recorder = AllowAll()
+    monkeypatch.setattr(recorder, "stopping", lambda: stopping)
+    roster = Roster(_rover_plan(), _ExitedSpawner(clock, code), recorder,
+                    HostSidecar(tmp_path / PROCESSES_HOST_FILE), WallBudgets(register_s=COST_S / 2, done_s=1, exit_s=0))
+    with pytest.raises(fault) as raised:
+        roster.spawn("rover", 1, (0, 1), 0)
+    assert raised.value.kind == kind and "did not register" in str(raised.value)
+    roster.close()
+
+
+def test_a_process_gone_on_its_own_is_the_product_failure_even_with_the_deadline_spent(tmp_path, monkeypatch):
+    clock = FakeClock()
+    deadline = ExchangeDeadline(STEP_S, MARGIN_S, clock=clock)
+    deadline.anchor()
+    deadline.open(3)
+    clock.now = 25.0  # what is left of the deadline runs out in this wait
+    monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
+    roster = Roster(_rover_plan(), _ExitedSpawner(clock, 1), AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE),
+                    OWN, deadline=deadline)
+    with pytest.raises(ParticipantFault, match="did not register"):
+        roster.spawn("rover", 1, (0, 1), 0)
+    assert deadline.spent()
+    roster.close()
 
 
 def test_a_wait_returning_after_the_deadline_is_the_deadline_fault():
@@ -340,14 +433,14 @@ class _FailingLink(FakeLink):
 
 
 @pytest.mark.parametrize(("error", "kind"), [
-    (PeerClosed("peer closed"), "eof_without_end"),
-    (ConnectionResetError("reset"), "eof_without_end"),
+    (PeerClosed("peer closed"), "unscheduled_exit"),
+    (ConnectionResetError("reset"), "unscheduled_exit"),
     (PartWireError("bad frame"), "done_invalid"),
     (OSError("socket error"), "done_invalid"),
 ])
 @pytest.mark.parametrize("after", [False, True])
-def test_every_failed_done_wait_past_the_deadline_is_the_deadline_fault(tmp_path, monkeypatch, error,
-                                                                         kind, after):
+def test_a_failed_done_wait_past_the_deadline_is_its_fault_unless_the_process_went_away(tmp_path, monkeypatch, error,
+                                                                                        kind, after):
     clock = FakeClock()
     deadline = ExchangeDeadline(STEP_S, MARGIN_S, clock=clock)
     monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
@@ -359,10 +452,94 @@ def test_every_failed_done_wait_past_the_deadline_is_the_deadline_fault(tmp_path
     deadline.anchor()
     deadline.open(5)
     member.link = _FailingLink(clock, error, STEP_S if after else COST_S)
-    with pytest.raises((CoordinatorFault, HostFault)) as raised:
+    with pytest.raises((CoordinatorFault, HostFault, ParticipantFault)) as raised:
         roster.receive(member, 5)
-    assert raised.value.kind == ("exchange_budget" if after else kind)
+    # A process gone is definite whatever the time: no wall budget of either side ends one without a DONE.
+    assert raised.value.kind == ("exchange_budget" if after and kind != "unscheduled_exit" else kind)
     roster.stop_all()
+
+
+class _SlotStopping(AllowAll):
+    def stopping(self) -> bool:
+        return True
+
+
+class _SendFails(FakeLink):
+    def send(self, tick, deadline=None):
+        raise BrokenPipeError("gone")
+
+
+def _gone_roster(tmp_path, monkeypatch, recorder, link_type):
+    clock = FakeClock()
+    monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
+    plan = dataclasses.replace(fleet_manifest(initial=()),
+                               roles={"rover": RoleSpec("toy:rover", ("lockstep:serial0.1",))})
+    roster = Roster(plan, FakeSpawner(clock), recorder, HostSidecar(tmp_path / PROCESSES_HOST_FILE), OWN)
+    member = roster.spawn("rover", 1, (0, 1), 0)
+    member.link = link_type(clock)
+    return roster, member
+
+
+class _ClosedLink(_FailingLink):
+    def __init__(self, clock: FakeClock) -> None:
+        super().__init__(clock, PeerClosed("peer closed"), COST_S)
+
+
+@pytest.mark.parametrize(("recorder", "fault", "kind"), [
+    (AllowAll, ParticipantFault, "unscheduled_exit"),
+    (_SlotStopping, HostFault, "slot_stopping"),
+])
+def test_a_participant_gone_is_the_slots_own_stop_or_else_nobody_scheduled_it(tmp_path, monkeypatch, recorder,
+                                                                              fault, kind):
+    roster, member = _gone_roster(tmp_path, monkeypatch, recorder(), _ClosedLink)
+    with pytest.raises(fault) as raised:
+        roster.receive(member, 5)
+    assert (raised.value.kind, raised.value.tick, raised.value.ordinal) == (kind, 5, 1)
+    member.link = _SendFails(FakeClock())
+    with pytest.raises(fault) as raised:  # the send path says the same
+        roster.send(member, Tick(5, 0))
+    assert raised.value.kind == kind
+    roster.stop_all()
+
+
+class _SendFailsLate(_SendFails):
+    def send(self, tick, deadline=None):
+        self._clock.spend(STEP_S)  # the send itself ran past the deadline, then found the process gone
+        return super().send(tick, deadline)
+
+
+def test_a_tick_send_to_a_process_gone_past_the_deadline_is_still_its_exit(tmp_path, monkeypatch):
+    clock = FakeClock()
+    deadline = ExchangeDeadline(STEP_S, MARGIN_S, clock=clock)
+    monkeypatch.setattr(coordinator_members, "await_register", _fake_register(clock, []))
+    roster = Roster(_rover_plan(), FakeSpawner(clock), AllowAll(), HostSidecar(tmp_path / PROCESSES_HOST_FILE),
+                    OWN, deadline=deadline)
+    member = roster.spawn("rover", 1, (0, 1), 0)
+    deadline.anchor()
+    deadline.open(5)
+    member.link = _SendFailsLate(clock)
+    with pytest.raises(ParticipantFault) as raised:
+        roster.send(member, Tick(5, 0))
+    assert raised.value.kind == "unscheduled_exit"
+    roster.stop_all()
+
+
+def test_a_baton_wall_budget_in_a_done_is_the_hosts_fault_and_no_unscheduled_exit(tmp_path, monkeypatch):
+    exchange, roster, book, rover = _rover_exchange(tmp_path, monkeypatch, 1)
+    rover.link.done = Done(5, faults=(f"{BatonWallFault.__name__}:tick",), ended=False)
+    output = exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
+    assert output.faults == []
+    assert [(type(f), f.kind, f.tick, f.ordinal) for f in book.faults] == [(HostFault, "baton_wall_budget", 5, 1)]
+    roster.close()
+
+
+def test_any_other_fault_in_a_done_stays_the_products(tmp_path, monkeypatch):
+    exchange, roster, book, rover = _rover_exchange(tmp_path, monkeypatch, 1)
+    rover.link.done = Done(5, faults=("RuntimeError:tick",), ended=False)
+    output = exchange.run(5, 1_000_000, TickRecord(5, "mission", 1_000_000), draining=False)
+    assert [(type(f), f.kind) for f in output.faults] == [(ParticipantFault, "participant")]
+    assert [(type(f), f.kind) for f in book.faults] == [(ParticipantFault, "unscheduled_exit")]
+    roster.close()
 
 
 def test_the_boot_latch_completes_at_the_last_sitl_and_faults_past_its_budget():

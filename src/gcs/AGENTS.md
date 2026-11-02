@@ -62,6 +62,12 @@ Frontend:
   (`wall_reap_wsl.py`) kills only processes whose command line names the
   chat's sysids or router port AND whose environment holds the chat's
   `SWARM_OFFSET`, never by sysid alone.
+- The verify port (`16550+N`, the monitor port + 1000) belongs to `swarm_run`:
+  it verifies there as MAVLink 255/190, then, only for `delivery_demo.py`
+  (`NAVPY_MAVLINK_TLOG`), `mavlink_recorder.py` binds it exclusively and writes
+  the run's `mavlink.tlog` (router mirror after verification; no serial0 link,
+  nothing from boot). Never listen there by hand: a shared listener starves the
+  verifier with no bind error, and while the record runs the bind fails.
 - **Registry inspection must be read-only via the JSON file** when you must
   not mutate it — `gcs_launch.py --list` calls `registry.live()`, which prunes
   dead entries and persists.
@@ -76,8 +82,9 @@ Frontend:
   `python scripts\eval_gcs_navigation_demo.py --lockstep --scenario scripts\eval_lockstep_slice_scenario.json --seed 1 --run-dir <dir>`
   for the 1-UAV slice, or without `--scenario` for the certified 3-UAV fleet; the
   run and the matrix take `--sim-profile <name>`, lockstep only, default `hw`, from
-  `src/navpy/sim/lockstep/sim_profiles.json` (wind and seeded SITL noise, `sitl_models.py`;
-  `none` turns both off); the
+  `src/navpy/sim/lockstep/sim_profiles.json` (wind and seeded SITL noise, `sitl_models.py`,
+  and in `hw` scheduled faults, `fault_schedule.py`; `none` turns all off; exit 1 is a failed
+  gate or a product failure, exit 2 a failed setup or a host fault, to rerun); the
   repeatable gate is `python scripts\eval_gcs_demo_lockstep_matrix.py --run-dir <dir>`:
   five seed-1 certified runs one at a time (two plain, host delay seeds 7 and 13, CPU
   load), passing only with every report passed, one journal digest and byte-equal
@@ -135,6 +142,9 @@ Frontend:
   click. When not ready (for example low battery), holding `START` then
   confirming is the force-start override.
 - `E-STOP` requires confirmation.
+- Right panel (`docs/design/gcs_handheld_layout.md`): docked and open at 695 px
+  and wider, a drawer closed at start below that; one top-bar toggle in both.
+  Collapsed, its sidebars stay mounted and pending cards show over the map.
 - `Companion computer not connected` usually means NavPy crashed or failed to
   start — NavPy runs as separate processes, so check NavPy process logs, not
   only backend logs.

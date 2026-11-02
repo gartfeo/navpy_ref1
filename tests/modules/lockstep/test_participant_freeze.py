@@ -13,7 +13,7 @@ from navpy.sim.lockstep.baton import BatonRuntime
 from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import sleep, yield_now
 from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime
-from navpy.sim.lockstep.part_wire import Request, Tick
+from navpy.sim.lockstep.part_wire import FREEZE, Lifecycle, Request, Tick
 from navpy.sim.lockstep.participant import LockstepIdentity, Participant
 from navpy.sim.lockstep.participant_hooks import Outbox, OutboxBuffer, ParticipantHooks
 from navpy.sim.lockstep.participant_loop import ParticipantLoop
@@ -262,6 +262,59 @@ def test_the_ends_own_timers_share_what_is_left_of_the_cap():
     # The tick's one handoff starts the flush; its timer, due now, waits for the next tick.
     assert loop.step(_tick(3, end=True)).ended is None and product.trace == []
     assert loop.step(_tick(4)).ended is True and product.trace == [("flush", 80)]
+
+
+def _freeze(frozen: bool, commit: int) -> Lifecycle:
+    return Lifecycle(FREEZE, (0, commit), None, 1, 1, None, {"frozen": frozen, "fault": "late_heartbeat:uav1"})
+
+
+class Hearing(Product):
+    """Remembers the lifecycle records its hooks were given."""
+
+    def __init__(self, baton: BatonRuntime) -> None:
+        super().__init__(baton)
+        self.heard: list[str] = []
+
+    def on_lifecycle(self, entry) -> None:
+        self.heard.append(entry.kind)
+
+
+def test_a_scheduled_freeze_holds_the_product_from_its_record_to_the_next_and_no_hook_sees_it():
+    baton = BatonRuntime()
+    participant = Participant(
+        LockstepRuntime.create(baton, epoch_us=0, seed=1, ordinal=1), LockstepIdentity(1, 1), ())
+    product = Hearing(baton)
+    asked: list[int] = []
+
+    def handoffs(t_us: int) -> None:
+        asked.append(t_us // TICK_US)
+
+    loop = ParticipantLoop(participant, product, link=None, handoffs=handoffs)
+    loop.step(_tick(1))
+    loop.step(_tick(2))
+    frozen = [loop.step(Tick(3, 3 * TICK_US, ((DEVICE, b"a"),), lifecycle=(_freeze(True, 1),))),
+              loop.step(_tick(4, b"b"))]
+    assert product.trace == [] and product.link.inbound.qsize() == 2  # inputs queue, nothing runs
+    assert [d.ports for d in frozen] == [((DEVICE, b""),)] * 2
+    thawed = loop.step(Tick(5, 5 * TICK_US, ((DEVICE, b"c"),), lifecycle=(_freeze(False, 2),)))
+    assert thawed.ports == ((DEVICE, b"abc"),)
+    assert [t for t in product.trace if t[0] == "read"] == [("read", b"a", 100), ("read", b"b", 100),
+                                                            ("read", b"c", 100)]
+    assert ("timer", "a", 100) in product.trace  # overdue timers fire on the thaw
+    assert asked == [1, 2, 3, 4, 5]  # the budget's streams never depend on a fault
+    assert product.heard == []
+
+
+def test_a_freeze_still_gives_the_hooks_every_other_lifecycle_record_of_its_tick():
+    baton = BatonRuntime()
+    participant = Participant(
+        LockstepRuntime.create(baton, epoch_us=0, seed=1, ordinal=1), LockstepIdentity(1, 1), ())
+    product = Hearing(baton)
+    loop = ParticipantLoop(participant, product, link=None, handoffs=lambda _t_us: None)
+    loop.step(_tick(1))
+    stop = Lifecycle("stop", (0, 2), 1, 1, 1, None, None)
+    loop.step(Tick(2, 2 * TICK_US, ((DEVICE, b""),), lifecycle=(_freeze(True, 1), stop)))
+    assert product.heard == ["stop"]
 
 
 def test_a_budget_shared_by_inputs_and_timers_leaves_the_rest_for_the_next_tick():
