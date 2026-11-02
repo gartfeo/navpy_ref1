@@ -856,6 +856,9 @@
   had agreed the layout, and the owner stopped it ("before agree with me design and show"). For
   UI feedback, show a side-by-side mock of the options first, then code the chosen one.
 - Cesium 1.138 ignores the Viewer option `imageryProvider` (removed in 1.107); use `baseLayer`.
+  The main map kept it for weeks after this note: builds with `.env.local` took the Ion path and
+  hid the blue globe. Check map imagery with a build made with `VITE_CESIUM_ION_TOKEN=""`
+  (process env beats `.env.local`), and delete a worktree's `npm run build` dist: it holds the token.
   A throw in a `scene.preRender` listener stops that widget's render loop with no `renderError`
   (`Scene.js:4440` raises it outside the error wrapper), so catch inside the listener.
 - Two Cesium widgets cannot share attribution: a `Credit` owns one DOM element that each
