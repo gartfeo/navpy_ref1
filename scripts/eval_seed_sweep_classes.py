@@ -129,6 +129,35 @@ def known_todos(run_dir: Path, journal: Sequence[Mapping[str, Any]], errors: Seq
     return sorted(set(todos))
 
 
+def _lines_before(run_dir: Path, tick: int) -> list[str]:
+    lines = []
+    try:
+        with (run_dir / JOURNAL_FILE).open(encoding="utf-8") as journal:
+            for line in journal:
+                record = json.loads(line)
+                if ("fault" in record and "kind" in record) or record.get("k", -1) >= tick:
+                    break
+                lines.append(line)
+    except (OSError, ValueError):
+        return []
+    return lines
+
+
+def replays_until(first: Path, again: Path, tick: int) -> bool:
+    """The rerun's journal holds every record the first run journaled before ``tick``, unchanged, and goes
+    on past it: the run is deterministic up to its fault, so a fault that did not repeat had an outside
+    cause (a process killed, a write the OS refused)."""
+    before = _lines_before(first, tick)
+    if not before:
+        return False
+    try:
+        with (again / JOURNAL_FILE).open(encoding="utf-8") as journal:
+            lines = [line for _ in range(len(before) + 1) if (line := journal.readline())]
+    except OSError:
+        return False
+    return lines[:len(before)] == before and len(lines) > len(before)
+
+
 def classify(run_dir: Path, exit_code: int) -> RunVerdict:
     """One run's class from its report, host record and journal (module docstring)."""
     journal = _journal(run_dir)
@@ -155,4 +184,4 @@ def classify(run_dir: Path, exit_code: int) -> RunVerdict:
                       lagging_readers(lag))
 
 
-__all__ = ["HOST", "PASS", "PRODUCT", "RunVerdict", "SETUP", "classify", "known_todos"]
+__all__ = ["HOST", "PASS", "PRODUCT", "RunVerdict", "SETUP", "classify", "known_todos", "replays_until"]

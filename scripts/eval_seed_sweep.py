@@ -11,8 +11,10 @@ Each run is classed (``eval_seed_sweep_classes``) and each failing seed is
 rerun; the first record is kept, a rerun only adds to it:
 
 - a product failure is rerun once: the same digest *confirms* it (``product``,
-  or ``known`` when a known todo explains every error); a different one is a
-  ``determinism_bug``, which is worse;
+  or ``known`` when a known todo explains every error). A run a
+  ``ParticipantFault`` ended whose rerun replays its journal up to that tick
+  unchanged and goes on is ``host``: the fault had an outside cause (todo 202).
+  Any other different digest is a ``determinism_bug``, which is worse;
 - a host fault or setup error is rerun once. If the rerun faults the same way
   with the same digest it is ``repeated_fault``: a fault that repeats is not
   shown to be the host's, so stop and look (todo 202); otherwise ``host``,
@@ -45,7 +47,7 @@ for directory in (ROOT, ROOT / "src"):
 
 from gcs.backend.cpu_share_background import apply_background
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, profile_names
-from scripts.eval_seed_sweep_classes import HOST, PASS, PRODUCT, SETUP, RunVerdict, classify
+from scripts.eval_seed_sweep_classes import HOST, PRODUCT, SETUP, RunVerdict, classify, replays_until
 
 SEEDS_FILE = ROOT / "scripts" / "eval_seed_sweep_seeds.json"
 SWEEP_FILE = "sweep.json"
@@ -101,6 +103,16 @@ def _same_fault(first: RunVerdict, again: RunVerdict) -> bool:
             and first.fault is not None and first.fault == again.fault)
 
 
+def _fault_not_repeated(first: RunVerdict, again: RunVerdict, first_dir: Path, again_dir: Path) -> bool:
+    """A run a ``ParticipantFault`` ended, whose rerun replays its journal up to that tick and does not
+    fault there: the replay is deterministic, so the fault had an outside cause (a process killed, a
+    write the OS refused) and is the host's (todo 202). A real product fault repeats with the digest."""
+    tick = first.fault.get("tick") if first.fault and first.fault.get("fault") == "ParticipantFault" else None
+    if not isinstance(tick, int) or (again.fault is not None and again.fault.get("tick") == tick):
+        return False
+    return replays_until(first_dir, again_dir, tick)
+
+
 def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
     """Run the job, rerun as the module docstring says, and give its outcome with every attempt."""
     attempts: list[tuple[str, RunVerdict]] = []
@@ -124,6 +136,8 @@ def settle(job: Job, base: Path, runner: Runner) -> dict[str, Any]:
             status = "unconfirmed"
         elif again.cls == PRODUCT and again.digest is not None and again.digest == verdict.digest:
             status = "known" if verdict.known else "product"
+        elif _fault_not_repeated(verdict, again, base / attempts[-2][0], base / attempts[-1][0]):
+            status = "host"
         else:
             status = "determinism_bug"
     lagging = sorted({f"{name}: {reader}" for name, v in attempts for reader in v.lagging})
