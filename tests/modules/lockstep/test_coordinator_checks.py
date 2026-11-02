@@ -145,6 +145,46 @@ def test_a_queued_product_failure_is_not_hidden_by_a_later_host_fault(tmp_path, 
     assert (record["fault"], record["kind"]) == ("ParticipantFault", "unscheduled_exit")
 
 
+def test_a_queued_product_failure_is_not_hidden_by_a_later_raw_host_error(tmp_path, monkeypatch):
+    """A sidecar write that fails while the process that went away is being collected."""
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    queued = ParticipantFault("unscheduled_exit", "it went away", tick=3, ordinal=1)
+    raw = OSError("the sidecar could not be replaced")
+
+    def mission():
+        coordinator._book.faults.append(queued)
+        raise raw
+
+    monkeypatch.setattr(coordinator, "_mission", mission)
+    with pytest.raises(ParticipantFault) as raised:
+        coordinator.run()
+    assert raised.value is queued and raised.value.__cause__ is raw
+    record = coordinator.journal.records[-1]
+    assert (record["fault"], record["kind"]) == ("ParticipantFault", "unscheduled_exit")
+
+
+def test_a_raw_host_error_with_no_product_failure_queued_stands(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+    raw = OSError("the sidecar could not be replaced")
+    monkeypatch.setattr(coordinator, "_mission", lambda: (_ for _ in ()).throw(raw))
+    with pytest.raises(OSError) as raised:
+        coordinator.run()
+    assert raised.value is raw
+    assert coordinator.journal.records[-1]["fault"] == "unexpected"
+
+
+def test_an_interrupt_stays_an_interrupt_with_a_product_failure_queued(tmp_path, monkeypatch):
+    coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
+
+    def mission():
+        coordinator._book.faults.append(ParticipantFault("unscheduled_exit", "it went away", tick=3, ordinal=1))
+        raise KeyboardInterrupt
+
+    monkeypatch.setattr(coordinator, "_mission", mission)
+    with pytest.raises(KeyboardInterrupt):
+        coordinator.run()
+
+
 def test_a_host_fault_with_no_product_failure_queued_stands(tmp_path, monkeypatch):
     coordinator, *_ = build(tmp_path, plan=manifest(initial=()))
     coordinator._book.faults.append(HostFault("unclean_end", "ended without a flushed end"))

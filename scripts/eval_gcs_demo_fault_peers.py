@@ -5,9 +5,11 @@ A ``(receiver, sender)`` pair is owed recovery when both had checked in by the h
 earlier contact: a pair that first met across the fault must still meet.
 
 The roster's lines (``task_peer_roster``) show the product processed that, where a
-delivery alone would not. Any silence it logged since it last heard the sender is
-over by the deadline. And a pair that was working when the fault began, with a gap
-long enough to pass the roster's expiry for certain, logged that silence.
+delivery alone would not. The receiver's generation has admitted the sender by the
+deadline (a debug line: a run with scheduled faults logs at debug). Any silence it
+logged since it last heard the sender is over by the deadline. And a pair that was
+working when the fault began, with a gap long enough to pass the roster's expiry for
+certain, logged that silence.
 
 All of it counts only what this receiver's and this sender's generations did: a new
 generation starts with a fresh roster, and owes nothing for the last one's peers.
@@ -21,6 +23,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.core.swarm.swarm_heartbeat_runtime import HEARTBEAT_INTERVAL_S
 from navpy.core.swarm.task_peer_roster import (
+    PEER_ADMITTED_LOG,
     PEER_HEARD_AGAIN_LOG,
     PEER_SILENCE_EXPIRY_S,
     PEER_SILENT_LOG,
@@ -43,10 +46,15 @@ def both_ways(uav: int, others: Iterable[int]) -> list[tuple[int, int]]:
 
 
 def heard_errors(run: FaultRun, span: FaultSpan, pairs: Iterable[tuple[int, int]]) -> list[str]:
-    """Each pair heard, sent after the heal, by the deadline."""
+    """Each pair heard, sent after the heal, by the deadline, and the receiver's generation has admitted the sender."""
     by = run.by_tick(span)
-    return [f"fault {span.id}: {receiver} did not hear peer {sender} by tick {by}" for receiver, sender in pairs
-            if run.heard(receiver, sender, PEER_IDS, span.heal_k, by) is None]
+    errors = []
+    for receiver, sender in pairs:
+        if run.heard(receiver, sender, PEER_IDS, span.heal_k, by) is None:
+            errors.append(f"fault {span.id}: {receiver} did not hear peer {sender} by tick {by}")
+        elif run.line_at(receiver, PEER_ADMITTED_LOG.format(sender), run.spawned_at(receiver, by), by) is None:
+            errors.append(f"fault {span.id}: {receiver} did not admit peer {sender} by tick {by}")
+    return errors
 
 
 def silence_over_errors(run: FaultRun, span: FaultSpan, receiver: int, sender: int) -> list[str]:

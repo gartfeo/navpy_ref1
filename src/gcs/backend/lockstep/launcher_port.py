@@ -151,7 +151,7 @@ class LockstepLauncher:
         if detector_debug_show:
             raise ValueError("a lockstep companion opens no debug window")
         expected = lockstep_navpy_argv(sys_id, spec["device"], vision_profile=vision_profile,
-                                       log_level=log_level)
+                                       log_level=spec.get("log_level", log_level))
         if list(spec.get("argv") or ()) != expected:
             raise ValueError(f"the lockstep companion for sys_id {sys_id} was recorded with "
                              f"{spec.get('argv')}, not {expected}")

@@ -18,6 +18,7 @@ from navpy.core.kernel.location import Location
 from navpy.core.swarm.task_actor import TaskActor
 from navpy.core.swarm.task_actor_slots import SlotState
 from navpy.core.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_peer_roster import PEER_SILENCE_EXPIRY_S
 from tests.detection_factory import make_detected_poi
 from tests.modules.swarm.test_task_assign_confirmation import FakeTimers
 
@@ -187,6 +188,46 @@ def _three_uav_swarm(bus, owner_loc, peer_2_loc, peer_3_loc, monotonic_s=time.mo
         actors.append(actor)
     bus.drain()
     return vehicles, actors
+
+
+def test_the_roster_logs_a_peers_admission_silence_and_return_through_the_actors_logger():
+    """What the fault gates read: the lines of a real composition, not of a callback a test gave the roster."""
+    now = [100.0]
+    bus = _MavlinkBus()
+    vehicles = [_Vehicle(1, Location(40.0, 44.0, 1339.7), bus), _Vehicle(2, Location(40.1, 44.1, 1339.7), bus)]
+    actors = []
+    for vehicle in vehicles:
+        logger = MagicMock()
+        network = NetworkMavlink(vehicle.source_system, vehicle, logger)
+        actor = TaskActor(vehicle, network, logger, monotonic_s=lambda: now[0])
+        actor.start()
+        network.set_listener(actor)
+        bus.networks.append(network)
+        actors.append(actor)
+    bus.drain()  # the check-ins
+    first, second = actors
+    log = first.logger
+
+    def lines(level):
+        return [call.args[0] for call in level.call_args_list if call.args[0].startswith("Peer ")]
+
+    try:
+        second._presence.heartbeat()
+        bus.drain()
+        assert lines(log.debug) == ["Peer 2 admitted"]  # once, however often it is heard
+        assert lines(log.info) == []
+
+        now[0] += PEER_SILENCE_EXPIRY_S + 0.1
+        first._presence.heartbeat()  # the check runs on the node's own heartbeat
+        assert lines(log.info) == ["Peer 2 silent"]
+
+        second._presence.heartbeat()
+        bus.drain()
+        assert lines(log.info) == ["Peer 2 silent", "Peer 2 heard again"]
+        assert lines(log.debug) == ["Peer 2 admitted"]
+    finally:
+        for actor in actors:
+            actor.reset()
 
 
 def _is_assign_response_from(sender_id, mav_msg, peer_id):

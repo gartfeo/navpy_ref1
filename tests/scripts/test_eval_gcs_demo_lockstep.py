@@ -409,6 +409,22 @@ def test_the_slice_manifest_is_unchanged_by_the_fleet_wiring():
         boot_budget_us=BOOT_BUDGET_US)
 
 
+def test_only_a_run_with_scheduled_faults_logs_at_debug():
+    """Its peer gates read the roster's debug line; every other run keeps its journal digest."""
+    import dataclasses
+
+    assert lockstep_eval.fault_plans(lockstep_eval.sim_realization(OPTIONS), 3)  # hw seed 1 draws faults
+    plan = manifest(CERTIFIED, OPTIONS)
+    for spec in plan.roles["backend"].config["companions"].values():
+        assert spec["log_level"] == "DEBUG" and spec["argv"][-2:] == ["--log-level", "DEBUG"]
+        assert plan.roles[spec["role"]].config["argv"] == spec["argv"]
+    for profile in ("none", "quiet", "stress"):
+        options = dataclasses.replace(OPTIONS, sim_profile=profile)
+        assert not lockstep_eval.fault_plans(lockstep_eval.sim_realization(options), 3)
+        for spec in manifest(CERTIFIED, options).roles["backend"].config["companions"].values():
+            assert "log_level" not in spec and "--log-level" not in spec["argv"]
+
+
 def test_the_certified_manifest_wires_three_uavs():
     plan = manifest(CERTIFIED, OPTIONS)
     assert set(plan.roles) == {"backend", "navpy1", "navpy2", "navpy3"}

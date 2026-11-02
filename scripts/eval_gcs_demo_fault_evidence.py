@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import json
-from collections import deque
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime
@@ -44,18 +43,18 @@ def deliveries(records: Sequence[Mapping[str, Any]]) -> dict[Any, list[Delivery]
     roots: dict[tuple, tuple[Sequence[Any], int]] = {}  # packet -> (the emission it came from, when first sent)
     #: A UID is one send, however often it is resent.
     uid_sent: dict[Any, int] = {}
-    #: (SITL, bytes) -> when each copy it got and has not passed on was first sent, first in, first out:
-    #: a SITL passes bytes on unchanged. Anything else it emits is its own send, as bytes repeat once a
-    #: sequence byte wraps. A copy it never passed on only makes a later one of the same bytes look older.
-    waiting: dict[tuple[str, Any], deque[int]] = {}
+    #: (SITL, bytes) -> when the copy it got last was first sent. A SITL holds a copy for a few ticks and
+    #: passes it on unchanged, and the same bytes reach it only once a sequence byte wraps, hundreds of ticks
+    #: apart, so what it emits is that copy: an older one it never passed on was lost, to the radio or inside
+    #: it. Anything else it emits is its own send.
+    newest: dict[tuple[str, Any], int] = {}
     delivered: dict[Any, list[Delivery]] = {}
     for k, event in packet_events(records):
         packet = tuple(event[1])
         if event[0] == "emitted":
             key = _send_key(event)
             if isinstance(key, str):
-                queue = waiting.get((packet[0], key))
-                roots[packet] = (event, queue.popleft() if queue else k)
+                roots[packet] = (event, newest.pop((packet[0], key), k))
             else:
                 roots[packet] = (event, uid_sent.setdefault(key, k))
         elif event[0] == "copy":
@@ -66,7 +65,7 @@ def deliveries(records: Sequence[Mapping[str, Any]]) -> dict[Any, list[Delivery]
             root, sent_k = roots[packet]
             receiver = event[2][0] if isinstance(event[2], list) else event[2]
             if isinstance(receiver, str):
-                waiting.setdefault((_sitl_of(receiver), _send_key(root)), deque()).append(sent_k)
+                newest[(_sitl_of(receiver), _send_key(root))] = sent_k
             delivered.setdefault(receiver, []).append(Delivery(k, sent_k, tuple(root[5]), root[4]))
     return delivered
 

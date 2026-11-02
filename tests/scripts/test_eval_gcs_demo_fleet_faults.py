@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from navpy.core.swarm.task_peer_roster import PEER_HEARD_AGAIN_LOG, PEER_SILENT_LOG
+from navpy.core.swarm.task_peer_roster import PEER_ADMITTED_LOG, PEER_HEARD_AGAIN_LOG, PEER_SILENT_LOG
 from navpy.sim.lockstep.coordinator_types import serial0_device
 from navpy.sim.lockstep.fault_schedule import (
     LATE_HEARTBEAT,
@@ -417,6 +417,39 @@ def test_a_pair_that_first_met_across_the_partition_must_still_meet(tmp_path):
     assert f"fault {PARTITION}: 2 did not hear peer 3 by tick {DEADLINE_K}" in errors
 
 
+def _first_met_after_the_partition():
+    """3 checked in during the partition, so neither side had taken the other before the heal."""
+    journal = _partition(lines=False)
+    journal.lines[3] = [(START + 2, PRESENCE_MARKER)]
+    journal.silent_navpy[3] = range(1, START + 1)
+    return journal
+
+
+def test_a_first_meeting_is_recovered_by_the_receivers_admission(tmp_path):
+    assert _errors(tmp_path, _first_met_after_the_partition()) == []
+
+
+def test_a_first_meeting_delivered_and_never_taken_by_the_roster_fails(tmp_path):
+    """A delivery is the participant's input: a stalled reader leaves no silence to end, as no roster has the sender."""
+    journal = _first_met_after_the_partition()
+    journal.admitted.add((1, 1, 3))
+    assert _errors(tmp_path, journal) == [f"fault {PARTITION}: 1 did not admit peer 3 by tick {DEADLINE_K}"]
+
+
+def test_a_first_meeting_taken_by_the_roster_after_the_deadline_fails(tmp_path):
+    journal = _first_met_after_the_partition()
+    journal.admitted.add((1, 1, 3))
+    journal.lines[1].append((DEADLINE_K + 1, PEER_ADMITTED_LOG.format(3)))
+    assert _errors(tmp_path, journal) == [f"fault {PARTITION}: 1 did not admit peer 3 by tick {DEADLINE_K}"]
+
+
+def test_a_first_meeting_taken_by_the_roster_at_the_deadline_passes(tmp_path):
+    journal = _first_met_after_the_partition()
+    journal.admitted.add((1, 1, 3))
+    journal.lines[1].append((DEADLINE_K, PEER_ADMITTED_LOG.format(3)))
+    assert _errors(tmp_path, journal) == []
+
+
 def test_a_receiver_whose_presence_had_not_started_owes_nothing(tmp_path):
     journal = _partition()
     journal.lines[1] = [row for row in journal.lines[1] if LAUNCH_MARKER in row[1]]  # no check-in, no peer lines
@@ -452,8 +485,8 @@ def test_a_partition_that_also_cut_the_backend_link_fails(tmp_path):
 
 def test_a_partition_after_a_restart_owes_no_silence_of_the_new_generation(tmp_path):
     journal = _partition(uav=3, lines=False)
-    journal.respawn[1] = START - 2
     journal.lifecycle(START - 2, "spawn", 1, 2, {"fault": "navpy_restart:uav1"}, "ok")
+    journal.respawn[1] = START - 1
     journal.lines[1].append((START + 2, PRESENCE_MARKER))  # it checked in inside the partition
     _peer_lines(journal, [(2, 3), (3, 2)])
     assert _errors(tmp_path, journal) == []
@@ -696,6 +729,13 @@ def test_a_new_generation_and_its_present_peers_must_hear_each_other(tmp_path):
     journal.cut_paths[("sitl3", "sitl2")] = (AFTER_THE_HEAL, "elsewhere")
     assert _errors(tmp_path, journal) == [f"fault {RESTART}: 1 did not hear peer 2 by tick {RESTART_BY}",
                                           f"fault {RESTART}: 2 did not hear peer 3 by tick {RESTART_BY}"]
+
+
+def test_a_new_generation_owes_its_own_admission_of_each_peer(tmp_path):
+    """The last generation's line was for a roster that went with it."""
+    journal = _restart()
+    journal.admitted.add((2, 2, 1))
+    assert _errors(tmp_path, journal) == [f"fault {RESTART}: 2 did not admit peer 1 by tick {RESTART_BY}"]
 
 
 def test_a_peer_not_present_at_the_new_generations_check_in_owes_nothing(tmp_path):

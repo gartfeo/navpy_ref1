@@ -19,7 +19,7 @@ bytes queued before a cut and an old generation's are not recovery.
 | Late heartbeat (a NavPy frozen) | a NavPy that had spoken says nothing and logs nothing in the window; the backend's companion status of it was ok at the start, and left ok in the window unless the fence cut it short | that status is ok again, and a companion heartbeat at the backend was sent after the thaw (a stale one can set the status); peers |
 | NavPy restart | its generation ended flushed on a stop naming the fault, and the next one, with a new boot id if both spoke NAVLINK, was spawned in the heal's tick | the new generation ready; its companion heartbeat at the backend, sent after the heal; its companion status is ok if it was at the start; the flow line of the phase the last generation had reached, or a later one; and if it checked in by the deadline, it and each peer present then hear each other, unless the last generation had never checked in and this one did so inside a heartbeat TTL of the deadline |
 
-Peers: ``eval_gcs_demo_fault_peers``. A link drop leaves a NavPy's own serial link
+Peers, and hearing a peer: ``eval_gcs_demo_fault_peers``. A link drop leaves a NavPy's own serial link
 alone, and a reader stalled behind it would show in no line of its: that is left to
 the later mission gates, not this deadline.
 """

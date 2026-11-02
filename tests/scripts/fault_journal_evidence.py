@@ -4,7 +4,8 @@ One tick a second. Each tick every NavPy sends a heartbeat and, once its generat
 checked in, a swarm heartbeat; each autopilot sends a heartbeat to the backend; the
 backend sends a heartbeat to the fleet. The router and the SITLs carry them within
 the tick, unless a cut ends them ``radio_fault``. Each send has its own bytes, the same
-on every hop. A run passes the gates as built; a test then breaks one thing.
+on every hop. Each NavPy's roster takes a sender at the first swarm heartbeat it gets
+when not frozen. A run passes the gates as built; a test then breaks one thing.
 """
 
 from __future__ import annotations
@@ -18,6 +19,7 @@ from pathlib import Path
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from gcs.backend.vehicle_status import COMPANION_DOWN_WINDOW_S, COMPANION_OK_WINDOW_S
+from navpy.core.swarm.task_peer_roster import PEER_ADMITTED_LOG
 from navpy.sim.lockstep.coordinator_types import ROUTER_DEVICE, serial0_device, serial1_device
 from navpy.sim.lockstep.fault_schedule import FENCE_MARKER, LAUNCH_MARKER, PRESENCE_MARKER, FaultPlan
 from scripts.eval_gcs_demo_constants import GCS_LOG_SUBDIR
@@ -70,6 +72,8 @@ class FaultJournal:
         #: A restarted NavPy's new generation sends from this tick, with a new boot id unless ``same_boot``.
         self.respawn: dict[int, int] = {}
         self.same_boot = False
+        #: (receiver, its generation, sender) already logged; a test adds one to keep its line from the run.
+        self.admitted: set[tuple[int, int, int]] = set()
 
     def generation(self, i: int, k: int) -> int:
         return 2 if k >= self.respawn.get(i, LAST_TICK + 1) else 1
@@ -133,7 +137,14 @@ class FaultJournal:
                 receiver = int(destination[4:])
                 down = self._emit(k, f"sitl{receiver}", 1, serial0_device(receiver), send)
                 self._event(k, "delivered", down, [receiver, self.generation(receiver, k)])
+                self._admit(k, receiver, send)
         self._event(k, "routed", up, len(to))
+
+    def _admit(self, k: int, receiver: int, send: _Send) -> None:
+        key = (receiver, self.generation(receiver, k), send.sender[0])
+        if send.msgid == SWARM_HEARTBEAT and key not in self.admitted and k not in self.silent_navpy.get(receiver, ()):
+            self.admitted.add(key)
+            self.lines[receiver].append((k, PEER_ADMITTED_LOG.format(send.sender[0])))
 
     def _navpy_sends(self, k: int, i: int, msgid: int, uid) -> None:
         send = self._send(msgid, (i, COMPANION), uid)

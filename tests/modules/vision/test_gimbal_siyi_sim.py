@@ -496,8 +496,9 @@ class _TimedReader(_AttitudeReader):
         return self.attitude, 1_000
 
 
-def test_a_start_in_flight_keeps_the_mounts_yaw_to_the_body():
-    sim, _, _ = _make_public_sim(pitch=-14.0, reader=_TimedReader(Attitude(0.0, 120.0, 0.0)))
+@pytest.mark.parametrize("heading_deg", [0.0, 120.0])
+def test_a_start_in_flight_keeps_the_mounts_yaw_to_the_body(heading_deg):
+    sim, _, _ = _make_public_sim(pitch=-14.0, reader=_TimedReader(Attitude(0.0, heading_deg, 0.0)))
 
     sim.start()
     try:

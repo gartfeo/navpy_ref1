@@ -154,10 +154,13 @@ def fleet_layout(scenario: DemoScenario) -> FleetLayout:
 
 
 def manifest(scenario: DemoScenario, options: LockstepOptions) -> Manifest:
-    """Each NavPy role carries the profile's participant models for the seed (step 4)."""
+    """Each NavPy role carries the profile's participant models for the seed (step 4), and logs at debug in
+    a run with scheduled faults, as its peer gates read the roster's debug line (step 7)."""
     layout = fleet_layout(scenario)
+    realization = sim_realization(options)
     roles = fleet_roles(build_settings(scenario), layout, navpy=True, pose_cadence_dir=SOURCE_TIME_SUBDIR,
-                        participant_models=participant_models(sim_realization(options)))
+                        participant_models=participant_models(realization),
+                        log_level="DEBUG" if fault_plans(realization, len(layout.sys_ids)) else None)
     return Manifest(
         seed=options.seed, epoch_us=EPOCH_US, max_frame_gap_us=MAX_FRAME_GAP_US,
         drain_period_us=DRAIN_PERIOD_US, mission_budget_us=round(MISSION_BUDGET_S * 1_000_000),

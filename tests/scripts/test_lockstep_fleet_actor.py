@@ -111,6 +111,18 @@ def test_each_uav_has_its_own_companion_role_device_and_command_line():
     assert [stand_in[f"navpy{i}"].devices for i in fleet.sys_ids] == [(fleet.serial0(i),) for i in fleet.sys_ids]
 
 
+def test_a_log_level_is_on_each_command_line_and_in_the_backends_map():
+    fleet = FleetLayout(3)
+    settings = build_settings(SLICE_SCENARIO)
+    roles = fleet_roles(settings, fleet, navpy=True, log_level="DEBUG")
+    plain = fleet_roles(settings, fleet, navpy=True)
+    for sys_id in fleet.sys_ids:
+        spec = roles["backend"].config["companions"][str(sys_id)]
+        argv = roles[f"navpy{sys_id}"].config["argv"]
+        assert spec["argv"] == argv and spec["log_level"] == "DEBUG"
+        assert argv == [*plain[f"navpy{sys_id}"].config["argv"], "--log-level", "DEBUG"]
+
+
 def test_the_fleet_fixture_keeps_the_certified_home_and_slots():
     """The 10e fixture freezes the certified scenario's missions (they move under
     other work); its home and slots stay the certified ones."""

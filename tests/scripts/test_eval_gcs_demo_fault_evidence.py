@@ -33,18 +33,18 @@ def test_a_forwarded_packet_was_sent_when_its_first_sender_emitted_those_bytes(d
 
 
 def test_the_same_sender_emitting_the_same_bytes_again_is_a_new_send():
-    """A heartbeat's bytes repeat once its sequence byte wraps, and each hop is first in, first out."""
+    """A heartbeat's bytes repeat once its sequence byte wraps."""
     assert _sent({1: [_emitted(2, 1, "aa"), _delivered(2, 1, UP)],
-                  5: [_emitted(2, 2, "aa"), _delivered(2, 2, UP)],
-                  7: [_emitted("sitl2", 3, "aa"), _delivered("sitl2", 3)],
-                  8: [_emitted("sitl2", 4, "aa"), _delivered("sitl2", 4)]}) == [(7, 1), (8, 5)]
+                  2: [_emitted("sitl2", 2, "aa"), _delivered("sitl2", 2)],
+                  5: [_emitted(2, 3, "aa"), _delivered(2, 3, UP)],
+                  6: [_emitted("sitl2", 4, "aa"), _delivered("sitl2", 4)]}) == [(2, 1), (6, 5)]
 
 
-def test_a_copy_queued_before_its_bytes_were_sent_again_keeps_its_own_send():
-    """The queued copy of a send from before a heal comes first, however late, and is no recovery."""
+def test_a_copy_a_sitl_never_passed_on_does_not_date_a_later_send_of_the_same_bytes():
+    """hw seed 21: the radio broke the forward of a send, whose bytes came back a sequence wrap later."""
     assert _sent({1: [_emitted(2, 1, "aa"), _delivered(2, 1, UP)],
                   5: [_emitted(2, 2, "aa"), _delivered(2, 2, UP)],
-                  6: [_emitted("sitl2", 3, "aa"), _delivered("sitl2", 3)]}) == [(6, 1)]
+                  7: [_emitted("sitl2", 3, "aa"), _delivered("sitl2", 3)]}) == [(7, 5)]
 
 
 def test_a_send_lost_on_the_way_does_not_date_a_later_send_of_the_same_bytes():

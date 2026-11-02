@@ -20,6 +20,8 @@ PEER_SILENCE_EXPIRY_S = get_ttl_ms(MsgType.SWARM_HEARTBEAT) / 1000.0
 #: What the roster logs when a peer's silence begins by expiry, and when it ends.
 PEER_SILENT_LOG = "Peer {} silent"
 PEER_HEARD_AGAIN_LOG = "Peer {} heard again"
+#: What is logged at debug when the roster first takes a peer: at info it would be in every run's journal.
+PEER_ADMITTED_LOG = "Peer {} admitted"
 
 
 @dataclass
@@ -171,6 +173,7 @@ class PeerRoster:
 
 __all__ = [
     "MAX_REMOTE_PEERS",
+    "PEER_ADMITTED_LOG",
     "PEER_HEARD_AGAIN_LOG",
     "PEER_SILENCE_EXPIRY_S",
     "PEER_SILENT_LOG",

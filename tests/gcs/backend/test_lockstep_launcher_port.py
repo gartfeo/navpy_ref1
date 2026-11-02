@@ -33,6 +33,23 @@ def _bound(monkeypatch) -> BatonRuntime:
     return baton
 
 
+def test_a_log_level_on_the_record_is_the_one_its_command_line_must_carry(monkeypatch):
+    """A fault run's level comes with the coordinator's record: the backend's environment carries none."""
+    baton, out = _bound(monkeypatch), OutboxBuffer()
+    debug = lockstep_navpy_argv(SYS_ID, SERIAL0, vision_profile="siyi_zr10", log_level="DEBUG")
+    launcher = LockstepLauncher({SYS_ID: {**SPEC, "log_level": "DEBUG", "argv": debug}}, out, RequestIds(2))
+    baton.spawn(lambda: launcher.start(SYS_ID, "ignored", vision_profile="siyi_zr10"), name="executor-1")
+    baton.run_until_quiescent()
+    [spawn] = out.spawn_requests
+    assert spawn.ordinal == ORDINAL
+    baton.tick(TICK_US, lambda: launcher.deliver(Lifecycle("spawn", (0, 1), spawn.id, ORDINAL, 1, "ok")))
+    assert baton.threads.alive() == [] and not baton.threads.errors
+
+    mismatched = LockstepLauncher({SYS_ID: {**SPEC, "log_level": "DEBUG"}}, OutboxBuffer(), RequestIds(2))
+    with pytest.raises(ValueError, match="was recorded with"):
+        mismatched.start(SYS_ID, "ignored", vision_profile="siyi_zr10")
+
+
 def test_a_stale_generation_pid_never_stops_the_replacement(monkeypatch):
     baton, out = _bound(monkeypatch), OutboxBuffer()
     launcher = LockstepLauncher({SYS_ID: SPEC}, out, RequestIds(2))
