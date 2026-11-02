@@ -54,21 +54,20 @@ class GcRecord:
         self._perf_s = None
 
 
-def install_gc_record(sys_id: int) -> Callable[[], None]:
-    """Record this process's collections under ``sys_id``; returns the uninstall.
+def install_gc_record(sys_id: int) -> None:
+    """Record this process's collections under ``sys_id``.
 
     A no-op unless pose-cadence recording is enabled.
     """
     if not pose_cadence_debug.ENABLED:
-        return lambda: None
-    record = GcRecord(pose_cadence_debug.gc_rows(sys_id))
-    gc.callbacks.append(record)
-
-    def uninstall() -> None:
-        if record in gc.callbacks:
-            gc.callbacks.remove(record)
-
-    return uninstall
+        return
+    gc.callbacks.append(GcRecord(pose_cadence_debug.gc_rows(sys_id)))
 
 
-__all__ = ["GcRecord", "install_gc_record"]
+def uninstall_gc_record() -> None:
+    """Stop recording, before the final flush, so no row lands after it."""
+    for record in [cb for cb in gc.callbacks if isinstance(cb, GcRecord)]:
+        gc.callbacks.remove(record)
+
+
+__all__ = ["GcRecord", "install_gc_record", "uninstall_gc_record"]

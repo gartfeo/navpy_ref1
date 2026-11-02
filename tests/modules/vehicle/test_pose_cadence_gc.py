@@ -6,7 +6,11 @@ import sys
 import pytest
 
 import navpy.core.kernel.logging.pose_cadence_debug as pcd
-from navpy.core.kernel.logging.pose_cadence_gc import GcRecord, install_gc_record
+from navpy.core.kernel.logging.pose_cadence_gc import (
+    GcRecord,
+    install_gc_record,
+    uninstall_gc_record,
+)
 
 
 @pytest.fixture
@@ -79,19 +83,22 @@ def test_the_callback_calls_only_its_clocks_and_list_append():
 def test_disabled_installs_nothing(monkeypatch):
     monkeypatch.setattr(pcd, "ENABLED", False)
     before = list(gc.callbacks)
-    install_gc_record(3)()
+    install_gc_record(3)
     assert gc.callbacks == before
 
 
 def test_a_real_collection_is_written_and_freed_by_the_flush(enabled):
-    uninstall = install_gc_record(3)
+    install_gc_record(3)
     try:
         gc.collect()
     finally:
-        uninstall()
+        uninstall_gc_record()
     assert not any(isinstance(cb, GcRecord) for cb in gc.callbacks)
-
     rows = pcd._buffers[(3, "gc")]
+    count = len(rows)
+    gc.collect()
+    assert len(rows) == count  # uninstalled: no row after the final flush
+
     assert rows and rows[-1][2] == 2  # gc.collect() runs generation 2
     pcd.dump_all()
     assert rows == []
