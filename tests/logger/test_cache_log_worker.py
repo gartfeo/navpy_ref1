@@ -158,8 +158,10 @@ def test_a_message_the_drain_produces_after_close_is_handled_in_order():
     worker.submit(_message("last"))
     closer = threading.Thread(target=worker.close)
     closer.start()
-    while worker.submit(_message("probe")):  # wait until close stopped accepting
+    deadline = time.monotonic() + 5.0
+    while worker._accepting and time.monotonic() < deadline:  # close stops accepting
         time.sleep(0.001)
+    assert not worker._accepting
     release.set()
     closer.join(5.0)
 
