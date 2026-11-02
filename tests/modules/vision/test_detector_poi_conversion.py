@@ -236,7 +236,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
             attitude_sample = SimpleNamespace(
                 attitude=Attitude(3.0, 40.0, -5.0),
                 time_boot_s=12.3,
-                receipt_time_s=None if frame_ts is None else frame_ts - 0.01,
+                capture_receipt_s=None if frame_ts is None else frame_ts - 0.01,
                 body_rates_rad_s=(0.01, -0.02, 0.03),
             )
         detector.vehicle.attitude_sample = attitude_sample
@@ -253,13 +253,13 @@ class TestDetectorPoiConversion(unittest.TestCase):
                         attitude=attitude_sample.attitude,
                         body_rates_rad_s=attitude_sample.body_rates_rad_s,
                         time_boot_s=boot - 0.01,
-                        receipt_time_s=frame_ts - 0.01,
+                        capture_receipt_s=frame_ts - 0.01,
                     ),
                     SimpleNamespace(
                         attitude=attitude_sample.attitude,
                         body_rates_rad_s=attitude_sample.body_rates_rad_s,
                         time_boot_s=boot + 0.01,
-                        receipt_time_s=frame_ts + 0.01,
+                        capture_receipt_s=frame_ts + 0.01,
                     ),
                 )
         frozen_history = tuple(history)
@@ -279,7 +279,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         if associated_at_s is None:
             associated_at_s = frame_ts + 0.01
         with patch(
-                "navpy.core.perception.pipeline.real_frame_association.rt.time",
+                "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
                 return_value=associated_at_s,
         ):
             return detector.association.capture(snapshot, frame)
@@ -347,7 +347,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         attitude_sample = SimpleNamespace(
             attitude=frame_att,
             time_boot_s=123.4,
-            receipt_time_s=555.48,
+            capture_receipt_s=555.48,
             body_rates_rad_s=(0.01, -0.02, 0.03),
         )
         trk = self._track(7, 320, 240, 80, 40, timestamp=99.5)
@@ -387,7 +387,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         self.assertEqual(dt.optics.frame_width_px, 640.0)
         self.assertEqual(dt.optics.frame_height_px, 480.0)
         # timestamp_now provider is the same wall clock as t.timestamp.
-        self.assertIs(dt.timing.detection_now_s, rt.time)
+        self.assertIs(dt.timing.detection_now_s, rt.perf_counter)
 
     def test_missing_attitude_sample_fails_closed_without_live_pose_fallback(self):
         # Missing frame-associated pose must never trigger a conversion-time
@@ -441,7 +441,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         attitude_sample = SimpleNamespace(
             attitude=Attitude(1.0, 2.0, 3.0),
             time_boot_s=10.0,
-            receipt_time_s=1.0,
+            capture_receipt_s=1.0,
             body_rates_rad_s=None,
         )
         trk = self._track(7, 320, 240, 80, 40, timestamp=5.0)
@@ -465,7 +465,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         pose_a = SimpleNamespace(
             attitude=Attitude(1.0, 2.0, 3.0),
             time_boot_s=1.0,
-            receipt_time_s=100.0,
+            capture_receipt_s=100.0,
             body_rates_rad_s=(0.1, 0.2, 0.3),
         )
         association_a = self._association(
@@ -481,7 +481,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         detector.vehicle.attitude_sample = SimpleNamespace(
             attitude=Attitude(91.0, 92.0, 93.0),
             time_boot_s=2.0,
-            receipt_time_s=100.02,
+            capture_receipt_s=100.02,
             body_rates_rad_s=(9.1, 9.2, 9.3),
         )
         k_b = np.array(
@@ -527,7 +527,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         stale_pose = SimpleNamespace(
             attitude=Attitude(1.0, 2.0, 3.0),
             time_boot_s=5.0,
-            receipt_time_s=99.8,
+            capture_receipt_s=99.8,
             body_rates_rad_s=(0.1, 0.2, 0.3),
         )
         stale_history = (
@@ -535,13 +535,13 @@ class TestDetectorPoiConversion(unittest.TestCase):
                 attitude=stale_pose.attitude,
                 body_rates_rad_s=stale_pose.body_rates_rad_s,
                 time_boot_s=4.95,
-                receipt_time_s=99.75,
+                capture_receipt_s=99.75,
             ),
             SimpleNamespace(
                 attitude=stale_pose.attitude,
                 body_rates_rad_s=stale_pose.body_rates_rad_s,
                 time_boot_s=5.0,
-                receipt_time_s=99.8,
+                capture_receipt_s=99.8,
             ),
         )
         association = self._association(
@@ -611,7 +611,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         sample = SimpleNamespace(
             attitude=Attitude(3.0, 40.0, -5.0),
             time_boot_s=12.3,
-            receipt_time_s=99.75,
+            capture_receipt_s=99.75,
             body_rates_rad_s=None,
         )
         gap_history = (
@@ -619,13 +619,13 @@ class TestDetectorPoiConversion(unittest.TestCase):
                 attitude=sample.attitude,
                 body_rates_rad_s=None,
                 time_boot_s=12.05,
-                receipt_time_s=99.75,
+                capture_receipt_s=99.75,
             ),
             SimpleNamespace(
                 attitude=sample.attitude,
                 body_rates_rad_s=None,
                 time_boot_s=12.55,
-                receipt_time_s=100.25,
+                capture_receipt_s=100.25,
             ),
         )
 
@@ -739,7 +739,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_controls.rt.time",
+                "navpy.core.perception.pipeline.real_detector_controls.rt.perf_counter",
                 return_value=100.0,
         ):
             resp = query.get_detect_data(DetectRequest())
@@ -766,7 +766,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         )
 
         with patch(
-                "navpy.core.perception.pipeline.real_detector_controls.rt.time",
+                "navpy.core.perception.pipeline.real_detector_controls.rt.perf_counter",
                 return_value=100.0,
         ):
             tracks = diagnostics.get_overlay_tracks()

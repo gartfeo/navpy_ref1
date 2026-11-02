@@ -168,7 +168,7 @@ class DetectionQuery:
         if request.force_lock_bbox_cxcywh is not None and self._use_poi_lock:
             self._poi_lock.force_lock_bbox(request.force_lock_bbox_cxcywh)
         pois, primary = self._results.snapshot()
-        now_s = rt.time()
+        now_s = rt.perf_counter()
         pois = [
             poi
             for poi in pois

@@ -53,7 +53,7 @@ def _attitude_history(
             attitude=Attitude(pitch=2.0, yaw=0.0, roll=_truth_roll(source)),
             body_rates_rad_s=(math.radians(ROLL_RATE_DEG_S), 0.0, 0.0),
             time_boot_s=source - BASE_S + 500.0,
-            receipt_time_s=receipt,
+            capture_receipt_s=receipt,
         ))
         source += ATTITUDE_PERIOD_S
         index += 1
@@ -124,7 +124,7 @@ def _associate(
     )
     associated_at = read_s + 0.005
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.rt.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
         return_value=associated_at,
     ):
         return builder.capture(snapshot, frame)
@@ -257,7 +257,7 @@ def test_exposure_kind_end_to_end_matches_truth_with_link_delay() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.rt.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
         return_value=exposure + 0.02,
     ):
         association = builder.capture(snapshot, frame)
@@ -301,7 +301,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.rt.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
         return_value=read_s + 0.005,
     ):
         association = builder.capture(snapshot, frame)
@@ -324,7 +324,7 @@ def test_zoom_capable_camera_refused_for_latent_frames() -> None:
         source_id="rtsp-cam",
     )
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.rt.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
         return_value=exposure + 0.028,
     ):
         association = builder_young.capture(store.snapshot(), frame)
@@ -347,13 +347,13 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
             attitude=Attitude(pitch=2.0, yaw=0.0, roll=0.0),
             body_rates_rad_s=None,
             time_boot_s=500.0,
-            receipt_time_s=lookup - 0.02,
+            capture_receipt_s=lookup - 0.02,
         ),
         SimpleNamespace(
             attitude=Attitude(pitch=2.0, yaw=0.0, roll=0.0),
             body_rates_rad_s=None,
             time_boot_s=500.04,
-            receipt_time_s=lookup + 0.02,
+            capture_receipt_s=lookup + 0.02,
         ),
     )
     association = _associate(
@@ -378,7 +378,7 @@ def test_runtime_rate_tightens_the_bracket_ceiling() -> None:
     )
     builder.set_maximum_skew(pose_frame_association_max_skew_s(100.0))
     with patch(
-        "navpy.core.perception.pipeline.real_frame_association.rt.time",
+        "navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
         return_value=exposure + DC0_S + 0.005,
     ):
         association = builder.capture(store.snapshot(), frame)

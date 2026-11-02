@@ -62,7 +62,7 @@ class _Logger:
 
 
 class ClockSamples:
-    """ATTITUDE-like (time_boot_s, receipt_time_s) samples for AttitudeBoardClock."""
+    """ATTITUDE-like (time_boot_s, capture_receipt_s) samples for AttitudeBoardClock (perf_counter receipts)."""
 
     def __init__(self) -> None:
         self._samples: deque = deque(maxlen=BOARD_CLOCK_HISTORY_COUNT)
@@ -70,7 +70,7 @@ class ClockSamples:
 
     def add(self, boot_s: float, receipt_s: float) -> None:
         with self._lock:
-            self._samples.append(SimpleNamespace(time_boot_s=boot_s, receipt_time_s=receipt_s))
+            self._samples.append(SimpleNamespace(time_boot_s=boot_s, capture_receipt_s=receipt_s))
 
     def history(self, count: int) -> list:
         with self._lock:
@@ -86,7 +86,7 @@ def read_attitude(url: str, samples: ClockSamples, stop: threading.Event) -> Non
     while not stop.is_set():
         message = link.recv_match(type="ATTITUDE", blocking=True, timeout=0.5)
         if message is not None:
-            samples.add(message.time_boot_ms * 1e-3, time.time())
+            samples.add(message.time_boot_ms * 1e-3, time.perf_counter())
     link.close()
 
 
@@ -100,7 +100,7 @@ def send_fixed_pose(pose: list[float], endpoint: tuple[str, int], samples: Clock
     while not stop.wait(POSE_PERIOD_US / 1e6):
         board_us = int((time.monotonic() - start) * 1e6)
         datagram = encode_vehicle_state(state, board_us, sequence, "npyc-live-check", 0.0, 1)
-        sent_at = time.time()
+        sent_at = time.perf_counter()
         sock.sendto(datagram, endpoint)
         samples.add(board_us / 1e6, sent_at)
         sequence += 1

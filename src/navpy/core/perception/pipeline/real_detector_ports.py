@@ -132,7 +132,8 @@ class AttitudeSampleView(Protocol):
     attitude: Attitude
     body_rates_rad_s: tuple[float, float, float] | None
     time_boot_s: float | None
-    receipt_time_s: float | None
+    receipt_time_s: float | None  # wall receipt: telemetry only
+    capture_receipt_s: float | None  # capture clock (rt.perf_counter)
 
 
 class AttitudeSampleReader(Protocol):

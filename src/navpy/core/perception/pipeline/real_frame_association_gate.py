@@ -27,14 +27,14 @@ class CaptureTiming:
     """Capture-domain times for one frame (decision doc §2/§3d).
 
     `estimate_s` is the geometry/measurement time (best exposure estimate);
-    `lookup_wall_s` is where the de-rotating attitude was interpolated on the
+    `lookup_s` is where the de-rotating attitude was interpolated on the
     ATTITUDE receipt axis. `frame_timestamp_s` on the association stays the
     PUBLICATION time and keeps receipt-liveness semantics.
     """
 
     kind: CaptureStampKind
     captured_at_s: float
-    lookup_wall_s: float
+    lookup_s: float
     estimate_s: float
 
 

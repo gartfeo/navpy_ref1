@@ -102,7 +102,11 @@ class ConfirmationFrameStore:
 
 
 class FreshnessPolicy:
-    """Single cached-POI freshness rule shared by all readers."""
+    """Single cached-POI freshness rule shared by all readers.
+
+    Detection and track times are on the capture clock (``rt.perf_counter``),
+    so ``now_s`` must be too.
+    """
 
     def __init__(self, track_period_s: float) -> None:
         self._maximum_age_s = max(0.25, 3.0 * float(track_period_s))
@@ -123,7 +127,7 @@ class FreshnessPolicy:
         )
         if timestamp is None:
             return True
-        current = rt.time() if now_s is None else float(now_s)
+        current = rt.perf_counter() if now_s is None else float(now_s)
         return current - float(timestamp) <= self._maximum_age_s
 
 

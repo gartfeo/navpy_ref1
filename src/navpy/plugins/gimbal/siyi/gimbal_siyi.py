@@ -36,7 +36,7 @@ class GimbalSiyi(
         logger: ILogger,
         *,
         sdk_factory: SiyiSdkFactory | None = None,
-        monotonic: MonotonicClock = rt.monotonic,
+        monotonic: MonotonicClock = rt.perf_counter,  # SDK receipt clock
     ) -> None:
         self._parts = build_siyi_hardware(
             data,

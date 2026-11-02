@@ -30,7 +30,7 @@ class _Clock:
 
 def _running_store() -> tuple[FramePublicationStore, _Clock]:
     clock = _Clock()
-    store = FramePublicationStore(wall_time=clock)
+    store = FramePublicationStore(clock=clock)
     store.set_running(True)
     return store, clock
 

@@ -43,7 +43,8 @@ class FrameSourceIdentity:
 class CaptureStamp:
     """Earliest observable capture time for one frame, and its meaning.
 
-    `captured_at_s` shares the ATTITUDE receipt wall clock. A frame published
+    `captured_at_s` is on the capture clock (``rt.perf_counter``), shared with
+    the ATTITUDE ``capture_receipt_s`` and never the wall clock. A frame published
     WITHOUT a stamp is never frame-atomic downstream; capture time is never
     synthesized from publication time. `source` is set by a backend that reads
     a timestamped stream.
@@ -55,14 +56,14 @@ class CaptureStamp:
 
 
 class BoardClock(Protocol):
-    """Map a time on the autopilot (board) clock onto the ATTITUDE receipt wall clock.
+    """Map a time on the autopilot (board) clock onto the capture clock.
 
     Returns None while no mapping is available (no ATTITUDE yet, a reboot,
     or a stamp too far from the newest ATTITUDE); a frame is then never
     given an EXPOSURE stamp.
     """
 
-    def wall_time_s(self, board_time_us: int) -> float | None: ...
+    def capture_time_s(self, board_time_us: int) -> float | None: ...
 
 
 class FramePublisher(Protocol):

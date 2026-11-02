@@ -190,8 +190,8 @@ def _source_timing(
         camera_frame_timestamp_s=_measurement_timestamp_s(association),
         tracker_timestamp_s=track.timestamp,
         source_receipt_timestamp_s=association.frame_timestamp_s,
-        detection_now_s=rt.time,
-        source_receipt_now_s=rt.time,
+        detection_now_s=rt.perf_counter,
+        source_receipt_now_s=rt.perf_counter,
         source_air_speed_mps=association.air_speed_mps,
     )
 

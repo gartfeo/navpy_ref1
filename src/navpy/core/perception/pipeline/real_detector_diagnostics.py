@@ -60,7 +60,7 @@ class DetectorDiagnostics:
 
     def get_overlay_tracks(self) -> list[TrackedObject]:
         tracks, _ = self._overlays.snapshot()
-        now_s = rt.time()
+        now_s = rt.perf_counter()
         return [
             track
             for track in tracks
@@ -83,7 +83,7 @@ class DetectorDiagnostics:
         if frame is None:
             return None
         tracks, locked = self._overlays.snapshot()
-        now_s = rt.time()
+        now_s = rt.perf_counter()
         tracks = [
             track
             for track in tracks

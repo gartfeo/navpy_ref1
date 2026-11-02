@@ -24,7 +24,7 @@ from navpy.core.perception.camera.capture_lookup import (
     CaptureLookupCalibration,
     RATE_AMPLIFICATION_LIMIT,
     TIMING_RESIDUAL_BUDGET_S,
-    attitude_lookup_wall_s,
+    attitude_lookup_s,
     capture_estimate_s,
     quarantine_window_s,
     validate_calibration,
@@ -55,7 +55,7 @@ def _sample(receipt: float, boot: float, roll: float = 0.0) -> SimpleNamespace:
         attitude=Attitude(pitch=1.0, yaw=0.0, roll=roll),
         body_rates_rad_s=(0.0, 0.0, 0.0),
         time_boot_s=boot,
-        receipt_time_s=receipt,
+        capture_receipt_s=receipt,
     )
 
 
@@ -133,11 +133,11 @@ class TestCalibrationValidation:
 class TestLookupAlgebra:
     def test_read_lookup_subtracts_bias(self) -> None:
         stamp = CaptureStamp(100.0, CaptureStampKind.READ)
-        assert attitude_lookup_wall_s(stamp, _calibration()) == 100.0 - 0.010
+        assert attitude_lookup_s(stamp, _calibration()) == 100.0 - 0.010
 
     def test_exposure_lookup_adds_link_delay(self) -> None:
         stamp = CaptureStamp(100.0, CaptureStampKind.EXPOSURE)
-        assert attitude_lookup_wall_s(stamp, _calibration()) == 100.0 + 0.004
+        assert attitude_lookup_s(stamp, _calibration()) == 100.0 + 0.004
 
     def test_capture_estimate_removes_link_delay(self) -> None:
         assert capture_estimate_s(100.004, _calibration()) == 100.0
@@ -282,7 +282,7 @@ class TestImplementationChecks:
 
         published: list[CaptureStamp] = []
         import time as _time
-        begin = _time.time()
+        begin = _time.perf_counter()
         running = {"count": 0}
 
         def is_running() -> bool:
@@ -299,7 +299,7 @@ class TestImplementationChecks:
             stamp.kind is CaptureStampKind.READ for stamp in published
         )
         assert begin <= published[0].captured_at_s <= published[1].captured_at_s
-        assert published[1].captured_at_s <= _time.time()
+        assert published[1].captured_at_s <= _time.perf_counter()
 
     def test_message_store_recent_is_immutable_under_publish(self) -> None:
         import threading
@@ -353,7 +353,7 @@ class TestPostReviewHardening:
     def test_unrecognized_stamp_kind_never_rides_a_branch(self) -> None:
         bogus = SimpleNamespace(kind="jpeg", captured_at_s=100.0)
         with pytest.raises(ValueError):
-            attitude_lookup_wall_s(bogus, _calibration())
+            attitude_lookup_s(bogus, _calibration())
 
     def test_seam_tolerance_boundary_is_strictly_greater(self) -> None:
         # Strictly-greater semantics at the boundary, to within a

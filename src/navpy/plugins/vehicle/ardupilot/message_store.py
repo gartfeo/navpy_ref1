@@ -29,6 +29,9 @@ class MessageSample:
     receipt_time_s: float
     boot_time_ms: int | None
     generation: int
+    # Receipt on the capture clock (rt.perf_counter); None when the
+    # publisher had none, and then no capture-time use is possible.
+    capture_receipt_s: float | None = None
 
 
 class MessageStore:
@@ -69,6 +72,7 @@ class MessageStore:
         *,
         receipt_time_s: float,
         boot_time_ms: int | None = None,
+        capture_receipt_s: float | None = None,
     ) -> MessageSample:
         with self._condition:
             self._generation += 1
@@ -77,6 +81,9 @@ class MessageStore:
                 receipt_time_s=float(receipt_time_s),
                 boot_time_ms=boot_time_ms,
                 generation=self._generation,
+                capture_receipt_s=(
+                    None if capture_receipt_s is None else float(capture_receipt_s)
+                ),
             )
             self._samples[message_type] = sample
             history = self._history.get(message_type)
