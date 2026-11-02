@@ -22,6 +22,7 @@ from gcs.backend import instance_registry as reg  # noqa: E402
 from gcs.backend.cpu_share_background import apply_background  # noqa: E402
 from gcs.backend.instance_registry import SitlSupervisorActive  # noqa: E402
 
+import mavlink_recorder  # noqa: E402
 import swarm_run_process as process_io  # noqa: E402
 import swarm_run_relay as relay_io  # noqa: E402
 import swarm_run_runner as runner  # noqa: E402
@@ -283,6 +284,7 @@ def main() -> None:
         _retract_sitl,
         _retire_relays,
         _launch_command,
+        mavlink_recorder.start_for_chat,
     )
     runner.run_supervisor(
         chat,

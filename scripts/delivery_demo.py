@@ -26,6 +26,7 @@ for _import_root in (_REPOSITORY_ROOT, _REPOSITORY_ROOT / "src"):
         sys.path.insert(0, str(_import_root))
 
 from scripts.delivery_demo_manifest import record_run_inputs  # noqa: E402
+from scripts.delivery_demo_mavlink import powershell_command, ready_text, recorder_environment  # noqa: E402
 from scripts.delivery_demo_plan import PLAN_PATH  # noqa: E402
 from scripts.eval_delivery_fixture import FIXTURE_PATH, delivery_scenario, load_fixture  # noqa: E402
 from scripts.eval_gcs_demo_config import (  # noqa: E402
@@ -132,13 +133,8 @@ def demo_environment(run_dir: Path, source: Mapping[str, str] = os.environ) -> d
     """The shell's environment, as a normal run gets it, plus the run's paths."""
     run = build_environment(run_dir / SETTINGS_NAME, run_dir, base_environment=dict(source))
     env = {key: value for key, value in source.items() if key.upper() != SIM_DOCKS_ENV}
-    env.update({key: run[key] for key in RUN_ENV})
+    env.update({key: run[key] for key in RUN_ENV}, **recorder_environment(run_dir))
     return env
-
-
-def powershell_command(*paths: object) -> str:
-    """A PowerShell 5.1 line; literal-quoted paths keep spaces, ``$`` and backticks."""
-    return "& " + " ".join("'" + str(path).replace("'", "''") + "'" for path in paths)
 
 
 def _stop_command() -> str:
@@ -289,7 +285,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "Ready. In the GCS: Load plan -> "
         f"{PLAN_PATH} (or build your own), Upload, then Launch and approve each dock.\n"
-        f"Logs in {run_dir}\nStop: {_stop_command()}"
+        f"Logs in {run_dir}\n{ready_text(run_dir)}\nStop: {_stop_command()}"
     )
     # Last, so a busy record (a bounded wait) holds back nothing else.
     print(cpu_share_text())

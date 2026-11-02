@@ -62,6 +62,12 @@ Frontend:
   (`wall_reap_wsl.py`) kills only processes whose command line names the
   chat's sysids or router port AND whose environment holds the chat's
   `SWARM_OFFSET`, never by sysid alone.
+- The verify port (`16550+N`, the monitor port + 1000) belongs to `swarm_run`:
+  it verifies there as MAVLink 255/190, then, only for `delivery_demo.py`
+  (`NAVPY_MAVLINK_TLOG`), `mavlink_recorder.py` binds it exclusively and writes
+  the run's `mavlink.tlog` (router mirror after verification; no serial0 link,
+  nothing from boot). Never listen there by hand: a shared listener starves the
+  verifier with no bind error, and while the record runs the bind fails.
 - **Registry inspection must be read-only via the JSON file** when you must
   not mutate it — `gcs_launch.py --list` calls `registry.live()`, which prunes
   dead entries and persists.

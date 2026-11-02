@@ -327,9 +327,34 @@ The zone goes to the third vehicle in the UI list.
    checkout already runs a stack.
 3. Frontend wait, then `wait_for_vehicles` (auto-connect connects them).
 4. `configure_vehicle_params` and `verify_aas_profile`.
-5. Open the UI, then print the plan file path, the stop command and the stack's
-   CPU share: its CPUs, its end time, and a warning below 8 CPUs (8 is not proven
-   enough, see `bounded_cpu_share.md`).
+5. Open the UI, then print the plan file path, the MAVLink record and its read
+   command, the stop command and the stack's CPU share: its CPUs, its end time,
+   and a warning below 8 CPUs (8 is not proven enough, see `bounded_cpu_share.md`).
+
+**MAVLink record** (ready plan step 3): the demo sets `NAVPY_MAVLINK_TLOG` to the
+run folder's `mavlink.tlog`; nothing else sets it, so evals and `AAS_GCS.bat`
+stacks record nothing. After launch verification `swarm_run` starts
+`scripts/mavlink_recorder.py`, a daemon thread that binds the verify port
+(monitor + 1000) exclusively with a 4 MB receive buffer and writes whole tlog
+records, unbuffered, once a second. It is the router mirror after verification,
+not all ArduPilot messages: NavPy's own link to its autopilot (serial0), id 295
+and anything before verification are not in it. One file, no rotation: it stops
+writing at 4 GiB and says so (at about 6 MB/min an estimated 11.7 h; past the cap
+the newest traffic is lost). Mission Planner gets no port in this demo
+(`--loopback-only`).
+- `mavlink.status.json` beside it holds the start, bytes, records, last write,
+  stop reason and error. It, not the Ready text, proves recording started.
+  `gcs_stop.py` kills the supervisor, so no stop reason is written: no stop reason
+  means a forced stop, and at most the last second is lost. A normal supervisor
+  exit stops, flushes and joins within 3 s.
+- A failed bind (a reader left open on the port, `WinError 10048`) shows in the
+  status file; the launch goes on. Do not listen on the port by hand: while the
+  record runs, such a bind fails (`10013`).
+- The launcher speaks as MAVLink 255/190 on the verify port, so the router mirrors
+  the backend's 255/0 frames there too.
+- Read (a snapshot, also while recording; the Ready text prints it with full paths):
+  `python .venv\Scripts\mavlogdump.py --show-source --types STATUSTEXT,COMMAND_ACK <run>\mavlink.tlog`.
+  One UAV: add `--source-system N`.
 
 Stop with `gcs_stop.py`.
 
@@ -337,8 +362,9 @@ Stop with `gcs_stop.py`.
 prints what happened in the newest run under this checkout's `.logs\delivery-demo`,
 or in a run folder named on the command line:
 - the approaches and each one's outcome, from `parse_final_approach_outcomes`;
-- the commit and inputs, the backend's CPU share and `/launch` lines, and the
-  timeline's rejected, timed-out and failed counts;
+- the commit and inputs, the backend's CPU share and `/launch` lines, the
+  timeline's rejected, timed-out and failed counts, and the MAVLink record's
+  status file;
 - per UAV, from the file names: the flight's log lines, approach cadence
   (`cadence_annotation`), source-time figures (`source_time_summary`) and
   `sensor_config_errors`.

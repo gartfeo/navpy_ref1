@@ -407,3 +407,29 @@ def test_log_text_outside_the_console_code_page_cannot_stop_the_report(monkeypat
 
     sys.stdout.flush()
     assert b"\\u0434" in raw.getvalue()
+
+
+def _record_status(run_dir, **fields):
+    status = {"started": "2026-11-02T15:00:00.000+04:00", "bytes": 1200, "records": 30,
+              "unframed_bytes": 0, "last_write": "2026-11-02T15:00:05.000+04:00",
+              "stop_reason": None, "error": None, **fields}
+    (run_dir / "mavlink.status.json").write_text(json.dumps(status), encoding="utf-8")
+
+
+def test_the_mavlink_record_line_reads_the_status_file(tmp_path):
+    assert check.record_lines(tmp_path) == [
+        "MAVLink record: no mavlink.status.json (a run from before the record, or it never started)"
+    ]
+    _record_status(tmp_path)
+    (line,) = check.record_lines(tmp_path)
+    assert "started 2026-11-02T15:00:00.000+04:00, 1200 bytes in 30 records" in line
+    # gcs_stop.py kills the supervisor, so no stop reason is the forced stop.
+    assert line.endswith("stop: none written (a forced stop such as gcs_stop.py, or still recording)")
+
+    _record_status(tmp_path, stop_reason="not started", unframed_bytes=4,
+                   error="could not bind verify port 16550: [WinError 10048]")
+    assert check.record_lines(tmp_path)[1:] == [
+        "  4 received bytes were not whole MAVLink frames",
+        "  error: could not bind verify port 16550: [WinError 10048]",
+    ]
+    assert "MAVLink record: started" in check.report(tmp_path)

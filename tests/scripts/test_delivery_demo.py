@@ -82,6 +82,8 @@ def test_environment_is_the_shells_without_a_dock_world_plus_the_run_paths(tmp_p
     assert env["NAVPY_LOG_DIR"] == str(tmp_path.resolve())
     # No eval pins: thread counts and hash seed stay the shell's.
     assert not {"PYTHONHASHSEED", "OMP_NUM_THREADS"} & set(env)
+    # Only the demo turns the MAVLink record on, into its own run folder.
+    assert env["NAVPY_MAVLINK_TLOG"] == str((tmp_path / "mavlink.tlog").resolve())
 
 
 def test_printed_commands_survive_spaces_in_powershell():
@@ -432,6 +434,11 @@ def test_main_is_ready_before_the_read_and_a_failed_read_fails_nothing(monkeypat
 
     assert demo.main([]) == 0
     assert "Ready. In the GCS" in printed_first[0] and "gcs_stop.py" in printed_first[0]
+    ready = printed_first[0]
+    assert f"MAVLink record (router mirror after launch verification, not all ArduPilot messages): {tmp_path / 'mavlink.tlog'}" in ready
+    assert f"Whether it started: {tmp_path / 'mavlink.status.json'}" in ready
+    assert "mavlogdump.py' '--show-source' '--types' 'STATUSTEXT,COMMAND_ACK'" in ready
+    assert "Mission Planner: no port is exported in this demo (--loopback-only)." in ready
     assert "could not read the record (the share record stayed busy)" in capsys.readouterr().out
 
 
