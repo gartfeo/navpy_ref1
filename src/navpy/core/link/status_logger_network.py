@@ -72,7 +72,7 @@ class GroundStationLoggerNetwork(IStatusLogger):
     def _flush_pending_log(
         self,
         *,
-        budget_s: float | None,
+        budget_s: Optional[float],
         stop_on_drop: bool,
     ) -> list[str]:
         """Send the pending texts in order on the caller's thread; return those not sent.
