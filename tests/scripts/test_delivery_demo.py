@@ -15,6 +15,9 @@ from scripts import delivery_demo as demo
 from scripts import delivery_demo_plan as plan
 from scripts.eval_gcs_demo_execution import SystemClock
 
+from gcs.backend.cpu_share import ShareRecord
+from gcs.backend.cpu_share_holder import CPU_SHARE_ALL_CORES_ENV, CPU_SHARE_ENV, StackScheduling
+
 config = importlib.import_module("scripts.eval_gcs_demo_config")
 process = importlib.import_module("scripts.eval_gcs_demo_process")
 models = importlib.import_module("scripts.eval_gcs_demo_models")
@@ -288,3 +291,167 @@ def test_owned_stack_context_closes_the_api_when_the_generation_changes(monkeypa
     with pytest.raises(models.RegressionError, match="generation changed"):
         call()
     assert api.closed
+
+
+SHARE_END = dt.datetime(2026, 11, 2, 17, 45, 12)
+THIS_STACK = f"gcs slot 3 ({demo._REPOSITORY_ROOT})"
+
+
+def _share(cpus=tuple(range(8)), label=THIS_STACK, pid=1, expires_at=SHARE_END.timestamp()):
+    return {"id": f"share-{pid}", "pid": pid, "start": 1, "label": label,
+            "cpus": list(cpus), "expires_at": expires_at}
+
+
+def _record(tmp_path, *shares, dead=(), left_s=60.0):
+    """A real record holding *shares*, read *left_s* before the end time."""
+    path = tmp_path / "cpu_shares.json"
+    path.write_text(json.dumps({"shares": list(shares)}), encoding="utf-8")
+    return ShareRecord(path, alive=lambda pid, _start: pid not in dead,
+                       clock=lambda: SHARE_END.timestamp() - left_s)
+
+
+@pytest.mark.parametrize("cpus", (tuple(range(12)), tuple(range(8))), ids=("normal", "exactly 8"))
+def test_ready_text_shows_the_share_and_when_to_finish_by(tmp_path, cpus):
+    text = demo.cpu_share_text(_record(tmp_path, _share(cpus)))
+
+    assert f"CPU share: {len(cpus)} CPUs ({','.join(map(str, cpus))}) until 17:45:12 local time" in text
+    assert "Finish before then" in text
+    assert "runs as background" in text and "never grows after launch" in text
+    assert "WARNING" not in text and "enough" not in text
+
+
+@pytest.mark.parametrize("cpus", ((8, 9, 18, 19), (0, 1, 6, 7, 8, 9, 18)), ids=("4", "7"))
+def test_ready_text_warns_below_8_cpus_without_calling_8_enough(tmp_path, cpus):
+    text = demo.cpu_share_text(_record(tmp_path, _share(cpus)))
+
+    assert f"{len(cpus)} CPUs ({','.join(map(str, cpus))}) until 17:45:12 local time" in text
+    assert f"WARNING: only {len(cpus)} CPUs, fewer than 8" in text
+    assert "not proven the cause" in text and "8 is not proven enough" in text
+    assert "cpu_share.py' '--list'" in text
+
+
+def test_ready_text_reads_this_stacks_share_among_others(tmp_path):
+    other = _share((0, 1, 6, 7), label=r"gcs slot 4 (C:\other\checkout)", pid=2)
+    text = demo.cpu_share_text(_record(tmp_path, other, _share((8, 9, 18, 19))))
+
+    assert "4 CPUs (8,9,18,19)" in text and "0,1,6,7" not in text
+
+
+@pytest.mark.parametrize(
+    ("shares", "dead"),
+    (
+        ((), ()),
+        ((_share(label=r"gcs slot 4 (C:\other\checkout)"),), ()),
+        ((_share(label=f"gcs slot 3 ({demo._REPOSITORY_ROOT}\\nested)"),), ()),
+        ((_share(),), (1,)),
+    ),
+    ids=("empty", "another stack", "a directory inside this checkout", "owner gone"),
+)
+def test_ready_text_says_when_this_stack_has_no_share(tmp_path, shares, dead):
+    text = demo.cpu_share_text(_record(tmp_path, *shares, dead=dead))
+
+    assert "CPU share: none found for this stack, so it should run as background" in text
+    assert "backend.log" in text and "Finish before" not in text
+    # A dead row may be an earlier stack's (a refused claim writes nothing), so
+    # the text cannot say this stack stopped; only the log can show that.
+    assert "if neither, the backend may have stopped" in text
+
+
+def test_ready_text_says_so_when_no_record_exists(tmp_path):
+    text = demo.cpu_share_text(ShareRecord(tmp_path / "missing.json"))
+
+    assert "CPU share: none found for this stack" in text
+
+
+def test_ready_text_gives_no_finish_time_for_a_share_that_has_ended(tmp_path):
+    # A short share can end before the launch does; its row stays until released.
+    text = demo.cpu_share_text(_record(tmp_path, _share((8, 9, 18, 19)), left_s=0.0))
+
+    assert "4 CPUs (8,9,18,19) ended at 17:45:12 local time" in text
+    assert "Finish before" not in text and "WARNING" not in text
+
+
+@pytest.mark.parametrize("content", ("not json", '{"shares": [{"id": "a"}]}', '{"shares": 1}'))
+def test_ready_text_says_when_the_record_is_unreadable(tmp_path, content):
+    path = tmp_path / "cpu_shares.json"
+    path.write_text(content, encoding="utf-8")
+
+    text = demo.cpu_share_text(ShareRecord(path))
+
+    assert text.startswith("CPU share: could not read the record (")
+    assert "cpu_share.py' '--list'" in text
+
+
+def test_ready_text_calls_an_impossible_end_time_unreadable(tmp_path):
+    text = demo.cpu_share_text(_record(tmp_path, _share(expires_at=1e30)))
+
+    assert text.startswith("CPU share: could not read the record (")
+
+
+@pytest.mark.parametrize(
+    "error", (ValueError("the share record stayed busy"), OSError("denied"), KeyError("x"), TypeError("bad")),
+)
+def test_ready_text_survives_any_failure_of_the_read(error):
+    class Failing:
+        def listing(self):
+            raise error
+
+    assert demo.cpu_share_text(Failing()).startswith("CPU share: could not read the record (")
+
+
+def test_main_is_ready_before_the_read_and_a_failed_read_fails_nothing(monkeypatch, capsys, tmp_path):
+    printed_first = []
+
+    class Failing:
+        def listing(self):
+            printed_first.append(capsys.readouterr().out)
+            raise ValueError("the share record stayed busy")
+
+    monkeypatch.setattr(demo, "start", lambda *_a, **_k: tmp_path)
+    monkeypatch.setattr(demo, "ShareRecord", Failing)
+
+    assert demo.main([]) == 0
+    assert "Ready. In the GCS" in printed_first[0] and "gcs_stop.py" in printed_first[0]
+    assert "could not read the record (the share record stayed busy)" in capsys.readouterr().out
+
+
+def test_main_survives_a_record_that_cannot_even_be_opened(monkeypatch, capsys, tmp_path):
+    def no_home():
+        raise RuntimeError("no home directory")
+
+    monkeypatch.setattr(demo, "start", lambda *_a, **_k: tmp_path)
+    monkeypatch.setattr(demo, "ShareRecord", no_home)
+
+    assert demo.main([]) == 0
+    assert "could not read the record (no home directory)" in capsys.readouterr().out
+
+
+def test_ready_text_finds_the_share_the_backend_claims(monkeypatch, tmp_path):
+    # The real claim and label: a change to what the backend writes fails here.
+    record = ShareRecord(tmp_path / "cpu_shares.json")
+    classes = {cpu: 1 for cpu in range(6)}
+    native = SimpleNamespace(efficiency_classes=lambda: classes, set_own=lambda *_a: None)
+    timer = lambda *_a: SimpleNamespace(daemon=False, start=lambda: None)  # noqa: E731
+    monkeypatch.chdir(demo._REPOSITORY_ROOT)
+    monkeypatch.setenv(CPU_SHARE_ENV, "60")
+    monkeypatch.setenv(CPU_SHARE_ALL_CORES_ENV, "1")
+    monkeypatch.setenv("GCS_CHAT_INDEX", "3")
+
+    assert StackScheduling(record, native, timer=timer).start_from_env() == "holder"
+
+    assert "CPU share: 6 CPUs (0,1,2,3,4,5) until" in demo.cpu_share_text(record)
+
+
+def test_ready_text_promises_no_background_it_may_not_have(monkeypatch, tmp_path):
+    # The real start: a refused claim and a refused background priority leave no
+    # share to find and a stack not at background, so the text points at the log.
+    record = ShareRecord(tmp_path / "cpu_shares.json")
+    native = SimpleNamespace(efficiency_classes=lambda: {0: 1})
+    monkeypatch.setenv(CPU_SHARE_ENV, "60")
+
+    assert StackScheduling(record, native, background=lambda: False).start_from_env() == "normal"
+
+    text = demo.cpu_share_text(record)
+    assert "so it should run as background" in text and "Stack scheduling line" in text
+    main_py = demo._REPOSITORY_ROOT / "src" / "gcs" / "backend" / "main.py"
+    assert '"Stack scheduling: %s"' in main_py.read_text(encoding="utf-8")

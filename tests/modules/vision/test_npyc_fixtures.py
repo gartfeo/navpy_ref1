@@ -26,24 +26,38 @@ from navpy.plugins.camera.unreal.npyc_codec import (
     NPYC_PREFIX_SIZE,
     NPYC_VERSION_1,
     NPYC_VERSION_2,
+    NPYC_VERSION_3,
+    LENS_STATUS_HELD,
+    LENS_STATUS_SETTLED,
     POSE_EXACT,
     POSE_INTERPOLATED,
     POSE_STAMP_VALID,
     NpycHeader,
+    NpycLensStream,
     decode_header,
     decode_prefix,
     encode_header,
 )
 
 FIXTURES = Path(__file__).resolve().parents[2] / "fixtures" / "npyc" / "npyc_headers.json"
-FIXTURES_SHA256 = "805f532f57c0bad9061c74b421561ebd933dced75c49dea2e9249fcc0a3a819e"
+FIXTURES_SHA256 = "706dc6266da3e66582da3618ffa8bde5e925f443c9bc2f9acd2781711948b95a"
 U64_MAX = 2 ** 64 - 1
+U32_MAX = 2 ** 32 - 1
+U16_MAX = 2 ** 16 - 1
 
 
-def _header(version, width, height, pixel_format, *, index=0, time_s=0.0, board_time_us=0, sequence=0, flags=0):
+def _header(version, width, height, pixel_format, *, index=0, time_s=0.0, board_time_us=0, sequence=0, flags=0,
+            **lens):
     bpp = 3 if pixel_format == NPYC_PIXEL_FORMAT_BGR8 else 4
     return NpycHeader(version, width, height, pixel_format, index, time_s, width * height * bpp,
-                      board_time_us, sequence, flags)
+                      board_time_us, sequence, flags, NpycLensStream(**lens))
+
+
+def _flat(header: NpycHeader) -> dict:
+    """The header's fields in one level, the v3 tail after the v2 fields (the fixture file's layout)."""
+    fields = asdict(header)
+    tail = fields.pop("lens_stream")
+    return fields | tail
 
 
 VALID = {
@@ -60,6 +74,20 @@ VALID = {
                                board_time_us=U64_MAX, sequence=U64_MAX, flags=POSE_STAMP_VALID | POSE_EXACT),
     "v2_max_dimensions": _header(NPYC_VERSION_2, NPYC_MAX_DIMENSION, NPYC_MAX_DIMENSION, NPYC_PIXEL_FORMAT_BGR8),
     "v1_one_pixel": _header(NPYC_VERSION_1, 1, 1, NPYC_PIXEL_FORMAT_BGR8),
+    "v3_settled_overscan": _header(NPYC_VERSION_3, 2080, 1176, NPYC_PIXEL_FORMAT_BGR8, index=500, time_s=88.5,
+                                   board_time_us=9_000_000, sequence=77, flags=POSE_STAMP_VALID | POSE_INTERPOLATED,
+                                   lens_reading_tenths=18, lens_setting_tenths=20, lens_status=LENS_STATUS_SETTLED,
+                                   pose_generation=3, camera_run_hash=0x9E3779B9, overscan_x=80, overscan_y=48,
+                                   lens_table_hash=0x01234567),
+    "v3_held_wide_stop": _header(NPYC_VERSION_3, 1920, 1080, NPYC_PIXEL_FORMAT_BGR8, index=501,
+                                 board_time_us=9_033_333, sequence=78, flags=POSE_STAMP_VALID | POSE_EXACT,
+                                 lens_reading_tenths=10, lens_setting_tenths=0, lens_status=LENS_STATUS_HELD,
+                                 pose_generation=3, camera_run_hash=1, lens_table_hash=2),
+    "v3_no_lens": _header(NPYC_VERSION_3, 4, 3, NPYC_PIXEL_FORMAT_BGRA8, index=4),
+    "v3_u32_extremes": _header(NPYC_VERSION_3, 16, 16, NPYC_PIXEL_FORMAT_BGR8, board_time_us=U64_MAX,
+                               lens_reading_tenths=U16_MAX, lens_setting_tenths=U16_MAX,
+                               lens_status=LENS_STATUS_SETTLED, pose_generation=U32_MAX, camera_run_hash=U32_MAX,
+                               overscan_x=U16_MAX, overscan_y=U16_MAX, lens_table_hash=U32_MAX),
 }
 
 _V1 = struct.Struct("<4sHHHHHHQdI")
@@ -77,10 +105,18 @@ def _patch_v1(raw: bytes, **fields) -> bytes:
 def _malformed() -> dict[str, tuple[bytes, str]]:
     v1 = encode_header(VALID["v1_bgr8_720p"])
     v2 = encode_header(VALID["v2_exact"])
+    v3 = encode_header(VALID["v3_settled_overscan"])
     return {
         "bad_magic": (b"NPYD" + v2[4:], "magic"),
         "version_0": (_patch_v1(v1, version=0), "version"),
-        "version_3": (_patch_v1(v2, version=3), "version"),
+        "version_4": (_patch_v1(v3, version=4), "version"),
+        "v2_claims_v3_size": (_patch_v1(v2, header_size=80), "header size"),
+        "v3_claims_v2_size": (_patch_v1(v3, header_size=56), "header size"),
+        "v3_header_truncated": (v3[:79], "header has"),
+        "v3_reserved_not_zero": (v3[:61] + b"\x01" + v3[62:], "reserved"),
+        "v3_lens_status_3": (v3[:60] + b"\x03" + v3[61:], "lens status"),
+        "v3_row_without_status": (v3[:60] + b"\x00" + v3[61:], "disagree"),
+        "v3_status_without_row": (v3[:56] + b"\x00\x00" + v3[58:], "disagree"),
         "v1_claims_v2_size": (_patch_v1(v1, header_size=56), "header size"),
         "v2_claims_v1_size": (_patch_v1(v2, header_size=36), "header size"),
         "width_0": (_patch_v1(v2, width=0, payload_size=0), "out of range"),
@@ -105,8 +141,10 @@ def build_fixtures() -> str:
     document = {
         "about": "NPYC (Unreal native camera) headers from navpy's npyc_codec; shared byte-identical with aas-hitl.",
         "fields": "version, width, height, pixel_format (1 BGRA8, 2 BGR8), frame_index, capture_time_s, payload_size, "
-                  "board_time_us, pose_sequence, pose_flags (v2; 0 for v1). 'refused' is a text both decoders' messages contain.",
-        "valid": [{"name": name, "hex": encode_header(h).hex(), "header": asdict(h)} for name, h in VALID.items()],
+                  "board_time_us, pose_sequence, pose_flags (v2+; 0 for v1), lens_reading_tenths, lens_setting_tenths, "
+                  "lens_status, pose_generation, camera_run_hash, overscan_x, overscan_y, lens_table_hash (v3; 0 "
+                  "before). 'refused' is a text both decoders' messages contain.",
+        "valid": [{"name": name, "hex": encode_header(h).hex(), "header": _flat(h)} for name, h in VALID.items()],
         "malformed": [{"name": name, "hex": raw.hex(), "refused": reason}
                       for name, (raw, reason) in _malformed().items()],
     }
@@ -132,7 +170,7 @@ def test_every_valid_fixture_decodes_to_its_fields(name):
     case = _case("valid", name)
     raw = bytes.fromhex(case["hex"])
     assert decode_prefix(raw[:NPYC_PREFIX_SIZE]) == (case["header"]["version"], len(raw))
-    assert asdict(decode_header(raw)) == case["header"]
+    assert _flat(decode_header(raw)) == case["header"]
 
 
 @pytest.mark.parametrize("name", list(_malformed()))

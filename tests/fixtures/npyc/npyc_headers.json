@@ -1,6 +1,6 @@
 {
  "about": "NPYC (Unreal native camera) headers from navpy's npyc_codec; shared byte-identical with aas-hitl.",
- "fields": "version, width, height, pixel_format (1 BGRA8, 2 BGR8), frame_index, capture_time_s, payload_size, board_time_us, pose_sequence, pose_flags (v2; 0 for v1). 'refused' is a text both decoders' messages contain.",
+ "fields": "version, width, height, pixel_format (1 BGRA8, 2 BGR8), frame_index, capture_time_s, payload_size, board_time_us, pose_sequence, pose_flags (v2+; 0 for v1), lens_reading_tenths, lens_setting_tenths, lens_status, pose_generation, camera_run_hash, overscan_x, overscan_y, lens_table_hash (v3; 0 before). 'refused' is a text both decoders' messages contain.",
  "valid": [
   {
    "name": "v1_bgr8_720p",
@@ -15,7 +15,15 @@
     "payload_size": 2764800,
     "board_time_us": 0,
     "pose_sequence": 0,
-    "pose_flags": 0
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -31,7 +39,15 @@
     "payload_size": 48,
     "board_time_us": 0,
     "pose_sequence": 0,
-    "pose_flags": 0
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -47,7 +63,15 @@
     "payload_size": 2764800,
     "board_time_us": 7000000,
     "pose_sequence": 42,
-    "pose_flags": 3
+    "pose_flags": 3,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -63,7 +87,15 @@
     "payload_size": 6220800,
     "board_time_us": 7050000,
     "pose_sequence": 43,
-    "pose_flags": 5
+    "pose_flags": 5,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -79,7 +111,15 @@
     "payload_size": 2764800,
     "board_time_us": 0,
     "pose_sequence": 0,
-    "pose_flags": 0
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -95,7 +135,15 @@
     "payload_size": 48,
     "board_time_us": 1,
     "pose_sequence": 1,
-    "pose_flags": 3
+    "pose_flags": 3,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -111,7 +159,15 @@
     "payload_size": 768,
     "board_time_us": 18446744073709551615,
     "pose_sequence": 18446744073709551615,
-    "pose_flags": 3
+    "pose_flags": 3,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -127,7 +183,15 @@
     "payload_size": 201326592,
     "board_time_us": 0,
     "pose_sequence": 0,
-    "pose_flags": 0
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
    }
   },
   {
@@ -143,7 +207,111 @@
     "payload_size": 3,
     "board_time_us": 0,
     "pose_sequence": 0,
-    "pose_flags": 0
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
+   }
+  },
+  {
+   "name": "v3_settled_overscan",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000100000003000000b979379e5000300067452301",
+   "header": {
+    "version": 3,
+    "width": 2080,
+    "height": 1176,
+    "pixel_format": 2,
+    "frame_index": 500,
+    "capture_time_s": 88.5,
+    "payload_size": 7338240,
+    "board_time_us": 9000000,
+    "pose_sequence": 77,
+    "pose_flags": 5,
+    "lens_reading_tenths": 18,
+    "lens_setting_tenths": 20,
+    "lens_status": 1,
+    "pose_generation": 3,
+    "camera_run_hash": 2654435769,
+    "overscan_x": 80,
+    "overscan_y": 48,
+    "lens_table_hash": 19088743
+   }
+  },
+  {
+   "name": "v3_held_wide_stop",
+   "hex": "4e505943030050008007380402000000f501000000000000000000000000000000ec5e0075d68900000000004e00000000000000030000000a0000000200000003000000010000000000000002000000",
+   "header": {
+    "version": 3,
+    "width": 1920,
+    "height": 1080,
+    "pixel_format": 2,
+    "frame_index": 501,
+    "capture_time_s": 0.0,
+    "payload_size": 6220800,
+    "board_time_us": 9033333,
+    "pose_sequence": 78,
+    "pose_flags": 3,
+    "lens_reading_tenths": 10,
+    "lens_setting_tenths": 0,
+    "lens_status": 2,
+    "pose_generation": 3,
+    "camera_run_hash": 1,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 2
+   }
+  },
+  {
+   "name": "v3_no_lens",
+   "hex": "4e50594303005000040003000100000004000000000000000000000000000000300000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000",
+   "header": {
+    "version": 3,
+    "width": 4,
+    "height": 3,
+    "pixel_format": 1,
+    "frame_index": 4,
+    "capture_time_s": 0.0,
+    "payload_size": 48,
+    "board_time_us": 0,
+    "pose_sequence": 0,
+    "pose_flags": 0,
+    "lens_reading_tenths": 0,
+    "lens_setting_tenths": 0,
+    "lens_status": 0,
+    "pose_generation": 0,
+    "camera_run_hash": 0,
+    "overscan_x": 0,
+    "overscan_y": 0,
+    "lens_table_hash": 0
+   }
+  },
+  {
+   "name": "v3_u32_extremes",
+   "hex": "4e5059430300500010001000020000000000000000000000000000000000000000030000ffffffffffffffff000000000000000000000000ffffffff01000000ffffffffffffffffffffffffffffffff",
+   "header": {
+    "version": 3,
+    "width": 16,
+    "height": 16,
+    "pixel_format": 2,
+    "frame_index": 0,
+    "capture_time_s": 0.0,
+    "payload_size": 768,
+    "board_time_us": 18446744073709551615,
+    "pose_sequence": 0,
+    "pose_flags": 0,
+    "lens_reading_tenths": 65535,
+    "lens_setting_tenths": 65535,
+    "lens_status": 1,
+    "pose_generation": 4294967295,
+    "camera_run_hash": 4294967295,
+    "overscan_x": 65535,
+    "overscan_y": 65535,
+    "lens_table_hash": 4294967295
    }
   }
  ],
@@ -159,9 +327,44 @@
    "refused": "version"
   },
   {
-   "name": "version_3",
-   "hex": "4e505943030038000005d002020000002c0100000000000000000000406aaf4000302a00c0cf6a00000000002a0000000000000003000000",
+   "name": "version_4",
+   "hex": "4e505943040050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000100000003000000b979379e5000300067452301",
    "refused": "version"
+  },
+  {
+   "name": "v2_claims_v3_size",
+   "hex": "4e505943020050000005d002020000002c0100000000000000000000406aaf4000302a00c0cf6a00000000002a0000000000000003000000",
+   "refused": "header size"
+  },
+  {
+   "name": "v3_claims_v2_size",
+   "hex": "4e505943030038002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000100000003000000b979379e5000300067452301",
+   "refused": "header size"
+  },
+  {
+   "name": "v3_header_truncated",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000100000003000000b979379e50003000674523",
+   "refused": "header has"
+  },
+  {
+   "name": "v3_reserved_not_zero",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000101000003000000b979379e5000300067452301",
+   "refused": "reserved"
+  },
+  {
+   "name": "v3_lens_status_3",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000300000003000000b979379e5000300067452301",
+   "refused": "lens status"
+  },
+  {
+   "name": "v3_row_without_status",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000120014000000000003000000b979379e5000300067452301",
+   "refused": "disagree"
+  },
+  {
+   "name": "v3_status_without_row",
+   "hex": "4e505943030050002008980402000000f401000000000000000000000020564000f96f0040548900000000004d0000000000000005000000000014000100000003000000b979379e5000300067452301",
+   "refused": "disagree"
   },
   {
    "name": "v1_claims_v2_size",
