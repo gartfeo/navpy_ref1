@@ -22,7 +22,7 @@ const SRC = path.join(
     isPending, isDecided, canCancel, hasPendingConfirm, getConfirm,
     DEFAULT_CONFIRM_WAIT_SEC, CONFIRM_PHASE, confirmWaitSec, confirmDeadlineMs, msLeft, secondsLeft,
     confirmRoundId, roundIdFromKey, confirmRoundKey, orderedConfirmEntries, pendingSummary,
-    formatClock, confirmZeroLabel,
+    formatClock, confirmZeroLabel, confirmAgeSec,
   } = m;
 
   for (const name of [
@@ -31,6 +31,7 @@ const SRC = path.join(
     'isPending', 'isDecided', 'canCancel', 'hasPendingConfirm', 'getConfirm',
     'confirmWaitSec', 'confirmDeadlineMs', 'msLeft', 'secondsLeft', 'confirmRoundId',
     'roundIdFromKey', 'orderedConfirmEntries', 'pendingSummary', 'formatClock', 'confirmZeroLabel',
+    'confirmAgeSec',
   ]) {
     assert.strictEqual(typeof m[name], 'function', `missing export: ${name}`);
   }
@@ -82,6 +83,40 @@ const SRC = path.join(
   assert.strictEqual(
     confirmImage(s, { sys_id: 1, task_id: 10, image_b64: 'img2' })[1].imageB64, 'img2',
   );
+
+  // imageAt: the image's receipt time, for the matching task and round only
+  // (todo 71). Anything else returns the same state reference.
+  assert.strictEqual(roundB[1].imageAt, null, 'a new round starts with no image time');
+  const withImage = confirmImage(roundB, {
+    sys_id: 1, task_id: 10, image_b64: 'a', round_uid: '424242:12', receivedAt: 2500,
+  });
+  assert.strictEqual(withImage[1].imageAt, 2500);
+  assert.strictEqual(withImage[1].receivedAt, 2000, 'an image must not move the receipt time');
+  assert.strictEqual(
+    confirmImage(withImage, { sys_id: 1, task_id: 10, image_b64: 'b', round_uid: '424242:12', receivedAt: 2700 })[1].imageAt,
+    2700,
+    'a resent image updates the time with the picture',
+  );
+  for (const other of [
+    { sys_id: 1, task_id: 99, image_b64: 'x', round_uid: '424242:12', receivedAt: 2600 },
+    { sys_id: 1, task_id: 10, image_b64: 'x', round_uid: '424242:11', receivedAt: 2600 },
+    { sys_id: 2, task_id: 10, image_b64: 'x', round_uid: '424242:12', receivedAt: 2600 },
+  ]) {
+    assert.strictEqual(confirmImage(roundB, other), roundB, 'an unmatched image changes nothing');
+    assert.strictEqual(confirmImage(withImage, other), withImage, 'an unmatched image keeps the image time');
+  }
+  assert.strictEqual(
+    confirmRequest(withImage, { ...req(1, 10, 3000), round_uid: '424242:13' })[1].imageAt,
+    null,
+    'a re-ask clears the image time with the image',
+  );
+
+  // confirmAgeSec: whole seconds since receipt, never negative
+  assert.strictEqual(confirmAgeSec({ receivedAt: 1000 }, 1000), 0);
+  assert.strictEqual(confirmAgeSec({ receivedAt: 1000 }, 1999), 0);
+  assert.strictEqual(confirmAgeSec({ receivedAt: 1000 }, 2000), 1);
+  assert.strictEqual(confirmAgeSec({ receivedAt: 1000 }, 62000), 61);
+  assert.strictEqual(confirmAgeSec({ receivedAt: 1000 }, 500), 0, 'before receipt reads 0');
 
   // a decision for round A must not decide the live round B: the operator
   // answered a round that is already over (the response can complete after
