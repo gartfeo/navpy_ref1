@@ -32,6 +32,7 @@ class CacheLogWorker:
         self._accepting = True
         self._latch = latch or OutputLatch()
         self._stopped = False
+        self._draining_thread: object = None
         self._launch = ThreadLaunchGate()
         self._thread = rt.Thread(
             target=self._run_generation,
@@ -58,11 +59,23 @@ class CacheLogWorker:
         return self._latch.latched
 
     def submit(self, message: LogMessage) -> bool:
-        with self._accept_lock:
-            if not self._accepting:
-                return False
-            self._queue.put(message)
+        """Queue one message; False once closed.
+
+        A message the draining thread itself produces after close (e.g. a
+        status send that failed while the FIFO drains) is handled in place,
+        since nothing would read it from the queue.
+        """
+        if not self._accepting and self._is_draining_thread():
+            self._handle(message)
             return True
+        with self._accept_lock:
+            accepted = self._accepting
+            if accepted:
+                self._queue.put(message)
+        if not accepted and self._is_draining_thread():
+            self._handle(message)
+            return True
+        return accepted
 
     def wait_until_idle(self) -> None:
         self._queue.join()
@@ -105,19 +118,30 @@ class CacheLogWorker:
 
         Without blocking only after close: ``_STOP`` is then already queued.
         """
+        self._draining_thread = rt.current_thread()
         while True:
             item = self._queue.get(block=block)
             try:
                 if item is _STOP:
                     self._stopped = True
+                    self._draining_thread = None
                     return
-                try:
-                    self._handler(item)  # type: ignore[arg-type]
-                except Exception as exc:
-                    self._latch.latch()
-                    self._on_error(exc)
+                self._handle(item)  # type: ignore[arg-type]
             finally:
                 self._queue.task_done()
+
+    def _is_draining_thread(self) -> bool:
+        return (
+            self._draining_thread is not None
+            and rt.current_thread() is self._draining_thread
+        )
+
+    def _handle(self, item: LogMessage) -> None:
+        try:
+            self._handler(item)
+        except Exception as exc:
+            self._latch.latch()
+            self._on_error(exc)
 
     @staticmethod
     def _log_error(exc: BaseException) -> None:

@@ -2109,3 +2109,13 @@
   <run-dir name>-<hash>/N/logs`) in about 3 minutes, with no owner approval needed.
 - Renaming a function can break an AST guard that finds it by name
   (`test_frozen_inventories.py`); grep tests for the old name before renaming.
+- A wait bound needs every place the caller can block: a send budget that left out the 10 ms
+  pacing sleeps, and an unbudgeted drain on the logger worker under a lock the navigation
+  thread also takes, each broke the bound I claimed (Codex rounds 4-5). Measure the elapsed
+  time of the whole loop, and list who else takes each lock held during it.
+- CacheLogWorker stops accepting before it drains its FIFO, and CacheLogger closes the status
+  sink after the worker: a warning raised during either step was rejected silently. Test a
+  failure path at shutdown as well as in steady state.
+- A mutation that removes a guard against a self-deadlock hangs pytest instead of failing it;
+  run the code under test in a daemon thread with a join timeout, and run mutation checks
+  under `timeout`.

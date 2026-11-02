@@ -265,3 +265,32 @@ def test_logger_close_writes_unsent_status_texts_to_the_text_log():
 
     warnings = [call[0][0] for call in text.warning.call_args_list]
     assert any("status text not sent at close" in w and "'NAV 7'" in w for w in warnings)
+
+
+def test_a_drain_of_fast_sends_counts_its_pacing_in_the_budget():
+    from navpy.core.kernel.config.logger_args import LogStatusDest
+    from navpy.core.link import status_logger_network
+    from navpy.core.link.status_logger_network import GroundStationLoggerNetwork
+
+    sent = []
+
+    class _FastVehicle:
+        def send_status_text(self, message):
+            sent.append(message)
+            return True
+
+    status = GroundStationLoggerNetwork(
+        1, SimpleNamespace(status_dest=[LogStatusDest.DRONE], defer_status_logs=True), 0,
+    )
+    status.vehicle = _FastVehicle()
+    queued = [f"NAV {index}" for index in range(100)]  # 100 paced sends take about 1 s
+    status._pending_status_texts = list(queued)
+
+    started = time.perf_counter()
+    status.send_log("READY", LogStatusDest.DRONE)  # on the logger worker
+    waited_s = time.perf_counter() - started
+
+    budget_s = status_logger_network.DEFERRED_FLUSH_SEND_BUDGET_S
+    assert waited_s < budget_s + 0.2
+    assert 0 < len(sent) < 50
+    assert sent + status._pending_status_texts == queued + ["READY"]

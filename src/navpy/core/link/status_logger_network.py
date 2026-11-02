@@ -7,10 +7,10 @@ from navpy.core.ports.network_abc import NetworkAbc
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.kernel.logging.status_logger import IStatusLogger
 
-# Send time one drain of pending texts may spend, besides its pacing sleeps,
-# before it leaves the rest pending. Each send may wait for the bus lock
+# Time one drain of pending texts may take, pacing sleeps included, before it
+# leaves the rest pending. Each send may wait for the bus lock
 # (vehicle_messaging.STATUS_TEXT_SEND_WAIT_S), so a drain takes at most this plus
-# one send's wait, however many texts are queued. That bounds the NAV-exit flush
+# one send's wait and one pacing sleep, however many texts are queued. That bounds the NAV-exit flush
 # on the navigation thread and, on the logger worker, how long a drain holds the
 # status output lock that the navigation thread's defer call takes.
 DEFERRED_FLUSH_SEND_BUDGET_S = 0.1
@@ -77,18 +77,19 @@ class GroundStationLoggerNetwork(IStatusLogger):
     ) -> list[str]:
         """Send the pending texts in order on the caller's thread; return those not sent.
 
-        It stops once its sends took ``budget_s`` or, with ``stop_on_drop``,
+        It stops once it has taken ``budget_s``, pacing included, or, with ``stop_on_drop``,
         after the first text not sent (dropped and logged by the vehicle); the
         rest stays pending for the next status text or close.
         """
         logs = self._pending_status_texts
         rest: list[str] = []
         unsent: list[str] = []
-        spent_s = 0.0
+        started_s = rt.monotonic()
         for index, l in enumerate(logs):
-            started_s = rt.monotonic()
+            if index:
+                rt.sleep(0.01)
             sent = self.vehicle.send_status_text(l)
-            spent_s += rt.monotonic() - started_s
+            spent_s = rt.monotonic() - started_s
             if sent is False:
                 unsent.append(l)
             if (sent is False and stop_on_drop) or (
@@ -96,7 +97,6 @@ class GroundStationLoggerNetwork(IStatusLogger):
             ):
                 rest = logs[index + 1:]
                 break
-            rt.sleep(0.01)
         self._pending_status_texts = rest
         return unsent
 
