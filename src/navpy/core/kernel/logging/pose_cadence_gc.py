@@ -7,6 +7,7 @@ make a lockstep run's files differ run to run.
 """
 from __future__ import annotations
 
+import atexit
 import gc
 from collections.abc import Callable
 
@@ -62,6 +63,9 @@ def install_gc_record(sys_id: int) -> None:
     if not pose_cadence_debug.ENABLED:
         return
     gc.callbacks.append(GcRecord(pose_cadence_debug.gc_rows(sys_id)))
+    # atexit runs last-registered first: the flusher armed its final drain at
+    # import, so on an exit without a stop request this runs before it.
+    atexit.register(uninstall_gc_record)
 
 
 def uninstall_gc_record() -> None:

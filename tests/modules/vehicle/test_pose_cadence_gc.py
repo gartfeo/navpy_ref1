@@ -1,4 +1,5 @@
 """Tests for the opt-in GC record (``pose_cadence_gc``)."""
+import atexit
 import gc
 import os
 import sys
@@ -19,6 +20,8 @@ def enabled(monkeypatch, tmp_path):
     monkeypatch.setattr(pcd, "_OUTPUT_DIR", str(tmp_path))
     monkeypatch.setattr(pcd, "_buffers", {})
     monkeypatch.setattr(pcd, "_written", {})
+    # Keep this test process's own exit hooks untouched.
+    monkeypatch.setattr(atexit, "register", lambda fn: fn)
     return tmp_path
 
 
@@ -107,3 +110,31 @@ def test_a_real_collection_is_written_and_freed_by_the_flush(enabled):
         encoding="utf-8").splitlines()
     assert lines[0] == "wall_s,perf_s,generation,dur_ms,collected,uncollectable"
     assert lines[-1].split(",")[2] == "2"
+
+
+_EXIT_WITHOUT_STOP = """
+import atexit, gc
+def probe():  # registered first, so it runs last: after the flusher's final drain
+    import navpy.core.kernel.logging.pose_cadence_debug as pcd
+    gc.collect()
+    print("left", len(pcd._buffers[(3, "gc")]), flush=True)
+atexit.register(probe)
+import navpy.core.kernel.logging.pose_cadence_debug as pcd
+from navpy.core.kernel.logging.pose_cadence_gc import install_gc_record
+install_gc_record(3)
+gc.collect()
+"""
+
+
+def test_an_exit_without_a_stop_request_adds_no_row_after_the_final_drain(tmp_path):
+    import subprocess
+
+    env = {**os.environ, "NAVPY_POSE_CADENCE_DEBUG": str(tmp_path)}
+    env.pop("NAVPY_POSE_CADENCE_NAMING", None)
+    out = subprocess.run(
+        [sys.executable, "-c", _EXIT_WITHOUT_STOP], env=env,
+        capture_output=True, text=True, timeout=60, check=True,
+    ).stdout
+    assert out.split() == ["left", "0"]
+    (path,) = tmp_path.glob("pose_cadence_gc_uav_3_*.csv")
+    assert len(path.read_text(encoding="utf-8").splitlines()) >= 2  # header + the collect
