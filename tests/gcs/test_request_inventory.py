@@ -105,6 +105,25 @@ def _blank(text: str) -> str:
     return re.sub(r"[^\n]", " ", text)
 
 
+def _template_code(text: str, i: int, j: int) -> str:
+    """The template from ``i`` to ``j`` with its text blanked but each
+    ``${...}`` kept, since that is code and may send a request."""
+    out, k = ["`"], i + 1
+    while k < j - 1:
+        if text[k] == "\\":
+            out.append(_blank(text[k:k + 2]))
+            k += 2
+        elif text.startswith("${", k):
+            end = _skip_code(text, k + 2, "}")
+            out.append(text[k:end])
+            k = end
+        else:
+            out.append(_blank(text[k]))
+            k += 1
+    out.append("`")
+    return "".join(out)
+
+
 def strip_comments(text: str) -> tuple[str, str, list[Literal]]:
     """The code with comments blanked; the same with string contents blanked
     too, to search for code only; and the top-level string literals."""
@@ -128,7 +147,8 @@ def strip_comments(text: str) -> tuple[str, str, list[Literal]]:
             body = "".join(parts) if c == "`" else text[i + 1:j - 1]
             literals.append(Literal(i, j, body))
             out.append(text[i:j])
-            code_only.append(c + _blank(text[i + 1:j - 1]) + text[j - 1] if j - i > 1 else c)
+            code_only.append(_template_code(text, i, j) if c == "`" else
+                             c + _blank(text[i + 1:j - 1]) + text[j - 1] if j - i > 1 else c)
             i = j
         else:
             out.append(c)
@@ -211,14 +231,24 @@ def scan_text(text: str) -> tuple[Scan, list[Literal]]:
 
 
 def _method(rest: list[str]) -> str:
-    """The ``method:`` literal of the options; GET when the options name no
-    method and spread nothing; ``?`` when the text cannot tell."""
-    if (m := _METHOD.search(",".join(rest))):
-        return m.group(1).upper()
-    options = strip_comments(",".join(rest))[1]
-    if re.search(r"\bmethod\b|\.\.\.", options) or (rest and _IDENT.match(rest[0])):
+    """The ``method:`` literal of the options object; GET when it names no
+    method; ``?`` when the text cannot tell (options not an object literal,
+    a spread, or a method that is not a literal)."""
+    if not rest:
+        return "GET"
+    options = rest[0]
+    if not (options.startswith("{") and options.endswith("}")):
         return "?"
-    return "GET"
+    method = "GET"
+    for prop in _split_args(options[1:-1]):
+        if prop.startswith("..."):
+            return "?"
+        if re.match(r"['\"]?method\b", prop):
+            m = _METHOD.fullmatch(prop)
+            if m is None:
+                return "?"
+            method = m.group(1).upper()
+    return method
 
 
 def _ws_types(first: str, code: str) -> set[str]:
@@ -368,6 +398,8 @@ def test_the_scanner_pairs_each_method_with_its_route_and_skips_comments() -> No
     "fetch('/api/settings', { ...opts });",
     "fetch('/api/settings', opts);",
     "sendWsMessage({ type: 'manual_control', ...message });",
+    "fetch('/api/settings', { method: 'PUT', ...opts });",
+    "const t = `${await fetch('/api/new-route')}`;",
 ])
 def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
     with pytest.raises(Unresolved):
@@ -382,6 +414,11 @@ def test_words_inside_strings_are_not_code() -> None:
 def test_a_built_url_with_two_methods_keeps_both() -> None:
     scan, _ = scan_text("fetch(u, { method: 'PUT' }); fetch(u, { method: 'DELETE' });")
     assert scan.built == {"u": {"PUT", "DELETE"}}
+
+
+def test_only_the_options_own_method_counts() -> None:
+    scan, _ = scan_text("fetch('/api/x', { body: JSON.stringify({ method: 'PUT' }) });")
+    assert scan.requests == {("GET", "/api/x")}
 
 
 def _frontend_with(extra: str, inv: Inventory) -> Scan:
