@@ -224,14 +224,16 @@ class WindowsHandle:
         """Its pid came from Start-Process; nothing more to learn."""
 
 
-def unreal(paths: ChainPaths, lens_table: Path) -> ProcSpec:
+def unreal(paths: ChainPaths, lens_table: Path, scene: Path) -> ProcSpec:
+    """scene: the scenario service's file for Unreal (its dock pose), passed on unread."""
     log = paths.run_dir / "unreal.log"
     args = (win_path(paths.uproject), UNREAL_LEVEL, "-game", "-windowed", "-ResX=640", "-ResY=360",
             "-NavPyEnableNativeCameraStream=1", f"-NavPyNativeCameraHost={paths.wsl_ip}",
             "-NavPyInterpolatedVehiclePose=1", "-NavPyNativeCameraHeaderVersion=3",
             "-NavPyNativeCameraOverscan=80,48", "-NavPyNativeCameraBoardTimeCadence=1",
             "-NavPyNativeCameraFrameRate=30", "-NavPyNativeCameraWidth=1920", "-NavPyNativeCameraHeight=1080",
-            f"-NavPyLensProfile={win_path(lens_table)}", "-NoRayTracing", "-NoVSync", "-nosound",
+            f"-NavPyLensProfile={win_path(lens_table)}", f"-NavPyScenario={win_path(scene)}", "-NoRayTracing",
+            "-NoVSync", "-nosound",
             f"-abslog={win_path(log)}",
             "-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False",
             "-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False",

@@ -4,8 +4,8 @@ One JSON manifest per run, approach_record.json, in the run's folder under the p
 (tools/tuning/private_data.py), never in a repository checkout. It names what the run used: the run's identity and
 mode, the source, Layer 1's model input (model_input.py, embedded whole), the bridge as the run starts it, the
 law, the media runtime it moves video with (check_media_runtime.py, a passing result embedded whole) and what the
-mode substitutes for the real aircraft chain. Two runs can then be shown to share their
-inputs, and a changed input starts a new series.
+mode substitutes for the real aircraft chain, and the scenario's public half (scenario_public.py, no dock pose). Two
+runs can then be shown to share their inputs, and a changed input starts a new series.
 
 A record is refused (RecordError, every problem listed) when a field is missing, unknown or malformed, when
 its model input is refused, or when the run disagrees with it: a plant version the model was not validated
@@ -29,9 +29,7 @@ from typing import Any, Optional
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from navpy.core.perception.camera.integration_timing import (AUTHORITY_INTEGRATION, IntegrationTimingConfig,
                                                             IntegrationTimingLimits)
-from tools.hitl import check_media_runtime as media
-from tools.hitl import media_profiles, media_roundtrip
-from tools.hitl import json_checks as jc
+from tools.hitl import check_media_runtime as media, json_checks as jc, media_profiles, media_roundtrip, scenario_public
 from tools.hitl.json_checks import RecordError
 from tools.hitl.model_input import (BRIDGE_SENSOR_MAP, MODEL_INPUT_SPEC, PLANTS, check_model_files,
                                     model_input_problems)
@@ -39,7 +37,7 @@ from tools.tuning.hitl_bridge.board_clock import step_rate_hz
 from tools.tuning.private_data import private_dir
 
 RECORD_FILE = "approach_record.json"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4               # 4: the scenario (step 14)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NAVPY_SOURCE = Path("src", "navpy")     # the package folder every navpy checkout holds at its top
 
@@ -109,6 +107,7 @@ RECORD_SPEC: Mapping[str, jc.Check] = {
     "media_runtime": jc.obj(MEDIA_RUNTIME_SPEC),
     "substitutions": jc.map_of(jc.text),
     "integration_timing": jc.obj(INTEGRATION_TIMING_SPEC),
+    "scenario": jc.obj(scenario_public.PUBLIC_SPEC),
 }
 
 
@@ -231,7 +230,7 @@ def source_identity(repo: Path = REPO_ROOT) -> dict[str, str]:
 
 
 def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mapping[str, Any], model_dir: Path,
-               bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]],
+               bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]], scenario: Mapping[str, Any],
                media_runtime: Mapping[str, Any], integration_timing: IntegrationTimingConfig,
                extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """The validated record of a run about to start; the model folder must match the model input, and
@@ -253,6 +252,7 @@ def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mappin
         "media_runtime": json.loads(json.dumps(media_runtime)),
         "substitutions": {**MODE_SUBSTITUTIONS.get(mode, {}), **(extra_substitutions or {})},
         "integration_timing": integration_timing.record(),
+        "scenario": json.loads(json.dumps(scenario)),
     }
     validate_record(record)
     check_model_files(record["model_input"], model_dir)

@@ -24,6 +24,11 @@ TIMING = IntegrationTimingConfig(run_id="r001-pc-sitl", mode="pc-sitl", source_i
                                  attitude_correction_s=0.004, gimbal_correction_s=-0.002)
 BRIDGE = ar.BridgeRun(plant="program", jsbsim_version="synthetic-1.0", integration_dt_s=1.0 / 1200.0,
                       loop_rate_hz=200.0, servo_speed_s=0.03)
+# A scenario's public half (tools/hitl/scenario_public.py): identity, lane and limits, never the dock pose.
+SCENARIO = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 3,
+            "scene_hash": "e" * 64, "consumers": ["unreal", "scoring"],
+            "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
+            "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +67,7 @@ def declaration_of(name: str, files_sha256: dict) -> dict:
 def make(folder: Path, **changes) -> dict:
     kwargs = dict(run_id="r001-pc-sitl", mode="pc-sitl", created=CREATED, model_input=declaration(folder),
                   model_dir=folder, bridge=BRIDGE, law="vision-nav-pn", sources=SOURCES,
-                  media_runtime=MEDIA, integration_timing=TIMING)
+                  media_runtime=MEDIA, integration_timing=TIMING, scenario=SCENARIO)
     kwargs.update(changes)
     return ar.new_record(**kwargs)
 
@@ -158,9 +163,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 3"),
-    (("schema_version",), 3.0, "must be 3"),
-    (("schema_version",), 2, "must be 3"),
+    (("schema_version",), True, "must be 4"),
+    (("schema_version",), 4.0, "must be 4"),
+    (("schema_version",), 3, "must be 4"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),

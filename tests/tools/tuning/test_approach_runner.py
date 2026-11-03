@@ -241,7 +241,8 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
         output.write(READY_LINES[spec.role] + "\n")
         return FakeHandle(log, spec.role)
 
-    monkeypatch.setattr(approach, "_record", lambda args, run_id, repo: {"run": {"run_id": run_id}})
+    monkeypatch.setattr(approach, "_record", lambda args, run_id, repo, scenario: {"run": {"run_id": run_id}})
+    monkeypatch.setattr(approach.scenario_run, "service", fake_service)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: _written(run_dir / "approach_record.json"))
     monkeypatch.setattr(approach, "_addresses", lambda: ("172.0.0.2", "172.0.0.1"))
@@ -278,7 +279,25 @@ def approach_args(tmp_path):
     return parser.parse_args(["approach", "--mode", "pc-sitl", "--run-root", str(tmp_path / "runs"),
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas",
-                              "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe"])
+                              "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe",
+                              "--scenario-series", "series.json", "--seed-index", "0"])
+
+
+PUBLIC = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
+          "scene_hash": "e" * 64, "consumers": ["unreal", "scoring"],
+          "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
+          "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
+
+
+def fake_service(command, *options):
+    """The scenario service's printed line: prepare writes the public half where asked; verify a verdict."""
+    if command == "prepare":
+        if "--out" in options:
+            out = Path(options[options.index("--out") + 1])
+            out.mkdir(parents=True)
+            (out / "scenario.json").write_text(json.dumps(PUBLIC), encoding="utf-8")
+        return dict(PUBLIC)
+    return {"reproduced": False, "problems": ["no Unreal log"]}
 
 
 def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
@@ -292,7 +311,7 @@ def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
 def test_unreal_gets_its_project_as_a_windows_path(tmp_path):
     paths = chain.ChainPaths(Path("/mnt/c/runs/r1"), Path("/repo"), "py", Path("/aas"), tmp_path / "p.json",
                              Path("/mnt/c/repos/Aas/Aas.uproject"), "172.0.0.2", "172.0.0.1")
-    argv = chain.unreal(paths, Path("/mnt/c/lens.json")).argv
+    argv = chain.unreal(paths, Path("/mnt/c/lens.json"), Path("/mnt/c/run/scenario/private/unreal.json")).argv
     assert argv[1] == r"C:\repos\Aas\Aas.uproject" and r"-abslog=C:\runs\r1\unreal.log" in argv
 
 
