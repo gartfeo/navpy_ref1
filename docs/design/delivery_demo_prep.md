@@ -410,50 +410,63 @@ which the run does not keep (todo 176).
 ## Demo day (ready plan step 8, 2026-11-03)
 
 Rehearsed on main `341c6a5e`, simulator only (evidence: `.logs/step8` of the
-step 8 worktree). Run 1 denied and timed out cards; run 2 was the 1 Nov setup
-(its settings file, the plan file, a 60 min share, every card approved): all
-three UAVs DOCKED (sim), 21-63 s after Launch.
+step 8 worktree). Run 1 denied one card, left others to time out and approved
+the rest. Run 2 used the 1 Nov run's settings file, a 60 min share on 8 CPUs
+and the committed plan file, with every card approved: all three UAVs DOCKED
+(sim), 21-63 s after Launch. It was not the 1 Nov plan: that one was built in
+the UI (docks on UAV 1's route, one hub "Other1") and not saved (todo 176), so
+it cannot be flown again. Run 2 also had step 6's ESP32 auto-start, which 1 Nov
+did not.
 
 Before:
+- Decide the plan: the rehearsed `scripts\delivery_demo_plan.json`, or a plan
+  of your own saved to a file and rehearsed first.
 - Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
   the demo ends: the share does not cover WSL, and 8 CPUs are not proven
-  enough. Both rehearsals ran beside other chats' pytest (about 2 cores).
+  enough. Both rehearsals ran beside other chats' test runs (2-3 cores of
+  Windows processes, measured just before each run).
 - Launch with `delivery_demo.py --cpu-share-min N`, N up to 120, long enough
   for setup, every flight and a margin (1 Nov and run 2: 60).
-- The Ready line must show 8 or more CPUs and no WARNING; otherwise stop,
-  free CPUs (`cpu_share.py --list`) and launch again.
-- Finish before the share's end time on the Ready line: a share never grows,
-  and after it the stack runs as background. For a new share, stop and launch
-  again.
+- The Ready line must name a live share of 8 or more CPUs, with an end time
+  still ahead and no WARNING. Otherwise stop, free CPUs (`cpu_share.py --list`)
+  and launch again.
+- `mavlink.status.json` must show the record started; the Ready text alone
+  does not prove it.
+- Finish before the share's end time: a share never grows, and after it the
+  stack runs as background. For a new share, stop and launch again.
 
 During:
 - One GCS page, opened after Ready (reload one opened earlier). Load plan,
   Upload, Launch (hold, then confirm "Launch container"). The upload's
   "3 vehicles need attention" caution is the sim's arming checks; Launch stays
   enabled. The ESP32 sim now starts by itself.
-- Approve each card within its 30 s. A card left alone is denied at 30 s:
-  - denied or timed out on a dock seen in flight: the UAV goes on with its
-    mission, or (a timed-out one) is asked again at once on a card that looks
-    the same as the last;
-  - timed out at the hub: the UAV orbits the hub (500 m) and no new card came
-    in 4 minutes (todo 248).
-- NavPy restarts at each upload. Fly soon after it: the only generation-2
-  collection recorded in a hand demo so far (step 5's check run) came about
-  9 min after NavPy start, 55-60 ms per UAV; the rehearsal flights ended
-  2-5 min after the restart, with no generation-2 collection and 2.65 ms the
-  largest pause.
-- The sim battery falls about 1 % per 0.3 s of wall time in flight: 50 % about
-  50 s and 0 % about 100 s after Launch, and the HUD then says "Battery low
-  (0%)" (todo 247). Short flights stay above it; say it is the sim's battery.
-- A dock can still fail: run 1's hub approach ended NAV_FAIL `no_detection`
-  3 s after approval, and 1 Nov had one in 10. It is a fact to state, not a
-  fault to fix on the day.
+- Approve each card within its 30 s; a card left alone is denied at 30 s.
+  - Denied in flight: the UAV goes on with its mission to its hub.
+  - Timed out in flight: asked again at once, on a card that looks like the
+    last one (todo 249).
+  - Timed out at the hub: the UAV orbits the hub (500 m) and was not asked
+    again in the 3 minutes recorded (todo 248). No recovery was rehearsed, so
+    do not let a hub card time out.
+- NavPy restarts at each upload. As a precaution, not a proven need, fly soon
+  after it: rehearsal outcomes came 85-156 s after the restart with no
+  generation-2 collection (largest recorded pause 2.65 ms, generation 0 and
+  1); the only generation-2 collections in a hand demo so far (step 5's check
+  run) came about 9 min after NavPy start, 55-60 ms per UAV (`dur_ms` is an
+  upper bound).
+- The sim battery drains fast: in run 1 every UAV read 50 % about 48 s and 0 %
+  about 100 s after Launch (about 1 % per second after a quick fall at
+  takeoff), and the HUD said "Battery low (0%)" (todo 247). Run 2's flights
+  ended before 20 %. Say it is the sim's battery.
+- A dock can fail: run 1's hub approach ended NAV_FAIL `no_detection` 3 s
+  after approval, and 1 Nov had one in 10. It is a fact to state, not a fault
+  to fix on the day.
 
 After: `gcs_stop.py`, then `delivery_demo_check.py`, and copy the run folder
-out of the checkout before any worktree removal. For a no_detection failure
-the check prints "no DOCKED or DOCK_FAILED row"; the NavPy log has the
-DOCK_FAILED line (todo 246).
+out of the checkout before any worktree removal. For run 1's no_detection
+failure the check printed "no DOCKED or DOCK_FAILED row" while the NavPy log
+has the DOCK_FAILED line (todo 246).
 
-OpenCV 5.0.0 in the shared venv breaks 4 board-detector tests; the demo runs
-the sim detector ("Created sim detector" in each NavPy log), so the rehearsals
-did not use the board detector.
+The shared venv has OpenCV 5.0.0, which pyproject pins below 5 and which is
+reported to break 4 board-detector tests. The demo runs the sim detector
+("Created sim detector" in each NavPy log), so the rehearsals did not use the
+board detector.
