@@ -204,7 +204,8 @@ def test_hitl_sitl_model_serves_its_link_on_serial5_with_protocol_100_at_the_ori
     origin = "40.2,44.4,1300,270"
     sitl = Sitl(tmp_path, model="hil", home=origin, rc=None, defaults=[])
     assert sitl.hil_port == sitl.mavlink_port + 8 == 8168
-    assert sitl.command()[-7:-2] == ["-I", "240", "--home", origin, "--serial5=tcp:8168"]
+    # SERIAL8's own default (tcp:8) is the same port: SITL exited on the second bind (step 13, 2026-11-03)
+    assert sitl.command()[-8:-2] == ["-I", "240", "--home", origin, "--serial5=tcp:8168", "--serial8=none"]
     assert sitl.params == [HIL_SITL_PARAMS] and read_param_file(HIL_SITL_PARAMS) == {"SERIAL5_PROTOCOL": 100}
     plain = Sitl(tmp_path)
     assert plain.hil_port is None and HIL_SITL_PARAMS not in plain.params
