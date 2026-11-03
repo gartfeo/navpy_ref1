@@ -2221,3 +2221,15 @@
 - An offline fit must refuse the same brackets the live code refuses. Replaying the live function (interpolate_attitude_at with the logged limits) is safer than re-deriving its rules.
 - A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data, and so does one that picks block starts per pair (dense stretches win). Redraw whole occupied time bins, each equally likely.
 - Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.
+
+## HITL step 13: approach runner (2026-11-03)
+
+- A fake spawner that writes a generic "ready" line hangs a runner test for the real ready timeout (120 s): the
+  spec's regex never matches. Write each role's real ready line in the fake, or give the group a fake clock.
+- Build a run's process specs inside the try that stops them: a spec builder can raise (win_path on a non-/mnt path),
+  and outside the try the run folder is left with no run JSON.
+- `x.write_text(...) or path` returns the byte count, not the path: write a two-line helper.
+- From Git Bash, the Windows venv needs Windows paths in PYTHONPATH (`pwd -W`); a /c/... path is ignored and the
+  import falls back to whatever navpy is installed.
+- Python heredoc edits whose old text holds a backslash or a "\n" escape silently fail their assert; use the Edit tool
+  for those.

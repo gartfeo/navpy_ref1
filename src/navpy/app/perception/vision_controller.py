@@ -94,7 +94,12 @@ class VisionController:
         self._ports.lifecycle.start()
 
     def stop(self) -> bool:
-        return self._ports.lifecycle.stop()
+        stopped = self._ports.lifecycle.stop()
+        # Only a quiescent stop ends the integration log: no association can
+        # write after its log_end.
+        if stopped and self._ports.integration_log is not None:
+            self._ports.integration_log.close()
+        return stopped
 
     @property
     def is_quiescent(self) -> bool:

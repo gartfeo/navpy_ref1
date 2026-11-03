@@ -19,6 +19,10 @@ class VisionUiStepPort(Protocol):
     def ui_step(self) -> bool: ...
 
 
+class ClosingLogPort(Protocol):
+    def close(self) -> None: ...
+
+
 @dataclass(frozen=True)
 class VisionControllerPorts:
     coordinator: DetectionCoordinator
@@ -31,6 +35,8 @@ class VisionControllerPorts:
     lifecycle: VisionLifecycle
     ui: VisionUiStepPort
     dock_contact: DockContactSensor | None = None
+    # HITL only: closed once vision has stopped quiescent, never before.
+    integration_log: ClosingLogPort | None = None
 
 
-__all__ = ["VisionControllerPorts", "VisionUiStepPort"]
+__all__ = ["ClosingLogPort", "VisionControllerPorts", "VisionUiStepPort"]

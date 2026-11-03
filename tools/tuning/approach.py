@@ -1,0 +1,239 @@
+"""``sitl_driver approach``: one approach run of the HITL chain (hitl_final_approach.md sections 1 and 9, step 13).
+
+Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
+
+    python -s -m tools.tuning.sitl_driver approach --mode pc-sitl --model-dir M --model-input MI.json
+        --media-runtime MR.json --publisher-profile P.json --aas-hitl A --uproject U.uproject
+        --params-file F.parm [--timing-constants FIT.json] [--observe-s S]
+
+It writes the run's record (approach_records.py) into a new private run folder, refuses at once when a role's
+port or Unreal is taken, then starts backing -> router -> board setup (parameters, the bridge, the boot on the
+bridge) -> emulator -> publisher -> Unreal -> navpy, each on its ready line. The publisher starts before Unreal
+(Unreal connects to it; step 9's order). Takeoff, the fixed search lane (approach_lane.py) in AUTO with navpy's
+detection gated to it; it waits for navpy's terminal record or --observe-s, then stops navpy and closes its router
+endpoint (navpy_handoff.py) and only then flies RTL; a floor breach takes the same path (HeightFloor). Every owned
+process is stopped on every exit; the manifest (tools/hitl/run_manifest.py) and the orphan check follow.
+Exit 0 only when the flight, the handoff, every stop, the link health and the orphan check all passed.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import shutil
+import subprocess
+import sys
+import time
+from datetime import datetime, timezone
+from collections.abc import Callable
+from pathlib import Path
+from typing import Any
+
+from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
+from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
+from navpy.app.router_barrier import RouterBarrier
+from navpy.app.terminal_handoff import NAVPY_TERMINAL_MARKER
+from tools.hitl import approach_records, run_manifest
+from tools.hitl.model_input import read_model_input
+from tools.hitl.timing_fit import FIT_SCHEMA
+from tools.tuning import approach_chain as chain
+from tools.tuning.approach_lane import FIRST_LANE_SEQ, build_lane, fly_lane
+from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
+from tools.tuning.board import DEFAULT_BAUD, Board
+from tools.tuning.dock_pass import END_RTL_S, Point, home_position
+from tools.tuning.flight_floor import HeightFloor, add_floor_arg
+from tools.tuning.hitl import board_param_files
+from tools.tuning.hitl_bridge.board_clock import DEFAULT_LOOP_RATE_HZ
+from tools.tuning.hitl_bridge.bridge import DEFAULT_INTEGRATION_DT_S, PLANT_PROGRAM
+from tools.tuning.hitl_procs import HitlProcesses
+from tools.tuning.navpy_handoff import NavpyHandoff, direct_rtl, end_process, stop_navpy
+from tools.tuning.private_data import private_dir
+
+MODE = "pc-sitl"
+YEGHVARD_ORIGIN = "40.3117412,44.4552112,1292.8,0"      # hitl_unreal_camera.md: the Unreal level's origin
+OBSERVE_S = 660.0               # my value: the held-out check needs 600 s of scored frames, plus margin
+SERVO_SPEED_S = 0.03            # the bridge's servo lag in the dock-pass runs (hitl_unreal_camera.md)
+JSBSIM = "/usr/games/JSBSim"
+TERMINAL_POLL_S = 1.0           # one HEARTBEAT wait per check of navpy's output and the owned processes
+
+
+def _jsbsim_version() -> str:
+    text = subprocess.run([JSBSIM, "--version"], capture_output=True, text=True, timeout=30, check=False).stdout
+    return next(line.strip() for line in text.splitlines() if "JSBSim Version" in line)
+
+
+def _addresses() -> tuple[str, str]:
+    """WSL's own address and the Windows host's (WSL's default gateway, NAT networking)."""
+    own = subprocess.run(["hostname", "-I"], capture_output=True, text=True, check=True).stdout.split()[0]
+    route = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True, check=True).stdout
+    return own, route.split()[2]
+
+
+def _source_id(repo: Path) -> str:
+    profiles = json.loads((repo / "src/navpy/core/perception/profile/vision_profiles.json").read_text(encoding="utf-8"))
+    return profiles["profiles"][chain.VISION_PROFILE]["detector"]["camera_index"]
+
+
+def _corrections(path: str | None) -> tuple[float, float]:
+    """The fit's constants for a held-out run; 0 for a calibration-only run (the fit never reads them)."""
+    if not path:
+        return 0.0, 0.0
+    fit = json.loads(Path(path).read_text(encoding="utf-8"))
+    if fit.get("schema") != FIT_SCHEMA or not fit.get("passed"):
+        raise SystemExit(f"error: {path} is not a passing {FIT_SCHEMA}")
+    return float(fit["attitude"]["correction_s"]), float(fit["gimbal"]["correction_s"])
+
+
+def _record(args: argparse.Namespace, run_id: str, repo: Path) -> dict:
+    attitude_c, gimbal_c = _corrections(args.timing_constants)
+    timing = IntegrationTimingConfig(run_id, MODE, _source_id(repo), chain.navpy_link_id(), IntegrationTimingLimits(),
+                                     attitude_c, gimbal_c)
+    bridge = approach_records.BridgeRun(PLANT_PROGRAM, _jsbsim_version(), DEFAULT_INTEGRATION_DT_S,
+                                        DEFAULT_LOOP_RATE_HZ, SERVO_SPEED_S)
+    return approach_records.new_record(
+        run_id=run_id, mode=MODE, created=datetime.now(timezone.utc), model_input=read_model_input(args.model_input),
+        model_dir=Path(args.model_dir), bridge=bridge, law=NavigationAlgorithm.VISION_NAV_PN.value,
+        sources={"navpy": approach_records.source_identity(repo)},
+        media_runtime=json.loads(Path(args.media_runtime).read_text(encoding="utf-8")), integration_timing=timing)
+
+
+def _adopting_popen(group: ProcessGroup) -> Callable[..., subprocess.Popen]:
+    def popen(argv: list[str], **kwargs: Any) -> subprocess.Popen:
+        process = subprocess.Popen(argv, start_new_session=True, **kwargs)
+        group.adopt("bridge", PosixHandle(process, STOP_EOF))
+        return process
+    return popen
+
+
+def _observe(board: Board, group: ProcessGroup, navpy_out: Path, seconds: float) -> str:
+    """Drain the link (the floor's hook sees every position) until navpy's terminal record or the deadline."""
+    deadline, tail = time.monotonic() + seconds, ""
+    with open(navpy_out, encoding="utf-8", errors="replace") as out:
+        while time.monotonic() < deadline:
+            board.wait_message("HEARTBEAT", TERMINAL_POLL_S)
+            group.check()
+            tail = tail[-len(NAVPY_TERMINAL_MARKER):] + out.read()     # a marker split across two reads
+            if NAVPY_TERMINAL_MARKER in tail:
+                return "terminal record"
+    return "deadline"
+
+
+def _fly(args: argparse.Namespace, board: Board, group: ProcessGroup, run: dict) -> None:
+    from tools.tuning.sitl_driver import takeoff        # sitl_driver imports this module
+    navpy_process = group.handle("navpy").process
+    handoff = NavpyHandoff(lambda: stop_navpy(navpy_process),
+                           RouterBarrier(("127.0.0.1", chain.CONTROL_PORT), "navpy"),
+                           lambda: end_process(group.handle("router").process),
+                           lambda: direct_rtl(f"tcp:127.0.0.1:{chain.SITL_PORT}", DEFAULT_BAUD))
+    takeoff(board)
+    flight = run["flight"] = {}
+    with HeightFloor(board, args.min_height, flight, before_recovery=handoff.before_rtl):
+        lat, lon, _ = home_position(board)
+        lane = build_lane(Point(lat, lon))
+        flight["lane"] = lane.describe()
+        fly_lane(board, lane)
+        flight["lane_reached_utc"] = datetime.now(timezone.utc).isoformat()
+        flight["ended_by"] = _observe(board, group, group.output_path("navpy"), args.observe_s)
+    record = run["handoff"] = handoff.before_rtl()      # quiesce first: navpy stopped, its endpoint closed
+    if record.get("rtl") != "direct":
+        board.set_mode("RTL")
+        board.fly_for(END_RTL_S)
+    if not record.get("barrier", {}).get("ok"):
+        raise RunnerError(f"navpy handoff failed: {record.get('failed')}")
+
+
+def _copy_logs(run_dir: Path, board: Board) -> None:
+    """The backing's DataFlash logs into the board folder, where the link-health gate reads them."""
+    target = board.workdir / "logs"
+    target.mkdir(parents=True, exist_ok=True)
+    for log in sorted((run_dir / "backing" / "logs").glob("*.BIN")):
+        shutil.copy2(log, target / log.name)
+
+
+def _manifest(run_dir: Path, run_id: str, record_path: Path, group: ProcessGroup) -> Path:
+    publisher = run_dir / "publisher"
+    files = [("run_record", record_path), ("navpy_integration_log", run_dir / "navpy_integration.jsonl"),
+             ("publisher_status", publisher / "publisher.json"),
+             *(("publisher_frames", path) for path in sorted(publisher.glob("frames-*.csv"))),
+             ("unreal_log", run_dir / "unreal.log"), ("emulator_log", run_dir / "emulator.jsonl")]
+    producers = {**group.producers(), "runner": {"pid": None, "argv": sys.argv, "ended_after_stop": True}}
+    manifest = run_manifest.build(run_id, producers, [(role, path) for role, path in files if path.exists()])
+    named = {path.resolve() for _, path in files}
+    manifest["other_files"] = [{"name": str(path.relative_to(run_dir)), **run_manifest.digest(path)}
+                               for path in sorted(run_dir.rglob("*")) if path.is_file() and path.resolve() not in named]
+    out = run_dir / "run_manifest.json"
+    out.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return out
+
+
+def approach(args: argparse.Namespace) -> int:
+    """One approach run of the HITL chain (mode pc-sitl): see tools/tuning/approach.py."""
+    repo = Path.cwd()
+    run_id = "approach-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
+    run_dir = Path(args.run_root or private_dir() / "runs" / "approach") / run_id
+    record = _record(args, run_id, repo)          # refuses bad inputs before the run folder exists
+    run_dir.mkdir(parents=True, exist_ok=False)
+    record_path = approach_records.write_record(record, run_dir)
+    wsl_ip, windows_ip = _addresses()
+    paths = chain.ChainPaths(run_dir, repo, args.python, Path(args.aas_hitl), Path(args.publisher_profile),
+                             args.uproject, wsl_ip, windows_ip, args.unreal_affinity)
+    lens = repo / "src/navpy/core/perception/profile/vision_profiles.json"
+    group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity)},
+                         chain.port_free)
+    run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "addresses": [wsl_ip, windows_ip]}
+    hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
+                         run_dir / "board", args.origin, popen=_adopting_popen(group))
+    files = board_param_files([], [Path(p) for p in args.params_file or []], True, False, args.hitl_data)
+    board = Board(f"udpin:127.0.0.1:{chain.RUNNER_PORT}", run_dir / "board", files, origin=args.origin, hitl=hitl,
+                  log_fetch=False)
+    failed = None
+    try:
+        specs = [chain.backing(paths, args.origin), chain.router(paths), chain.emulator(paths),
+                 chain.publisher(paths, chain.publisher_profile(paths), lens), chain.unreal(paths, lens),
+                 chain.navpy(paths, record_path, FIRST_LANE_SEQ)]
+        problems = group.refusals(specs)
+        if problems:
+            raise RunnerError("; ".join(problems))
+        for spec in specs[:2]:
+            group.start(spec)
+        board.start()
+        for spec in specs[2:]:
+            group.start(spec)
+        _fly(args, board, group, run)
+    except Exception as exc:          # noqa: BLE001 - recorded; every owned process still stops below
+        failed = run["error"] = f"{type(exc).__name__}: {exc}"
+        print(f"[approach] run FAILED: {failed}", flush=True)
+    finally:
+        board.stop()
+        group.mark_stopped("bridge", board.record.get("hitl", {}).get("bridge_exit"))
+        group.stop_all()
+        run["producers"], run["orphans"] = group.producers(), group.orphans()
+        _copy_logs(run_dir, board)
+        run["board"] = board.report()
+        run["manifest"] = str(_manifest(run_dir, run_id, record_path, group))
+        (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", encoding="utf-8")
+    health = run["board"].get("link_health") or {}
+    ended = all(item.get("ended_after_stop") for item in run["producers"].values())
+    print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
+          f"link health {health.get('ok')}; folder {run_dir}", flush=True)
+    return 0 if failed is None and not run["orphans"] and ended and health.get("ok") else 1
+
+
+def add_parser(sub: argparse._SubParsersAction) -> None:
+    a = sub.add_parser("approach", help=approach.__doc__)
+    a.add_argument("--mode", choices=(MODE,), required=True)
+    a.add_argument("--run-root", help="folder for the run folder (default: the private folder's runs/approach)")
+    a.add_argument("--origin", default=YEGHVARD_ORIGIN, help="lat,lon,alt,hdg (default: the Unreal level's)")
+    a.add_argument("--model-dir", required=True, help="the JSBSim model folder (WSL path)")
+    a.add_argument("--model-input", required=True, help="the model folder's declaration (tools/hitl/model_input.py)")
+    a.add_argument("--media-runtime", required=True, help="a passing check_media_runtime.py result for pc-wsl")
+    a.add_argument("--timing-constants", help="a passing step 12 fit: its corrections go into a held-out run")
+    a.add_argument("--publisher-profile", required=True, help="the aas-hitl publisher profile template")
+    a.add_argument("--aas-hitl", required=True, help="the aas-hitl checkout the publisher runs from (WSL path)")
+    a.add_argument("--uproject", required=True, help="Windows path of the Unreal project")
+    a.add_argument("--unreal-affinity", type=int, help="Unreal's processor mask (the CPU share granted)")
+    a.add_argument("--python", default=sys.executable, help="the Python navpy and the tools run with")
+    a.add_argument("--params-file", action="append", help="starting parameters, as dock-pass")
+    a.add_argument("--hitl-data", type=Path, help="the aircraft's private HITL files (default: the private folder)")
+    a.add_argument("--observe-s", type=float, default=OBSERVE_S, help="seconds on the lane after acquisition starts")
+    add_floor_arg(a)
+    a.set_defaults(func=approach)

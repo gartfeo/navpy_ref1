@@ -1,0 +1,83 @@
+"""The HITL runner's integration timing for one navpy run (stage 1 step 13).
+
+``--integration-timing`` names the run's record (tools/hitl/approach_records.py): navpy reads only its run id,
+mode and ``integration_timing`` section, and ``IntegrationTimingConfig.problems`` refuses anything else.
+``--integration-log`` names a new JSONL file the associations write to (integration_log.py); a clean stop
+ends it with one ``log_end`` record that counts the records before it, so a reader can tell a whole log from
+one cut off at a line boundary.
+"""
+from __future__ import annotations
+
+import json
+from dataclasses import dataclass
+from pathlib import Path
+from typing import Any
+
+from navpy.core.kernel import runtime_time as rt
+from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
+from navpy.core.perception.pipeline.integration_log import EVENT_LOG_END
+
+
+def load_integration_timing(path: str | Path) -> IntegrationTimingConfig:
+    """The run record's integration timing, refused when it is missing or not usable."""
+    with open(path, encoding="utf-8") as handle:
+        record: Any = json.load(handle)
+    try:
+        run, section = record["run"], record["integration_timing"]
+        config = IntegrationTimingConfig(
+            run_id=run["run_id"], mode=run["mode"], source_id=section["source_id"], link_id=section["link_id"],
+            limits=IntegrationTimingLimits(**section["limits"]),
+            attitude_correction_s=section["attitude_correction_s"],
+            gimbal_correction_s=section["gimbal_correction_s"])
+    except (KeyError, TypeError) as exc:
+        raise ValueError(f"{path}: no usable integration_timing section ({exc!r})") from None
+    problems = config.problems()
+    if problems:
+        raise ValueError(f"{path}: " + "; ".join(problems))
+    return config
+
+
+class JsonlTimingLog:
+    """One run's integration log: a JSON line per record, flushed at once; ``close`` writes ``log_end``."""
+
+    def __init__(self, path: str | Path, run_id: str) -> None:
+        self._file = open(path, "x", encoding="utf-8")       # one log per run: never append to another's
+        self._run_id = run_id
+        self._records = 0
+        self._lock = rt.Lock()
+
+    def __call__(self, record: dict[str, object]) -> None:
+        line = json.dumps(record, separators=(",", ":"))
+        with self._lock:
+            self._file.write(line + "\n")
+            self._file.flush()
+            self._records += 1
+
+    def close(self) -> None:
+        with self._lock:
+            if self._file.closed:
+                return
+            end = {"event": EVENT_LOG_END, "run_id": self._run_id, "records": self._records}
+            self._file.write(json.dumps(end, separators=(",", ":")) + "\n")
+            self._file.close()
+
+
+@dataclass(frozen=True)
+class IntegrationTimingInput:
+    config: IntegrationTimingConfig
+    log: JsonlTimingLog
+
+
+def open_integration_input(timing_path: str, log_path: str, detector_type: str) -> IntegrationTimingInput | None:
+    """Both files or neither, real detector only; the log is opened last, so a refused record leaves no file."""
+    if not timing_path and not log_path:
+        return None
+    if not timing_path or not log_path:
+        raise ValueError("--integration-timing and --integration-log go together")
+    if detector_type != "real":
+        raise ValueError("integration timing needs --detector-type=real")
+    config = load_integration_timing(timing_path)
+    return IntegrationTimingInput(config, JsonlTimingLog(log_path, config.run_id))
+
+
+__all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input"]

@@ -19,6 +19,9 @@ class VisionArgs:
     detector_backend: str = DEFAULT_DETECTOR_BACKEND  # real only: "charuco" | "yolo"
     model_path: str = ""          # YOLO model path (real + yolo backend only)
     debug_show: bool = False      # Show debug window
+    # HITL runner only (tools/tuning/approach.py): the run record and a new integration log.
+    integration_timing: str = ""
+    integration_log: str = ""
 
     @classmethod
     def from_args(cls, args) -> "VisionArgs":
@@ -31,6 +34,8 @@ class VisionArgs:
             ),
             model_path=getattr(args, "detector_model_path", ""),
             debug_show=getattr(args, "detector_debug_show", False),
+            integration_timing=getattr(args, "integration_timing", ""),
+            integration_log=getattr(args, "integration_log", ""),
         )
 
     @staticmethod
@@ -76,4 +81,25 @@ class VisionArgs:
             action="store_true",
             default=False,
             help="Show debug window for detector",
+        )
+        vision_group.add_argument(
+            "--integration-timing",
+            type=str,
+            default="",
+            metavar="RUN_RECORD",
+            help=(
+                "HITL runner only: the run record whose integration_timing "
+                "section times encoded video (real detector). Needs "
+                "--integration-log."
+            ),
+        )
+        vision_group.add_argument(
+            "--integration-log",
+            type=str,
+            default="",
+            metavar="FILE",
+            help=(
+                "HITL runner only: a new JSONL file for the integration "
+                "timing log. Needs --integration-timing."
+            ),
         )

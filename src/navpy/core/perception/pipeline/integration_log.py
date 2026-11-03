@@ -17,6 +17,8 @@ from navpy.core.ports.gimbal_capture_history import GimbalCaptureHistory
 EVENT_ASSOCIATION = "association"
 EVENT_ATTITUDE_RECEIPT = "attitude_receipt"
 EVENT_GIMBAL_RECEIPT = "gimbal_receipt"
+# The last record of a cleanly closed log, counting the records before it (app/perception/integration_timing_input.py).
+EVENT_LOG_END = "log_end"
 
 TimingLog = Callable[[dict[str, object]], None]
 
@@ -107,6 +109,7 @@ __all__ = [
     "EVENT_ASSOCIATION",
     "EVENT_ATTITUDE_RECEIPT",
     "EVENT_GIMBAL_RECEIPT",
+    "EVENT_LOG_END",
     "ReceiptLog",
     "TimingLog",
     "attitude_history_record",

@@ -2,7 +2,7 @@
 
 - navpy's integration log (JSONL from step 11's ``TimingLog``): ``association`` records and the receiver-local
   ``attitude_receipt`` / ``gimbal_receipt`` histories (integration_association.py), all on the receiver's
-  ``rt.perf_counter``.
+  ``rt.perf_counter``; a cleanly closed log ends with one ``log_end`` that counts the records before it.
 - The aas-hitl publisher's frame logs (``frames-NNN.csv``): every pushed frame's index, board time and PTS.
 - Unreal's ``NavPyCaptureSlot`` lines (tools/unreal/cadence_log.py): the board time and gimbal bracket each sent
   frame was rendered from.
@@ -25,6 +25,7 @@ from navpy.core.perception.pipeline.integration_log import (
     EVENT_ASSOCIATION,
     EVENT_ATTITUDE_RECEIPT,
     EVENT_GIMBAL_RECEIPT,
+    EVENT_LOG_END,
 )
 from navpy.plugins.gimbal.siyi.siyi_message import COMMAND
 from tools.unreal.cadence_log import parse_log
@@ -132,6 +133,7 @@ class NavpyLog:
     attitude: list[AttitudeReceipt] = field(default_factory=list)
     gimbal: list[GimbalReceipt] = field(default_factory=list)
     run_ids: set[str] = field(default_factory=set)
+    ended: bool = False           # its log_end came last and counted every record before it
 
 
 def read_navpy_log(lines: Iterable[str], where: str = "navpy log") -> NavpyLog:
@@ -146,6 +148,8 @@ def read_navpy_log(lines: Iterable[str], where: str = "navpy log") -> NavpyLog:
         run_id = record.get("run_id")
         if not isinstance(run_id, str) or not run_id:
             raise TimingInputError(f"{at}: no run_id")
+        if log.ended:
+            raise TimingInputError(f"{at}: a record after log_end")
         log.run_ids.add(run_id)
         event = record.get("event")
         if event == EVENT_ASSOCIATION:
@@ -157,6 +161,11 @@ def read_navpy_log(lines: Iterable[str], where: str = "navpy log") -> NavpyLog:
         elif event == EVENT_GIMBAL_RECEIPT:
             log.gimbal.append(GimbalReceipt(_integer(record, "session", at), _integer(record, "seq", at),
                                             _number(record, "receipt_s", at), number))
+        elif event == EVENT_LOG_END:
+            read = len(log.associations) + len(log.attitude) + len(log.gimbal)
+            if _integer(record, "records", at) != read:
+                raise TimingInputError(f"{at}: log_end counts {record['records']} records, the log holds {read}")
+            log.ended = True
         else:
             raise TimingInputError(f"{at}: unknown event {event!r}")
     return log
