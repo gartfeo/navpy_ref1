@@ -39,18 +39,36 @@ def windows_udp_in_use(ports: tuple[int, ...]) -> Optional[str]:
     return f"Windows pid(s) {sorted(owners)} own udp port(s) {list(ports)}" if owners else None
 
 
-def windows_started(pid: int) -> str:
-    """When Windows process *pid* started (FILETIME, UTC), or "" when there is none: with the pid, its identity."""
-    script = f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).StartTime.ToFileTimeUtc()"
-    return subprocess.run(["powershell.exe", "-NoProfile", "-Command", script], capture_output=True, text=True,
-                          timeout=30, check=False).stdout.strip()
+GONE = "gone"
+
+
+def windows_process(pid: int, started: str = "") -> str:
+    """Windows process *pid*'s start time (FILETIME, UTC; with the pid, its identity), or GONE when there is none.
+
+    With *started*, the process is killed in the same call if it still has that start time: Get-Process holds its
+    handle, so the kill reaches that process even if the pid were reused meanwhile. A query that fails raises.
+    """
+    kill = (f"if ($p.StartTime.ToFileTimeUtc() -eq {int(started)}) "
+            f"{{ $p.Kill(); $p.WaitForExit(10000) | Out-Null; '{GONE}'; return }}; ") if started else ""
+    script = (f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
+              f"if ($p) {{ {kill}$p.StartTime.ToFileTimeUtc() }} else {{ '{GONE}' }}")
+    result = subprocess.run(["powershell.exe", "-NoProfile", "-Command", script], capture_output=True, text=True,
+                            timeout=30, check=False)
+    return parse_process(result.returncode, result.stdout, result.stderr)
+
+
+def parse_process(returncode: int, stdout: str, stderr: str) -> str:
+    answer = stdout.strip()
+    if returncode != 0 or stderr.strip() or not (answer == GONE or answer.isdigit()):
+        raise OSError(f"Windows process query failed (exit {returncode}): {(stderr or stdout).strip()[:200]}")
+    return answer
 
 
 class InteropHandle(PosixHandle):
     """A Windows Python behind its WSL interop proxy: the proxy ending does not end it. Its ready line (*pid_line*)
     names its own pid; at ready that pid's start time is recorded, and from then on it counts as alive, and a kill
-    ends its tree, only while that pid has that start time (a reused pid is another process). Before ready, a
-    Windows owner of its *ports* counts as alive (reported, never killed)."""
+    ends it, only while that pid has that start time (a reused pid is another process; a failed query raises, so
+    it counts as alive). Before ready, a Windows owner of its *ports* counts as alive (reported, never killed)."""
 
     def __init__(self, process: subprocess.Popen, stop: str, ports: tuple[int, ...], output: Path,
                  pid_line: str) -> None:
@@ -61,24 +79,22 @@ class InteropHandle(PosixHandle):
 
     def confirm_ready(self) -> None:
         match = self.pid_line.search(self.output.read_text(encoding="utf-8", errors="replace"))
-        started = windows_started(int(match.group(1))) if match else ""
-        if not started:
+        started = windows_process(int(match.group(1))) if match else GONE
+        if started == GONE:
             raise RunnerError(f"the ready line names no running Windows pid; see {self.output}")
         self.windows_pid, self._started = int(match.group(1)), started
 
-    def _own_alive(self) -> bool:
-        return self.windows_pid is not None and windows_started(self.windows_pid) == self._started
-
     def kill(self) -> None:
         super().kill()
-        if self._own_alive():
-            subprocess.run(["taskkill.exe", "/PID", str(self.windows_pid), "/T", "/F"], capture_output=True,
-                           timeout=30, check=False)
+        if self.windows_pid is not None:
+            windows_process(self.windows_pid, self._started)
 
     def group_alive(self) -> bool:
         if super().group_alive():
             return True
-        return self._own_alive() if self.windows_pid is not None else bool(windows_udp_owners(self.ports))
+        if self.windows_pid is None:
+            return bool(windows_udp_owners(self.ports))
+        return windows_process(self.windows_pid) == self._started
 
 
 def spawn_interop(ports: tuple[int, ...], pid_line: str) -> Callable[[ProcSpec, IO[str]], InteropHandle]:

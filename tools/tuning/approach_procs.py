@@ -132,14 +132,13 @@ class Owned:
     stopped: dict = field(default_factory=dict)
 
 
-def _alive(handle: Handle, errors: list[str]) -> bool:
-    """Its group_alive; a check that fails counts as alive (recorded), so the stop goes on and it is reported."""
+def _alive(check: Callable[[], bool], errors: list[str]) -> bool:
+    """A group_alive or running check; one that fails counts as alive (recorded): unknown is not gone."""
     try:
-        return handle.group_alive()
-    except Exception as exc:       # noqa: BLE001 - unknown is not gone
-        message = f"alive check: {type(exc).__name__}: {exc}"
-        if message not in errors:
-            errors.append(message)
+        return check()
+    except Exception as exc:       # noqa: BLE001 - the stop goes on and the role is reported
+        if f"alive check: {type(exc).__name__}: {exc}" not in errors:
+            errors.append(f"alive check: {type(exc).__name__}: {exc}")
         return True
 
 
@@ -242,7 +241,7 @@ class ProcessGroup:
             try:
                 if not owned.stopped:
                     owned.stopped = self._stop(owned)
-                elif _alive(owned.handle, []):       # its other owner stopped the leader; members are left
+                elif _alive(owned.handle.group_alive, []):       # its other owner stopped the leader; members are left
                     leftover = self._escalate(owned.handle, self._steps(owned, own_stop=False))
                     owned.stopped = {**owned.stopped, "leftover": leftover, "ended_after_stop": False}
             except Exception as exc:       # noqa: BLE001 - the others must still stop
@@ -252,9 +251,9 @@ class ProcessGroup:
 
     def _stop(self, owned: Owned) -> dict:
         handle = owned.handle
-        if not _alive(handle, []):
+        if not _alive(handle.group_alive, []):
             return {"how": "already exited", "exit_code": handle.exit_code(), "ended_after_stop": False}
-        leader_gone = not handle.running()       # the leader exited during the run; its members are left
+        leader_gone = not _alive(handle.running, [])       # the leader exited during the run; its members are left
         result = self._escalate(handle, self._steps(owned, own_stop=True))
         return {**result, "ended_after_stop": result["how"] == "stop" and not leader_gone and "errors" not in result}
 
@@ -274,16 +273,16 @@ class ProcessGroup:
                 errors.append(f"{how}: {type(exc).__name__}: {exc}")
                 continue
             deadline = self._clock() + wait_s
-            while _alive(handle, errors) and self._clock() < deadline:
+            while _alive(handle.group_alive, errors) and self._clock() < deadline:
                 self._sleep(READY_POLL_S)
-            if not _alive(handle, errors):
+            if not _alive(handle.group_alive, errors):
                 return {"how": how, "exit_code": handle.exit_code(), "ended_utc": _utc(),
                         **({"errors": errors} if errors else {})}
-        how = "still running after kill" if _alive(handle, errors) else "ended after a failed step"
+        how = "still running after kill" if _alive(handle.group_alive, errors) else "ended after a failed step"
         return {"how": how, "exit_code": handle.exit_code(), **({"errors": errors} if errors else {})}
 
     def orphans(self) -> list[str]:
-        return [owned.spec.role for owned in self.owned if _alive(owned.handle, [])]
+        return [owned.spec.role for owned in self.owned if _alive(owned.handle.group_alive, [])]
 
     def producers(self) -> dict[str, dict]:
         return {owned.spec.role: {"pid": owned.handle.pid, "argv": list(owned.spec.argv),

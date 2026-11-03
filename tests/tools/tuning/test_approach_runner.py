@@ -380,13 +380,23 @@ READY = "ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, no
 
 
 def _interop(tmp_path, monkeypatch, started: dict, owners: set, ready: str = READY):
-    """*started*: Windows pid -> its start time now (a kill clears it)."""
+    """*started*: Windows pid -> its start time now, or an exception its query raises; a matching kill clears it."""
     killed: list = []
     monkeypatch.setattr(handles.PosixHandle, "group_alive", lambda self: False)     # the interop proxy is gone
     monkeypatch.setattr(handles.PosixHandle, "kill", lambda self: killed.append("proxy"))
     monkeypatch.setattr(handles, "windows_udp_owners", lambda ports: set(owners))
-    monkeypatch.setattr(handles, "windows_started", lambda pid: started.get(pid, ""))
-    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), started.clear()))
+
+    def windows_process(pid, kill_if=""):
+        now = started.get(pid, handles.GONE)
+        if isinstance(now, Exception):
+            raise now
+        if kill_if and now == kill_if:
+            killed.append(pid)
+            started.pop(pid)
+            return handles.GONE
+        return now
+
+    monkeypatch.setattr(handles, "windows_process", windows_process)
     output = tmp_path / "emulator.out"
     output.write_text(ready, encoding="utf-8")
     return handles.InteropHandle(_Proxy(), STOP_EOF, chain.EMULATOR_PORTS, output, chain.EMULATOR_PID_LINE), killed
@@ -398,17 +408,35 @@ def test_an_interop_role_is_alive_while_its_own_windows_python_runs_and_a_kill_e
     handle.confirm_ready()
     assert handle.windows_pid == 29860 and handle.group_alive()
     handle.kill()
-    assert killed == ["proxy", ["taskkill.exe", "/PID", "29860", "/T", "/F"]] and not handle.group_alive()
+    assert killed == ["proxy", 29860] and 77 in started and not handle.group_alive()
 
 
-def test_a_pid_reused_by_another_python_is_neither_alive_nor_killed(tmp_path, monkeypatch):
+def test_a_pid_reused_by_another_process_is_neither_alive_nor_killed(tmp_path, monkeypatch):
     started = {29860: "134062000000000000"}
     handle, killed = _interop(tmp_path, monkeypatch, started, {29860})
     handle.confirm_ready()
     started[29860] = "134062000099990000"          # the emulator exited; Windows gave its pid to a new process
     assert not handle.group_alive()
     handle.kill()
-    assert killed == ["proxy"]
+    assert killed == ["proxy"] and 29860 in started
+
+
+def test_a_failed_windows_query_raises_so_the_role_counts_as_alive(tmp_path, monkeypatch):
+    started: dict = {29860: "134062000000000000"}
+    handle, _ = _interop(tmp_path, monkeypatch, started, set())
+    handle.confirm_ready()
+    started[29860] = OSError("Windows process query failed (exit 1)")
+    with pytest.raises(OSError):
+        handle.group_alive()
+
+
+def test_the_windows_query_answer_is_a_start_time_gone_or_a_failure():
+    assert handles.parse_process(0, "134062000000000000\r\n", "") == "134062000000000000"
+    assert handles.parse_process(0, "gone\r\n", "") == handles.GONE
+    for returncode, stdout, stderr in ((1, "", "Get-Process : access denied"), (0, "", ""), (0, "1\r\n", "warn"),
+                                       (0, "Exception calling Kill", "")):
+        with pytest.raises(OSError, match="Windows process query failed"):
+            handles.parse_process(returncode, stdout, stderr)
 
 
 def test_a_ready_line_without_a_running_pid_fails_the_start(tmp_path, monkeypatch):
@@ -439,7 +467,12 @@ def test_a_failing_alive_check_counts_as_alive_and_the_stop_goes_on(tmp_path):
             raise OSError("tasklist timed out")
         return emulator.running()
 
-    emulator.group_alive = flaky
+    def failing_running() -> bool:
+        if len(calls) < 3:
+            raise OSError("tasklist timed out")
+        return emulator.code is None
+
+    emulator.group_alive, emulator.running = flaky, failing_running
     group.stop_all()
     stopped = group.producers()["emulator"]
     assert stopped["how"] == "terminate" and log[-2:] == ["emulator stop", "emulator terminate"]
