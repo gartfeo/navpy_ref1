@@ -2249,3 +2249,14 @@
 - json.dumps writes Infinity, which strict JSON readers refuse: log infinite settings as strings.
 - The SITL board clock loses real time unevenly under WSL load (±3000 ppm local slopes, +93 ms over 200 s); a 1 ms
   slip map on PTS cannot settle on pc-sitl. Measure receive-minus-PTS at the publisher before blaming navpy.
+- Stop a role until its whole process group is gone, not until its leader exits: a dead leader can leave members,
+  and an interop proxy can exit while its Windows process runs. A stop step or alive check that raises must not
+  abandon the role: record it, count unknown as alive, run the next step.
+- Never kill a Windows process by port owner or bare pid. The child names its own pid and creation time
+  (GetProcessTimes) in its ready line; the owner adopts the pid only if PowerShell reads the same start time, and
+  checks and kills in one call after `$null = $p.Handle` (PowerShell 5.1's StartTime and Kill each open their own
+  handle by pid otherwise). A Windows venv python.exe starts the real interpreter as a child: os.getpid() is the
+  child's.
+- Python edits through Bash heredocs turn "\b" into a backspace byte; check edited files for \x08.
+- Under heavy PC load (other programs at 100% CPU) the Windows emulator took over 30 s to print its ready line;
+  a smoke script must still stop what it started when a start fails.
