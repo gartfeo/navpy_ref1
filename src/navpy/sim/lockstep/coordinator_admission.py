@@ -117,11 +117,13 @@ class Admission:
         #: Delivered relay requests still waiting for their response.
         self._waiting: dict[RequestId, int] = {}
         self.actions: list[dict[str, Any]] = []
+        #: The coordinator's answers to the script, for its next inbox.
+        self._script_answers: list[tuple[int, Response]] = []
 
     def route(self, responses: Iterable[tuple[int, Response]],
               events: Iterable[tuple[int, Event]]) -> tuple[tuple[int, Response], ...]:
         """Relay responses and broadcasts to the relay; return the operator's responses."""
-        kept = []
+        kept, self._script_answers = self._script_answers, []
         for ordinal, response in responses:
             ticket = self._waiting.pop(response.id, None)
             if ticket is None:
@@ -139,13 +141,12 @@ class Admission:
                                                      dict[str, Any] | None]:
         """Tick k's one admission step: the deliveries for ``TICK k+1`` and
         the journal note (None when no relay item was taken)."""
-        for item in scripted:
-            self._action(k, SCRIPT, item)
+        deliveries: list[OperatorRequest | OperatorCancel | None] = []
+        script = [self._scripted(k, item, deliveries) for item in scripted]
         relay = self._relay
         items = relay.take() if relay is not None and ready(relay.target) else ()
-        if not items:
+        if not items and all("answer" not in entry for entry in script):
             return list(scripted), None
-        deliveries: list[OperatorRequest | OperatorCancel | None] = list(scripted)
         taken: dict[int, int] = {}  # ticket -> its delivery index, this step
         entries = []
         for item in items:
@@ -155,8 +156,23 @@ class Admission:
                 entry = self._cancel(k, item, deliveries, taken)
                 if entry is not None:
                     entries.append(entry)
-        note = {"script": [_scripted_entry(item) for item in scripted], "relay": entries}
+        note = {"script": script, "relay": entries}
         return [item for item in deliveries if item is not None], note
+
+    def _scripted(self, k: int, item: OperatorRequest | OperatorCancel, deliveries: list) -> dict:
+        """A script's cancel for a request it sent this step is resolved here,
+        as for the relay: the request is never delivered."""
+        self._action(k, SCRIPT, item)
+        entry = _scripted_entry(item)
+        sent = next((i for i, d in enumerate(deliveries) if isinstance(d, OperatorRequest)
+                     and isinstance(item, OperatorCancel) and d.id == item.id), None)
+        if sent is None:
+            deliveries.append(item)
+            return entry
+        deliveries[sent] = None
+        entry["answer"] = dict(CANCELLED)
+        self._script_answers.append((item.target, Response(item.id, dict(CANCELLED))))
+        return entry
 
     def _request(self, k: int, item: RelayRequest, deliveries: list, taken: dict[int, int]) -> dict:
         request_id = self._ids.next()

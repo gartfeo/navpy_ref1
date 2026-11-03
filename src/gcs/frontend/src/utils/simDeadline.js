@@ -18,3 +18,20 @@ export function deadlineHeaders(ms) {
 export function isLockstepRun(env = import.meta.env) {
   return env?.VITE_NAVPY_LOCKSTEP === '1';
 }
+
+/**
+ * A request's time limit. On hardware the page aborts the fetch after `ms`.
+ * On a lockstep run it sets no wall timer: the run's `deadline_s` answers
+ * instead (504, see isSimDeadline), so host speed never decides what the page
+ * sends next. Spread `headers` into the fetch; call `clear` when it settles.
+ */
+export function requestDeadline(ms, lockstep = isLockstepRun()) {
+  const ctrl = new AbortController();
+  const timer = lockstep ? null : setTimeout(() => ctrl.abort(), ms);
+  return { signal: ctrl.signal, headers: deadlineHeaders(ms), clear: () => clearTimeout(timer) };
+}
+
+/** True for the answer a lockstep run gives when a request's `deadline_s` passed. */
+export function isSimDeadline(res, lockstep = isLockstepRun()) {
+  return lockstep && res.status === 504;
+}

@@ -37,6 +37,7 @@ from typing import Any
 import uvicorn
 
 from navpy.sim.lockstep.coordinator_admission import RelayCancel, RelayInbox, RelayRequest
+from navpy.sim.lockstep.part_wire_codec import dumps
 
 DEADLINE_HEADER = b"x-navpy-deadline-s"
 CLIENT_ID_HEADER = b"x-gcs-request-id"
@@ -45,6 +46,9 @@ CANCEL_PREFIX = "/__relay/cancel/"
 PAGE_QUEUE = 1000
 #: HTTP status of each coordinator or backend outcome that is not a response.
 CANCELLED_STATUS, DEADLINE_STATUS, ENDED_STATUS = 499, 504, 503
+#: Seconds uvicorn waits for open connections at stop before it cancels them
+#: (a page that sent its headers but never its body).
+STOP_GRACE_S = 2.0
 
 _log = logging.getLogger(__name__)
 
@@ -127,7 +131,7 @@ class AppRelay:
     # -- lifetime --------------------------------------------------------------
     def start(self, port: int, host: str = "127.0.0.1") -> None:
         config = uvicorn.Config(self, host=host, port=port, lifespan="off", log_level="warning",
-                                ws="websockets-sansio")
+                                ws="websockets-sansio", timeout_graceful_shutdown=STOP_GRACE_S)
         self._server = uvicorn.Server(config)
         self._loop = asyncio.new_event_loop()
         started = threading.Event()
@@ -157,8 +161,11 @@ class AppRelay:
         self._call(self._end, done)
         done.wait(5.0)
         self._server.should_exit = True
-        self._thread.join(10.0)
-        self._thread = None
+        self._thread.join(STOP_GRACE_S + 5.0)
+        alive, self._thread = self._thread.is_alive(), None
+        if alive:  # uvicorn cancels open connections after its grace: this is a bug
+            self.notes.append(("stop_timeout", None))
+            raise RuntimeError("the app relay did not stop")
 
     def _end(self, done: threading.Event) -> None:
         self._ended = True
@@ -225,6 +232,7 @@ class AppRelay:
                 if not (math.isfinite(deadline) and deadline > 0):
                     raise ValueError(f"deadline {deadline}")
                 payload["deadline_s"] = deadline
+            dumps(payload)  # the journal's encoding: no NaN or infinity (``1e400``)
         except ValueError as error:  # never sent to the run
             await _reply(send, 400, json.dumps({"detail": f"not carried into the run: {error}"}).encode())
             return

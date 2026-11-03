@@ -171,3 +171,36 @@ def test_the_pacer_sleeps_until_wall_start_plus_t_k_and_never_when_behind():
     now[0] = 100.5  # slower than 1x: no sleep
     pacer(1_040_000)
     assert len(slept) == 1
+
+
+def test_a_script_cancel_in_the_step_that_sent_its_request_is_resolved_by_the_coordinator():
+    admission, relay, ids = _admission()
+    request = OperatorRequest(BACKEND, ids.next(), _http("/x"))
+    kept = OperatorRequest(BACKEND, ids.next(), _http("/y"))
+    deliveries, note = admission.admit(1, [request, kept, OperatorCancel(BACKEND, request.id)],
+                                       lambda ordinal: True)
+    assert deliveries == [kept]  # the handler never starts
+    assert note == {"script": [{"kind": "request", "id": [0, 1], "target": BACKEND,
+                                "payload": payload_hash(_http("/x"))},
+                               {"kind": "request", "id": [0, 2], "target": BACKEND,
+                                "payload": payload_hash(_http("/y"))},
+                               {"kind": "cancel", "id": [0, 1], "target": BACKEND, "answer": CANCELLED}],
+                    "relay": []}
+    # The script gets its answer in its next inbox, once.
+    assert admission.route([], []) == ((BACKEND, Response((0, 1), CANCELLED)),)
+    assert admission.route([], []) == ()
+
+
+def test_a_script_cancel_mixed_with_relay_traffic_and_a_later_script_cancel_is_delivered():
+    admission, relay, ids = _admission()
+    request = OperatorRequest(BACKEND, ids.next(), _http("/x"))
+    relay.inbox.submit(RelayRequest(1, _http("/r")))
+    deliveries, note = admission.admit(1, [request, OperatorCancel(BACKEND, request.id)],
+                                       lambda ordinal: True)
+    assert deliveries == [OperatorRequest(BACKEND, (0, 2), _http("/r"))]
+    assert note["script"][1]["answer"] == CANCELLED and note["relay"][0]["id"] == [0, 2]
+    assert relay.answers == []  # the script's answer never goes to the relay
+    later = OperatorRequest(BACKEND, ids.next(), _http("/z"))
+    admission.admit(2, [later], lambda ordinal: True)
+    deliveries, note = admission.admit(3, [OperatorCancel(BACKEND, later.id)], lambda ordinal: True)
+    assert deliveries == [OperatorCancel(BACKEND, later.id)] and note is None

@@ -39,7 +39,12 @@ class AppStack:
         return f"http://{RELAY_HOST}:{ip.frontend_port(self.slot)}"
 
     def stop(self) -> None:
-        self.relay.stop()
+        try:
+            self.relay.stop()
+        finally:
+            self._stop_frontend()
+
+    def _stop_frontend(self) -> None:
         if self.frontend is not None:
             if os.name == "nt":
                 subprocess.run(["taskkill", "/PID", str(self.frontend.pid), "/T", "/F"],

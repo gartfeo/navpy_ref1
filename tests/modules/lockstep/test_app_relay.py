@@ -98,6 +98,8 @@ def test_a_body_that_is_not_json_never_enters_the_run(relay):
     assert reply.status == 400
     reply = _send(relay, "GET", "/api/settings", headers={"X-NavPy-Deadline-S": "nan"}).getresponse()
     assert reply.status == 400
+    for body in (b'{"x": 1e400}', b'{"a": [NaN]}', b'{"a": {"b": -Infinity}}'):  # the journal has no such number
+        assert _send(relay, "POST", "/api/settings", body).getresponse().status == 400
     assert relay.take() == ()
 
 
@@ -108,6 +110,19 @@ def test_stop_answers_open_requests_and_refuses_new_ones():
     _taken(app, 1)
     app.stop()
     assert pending.getresponse().status == 503
+
+
+def test_stop_ends_a_request_whose_body_never_came():
+    app = AppRelay(target=4)
+    app.start(0)
+    stalled = socket.create_connection(("127.0.0.1", app.port), timeout=WAIT_S)
+    stalled.sendall(b"POST /api/settings HTTP/1.1\r\nHost: x\r\nContent-Length: 100\r\n\r\n{")
+    time.sleep(0.2)  # let the relay start reading the body
+    started = time.monotonic()
+    app.stop()  # raises if its thread outlives the grace
+    assert time.monotonic() - started < WAIT_S
+    assert app.take() == ()
+    stalled.close()
 
 
 def test_telemetry_goes_to_every_page_and_a_new_page_gets_the_merged_state(relay):

@@ -27,7 +27,7 @@ import {
 import { prunePendingVehicles, upsertPendingVehicles } from '../utils/pendingVehicles';
 import { fenceObservationFromDownload } from '../utils/fenceIntent';
 import { emitDiagnostic } from '../utils/diagnostics';
-import { deadlineHeaders } from '../utils/simDeadline';
+import { requestDeadline } from '../utils/simDeadline';
 
 // The best-effort AAS read after a plan download; its sim-time deadline on lockstep.
 const PARAMS_TIMEOUT_MS = 10000;
@@ -187,13 +187,10 @@ export default function useVehicleConnection({
         // Best-effort + bounded: a hung /params fetch must not stall the caller
         // (this runs after the download flag is cleared, but we still don't want
         // a dangling request); a failure/timeout just yields null.
-        const ctrl = new AbortController();
-        const timer = setTimeout(() => ctrl.abort(), PARAMS_TIMEOUT_MS);
-        return fetch(`/api/vehicles/${sid}/params`, {
-          signal: ctrl.signal, headers: deadlineHeaders(PARAMS_TIMEOUT_MS),
-        })
+        const t = requestDeadline(PARAMS_TIMEOUT_MS);
+        return fetch(`/api/vehicles/${sid}/params`, { signal: t.signal, headers: t.headers })
           .then((r) => r.ok ? r.json() : null).catch(() => null)
-          .finally(() => clearTimeout(timer))
+          .finally(t.clear)
           .then((r) => ({
             sys_id: sid,
             targ_wps: parseInt(r?.params?.targ_wps) || 0,
