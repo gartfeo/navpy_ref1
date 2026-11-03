@@ -138,7 +138,7 @@ def fit(joined: Joined) -> dict[str, Any]:
     attitude, gimbal = calibration_pairs(joined)
     result: dict[str, Any] = {"schema": FIT_SCHEMA, "run_ids": sorted(joined.log.run_ids),
                               "source_id": joined.config.source_id, "link_id": joined.config.link_id,
-                              "method": {"statistic": "median", "interval": "moving-block bootstrap 95 %",
+                              "method": {"statistic": "median", "interval": "block bootstrap 95 % over occupied bins",
                                          "block_s": BOOTSTRAP_BLOCK_S, "min_pairs": MIN_PAIRS,
                                          "min_blocks": MIN_BLOCKS}}
     failures = []

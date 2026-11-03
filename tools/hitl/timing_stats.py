@@ -1,9 +1,11 @@
 """Statistics for step 12's timing check: skew summaries and the fitted constants' uncertainty.
 
 A constant C is the median of its calibration pairs. Neighbouring pairs share receipts and the video map's rolling
-envelope, so they are not independent; the median's 95 % interval is a moving-block bootstrap (Kuensch 1989), the
-established resampling for dependent series, with blocks as long as the map's slowest memory (its 10 s rate
-window). The bootstrap is seeded, so a fit is reproducible.
+envelope, so they are not independent; the median's 95 % interval is a non-overlapping block bootstrap (Carlstein
+1986; Kuensch 1989 for its moving-block form), the established resampling for dependent series. A block is one
+time bin as long as the map's slowest memory (its 10 s rate window), so pairs in one bin stay together, and every
+occupied bin is drawn with the same chance whatever its pair count. The bootstrap is seeded, so a fit is
+reproducible.
 """
 from __future__ import annotations
 
@@ -62,40 +64,39 @@ class MedianFit:
                 "span_s": self.span_s}
 
 
+def _bins(times_s: Sequence[float], block_s: float) -> list[int]:
+    """The block_s bin of each time, counted from the first time."""
+    first = min(times_s)
+    return [int(math.floor((time - first) / block_s)) for time in times_s]
+
+
 def block_count(times_s: Sequence[float], block_s: float) -> int:
     """How many block_s bins from the first time hold at least one pair: empty stretches are no evidence."""
-    first = min(times_s)
-    return len({int(math.floor((time - first) / block_s)) for time in times_s})
+    return len(set(_bins(times_s, block_s)))
 
 
 def fit_median(values: Sequence[float], times_s: Sequence[float], block_s: float) -> MedianFit:
-    """The median of ``values`` (at ``times_s``) and its moving-block bootstrap interval.
+    """The median of ``values`` (at ``times_s``) and its block bootstrap interval over occupied block_s bins.
 
-    Blocks are by time, not by count: each is every pair in [t_i, t_i + block_s) from a pair i whose whole window
-    lies inside the series, so uneven sampling or gaps never shorten a block's time. Each resample joins random
-    blocks until it holds as many pairs as the series.
+    Each resample draws as many bins as are occupied, uniformly with replacement, and keeps each drawn bin whole.
     """
     if len(values) != len(times_s) or not values:
         raise ValueError("values and times must be non-empty and the same length")
-    order = np.argsort(np.asarray(times_s, dtype=float), kind="stable")
-    data = np.asarray(values, dtype=float)[order]
-    times = np.asarray(times_s, dtype=float)[order]
-    span = float(times[-1] - times[0])
-    blocks = block_count(times, block_s)
-    count = len(data)
-    candidates = np.flatnonzero(times + block_s <= times[-1])
-    if blocks < MIN_BLOCKS or not len(candidates):
+    data = np.asarray(values, dtype=float)
+    times = np.asarray(times_s, dtype=float)
+    if not np.all(np.isfinite(data)) or not np.all(np.isfinite(times)) or not math.isfinite(block_s) \
+            or block_s <= 0.0:
+        raise ValueError("values, times and the block length must be finite, the block length positive")
+    span = float(times.max() - times.min())
+    bins = np.asarray(_bins(times, block_s))
+    groups = [data[bins == label] for label in np.unique(bins)]
+    blocks = len(groups)
+    if blocks < MIN_BLOCKS:
         raise ValueError(f"pairs fill {blocks} blocks of {block_s:g} s, fewer than {MIN_BLOCKS}")
-    ends = np.searchsorted(times, times + block_s, side="left")
+    count = len(data)
     rng = np.random.default_rng(BOOTSTRAP_SEED)
-    medians = np.empty(BOOTSTRAP_RESAMPLES)
-    for resample in range(BOOTSTRAP_RESAMPLES):
-        pieces, held = [], 0
-        while held < count:
-            start = candidates[rng.integers(0, len(candidates))]
-            pieces.append(data[start:ends[start]])
-            held += ends[start] - start
-        medians[resample] = np.median(np.concatenate(pieces)[:count])
+    picks = rng.integers(0, blocks, size=(BOOTSTRAP_RESAMPLES, blocks))
+    medians = np.array([np.median(np.concatenate([groups[index] for index in row])) for row in picks])
     tail = (1.0 - CONFIDENCE) / 2.0 * 100.0
     lower, upper = np.percentile(medians, [tail, 100.0 - tail])
     return MedianFit(float(np.median(data)), float(lower), float(upper), count, blocks, span)

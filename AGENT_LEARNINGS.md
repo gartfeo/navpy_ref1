@@ -2198,5 +2198,5 @@
 - An association reads only a window of history (attitude_history_reader(count)), so a receipt log written from it starts at the first window. Tests that expect "every sample" must expect the window's samples.
 - Python's json.loads accepts NaN, and a NaN skew makes `x > budget` false, so a check passes. Parse with parse_constant that raises, and write budget tests as `not ok <= budget`.
 - An offline fit must refuse the same brackets the live code refuses. Replaying the live function (interpolate_attitude_at with the logged limits) is safer than re-deriving its rules.
-- A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data. Build blocks by time and count only occupied bins.
+- A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data, and so does one that picks block starts per pair (dense stretches win). Redraw whole occupied time bins, each equally likely.
 - Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.

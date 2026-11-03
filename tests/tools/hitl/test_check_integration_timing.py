@@ -366,6 +366,22 @@ def test_blocks_count_only_bins_that_hold_pairs():
         fit_median([0.0] * len(cluster), cluster, 10.0)
 
 
+def test_every_occupied_bin_is_drawn_alike_whatever_its_pair_count():
+    # 30 zero pairs in the first bin, then one pair of 0.01 in each of 20 later bins: weighting by pairs would
+    # leave the bootstrap's medians almost all at zero, weighting by bins gives them the bins' spread.
+    times = [0.01 * index for index in range(30)] + [10.0 * index for index in range(1, 21)]
+    values = [0.0] * 30 + [0.01] * 20
+    fitted = fit_median(values, times, 10.0)
+    assert fitted.blocks == 21 and fitted.upper_s == pytest.approx(0.01)
+
+
+def test_the_bootstrap_refuses_non_finite_or_huge_times():
+    with pytest.raises(ValueError):
+        fit_median([0.0, 0.0, 0.0], [0.0, 10.0, float("inf")], 10.0)
+    huge = [1e18 + 128.0 * index for index in range(5)]       # bins still separate; no loop to stall
+    assert fit_median([0.0] * 5, huge, 10.0).blocks == 5
+
+
 def test_bootstrap_interval_reflects_correlation_within_blocks():
     # Six 10 s stretches, each with its own offset (correlated within a block): the median's interval must reflect
     # the offsets' spread, not the tiny noise inside each block.
