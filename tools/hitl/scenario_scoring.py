@@ -37,8 +37,17 @@ TERRAIN_LINE = re.compile(r"NavPyScenario terrain check: dock base ([+-]?\d+\.\d
 # the log for Unreal's ready line).
 POSE_LINES = ("NavPyBoardPose ", "NavPy ChArUco board on dock", "NavPy ChArUco board centre lat",
               "NavPy dock terrain check (WGS84 ellipsoid)")
-# Unreal writes JSON numbers as doubles. The board's pose and the terrain snap are kept, not scored.
-UNSCORED_FIELDS = ("board", "terrain_snap_cm")
+
+
+def _numbers(count: int) -> jc.Check:
+    return jc.rule(lambda v: isinstance(v, list) and len(v) == count and all(map(jc.is_number, v)),
+                   f"must be {count} finite numbers")
+
+
+# Unreal writes JSON numbers as doubles. The board must be there (no board, no scene) but its pose is not scored.
+BOARD_SPEC: Mapping[str, jc.Check] = {
+    "location_cm": _numbers(3), "quat": _numbers(4), "scale": _numbers(3), "width_cm": jc.positive,
+    "height_cm": jc.positive, "centre_lat_lon_height_m": _numbers(3)}
 APPLIED_SPEC: Mapping[str, jc.Check] = {
     "schema_version": jc.rule(lambda v: jc.is_number(v) and v == service.UNREAL_SCENE_SCHEMA_VERSION,
                               f"must be {service.UNREAL_SCENE_SCHEMA_VERSION}"),
@@ -46,13 +55,18 @@ APPLIED_SPEC: Mapping[str, jc.Check] = {
     "east_mm": jc.finite,
     "north_mm": jc.finite,
     "yaw_mdeg": jc.finite,
+    "terrain_snap_cm": jc.finite,
+    "level": jc.text,
+    "board": jc.obj(BOARD_SPEC),
 }
 
 
 def audit(scenario_dir: Path) -> dict[str, Any]:
-    """The ledger's deliveries by consumer, refused requests, deliveries outside the three, and any file in the folder
-    that neither the service, Unreal's readback nor scoring wrote."""
+    """The ledger's deliveries by consumer, refused requests, deliveries outside the three, the declared consumers
+    delivered other than once or without their file, and any file in the folder that neither the service, Unreal's
+    readback nor scoring wrote."""
     scenario_dir = Path(scenario_dir)
+    declared = sp.read_public(scenario_dir)["consumers"]
     lines = [json.loads(text) for text in (scenario_dir / sp.LEDGER_FILE).read_text(encoding="utf-8").splitlines()
              if text.strip()]
     delivered = [line for line in lines if not line.get("refused")]
@@ -67,6 +81,9 @@ def audit(scenario_dir: Path) -> dict[str, Any]:
             "outside_allowed": sorted({line["consumer"] for line in delivered
                                        if line["consumer"] not in sp.ALLOWED_CONSUMERS}),
             "refused": sorted({line["consumer"] for line in lines if line.get("refused")}),
+            "missing": sorted(name for name in declared
+                              if not counts.get(name) or not sp.consumer_file(scenario_dir, name).is_file()),
+            "repeated": sorted(name for name, count in counts.items() if count > 1),
             "stray_files": sorted(str(path.relative_to(scenario_dir)) for path in scenario_dir.rglob("*")
                                   if path.is_file() and path not in expected)}
 
@@ -85,14 +102,13 @@ def _readback(scenario_dir: Path) -> tuple[Optional[dict[str, Any]], list[str]]:
         data = jc.read_json(path)
         if not isinstance(data, dict):
             raise RecordError([f"{UNREAL_APPLIED_FILE} must be an object"])
-        jc.require({key: value for key, value in data.items() if key not in UNSCORED_FIELDS}, APPLIED_SPEC,
-                   UNREAL_APPLIED_FILE, lambda _: [])
+        jc.require(data, APPLIED_SPEC, UNREAL_APPLIED_FILE, lambda _: [])
     except RecordError as exc:
         return None, [f"{UNREAL_APPLIED_FILE}: {exc}"]
     dock = {key: _whole(data[key]) for key in ("east_mm", "north_mm", "yaw_mdeg")}
     if None in dock.values():
         return None, [f"{UNREAL_APPLIED_FILE} has a dock move that is not whole mm/mdeg"]
-    return {"scene_hash": data["scene_hash"], **dock}, []
+    return {"scene_hash": data["scene_hash"], "level": data["level"], **dock}, []
 
 
 def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
@@ -119,6 +135,8 @@ def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
             problems.append("Unreal applied another scenario file")
         if rebuilt_hash != delivered["scene_hash"]:
             problems.append("the scene Unreal built does not reproduce the delivered scene hash")
+        if applied["level"] != expected["level"]:
+            problems.append("Unreal loaded another level than the scene's")
     if len(terrain) != 1:
         problems.append(f"Unreal logged {len(terrain)} dock terrain checks, not 1")
     else:
@@ -129,9 +147,9 @@ def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
     if leaks:
         problems.append(f"Unreal's log carries pose lines: {', '.join(leaks)}")
     ledger = audit(scenario_dir)
-    if ledger["outside_allowed"] or ledger["refused"] or ledger["stray_files"]:
-        problems.append("the scenario folder shows a delivery outside the allowed consumers or a file the service "
-                        "did not write")
+    if any(ledger[key] for key in ("outside_allowed", "refused", "missing", "repeated", "stray_files")):
+        problems.append("the scenario folder shows a delivery outside the allowed consumers, a consumer not "
+                        "delivered exactly once, or a file the service did not write")
     verdict = {"scene_hash": delivered["scene_hash"], "rebuilt_scene_hash": rebuilt_hash,
                "reproduced": not problems, "problems": problems, "audit": ledger}
     out = scenario_dir / sp.PRIVATE_DIR / VERDICT_FILE

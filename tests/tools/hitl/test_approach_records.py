@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from navpy.app.perception.integration_timing_input import load_integration_timing
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from tests.tools.hitl import media_fakes
 from tools.hitl import approach_records as ar
@@ -457,3 +458,14 @@ def test_integration_timing_of_another_run_is_refused(model_dir):
     other = IntegrationTimingConfig(**{**TIMING.__dict__, "run_id": "r002-pc-sitl"})
     with pytest.raises(RecordError, match="another run's"):
         make(model_dir, integration_timing=other)
+
+
+def test_navpy_reads_the_same_config_from_records_of_two_scenes(model_dir, tmp_path):
+    """navpy's only read of the record (its acquisition and timing input) does not change with the scene."""
+    other = {**SCENARIO, "seed_index": 4, "scene_hash": "f" * 64}
+    configs = []
+    for name, scenario in (("one.json", SCENARIO), ("two.json", other)):
+        path = tmp_path / name
+        path.write_text(json.dumps(make(model_dir, scenario=scenario)), encoding="utf-8")
+        configs.append(load_integration_timing(path))
+    assert configs[0] == configs[1] == TIMING

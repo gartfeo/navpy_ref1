@@ -102,8 +102,8 @@ def test_prepare_delivers_to_the_series_consumers_and_the_ledger_shows_them(tmp_
     folder = tmp_path / "scenario"
     service.prepare(_series(tmp_path), 0, folder)
     audit = scoring.audit(folder)
-    assert audit == {"deliveries": {"unreal": 1, "scoring": 1}, "outside_allowed": [], "refused": [],
-                     "stray_files": []}
+    assert audit == {"deliveries": {"unreal": 1, "scoring": 1}, "outside_allowed": [], "refused": [], "missing": [],
+                     "repeated": [], "stray_files": []}
     unreal = json.loads(sp.consumer_file(folder, "unreal").read_text(encoding="utf-8"))
     assert set(unreal) == {"schema_version", "scene_hash", "dock_offset_east_mm", "dock_offset_north_mm",
                            "dock_yaw_offset_mdeg"}
@@ -146,17 +146,22 @@ def test_a_public_half_missing_a_consumer_or_naming_another_is_refused(tmp_path,
 
 # --- scoring: Unreal built the delivered scene, and its log carries no pose -----------------------------------------
 
+BOARD = {"location_cm": [1.0, 2.0, 3.0], "quat": [0.0, 0.0, 0.0, 1.0], "scale": [1.0, 1.0, 1.0], "width_cm": 100.0,
+         "height_cm": 100.0, "centre_lat_lon_height_m": [40.0, 44.0, 1100.0]}
+
+
 def _unreal(folder: Path, log: Path, east_off_mm=0, scene_hash=None, terrain="+0.03", extra="",
-            applied=True) -> None:
+            applied=True, level=None, board=BOARD) -> None:
     """What Unreal leaves: its private readback beside its file (numbers as doubles) and its log lines."""
     delivered = json.loads(sp.consumer_file(folder, "scoring").read_text(encoding="utf-8"))
     dock = {**delivered["scene"]["dock"]}
     dock["east_mm"] += east_off_mm
     digest = scene_hash or delivered["scene_hash"]
+    readback = {"schema_version": 1.0, "scene_hash": digest, **{key: float(value) for key, value in dock.items()},
+                "terrain_snap_cm": -12.5, "level": level or delivered["scene"]["level"], "board": board}
     if applied:
         (folder / sp.PRIVATE_DIR / scoring.UNREAL_APPLIED_FILE).write_text(json.dumps(
-            {"schema_version": 1.0, "scene_hash": digest, **{key: float(value) for key, value in dock.items()},
-             "board": {"location_cm": [1.0, 2.0, 3.0]}}), encoding="utf-8")
+            {key: value for key, value in readback.items() if value is not None}), encoding="utf-8")
     log.write_text(f"LogTemp: Display: NavPyScenario applied scene_hash={digest}\n"
                    f"LogTemp: Display: NavPyScenario terrain check: dock base {terrain} m above terrain, "
                    f"origin +0.00 m above terrain\n{extra}", encoding="utf-8")
@@ -184,10 +189,31 @@ def test_scoring_reproduces_the_scene_from_unreals_readback(tmp_path):
     ({"extra": "LogTemp: NavPyBoardPose loc=1,2,3 quat=0,0,0,1\n"}, "carries pose lines"),
     ({"extra": "LogTemp: Error: NavPyScenario refused: no single dock deck\n"}, "refused the scenario file"),
     ({"applied": False}, "wrote no unreal_applied.json"),
+    ({"board": None}, "board is missing"),
+    ({"board": {**BOARD, "quat": [0.0, 1.0]}}, "board.quat must be 4 finite numbers"),
+    ({"level": "/Game/Other"}, "another level"),
 ])
 def test_scoring_refuses_a_scene_unreal_did_not_build_or_a_log_that_shows_it(tmp_path, unreal, problem):
     verdict, _ = _verify(tmp_path, **unreal)
     assert not verdict["reproduced"] and any(problem in item for item in verdict["problems"]), verdict["problems"]
+
+
+@pytest.mark.parametrize("damage, key", [("unlink", "missing"), ("repeat", "repeated"), ("unledger", "missing")])
+def test_a_consumer_not_delivered_exactly_once_fails_the_scene(tmp_path, damage, key):
+    folder, log = tmp_path / "scenario", tmp_path / "unreal.log"
+    service.prepare(_series(tmp_path, consumers=["unreal", "contact", "scoring"]), 0, folder)
+    _unreal(folder, log)
+    ledger = folder / sp.LEDGER_FILE
+    lines = ledger.read_text(encoding="utf-8").splitlines(keepends=True)
+    contact = [line for line in lines if '"contact"' in line]
+    if damage == "unlink":
+        sp.consumer_file(folder, "contact").unlink()
+    elif damage == "repeat":
+        ledger.write_text("".join(lines + contact), encoding="utf-8")
+    else:
+        ledger.write_text("".join(line for line in lines if line not in contact), encoding="utf-8")
+    verdict = scoring.verify_unreal(folder, log)
+    assert verdict["audit"][key] == ["contact"] and not verdict["reproduced"], verdict
 
 
 def test_without_an_unreal_log_or_a_scoring_file_nothing_is_reproduced(tmp_path):
