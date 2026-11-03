@@ -275,8 +275,9 @@ normal camera-profile altitude.
 **What a normal run already does:**
 - Connect starts NavPy per vehicle (`navpy_sim.py:251-256`), and the telemetry
   loop restarts dead ones (`navpy_sim_runtime.py:176-218`).
-- Browser discovery starts the ESP32 sim when `launch_type` is `container`
-  (`App.jsx:476`, `vehicles.py:92`, `control.py:253-276`).
+- The backend's startup auto-connect and browser discovery start the ESP32 sim
+  when `launch_type` is `container` (`startup_autoconnect.py`, `App.jsx:476`,
+  `vehicles.py:92`, `control.py:255-278`).
 - A UI upload writes each UAV's `targ_wps`/`nav_last_wp` from the plan's
   `sim_dock_wps`/`detect_after_wps`, then restarts and checks the companions
   (`useMissionUpload.js:168-190`). Other AAS params survive that restart
