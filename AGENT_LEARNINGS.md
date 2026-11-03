@@ -2213,6 +2213,9 @@
   disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
   effects and check each one; a test that removes the call and fails proves the new one is needed.
 
+- 2026-11-03 (dev sim step 10): `pytest tests` skips `tests/gcs` (pyproject addopts `--ignore=tests/gcs`). Run `tests/gcs` by path with `-o addopts=` too, or a GCS test change goes unchecked.
+- 2026-11-03 (dev sim step 10): a source-text scanner test drew six Codex rounds of JS syntax edge cases. Fail closed on any syntax the scanner does not read, from the start. Then judge each later finding by one question: does it miss or misread a request in the real source?
+
 ## HITL step 12: offline timing check (2026-11-03)
 
 - A PTS-delta join from a short receiver window to a long sender log can fit several anchors: a shift can put one of navpy's own gaps on sender frames navpy never got. I first picked the anchor implying the fewest lost frames; Codex showed a two-frame counterexample where that picks the wrong one. A lost frame leaves no trace, so only a single fitting anchor identifies frames. Test a receiver window that ends early, and spread sender gaps across synthetic logs as real uneven output does.
@@ -2260,3 +2263,9 @@
 - Python edits through Bash heredocs turn "\b" into a backspace byte; check edited files for \x08.
 - Under heavy PC load (other programs at 100% CPU) the Windows emulator took over 30 s to print its ready line;
   a smoke script must still stop what it started when a start fails.
+## Rehearsals (ready plan step 8, 2026-11-03)
+
+- A hand demo from a live tester: set `$env:BROWSER` to a no-op exe for the launch only, so `delivery_demo.py`'s `webbrowser.open` does not open the owner's Chrome, and use the built-in pane. The native plan file picker is out of reach there: set a File built from the plan JSON on the page's input and dispatch change. Launch needs real mouse coordinates for its hold. Cards come in pairs and last 30 s; press by DOM, not by a screenshot that lags about 5 s.
+- "The exact investor configuration" was not reproducible: the 1 Nov plan was built in the UI and never saved (todo 176). Check what a past run actually loaded (timeline `plan_rendered`, saved settings hubs) before calling a rehearsal a copy of it.
+- I first read the sim battery rate from the takeoff sag (1 % per 0.3 s); Codex measured 1 % per second over the 90-50 % stretch. Take a rate from a stretch, not from the first readings.
+- Scratchpad files vanish when the session restarts; keep analysis scripts with the evidence (`.logs/step8`).
