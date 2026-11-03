@@ -414,8 +414,8 @@ step 8 worktree). Run 1 denied one card, left others to time out and approved
 the rest. Run 2 used the 1 Nov run's settings file, a 60 min share on 8 CPUs
 and the committed plan file, with every card approved: all three UAVs DOCKED
 (sim), 21-63 s after Launch. It was not the 1 Nov plan: that one was built in
-the UI (docks on UAV 1's route, one hub "Other1") and not saved (todo 176), so
-it cannot be flown again. Run 2 also had step 6's ESP32 auto-start, which 1 Nov
+the UI (docks on UAV 1's route, one hub "Other1") and not saved (todo 176); its missions
+survive only as BIN CMD rows, and an exact replay was not tried. Run 2 also had step 6's ESP32 auto-start, which 1 Nov
 did not.
 
 Before:
@@ -423,8 +423,8 @@ Before:
   of your own saved to a file and rehearsed first.
 - Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
   the demo ends: the share does not cover WSL, and 8 CPUs are not proven
-  enough. Both rehearsals ran beside other chats' test runs (2-3 cores of
-  Windows processes, measured just before each run).
+  enough. Both rehearsals ran beside other chats' Python processes, 2-3 cores
+  measured just before each run (`.logs/step8/load_notes.txt`).
 - Launch with `delivery_demo.py --cpu-share-min N`, N up to 120, long enough
   for setup, every flight and a margin (1 Nov and run 2: 60).
 - The Ready line must name a live share of 8 or more CPUs, with an end time
@@ -439,14 +439,17 @@ During:
 - One GCS page, opened after Ready (reload one opened earlier). Load plan,
   Upload, Launch (hold, then confirm "Launch container"). The upload's
   "3 vehicles need attention" caution is the sim's arming checks; Launch stays
-  enabled. The ESP32 sim now starts by itself.
+  enabled. The ESP32 sim now starts by itself. The upload view's hub pickers
+  may read "-- None --" (todo 250); run 2 flew so and UAV 1 still went to its
+  hub, so judge the hubs by the plan file and the map, not the pickers.
 - Approve each card within its 30 s; a card left alone is denied at 30 s.
   - Denied in flight: the UAV goes on with its mission to its hub.
   - Timed out in flight: asked again at once, on a card that looks like the
     last one (todo 249).
   - Timed out at the hub: the UAV orbits the hub (500 m) and was not asked
     again in the 3 minutes recorded (todo 248). No recovery was rehearsed, so
-    do not let a hub card time out.
+    do not let a hub card time out; if one does, say the UAV is holding at
+    its hub and go on with the others.
 - NavPy restarts at each upload. As a precaution, not a proven need, fly soon
   after it: rehearsal outcomes came 85-156 s after the restart with no
   generation-2 collection (largest recorded pause 2.65 ms, generation 0 and
