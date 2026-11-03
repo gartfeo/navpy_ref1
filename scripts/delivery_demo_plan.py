@@ -6,8 +6,13 @@ track waypoints, so the area is narrowed and the lines are 150 m apart: two
 south-end turn waypoints of the lowest zone become the docks, as close as the
 fixture's d1 and d2. See docs/design/delivery_demo_prep.md, "Normal-run demo".
 
-    python scripts/delivery_demo_plan.py           # rewrite the plan file
-    python scripts/delivery_demo_plan.py --check   # fail if it is stale
+A second plan file keeps all of that but flies the area the owner drew on the
+map on 2026-11-03: a 1.26 x 0.77 km box along the A327 road, south-west of the
+launch point. The planner aims its lines at the launch point, so they cross the
+box diagonally; the docks fall on its west edge.
+
+    python scripts/delivery_demo_plan.py           # rewrite both plan files
+    python scripts/delivery_demo_plan.py --check   # fail if either is stale
 """
 
 from __future__ import annotations
@@ -28,6 +33,12 @@ from scripts.eval_delivery_fixture import FIXTURE_PATH, load_fixture  # noqa: E4
 from scripts.eval_gcs_demo_ports import JsonValue  # noqa: E402
 
 PLAN_PATH = Path(__file__).resolve().parent / "delivery_demo_plan.json"
+DRAWN_PLAN_PATH = PLAN_PATH.with_name("delivery_demo_plan_drawn.json")
+#: The owner's drawn area, corners read off the map drawing (about 4 m a pixel).
+DRAWN_AREA = (
+    {"lat": 40.310307, "lon": 44.45409}, {"lat": 40.303663, "lon": 44.456537},
+    {"lat": 40.300652, "lon": 44.442203}, {"lat": 40.307263, "lon": 44.4398},
+)
 #: Line spacing: the distance between the two dock waypoints, the fixture's
 #: d1-d2 distance. Both stay in the ZR10's zoom-1 frame on the way to the first.
 LINE_SPACING_M = 150.0
@@ -84,21 +95,33 @@ def _hub_index(hubs: list, hub: Mapping[str, JsonValue]) -> int:
     return matches[0]
 
 
+def drawn_plan_file(fixture: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    """plan_file over DRAWN_AREA; everything else, hubs included, is the same."""
+    return {**plan_file(fixture), "polygon": [dict(corner) for corner in DRAWN_AREA]}
+
+
 def render(fixture: Mapping[str, JsonValue]) -> str:
     return json.dumps(plan_file(fixture), indent=2) + "\n"
 
 
+def render_drawn(fixture: Mapping[str, JsonValue]) -> str:
+    return json.dumps(drawn_plan_file(fixture), indent=2) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="fail if the plan file is stale")
+    parser.add_argument("--check", action="store_true", help="fail if a plan file is stale")
     args = parser.parse_args(argv)
-    text = render(load_fixture(FIXTURE_PATH))
+    fixture = load_fixture(FIXTURE_PATH)
+    outputs = {PLAN_PATH: render(fixture), DRAWN_PLAN_PATH: render_drawn(fixture)}
     if args.check:
-        if not PLAN_PATH.exists() or PLAN_PATH.read_text(encoding="utf-8") != text:
-            print(f"{PLAN_PATH} is stale; run: python scripts/delivery_demo_plan.py", file=sys.stderr)
-            return 1
-        return 0
-    PLAN_PATH.write_text(text, encoding="utf-8", newline="\n")
+        stale = [path for path, text in outputs.items()
+                 if not path.exists() or path.read_text(encoding="utf-8") != text]
+        for path in stale:
+            print(f"{path} is stale; run: python scripts/delivery_demo_plan.py", file=sys.stderr)
+        return 1 if stale else 0
+    for path, text in outputs.items():
+        path.write_text(text, encoding="utf-8", newline="\n")
     return 0
 
 

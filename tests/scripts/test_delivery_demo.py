@@ -10,6 +10,7 @@ import sys
 from types import SimpleNamespace
 
 import pytest
+from geographiclib.geodesic import Geodesic
 
 from scripts import delivery_demo as demo
 from scripts import delivery_demo_manifest as manifest
@@ -214,7 +215,41 @@ def test_start_refuses_a_frontend_that_never_answers():
 
 def test_committed_plan_file_is_the_builders_output():
     assert plan.PLAN_PATH.read_text(encoding="utf-8") == plan.render(FIXTURE)
+    assert plan.DRAWN_PLAN_PATH.read_text(encoding="utf-8") == plan.render_drawn(FIXTURE)
     assert plan.main(["--check"]) == 0
+
+
+def test_drawn_plan_changes_only_the_area():
+    original, drawn = plan.plan_file(FIXTURE), plan.drawn_plan_file(FIXTURE)
+    assert {k: v for k, v in drawn.items() if k != "polygon"} == {
+        k: v for k, v in original.items() if k != "polygon"}
+    assert drawn["polygon"] == [dict(corner) for corner in plan.DRAWN_AREA]
+
+
+def test_drawn_area_is_the_owners_box_south_west_of_the_launch_point():
+    corners = plan.DRAWN_AREA
+    sides, bearings = [], []
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        line = Geodesic.WGS84.Inverse(a["lat"], a["lon"], b["lat"], b["lon"])
+        sides.append(line["s12"])
+        bearings.append(line["azi1"])
+    # About 1.26 x 0.77 km, its long sides along the A327 (about 74 deg).
+    assert [round(s / 10) * 10 for s in sides] == [770, 1260, 760, 1260]
+    for turn in (bearings[i] - bearings[i - 1] for i in range(4)):
+        assert turn % 180.0 == pytest.approx(90.0, abs=2.0)
+    launch = FIXTURE["inputs"]["launch_point"]
+    assert all(c["lat"] < launch["lat"] for c in corners)
+    assert sum(c["lon"] for c in corners) / 4 < launch["lon"]
+
+
+def test_plan_check_fails_when_the_drawn_file_is_stale(monkeypatch, tmp_path):
+    for name in ("PLAN_PATH", "DRAWN_PLAN_PATH"):
+        target = tmp_path / getattr(plan, name).name
+        target.write_text(getattr(plan, name).read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(plan, name, target)
+    assert plan.main(["--check"]) == 0
+    plan.DRAWN_PLAN_PATH.write_text("{}\n", encoding="utf-8")
+    assert plan.main(["--check"]) == 1
 
 
 #: Runs the builder as a script, then names the navpy package it imported.

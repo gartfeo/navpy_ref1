@@ -419,4 +419,40 @@ describe('delivery demo plan file', () => {
     expect(metres).toBeGreaterThan(140);
     expect(metres).toBeLessThan(160);
   });
+
+  // The drawn file flies the owner's box along the A327: the planner aims its
+  // lines at the launch point, so they cross the box diagonally and its three
+  // routes have 4, 2 and 3 lines; the docks stay on zone 2's waypoints 1 and 2.
+  it('plans the drawn file with the docks on the lowest zone\'s west-edge turn', async () => {
+    const { default: file } = await import('../../../../../scripts/delivery_demo_plan_drawn.json');
+    const planner = renderPlanner(stubFileIo());
+    planner.load(file);
+
+    const { mission } = planner.result.current;
+    expect(waypointsPerUav(mission.plan)).toEqual([8, 4, 6]);
+    expect(mission.simDockWps).toEqual({ 2: [1, 2] });
+    expect(mission.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
+    expect(mission.deliveryHubAssignments).toEqual([2, 1, 0]);
+    expect(mission.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
+    const [a, b] = [1, 2].map((i) => mission.plan.zones[2].track[i]);
+    const metres = Math.hypot(
+      (a.lat - b.lat) * 111320,
+      (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180),
+    );
+    // 150 m line spacing, met by the box's west edge at about 62 deg.
+    expect(metres).toBeGreaterThan(160);
+    expect(metres).toBeLessThan(180);
+    // Both docks lie on the box's west edge, corners 2 to 3.
+    const [c2, c3] = [file.polygon[2], file.polygon[3]];
+    const xy = (p) => [(p.lon - c2.lon) * 111320 * Math.cos((c2.lat * Math.PI) / 180), (p.lat - c2.lat) * 111320];
+    const [ex, ey] = xy(c3);
+    const edge = Math.hypot(ex, ey);
+    [a, b].forEach((d) => {
+      const [px, py] = xy(d);
+      const along = (px * ex + py * ey) / edge;
+      expect(Math.abs(px * ey - py * ex) / edge).toBeLessThan(2);
+      expect(along).toBeGreaterThan(0);
+      expect(along).toBeLessThan(edge);
+    });
+  });
 });

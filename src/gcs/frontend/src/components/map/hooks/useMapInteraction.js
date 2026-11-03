@@ -4,6 +4,8 @@ import { handleDoubleClick } from './handlers/handleDoubleClick';
 import { handleDragStart } from './handlers/handleDragStart';
 import { handleDragMove } from './handlers/handleDragMove';
 import { handleDragEnd } from './handlers/handleDragEnd';
+import { handleDrawHover } from './handlers/handleDrawHover';
+import { createDrawFinishGuard } from './handlers/drawFinishGuard';
 
 /**
  * Event handler orchestrator — registers Cesium event handlers that delegate
@@ -22,6 +24,7 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     let dragState = null;
     let skipNextClick = false;
+    const finishGuard = createDrawFinishGuard();
     const dragRefs = {
       ...refs,
       lastCorridorDown: { index: -1, setIdx: -1, time: 0 },
@@ -29,6 +32,8 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     // LEFT_CLICK
     handler.setInputAction((click) => {
+      // Every click counts for the guard, also one that ends a drag.
+      finishGuard.onClick(callbacksRef.current, { handled: !skipNextClick });
       if (skipNextClick) {
         skipNextClick = false;
         return;
@@ -38,6 +43,7 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     // LEFT_DOUBLE_CLICK
     handler.setInputAction((click) => {
+      if (finishGuard.skipDoubleClick()) return;
       handleDoubleClick(Cesium, viewer, click, callbacksRef, refs.activeSetIndex);
     }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
@@ -52,7 +58,8 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     // MOUSE_MOVE
     handler.setInputAction((movement) => {
-      handleDragMove(Cesium, viewer, movement, dragState, callbacksRef, refs);
+      if (dragState) handleDragMove(Cesium, viewer, movement, dragState, callbacksRef, refs);
+      else if (refs.drawPreviewRef) handleDrawHover(Cesium, viewer, movement, callbacksRef, refs.drawPreviewRef);
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
     // LEFT_UP
