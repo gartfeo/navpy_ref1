@@ -2224,3 +2224,10 @@
 - An offline fit must refuse the same brackets the live code refuses. Replaying the live function (interpolate_attitude_at with the logged limits) is safer than re-deriving its rules.
 - A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data, and so does one that picks block starts per pair (dense stretches win). Redraw whole occupied time bins, each equally likely.
 - Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.
+
+## Rehearsals (ready plan step 8, 2026-11-03)
+
+- A hand demo from a live tester: set `$env:BROWSER` to a no-op exe for the launch only, so `delivery_demo.py`'s `webbrowser.open` does not open the owner's Chrome, and use the built-in pane. The native plan file picker is out of reach there: set a File built from the plan JSON on the page's input and dispatch change. Launch needs real mouse coordinates for its hold. Cards come in pairs and last 30 s; press by DOM, not by a screenshot that lags about 5 s.
+- "The exact investor configuration" was not reproducible: the 1 Nov plan was built in the UI and never saved (todo 176). Check what a past run actually loaded (timeline `plan_rendered`, saved settings hubs) before calling a rehearsal a copy of it.
+- I first read the sim battery rate from the takeoff sag (1 % per 0.3 s); Codex measured 1 % per second over the 90-50 % stretch. Take a rate from a stretch, not from the first readings.
+- Scratchpad files vanish when the session restarts; keep analysis scripts with the evidence (`.logs/step8`).
