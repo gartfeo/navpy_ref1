@@ -2212,3 +2212,6 @@
 - The startup auto-connect copied the connect route's NavPy start but not its ESP32 start, so Launch stayed
   disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
   effects and check each one; a test that removes the call and fails proves the new one is needed.
+
+- 2026-11-03 (dev sim step 10): `pytest tests` skips `tests/gcs` (pyproject addopts `--ignore=tests/gcs`). Run `tests/gcs` by path with `-o addopts=` too, or a GCS test change goes unchecked.
+- 2026-11-03 (dev sim step 10): a source-text scanner test drew six Codex rounds of JS syntax edge cases. Fail closed on any syntax the scanner does not read, from the start. Then judge each later finding by one question: does it miss or misread a request in the real source?
