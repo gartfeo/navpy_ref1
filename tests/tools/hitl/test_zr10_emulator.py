@@ -344,7 +344,8 @@ def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
     try:
         assert proc.stdout.readline().startswith("ZR10 emulator: SIYI")
         proc.stdin.close()
-        out, _ = proc.communicate(timeout=10)
+        proc.wait(timeout=10)
+        out = proc.stdout.read()
     finally:
         proc.kill()
     assert SUMMARY_TAG in out
