@@ -25,6 +25,7 @@ from navpy.plugins.camera.gstreamer import frame_capture_gstreamer as module
 from navpy.plugins.camera.gstreamer.encoded_frame_gate import EncodedStreamReset
 from navpy.plugins.camera.gstreamer.encoded_source import parse_gstreamer_source
 from navpy.plugins.camera.gstreamer.frame_capture_gstreamer import GstreamerFrameCapture
+from navpy.plugins.tracking.boxmot.appearance import create_appearance_embedder
 from tools.hitl.encoded_capture_score import score_intervals, score_los
 
 SOURCE = "gstreamer+rtsp://127.0.0.1:18554/main.264?decoder=avdec_h265&latency_ms=50"
@@ -222,6 +223,8 @@ def test_hitl_profile_names_the_encoded_source_explicitly():
     assert settings.decoder == "nvh265dec"
     assert profile["detector"]["tracker"]["backend"] == "custom"
     assert "with_reid" in profile["detector"]["tracker"]    # the rest comes from siyi_zr10
+    # Neither the tracker nor the appearance model may need boxmot, which the WSL HITL venv lacks.
+    assert create_appearance_embedder(profile["detector"]["appearance"]) is None
 
 
 def test_sender_intervals_reach_the_consumer_unchanged():

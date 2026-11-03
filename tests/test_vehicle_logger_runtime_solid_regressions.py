@@ -724,6 +724,8 @@ def test_shared_cadence_is_lazy_and_independent_of_detector_kind(monkeypatch):
     assert ("dependent", "simulation cadence") in registrations
     # The reader dispatches into the logger: the logger waits for it.
     assert ("quiescence", "vehicle") in registrations
+    # Window owners close their own windows; a headless OpenCV has no destroyAllWindows.
+    assert all(label != "OpenCV windows" for _role, label in registrations)
 
 
 def test_unsafe_vision_stop_retains_runtime_dependencies_until_retry():
