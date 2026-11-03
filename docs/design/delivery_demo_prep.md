@@ -423,7 +423,7 @@ Before:
   of your own saved to a file and rehearsed first.
 - Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
   the demo ends: the share does not cover WSL, and 8 CPUs are not proven
-  enough. Both rehearsals ran beside other chats' Python processes, 2-3 cores
+  enough. Both rehearsals ran beside other Python processes, 2-3 cores
   measured just before each run (`.logs/step8/load_notes.txt`).
 - Launch with `delivery_demo.py --cpu-share-min N`, N up to 120, long enough
   for setup, every flight and a margin (1 Nov and run 2: 60).
@@ -441,7 +441,8 @@ During:
   "3 vehicles need attention" caution is the sim's arming checks; Launch stays
   enabled. The ESP32 sim now starts by itself. The upload view's hub pickers
   may read "-- None --" (todo 250); run 2 flew so and UAV 1 still went to its
-  hub, so judge the hubs by the plan file, not the pickers.
+  hub. Before Launch check each UAV's intended hub in the plan; if one is
+  unclear, stop and check before flying.
 - Approve each card within its 30 s; a card left alone is denied at 30 s.
   - Denied in flight: the UAV goes on with its mission to its hub.
   - Timed out in flight: asked again at once, on a card that looks like the
@@ -451,9 +452,11 @@ During:
     do not let a hub card time out; if one does, say the UAV is holding at
     its hub and go on with the others.
 - NavPy restarts at each upload. As a precaution, not a proven need, fly soon
-  after it: rehearsal outcomes came 85-156 s after the restart with no
-  generation-2 collection (largest recorded pause 2.65 ms, generation 0 and
-  1); the only generation-2 collections in a hand demo so far (step 5's check
+  after it: rehearsal outcomes came 85-156 s after the restart, and no
+  generation-2 collection was recorded (largest recorded pause 2.65 ms,
+  generation 0 and 1; each UAV's GC file holds both NavPy processes, as the
+  producer-named files append across the restart, and only rows after the
+  last flush, minutes after the flights, can be lost at the forced stop); the only generation-2 collections in a hand demo so far (step 5's check
   run) came about 9 min after NavPy start, 55-60 ms per UAV (`dur_ms` is an
   upper bound).
 - The sim battery drains fast: in run 1 every UAV read 50 % about 48 s and 0 %
