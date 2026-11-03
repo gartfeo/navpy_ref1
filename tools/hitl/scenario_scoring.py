@@ -63,10 +63,11 @@ APPLIED_SPEC: Mapping[str, jc.Check] = {
 
 def audit(scenario_dir: Path) -> dict[str, Any]:
     """The ledger's deliveries by consumer, refused requests, deliveries outside the three, the declared consumers
-    delivered other than once or without their file, and any file in the folder that neither the service, Unreal's
-    readback nor scoring wrote."""
+    delivered other than once or without their file, consumers whose ledger line or file names another scene than
+    scenario.json, and any file in the folder that neither the service, Unreal's readback nor scoring wrote."""
     scenario_dir = Path(scenario_dir)
-    declared = sp.read_public(scenario_dir)["consumers"]
+    public = sp.read_public(scenario_dir)
+    declared = public["consumers"]
     lines = [json.loads(text) for text in (scenario_dir / sp.LEDGER_FILE).read_text(encoding="utf-8").splitlines()
              if text.strip()]
     delivered = [line for line in lines if not line.get("refused")]
@@ -84,8 +85,16 @@ def audit(scenario_dir: Path) -> dict[str, Any]:
             "missing": sorted(name for name in declared
                               if not counts.get(name) or not sp.consumer_file(scenario_dir, name).is_file()),
             "repeated": sorted(name for name, count in counts.items() if count > 1),
+            "other_scene": sorted({line["consumer"] for line in delivered if line["consumer"] in declared and (
+                line.get("scene_hash") != public["scene_hash"] or _file_hash(scenario_dir, line["consumer"])
+                != public["scene_hash"])}),
             "stray_files": sorted(str(path.relative_to(scenario_dir)) for path in scenario_dir.rglob("*")
                                   if path.is_file() and path not in expected)}
+
+
+def _file_hash(scenario_dir: Path, consumer: str) -> Optional[str]:
+    path = sp.consumer_file(scenario_dir, consumer)
+    return jc.read_json(path).get("scene_hash") if path.is_file() else None
 
 
 def _whole(value: Any) -> Optional[int]:
@@ -115,6 +124,7 @@ def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
     """Did Unreal build the delivered scene on the terrain, with no pose in its log and no delivery outside the
     allowed consumers? The result names the hash and the verdict, never the pose."""
     scenario_dir = Path(scenario_dir)
+    public = sp.read_public(scenario_dir)
     delivered = jc.read_json(sp.consumer_file(scenario_dir, "scoring"))
     expected = delivered["scene"]
     text = Path(unreal_log).read_text(encoding="utf-8", errors="replace") if Path(unreal_log).is_file() else ""
@@ -123,6 +133,10 @@ def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
     details: dict[str, Any] = {"refused": refused, "applied": applied, "terrain_m": None}
     if not text:
         problems.append("no Unreal log")
+    identity = (public["scene_hash"], public["series_id"], public["seed_index"])
+    named = (delivered["scene_hash"], expected["series_id"], expected["seed_index"])
+    if named != identity or service.scene_hash(expected) != public["scene_hash"]:
+        problems.append("the scoring file is not the scene scenario.json names")
     if refused:
         problems.append("Unreal refused the scenario file")
     if logged != [delivered["scene_hash"]]:
@@ -147,9 +161,9 @@ def verify_unreal(scenario_dir: Path, unreal_log: Path) -> dict[str, Any]:
     if leaks:
         problems.append(f"Unreal's log carries pose lines: {', '.join(leaks)}")
     ledger = audit(scenario_dir)
-    if any(ledger[key] for key in ("outside_allowed", "refused", "missing", "repeated", "stray_files")):
+    if any(ledger[key] for key in ("outside_allowed", "refused", "missing", "repeated", "other_scene", "stray_files")):
         problems.append("the scenario folder shows a delivery outside the allowed consumers, a consumer not "
-                        "delivered exactly once, or a file the service did not write")
+                        "delivered exactly once or for another scene, or a file the service did not write")
     verdict = {"scene_hash": delivered["scene_hash"], "rebuilt_scene_hash": rebuilt_hash,
                "reproduced": not problems, "problems": problems, "audit": ledger}
     out = scenario_dir / sp.PRIVATE_DIR / VERDICT_FILE

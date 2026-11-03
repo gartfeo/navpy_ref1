@@ -103,7 +103,7 @@ def test_prepare_delivers_to_the_series_consumers_and_the_ledger_shows_them(tmp_
     service.prepare(_series(tmp_path), 0, folder)
     audit = scoring.audit(folder)
     assert audit == {"deliveries": {"unreal": 1, "scoring": 1}, "outside_allowed": [], "refused": [], "missing": [],
-                     "repeated": [], "stray_files": []}
+                     "repeated": [], "other_scene": [], "stray_files": []}
     unreal = json.loads(sp.consumer_file(folder, "unreal").read_text(encoding="utf-8"))
     assert set(unreal) == {"schema_version", "scene_hash", "dock_offset_east_mm", "dock_offset_north_mm",
                            "dock_yaw_offset_mdeg"}
@@ -214,6 +214,19 @@ def test_a_consumer_not_delivered_exactly_once_fails_the_scene(tmp_path, damage,
         ledger.write_text("".join(line for line in lines if line not in contact), encoding="utf-8")
     verdict = scoring.verify_unreal(folder, log)
     assert verdict["audit"][key] == ["contact"] and not verdict["reproduced"], verdict
+
+
+def test_private_files_and_unreal_output_of_another_seed_fail_the_public_scene(tmp_path):
+    series = _series(tmp_path)
+    folder, other, log = tmp_path / "scenario", tmp_path / "other", tmp_path / "unreal.log"
+    service.prepare(series, 0, folder)
+    service.prepare(series, 1, other)
+    for consumer in ("unreal", "scoring"):
+        sp.consumer_file(folder, consumer).write_bytes(sp.consumer_file(other, consumer).read_bytes())
+    _unreal(folder, log)                                # Unreal built seed 1, as its swapped file said
+    verdict = scoring.verify_unreal(folder, log)
+    assert not verdict["reproduced"] and "the scoring file is not the scene scenario.json names" in verdict["problems"]
+    assert verdict["audit"]["other_scene"] == ["scoring", "unreal"]
 
 
 def test_without_an_unreal_log_or_a_scoring_file_nothing_is_reproduced(tmp_path):
@@ -383,6 +396,22 @@ def _imports(path: Path) -> set[str]:
         elif isinstance(node, ast.ImportFrom) and node.module:
             names |= {node.module, *(f"{node.module}.{alias.name}" for alias in node.names)}
     return names
+
+
+def test_the_runner_accepts_only_a_verdict_on_its_own_scene():
+    public = {"scene_hash": "e" * 64}
+    assert approach.scenario_run.reproduced({"reproduced": True, "scene_hash": "e" * 64}, public)
+    assert not approach.scenario_run.reproduced({"reproduced": True, "scene_hash": "f" * 64}, public)
+    assert not approach.scenario_run.reproduced({"reproduced": False, "scene_hash": "e" * 64}, public)
+
+
+def test_navpy_names_no_scenario_file():
+    """navpy has no way to the scenario folder: its sources name none of its files (its argv carries none either)."""
+    names = (sp.SCENARIO_FILE, sp.LEDGER_FILE, scoring.UNREAL_APPLIED_FILE, scoring.VERDICT_FILE, "scenario_service",
+             "scenario_scoring", "NavPyScenario")
+    hits = [f"{path}: {name}" for path in (REPO / "src" / "navpy").rglob("*.py")
+            for name in names if name in path.read_text(encoding="utf-8")]
+    assert hits == []
 
 
 def test_only_scoring_imports_the_service_and_navpy_imports_no_tools():

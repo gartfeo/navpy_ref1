@@ -49,6 +49,11 @@ def verify(scenario_dir: Path, unreal_log: Path) -> dict:
     return service("verify", "--scenario", str(scenario_dir), "--unreal-log", str(unreal_log))
 
 
+def reproduced(verdict: dict, public: dict) -> bool:
+    """Scoring's verdict holds for this run only when it names the run's own public scene."""
+    return verdict.get("reproduced") is True and verdict.get("scene_hash") == public["scene_hash"]
+
+
 def private_folder(run_dir: Path) -> Path:
     """The run's private scenario files: the runner leaves them unread (scoring checks them)."""
     return Path(run_dir) / SCENARIO_DIR / scenario_public.PRIVATE_DIR
@@ -59,5 +64,5 @@ def unreal_file(run_dir: Path) -> Path:
     return scenario_public.consumer_file(Path(run_dir) / SCENARIO_DIR, "unreal")
 
 
-__all__ = ["MODULES", "SCENARIO_DIR", "SERVICE_TIMEOUT_S", "private_folder", "public", "service", "unreal_file",
-           "verify"]
+__all__ = ["MODULES", "SCENARIO_DIR", "SERVICE_TIMEOUT_S", "private_folder", "public", "reproduced", "service",
+           "unreal_file", "verify"]

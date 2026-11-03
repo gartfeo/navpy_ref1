@@ -264,7 +264,7 @@ def approach(args: argparse.Namespace) -> int:
         (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", encoding="utf-8")
     health = run["board"].get("link_health") or {}
     ended = all(item.get("ended_after_stop") for item in run["producers"].values())
-    scene = run["scene"].get("reproduced")
+    scene = scenario_run.reproduced(run["scene"], run["scenario"])
     print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
           f"scene reproduced {scene}, link health {health.get('ok')}; folder {run_dir}", flush=True)
     return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") else 1
