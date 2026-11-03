@@ -45,13 +45,15 @@ GONE = "gone"
 def windows_process(pid: int, started: str = "") -> str:
     """Windows process *pid*'s start time (FILETIME, UTC; with the pid, its identity), or GONE when there is none.
 
-    With *started*, the process is killed in the same call if it still has that start time: Get-Process holds its
-    handle, so the kill reaches that process even if the pid were reused meanwhile. A query that fails raises.
+    With *started*, the process is killed in the same call if it still has that start time. ``$p.Handle`` opens the
+    process handle first and .NET keeps it for StartTime and Kill (without it each opens its own by pid), so the
+    kill reaches the process whose start time was checked even if the pid were reused meanwhile. A query that fails
+    raises.
     """
     kill = (f"if ($p.StartTime.ToFileTimeUtc() -eq {int(started)}) "
             f"{{ $p.Kill(); $p.WaitForExit(10000) | Out-Null; '{GONE}'; return }}; ") if started else ""
     script = (f"$p = Get-Process -Id {pid} -ErrorAction SilentlyContinue; "
-              f"if ($p) {{ {kill}$p.StartTime.ToFileTimeUtc() }} else {{ '{GONE}' }}")
+              f"if ($p) {{ $null = $p.Handle; {kill}$p.StartTime.ToFileTimeUtc() }} else {{ '{GONE}' }}")
     result = subprocess.run(["powershell.exe", "-NoProfile", "-Command", script], capture_output=True, text=True,
                             timeout=30, check=False)
     return parse_process(result.returncode, result.stdout, result.stderr)

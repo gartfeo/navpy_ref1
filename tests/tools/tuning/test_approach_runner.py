@@ -430,6 +430,21 @@ def test_a_failed_windows_query_raises_so_the_role_counts_as_alive(tmp_path, mon
         handle.group_alive()
 
 
+def test_the_windows_kill_holds_the_handle_its_start_time_was_checked_on(monkeypatch):
+    scripts: list = []
+
+    class Done:
+        returncode, stdout, stderr = 0, "gone\r\n", ""
+
+    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (scripts.append(argv[-1]), Done())[1])
+    assert handles.windows_process(29860, "134062000000000000") == handles.GONE
+    script = scripts[0]
+    # StartTime and Kill each open their own handle by pid unless $p.Handle opened one first (.NET Framework)
+    assert "Get-Process -Id 29860 " in script
+    assert script.index("$null = $p.Handle;") < script.index("StartTime") < script.index("$p.Kill()")
+    assert "-eq 134062000000000000" in script
+
+
 def test_the_windows_query_answer_is_a_start_time_gone_or_a_failure():
     assert handles.parse_process(0, "134062000000000000\r\n", "") == "134062000000000000"
     assert handles.parse_process(0, "gone\r\n", "") == handles.GONE
