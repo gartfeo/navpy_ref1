@@ -27,7 +27,7 @@ import time
 from datetime import datetime, timezone
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any
+from typing import Any, Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
@@ -36,7 +36,7 @@ from navpy.app.terminal_handoff import NAVPY_TERMINAL_MARKER
 from tools.hitl import approach_records, run_manifest
 from tools.hitl.model_input import read_model_input
 from tools.hitl.timing_fit import FIT_SCHEMA
-from tools.tuning import approach_chain as chain
+from tools.tuning import approach_chain as chain, approach_handles as handles
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
 from tools.tuning.board import DEFAULT_BAUD, Board
@@ -140,12 +140,18 @@ def _observe(board: Board, group: ProcessGroup, navpy_out: Path, seconds: float)
     return "deadline"
 
 
+def _handed_off(group: ProcessGroup, role: str, result: dict, clean: Optional[str]) -> dict:
+    """The handoff stopped this owned role itself: recorded as stopped, ended after stop only by its own stop."""
+    group.mark_stopped(role, result.get("returncode") if clean is not None and result.get("stop") == clean else None)
+    return result
+
+
 def _fly(args: argparse.Namespace, board: Board, group: ProcessGroup, run: dict) -> None:
     from tools.tuning.sitl_driver import takeoff        # sitl_driver imports this module
     navpy_process = group.handle("navpy").process
-    handoff = NavpyHandoff(lambda: stop_navpy(navpy_process),
+    handoff = NavpyHandoff(lambda: _handed_off(group, "navpy", stop_navpy(navpy_process), "requested"),
                            RouterBarrier(("127.0.0.1", chain.CONTROL_PORT), "navpy"),
-                           lambda: end_process(group.handle("router").process),
+                           lambda: _handed_off(group, "router", end_process(group.handle("router").process), None),
                            lambda: direct_rtl(f"tcp:127.0.0.1:{chain.SITL_PORT}", DEFAULT_BAUD))
     takeoff(board)
     flight = run["flight"] = {}
@@ -198,10 +204,11 @@ def approach(args: argparse.Namespace) -> int:
     record_path = approach_records.write_record(record, run_dir)
     wsl_ip, windows_ip = _addresses()
     paths = chain.ChainPaths(run_dir, repo, args.python, Path(args.aas_hitl), Path(args.publisher_profile),
-                             Path(args.uproject), wsl_ip, windows_ip, args.unreal_affinity)
+                             Path(args.uproject), wsl_ip, windows_ip, args.windows_python, args.unreal_affinity)
     lens = repo / "src/navpy/core/perception/profile/vision_profiles.json"
-    group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity)},
-                         chain.port_free)
+    group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity),
+                                   "interop": handles.spawn_interop(chain.EMULATOR_PORTS),
+                                   "publisher": handles.spawn_publisher}, chain.port_free)
     run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "addresses": [wsl_ip, windows_ip],
                  "sitl_binary": _binary(args.sitl_binary)}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
@@ -259,6 +266,7 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--uproject", required=True, help="WSL path of the Unreal project (/mnt/c/...)")
     a.add_argument("--unreal-affinity", type=int, help="Unreal's processor mask (the CPU share granted)")
     a.add_argument("--python", default=sys.executable, help="the Python navpy and the tools run with")
+    a.add_argument("--windows-python", required=True, help="WSL path of the Windows Python the emulator runs with")
     a.add_argument("--params-file", action="append", help="starting parameters, as dock-pass")
     a.add_argument("--hitl-data", type=Path, help="the aircraft's private HITL files (default: the private folder)")
     a.add_argument("--observe-s", type=float, default=OBSERVE_S, help="seconds on the lane after acquisition starts")

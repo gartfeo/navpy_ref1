@@ -261,6 +261,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default="siyi_zr10", help="vision profile holding camera.zoom_calibration")
     parser.add_argument("--log", default=None, metavar="FILE",
                         help="JSONL log: config, every command, every step, every SIYI frame sent")
+    parser.add_argument("--exit-on-stdin-eof", action="store_true", help="stop cleanly when stdin reaches "
+                        "end-of-file (a runner in WSL starting it on Windows, where a signal does not reach it)")
     for item in EmulatorConfig.__dataclass_fields__.values():
         parser.add_argument("--" + item.name.replace("_", "-"), type=float if item.type == "float" else int,
                             default=item.default, help=SOURCES[item.name])
@@ -275,6 +277,8 @@ def main(argv: list[str] | None = None) -> int:
     emulator = Zr10Emulator(device, parse_endpoint(args.siyi), parse_endpoint(args.vehicle_state),
                             parse_endpoint(args.unreal), args.device_id, log)
     stop = threading.Event()
+    if args.exit_on_stdin_eof:
+        threading.Thread(target=lambda: (sys.stdin.buffer.read(), stop.set()), daemon=True).start()
     print(f"ZR10 emulator: SIYI {emulator.siyi_address}, vehicle_state {emulator.vehicle_state_address}, "
           f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}", flush=True)
     try:

@@ -64,9 +64,13 @@ def read_log(path: str, types: dict[str, tuple[str, ...]]) -> FlightLog:
 
 def armed_windows(log: FlightLog) -> list[tuple[float, float]]:
     """(arm, disarm) TimeUS of every armed stretch in the log's ARM records (read with ARM_FIELDS);
-    a stretch still armed at the end of the log runs to +inf. No ARM records: no stretch."""
-    rows = zip(log.get("ARM", "TimeUS"), log.get("ARM", "ArmState")) if log.has("ARM") else []
+    a stretch still armed at the end of the log runs to +inf. No ARM records: no stretch. ARM records
+    are changes, so a disarm before any arm means the log began armed: that stretch runs from -inf
+    (the SITL backing starts its log at the arm, LOG_DISARMED 0, and the arm record itself is lost)."""
+    rows = list(zip(log.get("ARM", "TimeUS"), log.get("ARM", "ArmState"))) if log.has("ARM") else []
     windows, start = [], None
+    if rows and not rows[0][1]:
+        start = -np.inf
     for t, armed in rows:
         if armed and start is None:
             start = t

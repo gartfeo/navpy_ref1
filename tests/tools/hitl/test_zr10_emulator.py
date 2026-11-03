@@ -5,6 +5,8 @@ import io
 import json
 import math
 import socket
+import subprocess
+import sys
 import threading
 import time
 
@@ -18,7 +20,7 @@ from tests.tools.hitl.zr10_frames import frame, parse
 from tests.tools.tuning.test_hitl_bridge_physics import rest_state
 from tools.hitl.zr10_config import EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device
-from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, Zr10Emulator, build_parser, open_log
+from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, SUMMARY_TAG, Zr10Emulator, build_parser, open_log
 from tools.hitl.zr10_vehicle_input import VEHICLE_STATE_TIMEOUT_S, VehicleInput, decode_vehicle_state
 from tools.tuning.hitl_bridge.unreal_pose import UnrealPoseSender
 
@@ -331,3 +333,19 @@ def test_siyi_out_names_each_frames_sequence_and_the_plant_time_a_0x0d_reports()
     late = [record for record in pushes if record["device_t"] >= lag_s]
     assert late and all(record["report_t"] == pytest.approx(record["device_t"] - lag_s) for record in late)
     assert all(record["report_t"] <= record["device_t"] for record in pushes)
+
+
+def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
+    # The step 13 runner starts it on Windows from WSL, where a signal does not reach it: closing stdin must.
+    log = tmp_path / "emulator.jsonl"
+    proc = subprocess.Popen([sys.executable, "-m", "tools.hitl.zr10_emulator", "--vehicle-state", "127.0.0.1:0",
+                             "--siyi", "127.0.0.1:0", "--unreal", "127.0.0.1:9", "--log", str(log),
+                             "--exit-on-stdin-eof"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        assert proc.stdout.readline().startswith("ZR10 emulator: SIYI")
+        proc.stdin.close()
+        out, _ = proc.communicate(timeout=10)
+    finally:
+        proc.kill()
+    assert SUMMARY_TAG in out
+    assert json.loads(log.read_text(encoding="utf-8").splitlines()[-1])["event"] == "summary"

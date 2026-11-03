@@ -9,7 +9,7 @@ from pathlib import Path
 
 import pytest
 
-from tools.tuning import approach, approach_chain as chain
+from tools.tuning import approach, approach_chain as chain, approach_handles as handles
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LANE_REPEATS, build_lane, lane_items
 from tools.tuning.approach_procs import STOP_EOF, STOP_SIGINT, ProcessGroup, ProcSpec, RunnerError
 from tools.tuning.dock_pass import M, Point
@@ -240,6 +240,7 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     monkeypatch.setattr(approach, "spawn_posix", spawn)
     monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
     monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
+    monkeypatch.setattr(approach.handles, "windows_udp_in_use", lambda ports: None)
     monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
     monkeypatch.setattr(approach.chain, "win_path", lambda path: "C:/x")
     monkeypatch.setattr(approach, "Board", FakeBoard)
@@ -267,7 +268,8 @@ def approach_args(tmp_path):
     approach.add_parser(parser.add_subparsers())
     return parser.parse_args(["approach", "--mode", "pc-sitl", "--run-root", str(tmp_path / "runs"),
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
-                              "--publisher-profile", "p.json", "--aas-hitl", "/aas", "--uproject", "/mnt/c/u/A.uproject"])
+                              "--publisher-profile", "p.json", "--aas-hitl", "/aas",
+                              "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe"])
 
 
 def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
@@ -315,3 +317,96 @@ def test_the_board_gets_navpys_parameter_script_and_scripting(tmp_path):
     # SITL loads Lua from its workdir (the backing's), with LF ends like the aircraft deploy step.
     assert (tmp_path / "run" / "backing" / "scripts" / "aas_params.lua").read_bytes() == b"param:add_table(88)\nreturn\n"
     assert (tmp_path / "run" / approach.BOARD_SCRIPTING).read_text(encoding="utf-8") == "SCR_ENABLE 1\n"
+
+
+def _windows_paths(tmp_path, windows_python="/mnt/c/py/python.exe"):
+    return chain.ChainPaths(Path("/mnt/c/runs/r1"), Path("/mnt/c/repo"), "/venv/python", Path("/aas"),
+                            tmp_path / "p.json", Path("/mnt/c/u/A.uproject"), "172.0.0.2", "172.0.0.1", windows_python)
+
+
+def test_the_emulator_runs_on_windows_beside_unreal_and_stops_on_end_of_input(tmp_path):
+    spec = chain.emulator(_windows_paths(tmp_path))
+    argv = list(spec.argv)
+    assert argv[:4] == ["/mnt/c/py/python.exe", "-s", "-m", "tools.hitl.zr10_emulator"]
+    assert argv[argv.index("--vehicle-state") + 1] == f"172.0.0.1:{chain.VEHICLE_STATE_PORT}"
+    assert argv[argv.index("--siyi") + 1] == f"172.0.0.1:{chain.SIYI_PORT}"
+    assert argv[argv.index("--unreal") + 1] == f"127.0.0.1:{chain.GIMBAL_PORT}"
+    assert argv[argv.index("--log") + 1] == r"C:\runs\r1\emulator.jsonl" and "--exit-on-stdin-eof" in argv
+    assert (spec.stop, spec.kind, spec.ports) == (STOP_EOF, "interop", ())
+    assert spec.env["PYTHONPATH"] == r"C:\repo\src;C:\repo"
+    assert {"PYTHONPATH", "PYTHONUNBUFFERED"} <= set(spec.env["WSLENV"].split(":"))
+    with pytest.raises(RunnerError, match="--windows-python"):
+        chain.emulator(_windows_paths(tmp_path, ""))
+
+
+def test_the_bridge_copy_and_navpys_siyi_link_go_to_the_windows_emulator(tmp_path):
+    assert chain.bridge_template(Path("/m"), 0.1, "172.0.0.1").endswith(
+        f"--vehicle-state-copy 172.0.0.1:{chain.VEHICLE_STATE_PORT}")
+    argv = list(chain.navpy(_windows_paths(tmp_path), tmp_path / "r.json", FIRST_LANE_SEQ).argv)
+    assert argv[argv.index("--siyi-ip") + 1] == "172.0.0.1"
+
+
+NETSTAT = """
+Active Connections
+
+  Proto  Local Address          Foreign Address        State           PID
+  UDP    0.0.0.0:53             *:*                                    4060
+  UDP    172.23.112.1:37260     *:*                                    29860
+  UDP    172.23.112.1:17113     *:*                                    29860
+  UDP    0.0.0.0:137260         *:*                                    5
+  UDP    [::]:17113             *:*                                    77
+"""
+
+
+def test_the_windows_owners_of_the_emulators_ports_are_found():
+    assert handles.windows_udp_owners(chain.EMULATOR_PORTS, NETSTAT) == {29860, 77}
+    assert handles.windows_udp_owners((9999,), NETSTAT) == set()
+
+
+def test_an_interop_role_stays_alive_while_its_windows_process_holds_its_ports(monkeypatch):
+    owners, killed = {29860}, []
+    monkeypatch.setattr(handles.PosixHandle, "group_alive", lambda self: False)     # the interop proxy is gone
+    monkeypatch.setattr(handles.PosixHandle, "kill", lambda self: killed.append("proxy"))
+    monkeypatch.setattr(handles, "windows_udp_owners", lambda ports: set(owners))
+    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), owners.clear()))
+
+    class Proxy:
+        pid = 1
+
+    handle = handles.InteropHandle(Proxy(), STOP_EOF, chain.EMULATOR_PORTS)
+    assert handle.group_alive()
+    handle.kill()
+    assert killed == ["proxy", ["taskkill.exe", "/PID", "29860", "/F"]] and not handle.group_alive()
+
+
+@pytest.mark.parametrize("result, clean, ended", [({"stop": "requested", "returncode": 0}, "requested", True),
+                                                  ({"stop": "timed out", "ended": "killed", "returncode": -9},
+                                                   "requested", False),
+                                                  ({"ended": "terminated", "returncode": -15}, None, False)])
+def test_a_role_the_handoff_stopped_is_stopped_not_already_exited(tmp_path, result, clean, ended):
+    log: list = []
+    group, handles, _ = _group(tmp_path, log)
+    group.start(_spec("navpy"))
+    handles["navpy"].code = result["returncode"]           # the handoff stopped it
+    assert approach._handed_off(group, "navpy", result, clean) is result
+    group.stop_all()
+    stopped = group.producers()["navpy"]
+    assert stopped["how"] == "stop" and stopped["ended_after_stop"] is ended and "navpy stop" not in log
+
+
+def test_the_publisher_stops_by_drain_then_stop_on_its_control_socket(tmp_path, monkeypatch):
+    sent, signals = [], []
+    monkeypatch.setattr(handles, "control", lambda path, command: sent.append((path, command)) or {"ok": True})
+    monkeypatch.setattr(handles.PosixHandle, "_signal", lambda self, number: signals.append(number))
+
+    class Process:
+        pid = 1
+
+    status = tmp_path / "publisher.json"
+    handle = handles.PublisherHandle(Process(), STOP_SIGINT, status)
+    handle.request_stop()                                   # no status yet: it never got that far
+    assert sent == [] and signals == [handles.signal.SIGINT]
+    status.write_text(json.dumps({"control_socket": "/tmp/p/control.sock"}), encoding="utf-8")
+    handle.request_stop()
+    assert sent == [("/tmp/p/control.sock", "drain"), ("/tmp/p/control.sock", "stop")] and len(signals) == 1
+    assert chain.publisher(_windows_paths(tmp_path), tmp_path / "p.json", tmp_path / "lens.json").kind == "publisher"

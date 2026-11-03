@@ -22,6 +22,7 @@ class VisionArgs:
     # HITL runner only (tools/tuning/approach.py): the run record and a new integration log.
     integration_timing: str = ""
     integration_log: str = ""
+    siyi_ip: str = ""             # HITL runner only: the SIYI gimbal's address over the profile's siyi_ip
 
     @classmethod
     def from_args(cls, args) -> "VisionArgs":
@@ -36,6 +37,7 @@ class VisionArgs:
             debug_show=getattr(args, "detector_debug_show", False),
             integration_timing=getattr(args, "integration_timing", ""),
             integration_log=getattr(args, "integration_log", ""),
+            siyi_ip=getattr(args, "siyi_ip", ""),
         )
 
     @staticmethod
@@ -101,5 +103,15 @@ class VisionArgs:
             help=(
                 "HITL runner only: a new JSONL file for the integration "
                 "timing log. Needs --integration-timing."
+            ),
+        )
+        vision_group.add_argument(
+            "--siyi-ip",
+            type=str,
+            default="",
+            metavar="ADDRESS",
+            help=(
+                "HITL runner only: the SIYI gimbal's address, over the vision "
+                "profile's siyi_ip (the ZR10 emulator on the Windows host)."
             ),
         )

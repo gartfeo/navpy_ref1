@@ -1,9 +1,11 @@
 """The pc-sitl chain of one approach run (hitl_final_approach.md section 1, stage 1 step 13), as ProcSpecs.
 
-Everything but Unreal runs in WSL beside the runner: the SITL backing (hitl.py sitl-backing, HIL model), the router
-on its serial0, the ZR10 emulator, the aas-hitl publisher (MediaMTX is its child) and navpy. The bridge is started by
-the board setup (hitl_procs.py, direct: it opens the backing's HIL port). Unreal runs on Windows and is reached on
-the Windows host's address; it sends its frames to WSL's own address (the direct route: todo 186).
+Most roles run in WSL beside the runner: the SITL backing (hitl.py sitl-backing, HIL model), the router on its
+serial0, the aas-hitl publisher (MediaMTX is its child) and navpy. The bridge is started by the board setup
+(hitl_procs.py, direct: it opens the backing's HIL port). Unreal and the ZR10 emulator run on Windows and are reached
+on the Windows host's address; Unreal sends its frames to WSL's own address (the direct route: todo 186). The
+emulator runs there, as in steps 8 and 9, because Unreal joins its gimbal samples to frames on the PC's one clock
+(QPC, hitl_final_approach.md "One time axis"), which a WSL process does not read.
 """
 from __future__ import annotations
 
@@ -19,6 +21,7 @@ from typing import IO, Callable, Optional
 
 from navpy.app.runtime_ready import NAVPY_RUNTIME_READY_MARKER
 from navpy.app.runtime_stop import NAVPY_STOP_REQUEST
+from tools.tuning import approach_handles as handles
 from tools.tuning.approach_procs import STOP_EOF, STOP_SIGINT, ProcSpec, RunnerError
 
 SITL_PORT = 8160                 # sitl_sim DEFAULT_INSTANCE 240: serial0 (the router's board) and SERIAL5 (HIL) + 8
@@ -26,6 +29,7 @@ HIL_PORT = 8168
 RUNNER_PORT, NAVPY_PORT, CONTROL_PORT = 9641, 9642, 9643     # router clients and barrier (mav_router.py usage)
 POSE_PORT, VEHICLE_STATE_PORT, GIMBAL_PORT = 17110, 17113, 17212
 SIYI_PORT = 37260
+EMULATOR_PORTS = (VEHICLE_STATE_PORT, SIYI_PORT)    # the emulator's Windows binds
 NATIVE_PORT, RTSP_PORT, RTP_PORT, MEDIA_API_PORT = 18110, 18554, 18556, 9997
 UNREAL_ALT_OFFSET_M = "23.5"     # hitl_unreal_camera.md "Running it" step 2
 VISION_PROFILE = "siyi_zr10_hitl_encoded"
@@ -49,6 +53,7 @@ class ChainPaths:
     uproject: Path               # WSL path of the Unreal project (/mnt/c/...); Unreal gets its Windows form
     wsl_ip: str                  # WSL's own address, Unreal's frame target
     windows_ip: str              # the Windows host's address seen from WSL
+    windows_python: str = ""     # WSL path of the Windows Python the emulator runs with (/mnt/c/.../python.exe)
     unreal_affinity: Optional[int] = None
 
 
@@ -106,16 +111,23 @@ def bridge_template(model_dir: Path, servo_speed_s: float, windows_ip: str) -> s
             f"--reconnect-interval-s 0.5 --model-dir {shlex.quote(str(model_dir))} --servo-speed-s {servo_speed_s:g} "
             "--origin-lat {lat} --origin-lon {lon} --origin-alt {alt} --heading {hdg} --exit-on-stdin-eof "
             f"--log-csv {{link_csv}} --unreal-pose {windows_ip}:{POSE_PORT} {UNREAL_ALT_OFFSET_M} "
-            f"--vehicle-state-copy 127.0.0.1:{VEHICLE_STATE_PORT}")
+            f"--vehicle-state-copy {windows_ip}:{VEHICLE_STATE_PORT}")
 
 
 def emulator(paths: ChainPaths) -> ProcSpec:
-    return ProcSpec("emulator", tool(paths, "tools.hitl.zr10_emulator", "--vehicle-state",
-                                     f"127.0.0.1:{VEHICLE_STATE_PORT}", "--siyi", f"127.0.0.1:{SIYI_PORT}",
-                                     "--unreal", f"{paths.windows_ip}:{GIMBAL_PORT}",
-                                     "--log", str(paths.run_dir / "emulator.jsonl")),
-                    r"^ZR10 emulator: SIYI", READY_TIMEOUT_S["emulator"], STOP_SIGINT,
-                    ports=(("udp", VEHICLE_STATE_PORT), ("udp", SIYI_PORT)), cwd=str(paths.repo))
+    """On Windows through WSL interop: its output comes back here, and closing its input stops it (a signal reaches
+    only the interop proxy). It imports this checkout over \\\\wsl.localhost (PYTHONPATH, passed on by WSLENV)."""
+    if not paths.windows_python:
+        raise RunnerError("emulator: no Windows Python given (--windows-python)")
+    wslenv = ":".join(item for item in (os.environ.get("WSLENV", ""), "PYTHONPATH", "PYTHONUNBUFFERED") if item)
+    return ProcSpec("emulator", (paths.windows_python, "-s", "-m", "tools.hitl.zr10_emulator",
+                                 "--vehicle-state", f"{paths.windows_ip}:{VEHICLE_STATE_PORT}",
+                                 "--siyi", f"{paths.windows_ip}:{SIYI_PORT}", "--unreal", f"127.0.0.1:{GIMBAL_PORT}",
+                                 "--log", win_path(paths.run_dir / "emulator.jsonl"), "--exit-on-stdin-eof"),
+                    r"^ZR10 emulator: SIYI", READY_TIMEOUT_S["emulator"], STOP_EOF,
+                    refuse=lambda: handles.windows_udp_in_use(EMULATOR_PORTS), cwd=str(paths.repo), kind="interop",
+                    env={"PYTHONPATH": f"{win_path(paths.repo / 'src')};{win_path(paths.repo)}",
+                         "PYTHONUNBUFFERED": "1", "WSLENV": wslenv})
 
 
 def publisher_profile(paths: ChainPaths) -> Path:
@@ -136,7 +148,7 @@ def publisher(paths: ChainPaths, profile: Path, lens_table: Path) -> ProcSpec:
                     r'"ready_monotonic_ns"', READY_TIMEOUT_S["publisher"], STOP_SIGINT, stop_wait_s=60.0,
                     ready_file=out / "publisher.json",
                     ports=(("tcp", NATIVE_PORT), ("tcp", RTSP_PORT), ("udp", RTP_PORT), ("tcp", MEDIA_API_PORT)),
-                    cwd=str(paths.aas_hitl))
+                    cwd=str(paths.aas_hitl), kind="publisher")
 
 
 def navpy(paths: ChainPaths, record: Path, lane_first_seq: int) -> ProcSpec:
@@ -146,7 +158,8 @@ def navpy(paths: ChainPaths, record: Path, lane_first_seq: int) -> ProcSpec:
                                   "-mwp", str(lane_first_seq), "-tac", "--router-control",
                                   f"127.0.0.1:{CONTROL_PORT}", "--router-client", "navpy", "--stop-on-stdin",
                                   "--integration-timing", str(record),
-                                  "--integration-log", str(paths.run_dir / "navpy_integration.jsonl")),
+                                  "--integration-log", str(paths.run_dir / "navpy_integration.jsonl"),
+                                  "--siyi-ip", paths.windows_ip),
                     "^" + NAVPY_RUNTIME_READY_MARKER, READY_TIMEOUT_S["navpy"], NAVPY_STOP_REQUEST, stop_wait_s=30.0,
                     cwd=str(paths.repo),
                     env={"PYTHONPATH": f"{paths.repo / 'src'}:{paths.repo}", "PYTHONUNBUFFERED": "1"})

@@ -60,6 +60,7 @@ def build_vision_controller(
         scheduler_cadence,
         use_sim_gimbal=vision_args.detector_type != "real",
         siyi_fence=siyi_fence,
+        siyi_ip=vision_args.siyi_ip,
     )
     nodes = ()
     integration = None
