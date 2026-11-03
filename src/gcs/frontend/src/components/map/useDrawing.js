@@ -42,7 +42,7 @@ export default function useDrawing({ setPolygon, analyze }) {
       updateVertices([]);
       setPolygon([]);
     }
-  }, [setPolygon]);
+  }, [setPolygon, drawShape]);
 
   // Returns true when the click changed the zone (an ignored click must not
   // leave an undo entry behind).
@@ -91,14 +91,14 @@ export default function useDrawing({ setPolygon, analyze }) {
   // Pick the shape for the next zone. A started draft (under 3 vertices)
   // belongs to the old shape's gesture, so it is dropped.
   const setDrawShape = useCallback((shape) => {
-    if (!DRAW_SHAPES.includes(shape)) return;
+    if (!DRAW_SHAPES.includes(shape) || shape === drawShape) return;
     setDrawShapeState(shape);
     if (verticesRef.current.length > 0 && verticesRef.current.length < 3) {
       undoStackRef.current = [];
       updateVertices([]);
       setPolygon([]);
     }
-  }, [setPolygon]);
+  }, [setPolygon, drawShape]);
 
   const undo = useCallback(() => {
     const stack = undoStackRef.current;

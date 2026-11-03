@@ -93,6 +93,15 @@ describe('useDrawing rectangle shape', () => {
     expect(hook.result.current.canUndo).toBe(false);
   });
 
+  it('picking the shape already selected keeps the draft', () => {
+    const { hook } = setup();
+    act(() => hook.result.current.setDrawShape('rectangle'));
+    click(hook, a);
+    act(() => hook.result.current.setDrawShape('rectangle'));
+    expect(hook.result.current.vertices).toEqual([a]);
+    expect(hook.result.current.canUndo).toBe(true);
+  });
+
   it('a shape change keeps a finished zone', () => {
     const { hook } = setup();
     for (const p of [a, b, c]) click(hook, p);

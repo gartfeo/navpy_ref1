@@ -110,3 +110,12 @@ export function toggleSimDock(prev, zoneIndex, wpIndex) {
   const next = idx >= 0 ? arr.filter((_, i) => i !== idx) : [...arr, wpIndex];
   return { ...prev, [zoneIndex]: next };
 }
+
+/**
+ * Planner undo stack without the steps of a zone draft (under 3 vertices):
+ * its vertex clicks and its vertex drags. Used when the draft is dropped, so
+ * Undo cannot bring it back. Corridor and launch-point steps stay.
+ */
+export function withoutDraftUndo(stack) {
+  return stack.filter((e) => e.type !== 'vertex' && e.type !== 'polygonDrag');
+}

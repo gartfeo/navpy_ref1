@@ -5,6 +5,7 @@ import { handleDragStart } from './handlers/handleDragStart';
 import { handleDragMove } from './handlers/handleDragMove';
 import { handleDragEnd } from './handlers/handleDragEnd';
 import { handleDrawHover } from './handlers/handleDrawHover';
+import { createDrawFinishGuard } from './handlers/drawFinishGuard';
 
 /**
  * Event handler orchestrator — registers Cesium event handlers that delegate
@@ -23,6 +24,7 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     let dragState = null;
     let skipNextClick = false;
+    const finishGuard = createDrawFinishGuard();
     const dragRefs = {
       ...refs,
       lastCorridorDown: { index: -1, setIdx: -1, time: 0 },
@@ -34,11 +36,13 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
         skipNextClick = false;
         return;
       }
+      finishGuard.onClick(callbacksRef.current);
       handleClick(Cesium, viewer, click, callbacksRef);
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 
     // LEFT_DOUBLE_CLICK
     handler.setInputAction((click) => {
+      if (finishGuard.skipDoubleClick()) return;
       handleDoubleClick(Cesium, viewer, click, callbacksRef, refs.activeSetIndex);
     }, Cesium.ScreenSpaceEventType.LEFT_DOUBLE_CLICK);
 
