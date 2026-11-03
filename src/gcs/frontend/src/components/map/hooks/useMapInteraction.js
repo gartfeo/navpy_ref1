@@ -4,6 +4,7 @@ import { handleDoubleClick } from './handlers/handleDoubleClick';
 import { handleDragStart } from './handlers/handleDragStart';
 import { handleDragMove } from './handlers/handleDragMove';
 import { handleDragEnd } from './handlers/handleDragEnd';
+import { handleDrawHover } from './handlers/handleDrawHover';
 
 /**
  * Event handler orchestrator — registers Cesium event handlers that delegate
@@ -52,7 +53,8 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     // MOUSE_MOVE
     handler.setInputAction((movement) => {
-      handleDragMove(Cesium, viewer, movement, dragState, callbacksRef, refs);
+      if (dragState) handleDragMove(Cesium, viewer, movement, dragState, callbacksRef, refs);
+      else if (refs.drawPreviewRef) handleDrawHover(Cesium, viewer, movement, callbacksRef, refs.drawPreviewRef);
     }, Cesium.ScreenSpaceEventType.MOUSE_MOVE);
 
     // LEFT_UP

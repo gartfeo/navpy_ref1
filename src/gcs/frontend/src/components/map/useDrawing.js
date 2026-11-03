@@ -1,5 +1,9 @@
 import { useState, useCallback, useRef } from 'react';
 import { closestEdgeIndex } from '../../utils/geo';
+import { rectangleCorners, sideLength, MIN_RECT_SIDE_M } from '../../utils/rectangleDraw';
+
+/** Search-area shapes the operator can draw. Both end as a plain polygon. */
+export const DRAW_SHAPES = ['polygon', 'rectangle'];
 
 /**
  * Polygon drawing/editing state management.
@@ -8,6 +12,9 @@ import { closestEdgeIndex } from '../../utils/geo';
  * - Double-click vertex to delete
  * - Drag inside polygon to move all vertices
  * - Undo removes last vertex, Clear resets everything
+ * - Rectangle shape (while the zone has < 3 vertices): click two corners for
+ *   one side, a third click sets the width; drawing then stops. Undo of the
+ *   third click goes back to the two-corner draft.
  *
  * Uses refs for vertices/undoStack so callbacks can read current
  * values synchronously without nesting state setters inside updaters.
@@ -15,6 +22,7 @@ import { closestEdgeIndex } from '../../utils/geo';
 export default function useDrawing({ setPolygon, analyze }) {
   const [isDrawing, setIsDrawing] = useState(false);
   const [vertices, setVertices] = useState([]);
+  const [drawShape, setDrawShapeState] = useState('polygon');
   const verticesRef = useRef([]);
   const undoStackRef = useRef([]);
 
@@ -36,12 +44,28 @@ export default function useDrawing({ setPolygon, analyze }) {
     }
   }, [setPolygon]);
 
+  // Returns true when the click changed the zone (an ignored click must not
+  // leave an undo entry behind).
   const onMapClick = useCallback(
     (latlon) => {
-      if (!latlon) return;
+      if (!latlon) return false;
 
       const prev = verticesRef.current;
       let next, insertAt;
+
+      if (drawShape === 'rectangle' && prev.length < 3) {
+        if (prev.length === 1 && sideLength(prev[0], latlon) < MIN_RECT_SIDE_M) return false;
+        if (prev.length === 2) {
+          const corners = rectangleCorners(prev[0], prev[1], latlon);
+          if (!corners) return false;
+          pushUndo({ restore: prev });
+          updateVertices(corners);
+          setPolygon(corners);
+          analyze(corners);
+          setIsDrawing(false);
+          return true;
+        }
+      }
 
       if (prev.length >= 3) {
         const idx = closestEdgeIndex(prev, latlon);
@@ -59,9 +83,22 @@ export default function useDrawing({ setPolygon, analyze }) {
       if (next.length >= 3) {
         analyze(next);
       }
+      return true;
     },
-    [setPolygon, analyze]
+    [setPolygon, analyze, drawShape]
   );
+
+  // Pick the shape for the next zone. A started draft (under 3 vertices)
+  // belongs to the old shape's gesture, so it is dropped.
+  const setDrawShape = useCallback((shape) => {
+    if (!DRAW_SHAPES.includes(shape)) return;
+    setDrawShapeState(shape);
+    if (verticesRef.current.length > 0 && verticesRef.current.length < 3) {
+      undoStackRef.current = [];
+      updateVertices([]);
+      setPolygon([]);
+    }
+  }, [setPolygon]);
 
   const undo = useCallback(() => {
     const stack = undoStackRef.current;
@@ -71,10 +108,18 @@ export default function useDrawing({ setPolygon, analyze }) {
     const prev = verticesRef.current;
     if (prev.length === 0) return;
 
+    undoStackRef.current = stack.slice(0, -1);
+    if (last.restore) {
+      // Back to the two-corner rectangle draft: keep drawing its width.
+      updateVertices(last.restore);
+      setPolygon(last.restore);
+      setIsDrawing(true);
+      return;
+    }
+
     const next = [...prev];
     next.splice(last.index, 1);
 
-    undoStackRef.current = stack.slice(0, -1);
     updateVertices(next);
     setPolygon(next);
     if (next.length >= 3) {
@@ -170,6 +215,8 @@ export default function useDrawing({ setPolygon, analyze }) {
   return {
     isDrawing,
     vertices,
+    drawShape,
+    setDrawShape,
     canUndo: undoStackRef.current.length > 0,
     startDraw,
     stopDraw,

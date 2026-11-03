@@ -4,10 +4,60 @@ import MapIconBtn from '../MapIconBtn';
 import { colors, setColors } from '../../styles';
 import { DELIVERY_HUB_TYPES, getDeliveryHubIcon } from './constants/deliveryHubIcons.js';
 
+// Shape picker entries for the draw-zone button (see useDrawing DRAW_SHAPES).
+const DRAW_SHAPE_OPTIONS = [
+  {
+    shape: 'polygon',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M2 9L1 4l4-3h3l3 3-1 5H2z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+  {
+    shape: 'rectangle',
+    icon: (
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <path d="M1 7.5L7 1.5l4 3-6 6z" stroke="currentColor" strokeWidth="1.2" strokeLinejoin="round"/>
+      </svg>
+    ),
+  },
+];
+
+const submenuStyle = {
+  position: 'absolute',
+  right: 36,
+  top: 0,
+  display: 'flex',
+  flexDirection: 'column',
+  gap: 1,
+  background: 'rgba(22, 33, 62, 0.95)',
+  border: `1px solid ${colors.border}`,
+  borderRadius: 6,
+  padding: 4,
+  backdropFilter: 'blur(4px)',
+  whiteSpace: 'nowrap',
+};
+
+const submenuItemStyle = (isSelected) => ({
+  display: 'flex',
+  alignItems: 'center',
+  gap: 6,
+  padding: '3px 8px 3px 4px',
+  background: isSelected ? 'rgba(0, 210, 255, 0.2)' : 'transparent',
+  border: isSelected ? `1px solid ${colors.accent}` : '1px solid transparent',
+  borderRadius: 4,
+  cursor: 'pointer',
+  color: isSelected ? colors.accent : colors.textBright,
+  fontSize: 11,
+});
+
 export default function PlanningToolbar({
   isDrawing,
   onStartDraw,
   onStopDraw,
+  drawShape = 'polygon',
+  onDrawShapeChange,
   searchPattern,
   polygon,
   launchPoint,
@@ -58,8 +108,10 @@ export default function PlanningToolbar({
       gap: 4,
       zIndex: 10,
     }}>
-      {/* Draw zone toggle — hidden in corridor mode */}
+      {/* Draw zone toggle — hidden in corridor mode. While a new zone is
+          drawn (under 3 vertices) a shape picker opens to its left. */}
       {searchPattern !== 'corridor' && (
+        <div style={{ position: 'relative' }}>
         <MapIconBtn
           title={isDrawing ? t('planningToolbar.finishDrawing') : t('planningToolbar.drawZone')}
           onClick={isDrawing ? onStopDraw : onStartDraw}
@@ -76,6 +128,27 @@ export default function PlanningToolbar({
             <circle cx="13" cy="12" r="1.5" fill="currentColor"/>
           </svg>
         </MapIconBtn>
+        {isDrawing && polygon.length < 3 && onDrawShapeChange && (
+          <div role="radiogroup" aria-label={t('planningToolbar.drawShape')} style={submenuStyle}>
+            {DRAW_SHAPE_OPTIONS.map(({ shape, icon }) => {
+              const isSelected = drawShape === shape;
+              return (
+                <button
+                  key={shape}
+                  role="radio"
+                  aria-checked={isSelected}
+                  onClick={() => onDrawShapeChange(shape)}
+                  title={t(`planningToolbar.shapeHint.${shape}`)}
+                  style={submenuItemStyle(isSelected)}
+                >
+                  {icon}
+                  {t(`planningToolbar.shape.${shape}`)}
+                </button>
+              );
+            })}
+          </div>
+        )}
+        </div>
       )}
       <div style={{ height: 4 }} />
 

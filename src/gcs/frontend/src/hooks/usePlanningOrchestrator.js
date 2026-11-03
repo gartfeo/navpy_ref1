@@ -164,9 +164,17 @@ export default function usePlanningOrchestrator({
   });
 
   const handleMapClick = useCallback((latlon) => {
-    drawing.onMapClick(latlon);
+    if (!drawing.onMapClick(latlon)) return;
     undoRef.current = [...undoRef.current, { type: 'vertex' }];
   }, [drawing.onMapClick]);
+
+  // A shape change drops a started draft (under 3 vertices) and its undo steps.
+  const handleDrawShapeChange = useCallback((shape) => {
+    if (polygon.length > 0 && polygon.length < 3) {
+      undoRef.current = undoRef.current.filter((e) => e.type !== 'vertex');
+    }
+    drawing.setDrawShape(shape);
+  }, [drawing.setDrawShape, polygon]);
 
   // ---- Corridor path ----
   const {
@@ -448,6 +456,7 @@ export default function usePlanningOrchestrator({
 
     // Map interaction handlers
     handleMapClick,
+    handleDrawShapeChange,
     handleVertexDrag,
     handlePolygonMove,
     handleDragStart, handleDragEnd,
