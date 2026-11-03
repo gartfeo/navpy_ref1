@@ -23,7 +23,7 @@ in every view; the map swap only restyles its box (`App.jsx:620-634`).
 | | Trail (`useUavTrails.js`) | Camera marks (`useCoverageLayer.js`) |
 |---|---|---|
 | Keyed by | `sys_id` | index in the vehicle list (`:115-116`) |
-| Recorded when | always, every telemetry update, 2 m step (`trailAccum.js`) | only while the layer is shown (`:91`), mode AUTO (`:111`), every `COVERAGE_SAMPLE_DIST` |
+| Recorded when | always, every position fix of each telemetry update's `path` (all GLOBAL_POSITION_INT since the last broadcast, `position_path.py`), 2 m step (`trailAccum.js`) | only while the layer is shown (`:91`), mode AUTO (`:111`), every `COVERAGE_SAMPLE_DIST` |
 | Hide (toggle off) | hides, keeps recording (`:33-38`) | hides and stops recording |
 | Size limit | 2000 points per UAV, older part thinned | 500 polygons in all; the eviction loop (`:156-172`) always takes from the first key, so list index 0 loses its marks first |
 | Clear | all UAVs (`trailResetKey`) | all UAVs (`coverageResetKey`) |

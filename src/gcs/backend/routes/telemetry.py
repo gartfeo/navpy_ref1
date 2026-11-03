@@ -94,8 +94,14 @@ class BytesSubscriber(Protocol):
 
 
 async def send_initial_state(ws: BytesSubscriber) -> None:
-    """A new subscriber's first message: every vehicle's snapshot, if any."""
-    snapshots = vehicle_mgr.get_all_snapshots()
+    """A new subscriber's first message: every vehicle's snapshot, if any.
+
+    Each carries an empty ``path``: the map trail starts from the next
+    broadcast's fixes, never from this snapshot position, which can be newer
+    than fixes still buffered for that broadcast. Nothing is drained here, so
+    the other subscribers' next broadcast keeps every fix.
+    """
+    snapshots = [{**snap, "path": []} for snap in vehicle_mgr.get_all_snapshots()]
     if snapshots:
         await ws.send_bytes(orjson.dumps({
             "type": "telemetry",

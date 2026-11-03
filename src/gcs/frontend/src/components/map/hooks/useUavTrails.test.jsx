@@ -18,6 +18,13 @@ function fakeStore() {
       store.fresh.add(sid);
       store.notify();
     },
+    /** A message carrying `path` (every fix since the last one); its newest fix is lon. */
+    sendPath(sid, pathLons) {
+      const path = pathLons.map((l) => ({ lat: 40, lon: l, alt_rel: 100 }));
+      store.vehicles.set(sid, { sys_id: sid, lat: 40, lon: pathLons.at(-1) ?? 44, alt_rel: 100, path });
+      store.fresh.add(sid);
+      store.notify();
+    },
     disconnect() { store.fresh.clear(); store.notify(); },
     leave(sid) { store.vehicles.delete(sid); store.fresh.delete(sid); store.notify(); },
   };
@@ -161,5 +168,56 @@ describe('useUavTrails', () => {
     t.store.send(1, 44.006);
     expect(t.joins(1, 44.001, 44.005)).toBe(false);
     expect(t.lons(1)).toEqual([44.000, 44.001, 44.005, 44.006]);
+  });
+  it('records every fix of a path, not only the newest position', () => {
+    const t = setup();
+    t.store.sendPath(1, [44.000, 44.001, 44.002]);
+    t.store.sendPath(1, [44.003, 44.004]);
+    expect(t.lons(1)).toEqual([44.000, 44.001, 44.002, 44.003, 44.004]);
+    expect(t.joins(1, 44.002, 44.003)).toBe(true);
+  });
+
+  it('a kept path is not re-added when the store notifies for another UAV', () => {
+    const t = setup();
+    t.store.sendPath(1, [44.000, 44.003]);
+    t.store.sendPath(2, [45.000]);
+    t.store.notify();
+    const pool = t.entitiesRef.current.trailMap[1];
+    const positions = pool.segs.flat().map((e) => e.polyline.positions).filter((p) => p.length);
+    expect(positions.flat().filter((_, i) => i % 3 === 0)).toEqual([44.000, 44.003]);
+  });
+
+  it('with a path the snapshot position is never drawn, so no step goes back', () => {
+    const t = setup();
+    // Snapshot taken before the newest fixes arrived: lon 44.001 < 44.003.
+    t.store.vehicles.set(1, { sys_id: 1, lat: 40, lon: 44.001, alt_rel: 100,
+      path: [44.000, 44.002, 44.003].map((l) => ({ lat: 40, lon: l, alt_rel: 100 })) });
+    t.store.fresh.add(1);
+    t.store.notify();
+    t.store.vehicles.set(1, { sys_id: 1, lat: 40, lon: 44.002, alt_rel: 100, path: [] });
+    t.store.notify();
+    expect(t.lons(1)).toEqual([44.000, 44.002, 44.003]);
+    expect(t.joins(1, 44.000, 44.002) && t.joins(1, 44.002, 44.003)).toBe(true);
+  });
+
+  it('the first-connect snapshot (empty path) draws nothing; the next path starts the trail', () => {
+    const t = setup();
+    // Snapshot newer than fixes still buffered for the next broadcast.
+    t.store.vehicles.set(1, { sys_id: 1, lat: 40, lon: 44.005, alt_rel: 100, path: [] });
+    t.store.fresh.add(1);
+    t.store.notify();
+    expect(t.lons(1)).toEqual([]);
+    t.store.sendPath(1, [44.003, 44.004, 44.005]);
+    expect(t.lons(1)).toEqual([44.003, 44.004, 44.005]);
+  });
+
+  it('a path received while paused is not recorded on resume', () => {
+    const t = setup();
+    t.store.sendPath(1, [44.000, 44.001]);
+    t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: true });
+    t.store.sendPath(1, [44.002, 44.003]);
+    t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: false });
+    t.store.notify();
+    expect(t.lons(1)).toEqual([44.000, 44.001]);
   });
 });

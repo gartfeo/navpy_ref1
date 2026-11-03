@@ -177,6 +177,24 @@ export function thinTrail(trail) {
   return trail;
 }
 
+const trailPoint = (p) => ({ lon: p.lon, lat: p.lat, alt: p.alt_rel ?? p.alt ?? 0 });
+
+/**
+ * The positions one telemetry update adds to a UAV's trail. The backend sends
+ * `path`, every position fix since it last broadcast that UAV (newest last),
+ * because one position per 5 Hz broadcast is ~50 m apart at SITL speedup and
+ * the straight lines between them can miss a dock the UAV flew through. With
+ * a path only its fixes count, never the snapshot position (it may be older
+ * than the newest fix, or already in the next path). The store keeps a
+ * vehicle's `path` across later notifies, so a path already used (`usedPath`)
+ * adds nothing. Only an update without `path` adds the current position.
+ */
+export function trailUpdatePoints(v, usedPath) {
+  if (!Array.isArray(v.path)) return [trailPoint(v)];
+  if (v.path === usedPath) return [];
+  return v.path.filter((p) => p?.lat != null && p?.lon != null).map(trailPoint);
+}
+
 /** Number of fade steps per trail (graduated alpha from tail to head). */
 export const TRAIL_SEGMENTS = 5;
 
