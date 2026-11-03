@@ -92,6 +92,8 @@ export default defineConfig({
         },
       },
       '/health': BACKEND_HTTP,
+      // A lockstep app run's explicit cancel (scripts/lockstep_app_relay.py, todo 246).
+      '/__relay': BACKEND_HTTP,
     },
   },
   // `vite preview` reads this separately from `server` above — needed so a

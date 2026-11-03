@@ -13,7 +13,6 @@ only: nothing here reaches the run journal.
 from __future__ import annotations
 
 import os
-import signal
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
@@ -53,27 +52,20 @@ class AppStack:
             self.frontend = None
 
 
-def own_tree() -> dict:
-    """Popen options that give the shell, npm and Vite one tree this run owns."""
-    if os.name == "nt":
-        return {"creationflags": subprocess.CREATE_NO_WINDOW}
-    return {"start_new_session": True}  # its own process group
-
-
 def stop_tree(pid: int) -> None:
-    """Stop the frontend's whole tree, not only its shell."""
-    if os.name == "nt":
-        subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
-        return
-    try:
-        os.killpg(pid, signal.SIGTERM)  # the group leader's pid is the group id
-    except ProcessLookupError:
-        pass
+    """Stop the frontend's whole tree (shell, npm, Vite), as ``gcs_stop.py`` does."""
+    subprocess.run(["taskkill", "/PID", str(pid), "/T", "/F"], capture_output=True)
 
 
 def start_app_stack(run_dir: Path, slot: int, identity: dict, target: int, *,
                     frontend: bool = True) -> AppStack:
-    """The relay on the slot's backend port, then (``frontend``) Vite on its frontend port."""
+    """The relay on the slot's backend port, then (``frontend``) Vite on its frontend port.
+
+    Windows only, as the lockstep fleet is (it drives WSL): stopping the
+    frontend, here and in ``gcs_stop.py``, kills its whole tree with
+    ``taskkill /T``, and a POSIX signal would reach only its shell."""
+    if os.name != "nt":
+        raise RuntimeError("--app needs a Windows host (taskkill /T stops the frontend's tree)")
     relay = AppRelay(target)
     relay.start(ip.backend_port(slot), RELAY_HOST)
     stack = AppStack(relay, None, slot, identity)
@@ -86,7 +78,8 @@ def start_app_stack(run_dir: Path, slot: int, identity: dict, target: int, *,
         with (run_dir / FRONTEND_LOG).open("ab") as out:
             process = subprocess.Popen(f"npm run dev -- --host {RELAY_HOST}", cwd=str(FRONTEND_DIR), env=env, shell=True,
                                        stdin=subprocess.DEVNULL, stdout=out,
-                                       stderr=subprocess.STDOUT, **own_tree())
+                                       stderr=subprocess.STDOUT,
+                                       creationflags=subprocess.CREATE_NO_WINDOW)
         stack.frontend = process
         if not lockstep.record_child(slot, identity, lockstep.local_child(process.pid, role="frontend")):
             raise RuntimeError("the lockstep slot is stopping: frontend not recorded")
@@ -96,4 +89,4 @@ def start_app_stack(run_dir: Path, slot: int, identity: dict, target: int, *,
     return stack
 
 
-__all__ = ["AppStack", "FRONTEND_LOG", "own_tree", "start_app_stack", "stop_tree"]
+__all__ = ["AppStack", "FRONTEND_LOG", "start_app_stack", "stop_tree"]
