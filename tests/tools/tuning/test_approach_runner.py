@@ -264,3 +264,11 @@ def approach_args(tmp_path):
     return parser.parse_args(["approach", "--mode", "pc-sitl", "--run-root", str(tmp_path / "runs"),
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas", "--uproject", "C:\\u"])
+
+
+def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
+    assert chain.win_path(Path("/mnt/c/Users/a/unreal.log")) == r"C:\Users\a\unreal.log"
+    assert chain.win_path(Path("/home/gart/repo/x.json"), "Ubuntu-24.04") == \
+        r"\\wsl.localhost\Ubuntu-24.04\home\gart\repo\x.json"
+    with pytest.raises(ValueError):
+        chain.win_path(Path("relative/x.json"), "Ubuntu-24.04")

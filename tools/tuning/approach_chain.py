@@ -8,6 +8,7 @@ the Windows host's address; it sends its frames to WSL's own address (the direct
 from __future__ import annotations
 
 import json
+import os
 import re
 import shlex
 import socket
@@ -51,12 +52,15 @@ class ChainPaths:
     unreal_affinity: Optional[int] = None
 
 
-def win_path(path: Path) -> str:
-    """/mnt/c/a/b -> C:\\a\\b (Unreal's command line)."""
+def win_path(path: Path, distro: Optional[str] = None) -> str:
+    """/mnt/c/a/b -> C:\\a\\b; another absolute path in WSL -> \\\\wsl.localhost\\DISTRO\\... (Unreal's command line)."""
     parts = Path(path).as_posix().split("/")
-    if len(parts) < 3 or parts[1] != "mnt" or len(parts[2]) != 1:
-        raise ValueError(f"{path} is not on a Windows drive under /mnt")
-    return parts[2].upper() + ":\\" + "\\".join(parts[3:])
+    if len(parts) >= 3 and parts[1] == "mnt" and len(parts[2]) == 1:
+        return parts[2].upper() + ":\\" + "\\".join(parts[3:])
+    distro = distro or os.environ.get("WSL_DISTRO_NAME")
+    if parts[0] != "" or not distro:
+        raise ValueError(f"{path} is neither under /mnt/<drive> nor an absolute path in a named WSL distro")
+    return "\\\\wsl.localhost\\" + distro + "\\" + "\\".join(parts[1:])
 
 
 def port_free(protocol: str, port: int) -> bool:
