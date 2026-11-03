@@ -220,11 +220,13 @@ class AppRelay:
             body += message.get("body", b"")
             if not message.get("more_body"):
                 break
-        query = scope.get("query_string", b"").decode("latin-1")
-        payload: dict[str, Any] = {"kind": "http", "method": method,
-                                   "target": path + (f"?{query}" if query else "")}
         headers = dict(scope.get("headers", []))
         try:
+            # As sent, still percent-encoded: the backend decodes it once.
+            raw = (scope.get("raw_path") or path.encode("utf-8")).decode("ascii")
+            query = scope.get("query_string", b"").decode("ascii")
+            payload: dict[str, Any] = {"kind": "http", "method": method,
+                                       "target": raw + (f"?{query}" if query else "")}
             if body:
                 payload["json"] = json.loads(body)
             if DEADLINE_HEADER in headers:

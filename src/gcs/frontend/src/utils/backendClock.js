@@ -6,9 +6,22 @@
  * not between them. Before the first one it is the page's own clock.
  */
 let lastBackendMs = null;
+const listeners = new Set();
 
 export function noteBackendTs(tsSeconds) {
-  if (typeof tsSeconds === 'number' && Number.isFinite(tsSeconds)) lastBackendMs = tsSeconds * 1000;
+  if (typeof tsSeconds !== 'number' || !Number.isFinite(tsSeconds)) return;
+  lastBackendMs = tsSeconds * 1000;
+  for (const listener of [...listeners]) listener(lastBackendMs);
+}
+
+/**
+ * Call `listener` on each new backend time, as it arrives: a deadline on this
+ * clock is seen the moment the clock passes it, never on a wall timer's next
+ * turn. Returns the unsubscribe.
+ */
+export function onBackendTime(listener) {
+  listeners.add(listener);
+  return () => listeners.delete(listener);
 }
 
 /** Epoch ms on the backend's clock. */
@@ -19,4 +32,5 @@ export function backendNowMs() {
 /** Tests: forget the backend's clock. */
 export function resetBackendClock() {
   lastBackendMs = null;
+  listeners.clear();
 }

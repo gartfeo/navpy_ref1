@@ -1,4 +1,4 @@
-import { backendNowMs } from './backendClock';
+import { backendNowMs, onBackendTime } from './backendClock';
 
 /**
  * The one clock of the task-confirm countdown: receipt time, the card, the
@@ -10,3 +10,6 @@ import { backendNowMs } from './backendClock';
 export function confirmNow() {
   return backendNowMs();
 }
+
+/** Each advance of the confirm clock (the countdown's auto-fire check). */
+export const onConfirmTime = onBackendTime;

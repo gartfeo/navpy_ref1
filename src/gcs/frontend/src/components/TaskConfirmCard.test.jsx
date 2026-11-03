@@ -72,6 +72,24 @@ describe('TaskConfirmCard auto-timeout', () => {
     }
   });
 
+  // The clock's own advance fires it, with no wall timer turn: a throttled tab
+  // or a reset right after the crossing cannot change whether it is sent.
+  it('fires the moment the backend clock passes the deadline, before a reset', () => {
+    noteBackendTs(1767225600);
+    try {
+      const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
+      const entry = { ...entryFor({ roundUid: '424242:31' }), receivedAt: 1767225600000 };
+      const { unmount } = renderCard(entry, handlers);
+      act(() => { noteBackendTs(1767225600 + TIMEOUT_SEC + 0.2); });
+      unmount();
+      expect(handlers.onDeny).toHaveBeenCalledTimes(1);
+      noteBackendTs(1767225600 + TIMEOUT_SEC + 5);  // unsubscribed: once only
+      expect(handlers.onDeny).toHaveBeenCalledTimes(1);
+    } finally {
+      resetBackendClock();
+    }
+  });
+
   // Sanity: the same driver the re-ask test uses does fire a single round's
   // timeout. Without this the assertions below could pass vacuously.
   it('fires the timeout action once when the countdown runs out', () => {

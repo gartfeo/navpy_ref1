@@ -151,6 +151,11 @@ def test_no_relay_traffic_adds_no_journal_note():
     ("POST", "/api/control/navpy-sim/stop/2", True),
     ("POST", "/api/control/navpy-sim/restart-ready", False),
     ("GET", "/api/settings", False),
+    # Decoded once, as the backend decodes it.
+    ("GET", "/api/vehicles/1/%70arameters", True),
+    ("GET", "/api/vehicles/1/%2570arameters", False),  # the backend sees "%70arameters": no route
+    ("HEAD", "/api/vehicles/1/parameters", True),  # Starlette serves HEAD from the GET route
+    ("GET", "/api/vehicles/1/pärameters", True),  # not ASCII: never sent
 ])
 def test_app_refusals(method, target, refused):
     assert (app_refusals.refusal(_http(target, method)) is not None) is refused

@@ -19,8 +19,9 @@ from __future__ import annotations
 import json
 import re
 from typing import Any
+from urllib.parse import unquote, urlsplit
 
-#: ``(method, path pattern, reason)``; the pattern matches the path without its query.
+#: ``(method, path pattern, reason)``; the pattern matches the decoded path without its query.
 REFUSED: tuple[tuple[str, re.Pattern[str], str], ...] = tuple(
     (method, re.compile(pattern), reason) for method, pattern, reason in (
         ("GET", r"/api/vehicles/[^/]+/parameters", "the full-parameter read uses MAVFTP (todo 245)"),
@@ -30,6 +31,7 @@ REFUSED: tuple[tuple[str, re.Pattern[str], str], ...] = tuple(
         ("POST", r"/api/control/navpy-sim/stop/[^/]+", "NavPy-sim stop is wall-only (step 13)"),
     ))
 NOT_HTTP = "only HTTP requests enter the run"
+NOT_ASCII = "a request target is ASCII (percent-encoded)"
 STATUS = 501
 
 
@@ -43,11 +45,16 @@ def refusal(payload: dict[str, Any]) -> dict[str, Any] | None:
     method, target = payload.get("method"), payload.get("target")
     if payload.get("kind") != "http" or not isinstance(method, str) or not isinstance(target, str):
         return answer(NOT_HTTP)
-    path = target.split("?", 1)[0]
+    if not target.isascii():
+        return answer(NOT_ASCII)
+    # Decoded once, as the backend's scope decodes it (``lockstep_asgi._scope``).
+    path = unquote(urlsplit(target).path)
+    # Starlette answers HEAD with the GET route's handler.
+    method = "GET" if method.upper() == "HEAD" else method.upper()
     for refused_method, pattern, reason in REFUSED:
-        if method.upper() == refused_method and pattern.fullmatch(path):
+        if method == refused_method and pattern.fullmatch(path):
             return answer(reason)
     return None
 
 
-__all__ = ["NOT_HTTP", "REFUSED", "STATUS", "answer", "refusal"]
+__all__ = ["NOT_ASCII", "NOT_HTTP", "REFUSED", "STATUS", "answer", "refusal"]

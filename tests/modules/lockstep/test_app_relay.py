@@ -69,6 +69,14 @@ def test_requests_carry_method_target_json_and_deadline_and_answer_out_of_order(
     assert reply.status == 504
 
 
+def test_the_target_is_forwarded_as_sent_for_the_backend_to_decode_once(relay):
+    pending = _send(relay, "GET", "/api/vehicles/1/%2570arameters?a=%20")
+    (item,) = _taken(relay, 1)
+    assert item.payload["target"] == "/api/vehicles/1/%2570arameters?a=%20"
+    relay.answer(item.ticket, {"status": 404, "body": "{}"})
+    assert pending.getresponse().status == 404
+
+
 def test_a_closed_page_sends_no_cancel_and_its_late_answer_is_logged(relay):
     connection = _send(relay, "GET", "/api/vehicles/1/mission")
     (item,) = _taken(relay, 1)
