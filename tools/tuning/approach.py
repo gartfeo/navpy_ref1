@@ -207,7 +207,7 @@ def approach(args: argparse.Namespace) -> int:
                              Path(args.uproject), wsl_ip, windows_ip, args.windows_python, args.unreal_affinity)
     lens = repo / "src/navpy/core/perception/profile/vision_profiles.json"
     group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity),
-                                   "interop": handles.spawn_interop(chain.EMULATOR_PORTS),
+                                   "interop": handles.spawn_interop(chain.EMULATOR_PORTS, chain.EMULATOR_PID_LINE),
                                    "publisher": handles.spawn_publisher}, chain.port_free)
     run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "addresses": [wsl_ip, windows_ip],
                  "sitl_binary": _binary(args.sitl_binary)}
@@ -236,7 +236,11 @@ def approach(args: argparse.Namespace) -> int:
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
         print(f"[approach] run FAILED: {failed}", flush=True)
     finally:
-        board.stop()
+        try:
+            board.stop()
+        except Exception as exc:      # noqa: BLE001 - recorded; the owned processes must still stop
+            run["board_stop_error"] = f"{type(exc).__name__}: {exc}"
+            failed = failed or run["board_stop_error"]
         group.mark_stopped("bridge", board.record.get("hitl", {}).get("bridge_exit"))
         group.stop_all()
         run["producers"], run["orphans"] = group.producers(), group.orphans()

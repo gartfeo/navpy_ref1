@@ -154,7 +154,7 @@ def test_stop_escalates_and_names_orphans(tmp_path):
     group.stop_all()
     producers = group.producers()
     assert producers["emulator"]["how"] == "terminate" and not producers["emulator"]["ended_after_stop"]
-    assert producers["unreal"]["how"] == "kill"
+    assert producers["unreal"]["how"] == "still running after kill"      # its leader died; a member is left
     assert producers["navpy"]["how"] == "still running after kill"
     assert group.orphans() == ["unreal", "navpy"]
 
@@ -172,9 +172,11 @@ def test_stop_all_never_raises_and_an_exited_role_fails_the_check(tmp_path):
         raise OSError("gone")
 
     handles["navpy"].request_stop = broken
+    handles["navpy"].exits_on = "terminate"
     group.stop_all()
-    assert group.producers()["navpy"] == {**group.producers()["navpy"], "ended_after_stop": False,
-                                          "error": "OSError: gone"}
+    navpy = group.producers()["navpy"]
+    assert navpy["how"] == "terminate" and navpy["errors"] == ["stop: OSError: gone"]
+    assert not navpy["ended_after_stop"] and "navpy terminate" in log and group.orphans() == []
 
 
 def test_the_adopted_bridge_is_marked_stopped_by_its_owner(tmp_path):
@@ -211,7 +213,8 @@ def test_the_navpy_spec_carries_the_timing_inputs_and_the_link_identity(tmp_path
     assert backing[backing.index("--binary") + 1] == "/fw/sim-hil/arduplane" and "hil" in backing
 
 
-def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkeypatch):
+@pytest.mark.parametrize("board_stop_fails", [False, True])
+def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkeypatch, board_stop_fails):
     log: list = []
 
     class FakeBoard:
@@ -224,6 +227,8 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
 
         def stop(self):
             log.append("board stop")
+            if board_stop_fails:
+                raise OSError("link close failed")
 
         def report(self):
             return {"link_health": {"ok": True}}
@@ -253,6 +258,7 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     assert log[:3] == ["spawn backing", "spawn router", "board start"]
     assert log[3:] == ["board stop", "router stop", "backing stop"] and run["orphans"] == []
     assert (run_dir / "run_manifest.json").exists()
+    assert run.get("board_stop_error") == ("OSError: link close failed" if board_stop_fails else None)
 
 
 READY_LINES = {"backing": "[backing] SITL instance 240 (hil)", "router": "[router] tcp:127.0.0.1:8160 <-> 3 clients"}
@@ -363,20 +369,92 @@ def test_the_windows_owners_of_the_emulators_ports_are_found():
     assert handles.windows_udp_owners((9999,), NETSTAT) == set()
 
 
-def test_an_interop_role_stays_alive_while_its_windows_process_holds_its_ports(monkeypatch):
-    owners, killed = {29860}, []
+TASKLIST = '"python.exe","29860","Console","1","41,212 K"\n'
+
+
+def test_the_image_of_a_windows_pid_is_read_from_tasklist():
+    assert handles.windows_image(29860, TASKLIST) == "python.exe"
+    assert handles.windows_image(29861, TASKLIST) == ""
+    assert handles.windows_image(5, "INFO: No tasks are running which match the specified criteria.\n") == ""
+
+
+class _Proxy:
+    pid = 1
+
+
+def _interop(tmp_path, monkeypatch, images: dict, owners: set, ready: str):
+    killed: list = []
     monkeypatch.setattr(handles.PosixHandle, "group_alive", lambda self: False)     # the interop proxy is gone
     monkeypatch.setattr(handles.PosixHandle, "kill", lambda self: killed.append("proxy"))
     monkeypatch.setattr(handles, "windows_udp_owners", lambda ports: set(owners))
-    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), owners.clear()))
+    monkeypatch.setattr(handles, "windows_image", lambda pid: images.get(pid, ""))
+    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), images.clear()))
+    output = tmp_path / "emulator.out"
+    output.write_text(ready, encoding="utf-8")
+    return handles.InteropHandle(_Proxy(), STOP_EOF, chain.EMULATOR_PORTS, output, chain.EMULATOR_PID_LINE), killed
 
-    class Proxy:
-        pid = 1
 
-    handle = handles.InteropHandle(Proxy(), STOP_EOF, chain.EMULATOR_PORTS)
-    assert handle.group_alive()
+def test_an_interop_role_is_alive_while_its_own_windows_python_runs_and_a_kill_ends_only_that(tmp_path, monkeypatch):
+    ready = "ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, non-ideal none, pid 29860\r\n"
+    handle, killed = _interop(tmp_path, monkeypatch, {29860: "python.exe", 77: "other.exe"}, {29860, 77}, ready)
+    assert handle.windows_pid() == 29860 and handle.group_alive()
     handle.kill()
-    assert killed == ["proxy", ["taskkill.exe", "/PID", "29860", "/F"]] and not handle.group_alive()
+    assert killed == ["proxy", ["taskkill.exe", "/PID", "29860", "/T", "/F"]] and not handle.group_alive()
+
+
+def test_a_pid_reused_by_another_program_is_neither_alive_nor_killed(tmp_path, monkeypatch):
+    ready = "ZR10 emulator: SIYI a, vehicle_state b, Unreal c, non-ideal none, pid 29860\n"
+    handle, killed = _interop(tmp_path, monkeypatch, {29860: "notepad.exe"}, {29860}, ready)
+    assert not handle.group_alive()
+    handle.kill()
+    assert killed == ["proxy"]
+
+
+def test_before_its_ready_line_a_port_owner_counts_as_alive_but_is_never_killed(tmp_path, monkeypatch):
+    handle, killed = _interop(tmp_path, monkeypatch, {77: "python.exe"}, {77}, "starting\n")
+    assert handle.windows_pid() is None and handle.group_alive()
+    handle.kill()
+    assert killed == ["proxy"] and handle.group_alive()
+
+
+class _Members(FakeHandle):
+    """A leader whose process group keeps members until *members_end_on* (terminate or kill) reaches them."""
+
+    def __init__(self, log: list, role: str, members_end_on: str) -> None:
+        super().__init__(log, role, exits_on="never")
+        self.members, self.members_end_on = True, members_end_on
+
+    def _step(self, step: str) -> None:
+        super()._step(step)
+        self.members = self.members and step != self.members_end_on
+
+    def group_alive(self) -> bool:
+        return self.running() or self.members
+
+
+def test_a_group_whose_leader_exited_first_is_still_stopped_to_its_last_member(tmp_path):
+    log: list = []
+    group, _, _ = _group(tmp_path, log)
+    leader = _Members(log, "publisher", "terminate")
+    group.adopt("publisher", leader, STOP_SIGINT)
+    leader.code = 0                             # the leader exited during the run; MediaMTX is still there
+    group.stop_all()
+    stopped = group.producers()["publisher"]
+    assert stopped["how"] == "terminate" and not stopped["ended_after_stop"] and group.orphans() == []
+    assert log == ["publisher stop", "publisher terminate"]
+
+
+def test_members_left_after_the_handoff_stop_are_terminated(tmp_path):
+    log: list = []
+    group, _, _ = _group(tmp_path, log)
+    navpy = _Members(log, "navpy", "kill")
+    group.adopt("navpy", navpy)
+    navpy.code = 0
+    approach._handed_off(group, "navpy", {"stop": "requested", "returncode": 0}, "requested")
+    group.stop_all()
+    stopped = group.producers()["navpy"]
+    assert stopped["leftover"]["how"] == "kill" and not stopped["ended_after_stop"] and group.orphans() == []
+    assert log == ["navpy terminate", "navpy kill"]
 
 
 @pytest.mark.parametrize("result, clean, ended", [({"stop": "requested", "returncode": 0}, "requested", True),

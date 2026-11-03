@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import select
 import socket
 import sys
@@ -280,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.exit_on_stdin_eof:
         threading.Thread(target=lambda: (sys.stdin.buffer.read(), stop.set()), daemon=True).start()
     print(f"ZR10 emulator: SIYI {emulator.siyi_address}, vehicle_state {emulator.vehicle_state_address}, "
-          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}", flush=True)
+          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}, pid {os.getpid()}", flush=True)
     try:
         emulator.serve(stop)
     except KeyboardInterrupt:

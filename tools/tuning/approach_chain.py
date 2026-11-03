@@ -30,6 +30,7 @@ RUNNER_PORT, NAVPY_PORT, CONTROL_PORT = 9641, 9642, 9643     # router clients an
 POSE_PORT, VEHICLE_STATE_PORT, GIMBAL_PORT = 17110, 17113, 17212
 SIYI_PORT = 37260
 EMULATOR_PORTS = (VEHICLE_STATE_PORT, SIYI_PORT)    # the emulator's Windows binds
+EMULATOR_PID_LINE = r"^ZR10 emulator: .*, pid (\d+)"    # its ready line names its own Windows pid
 NATIVE_PORT, RTSP_PORT, RTP_PORT, MEDIA_API_PORT = 18110, 18554, 18556, 9997
 # The frame consumers' Linux nice value. Section 8 puts the bridge and router above them; WSL lets a user only lower a
 # priority (RLIMIT_NICE 0), so navpy and the publisher start lowered instead. Fit run 8 (2026-11-03): with frames

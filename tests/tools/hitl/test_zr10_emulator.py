@@ -4,6 +4,8 @@ from __future__ import annotations
 import io
 import json
 import math
+import os
+import re
 import socket
 import subprocess
 import sys
@@ -22,6 +24,7 @@ from tools.hitl.zr10_config import EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device
 from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, SUMMARY_TAG, Zr10Emulator, build_parser, open_log
 from tools.hitl.zr10_vehicle_input import VEHICLE_STATE_TIMEOUT_S, VehicleInput, decode_vehicle_state
+from tools.tuning.approach_chain import EMULATOR_PID_LINE
 from tools.tuning.hitl_bridge.unreal_pose import UnrealPoseSender
 
 LOOPBACK = ("127.0.0.1", 0)
@@ -342,7 +345,9 @@ def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
                              "--siyi", "127.0.0.1:0", "--unreal", "127.0.0.1:9", "--log", str(log),
                              "--exit-on-stdin-eof"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
     try:
-        assert proc.stdout.readline().startswith("ZR10 emulator: SIYI")
+        ready = re.match(EMULATOR_PID_LINE, proc.stdout.readline())
+        # the runner kills only the pid this line names; a Windows venv's python.exe starts the real one as a child
+        assert ready and (os.name == "nt" or int(ready.group(1)) == proc.pid)
         proc.stdin.close()
         proc.wait(timeout=10)
         out = proc.stdout.read()

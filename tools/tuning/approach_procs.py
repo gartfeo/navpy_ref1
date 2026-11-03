@@ -223,29 +223,48 @@ class ProcessGroup:
     def stop_all(self) -> None:
         """Every owned process, newest first; each role's own stop, then terminate and kill. Never raises."""
         for owned in reversed(self.owned):
-            if not owned.stopped:
-                try:
+            try:
+                if not owned.stopped:
                     owned.stopped = self._stop(owned)
-                except Exception as exc:       # noqa: BLE001 - the others must still stop
-                    owned.stopped = {"error": f"{type(exc).__name__}: {exc}", "ended_after_stop": False}
+                elif owned.handle.group_alive():       # its other owner stopped the leader; members are left
+                    leftover = self._escalate(owned.handle, self._steps(owned, own_stop=False))
+                    owned.stopped = {**owned.stopped, "leftover": leftover, "ended_after_stop": False}
+            except Exception as exc:       # noqa: BLE001 - the others must still stop
+                owned.stopped = {**owned.stopped, "error": f"{type(exc).__name__}: {exc}", "ended_after_stop": False}
             if owned.output is not None and not owned.output.closed:
                 owned.output.close()
 
     def _stop(self, owned: Owned) -> dict:
         handle = owned.handle
-        if not handle.running():
+        if not handle.group_alive():
             return {"how": "already exited", "exit_code": handle.exit_code(), "ended_after_stop": False}
-        for how, act, wait_s in (("stop", handle.request_stop, owned.spec.stop_wait_s),
-                                 ("terminate", handle.terminate, TERMINATE_WAIT_S),
-                                 ("kill", handle.kill, TERMINATE_WAIT_S)):
-            act()
+        leader_gone = not handle.running()       # the leader exited during the run; its members are left
+        result = self._escalate(handle, self._steps(owned, own_stop=True))
+        return {**result, "ended_after_stop": result["how"] == "stop" and not leader_gone and "errors" not in result}
+
+    @staticmethod
+    def _steps(owned: Owned, own_stop: bool) -> list[tuple[str, Callable[[], None], float]]:
+        handle = owned.handle
+        steps = [("terminate", handle.terminate, TERMINATE_WAIT_S), ("kill", handle.kill, TERMINATE_WAIT_S)]
+        return [("stop", handle.request_stop, owned.spec.stop_wait_s), *steps] if own_stop else steps
+
+    def _escalate(self, handle: Handle, steps: Sequence[tuple[str, Callable[[], None], float]]) -> dict:
+        """Each step until the whole process group is gone; a step that raises is recorded and the next one runs."""
+        errors = []
+        for how, act, wait_s in steps:
+            try:
+                act()
+            except Exception as exc:       # noqa: BLE001 - the next step must still run
+                errors.append(f"{how}: {type(exc).__name__}: {exc}")
+                continue
             deadline = self._clock() + wait_s
-            while handle.running() and self._clock() < deadline:
+            while handle.group_alive() and self._clock() < deadline:
                 self._sleep(READY_POLL_S)
-            if not handle.running():
-                return {"how": how, "exit_code": handle.exit_code(), "ended_after_stop": how == "stop",
-                        "ended_utc": _utc()}
-        return {"how": "still running after kill", "exit_code": None, "ended_after_stop": False}
+            if not handle.group_alive():
+                return {"how": how, "exit_code": handle.exit_code(), "ended_utc": _utc(),
+                        **({"errors": errors} if errors else {})}
+        how = "still running after kill" if handle.group_alive() else "ended after a failed step"
+        return {"how": how, "exit_code": handle.exit_code(), **({"errors": errors} if errors else {})}
 
     def orphans(self) -> list[str]:
         return [owned.spec.role for owned in self.owned if owned.handle.group_alive()]
