@@ -419,4 +419,40 @@ describe('delivery demo plan file', () => {
     expect(metres).toBeGreaterThan(140);
     expect(metres).toBeLessThan(160);
   });
+
+  // The rotated file is the same layout turned 90 degrees clockwise about the
+  // launch point, so every planned waypoint must be the original's, turned.
+  it('plans the rotated file as the original turned 90 degrees clockwise', async () => {
+    const { default: originalFile } = await import('../../../../../scripts/delivery_demo_plan.json');
+    const { default: rotatedFile } = await import('../../../../../scripts/delivery_demo_plan_rotated.json');
+    const planner = renderPlanner(stubFileIo());
+    planner.load(originalFile);
+    const original = { plan: structuredClone(planner.result.current.mission.plan) };
+    planner.load(rotatedFile);
+    const rotated = planner.result.current.mission;
+    expect(waypointsPerUav(rotated.plan)).toEqual([6, 6, 6]);
+    expect(rotated.simDockWps).toEqual({ 2: [1, 2] });
+    expect(rotated.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
+    expect(rotated.deliveryHubAssignments).toEqual([2, 1, 0]);
+    expect(rotated.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
+
+    const [launch] = rotatedFile.set_launch_points;
+    const local = (p) => [
+      (p.lon - launch.lon) * 111320 * Math.cos((launch.lat * Math.PI) / 180),
+      (p.lat - launch.lat) * 111320,
+    ];
+    original.plan.zones.forEach((zone, z) => {
+      zone.track.forEach((p, i) => {
+        const [e, n] = local(p);
+        const [e2, n2] = local(rotated.plan.zones[z].track[i]);
+        // Clockwise: east' = north, north' = -east; metres within the
+        // planner's flat projection and 1e-6 deg output rounding.
+        expect(Math.abs(e2 - n)).toBeLessThan(3);
+        expect(Math.abs(n2 + e)).toBeLessThan(3);
+      });
+    });
+    // The docks are zone 2's west-end turn, west of the launch point.
+    const docks = [1, 2].map((i) => rotated.plan.zones[2].track[i]);
+    docks.forEach((d) => expect(d.lon).toBeLessThan(launch.lon));
+  });
 });

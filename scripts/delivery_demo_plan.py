@@ -6,8 +6,12 @@ track waypoints, so the area is narrowed and the lines are 150 m apart: two
 south-end turn waypoints of the lowest zone become the docks, as close as the
 fixture's d1 and d2. See docs/design/delivery_demo_prep.md, "Normal-run demo".
 
-    python scripts/delivery_demo_plan.py           # rewrite the plan file
-    python scripts/delivery_demo_plan.py --check   # fail if it is stale
+A second plan file holds the same layout turned 90 degrees clockwise about the
+launch point (north to east), in the planner's metres: the area west of the launch,
+the hubs east of it, the lines east-west and the docks at the west-end turn.
+
+    python scripts/delivery_demo_plan.py           # rewrite both plan files
+    python scripts/delivery_demo_plan.py --check   # fail if either is stale
 """
 
 from __future__ import annotations
@@ -28,6 +32,18 @@ from scripts.eval_delivery_fixture import FIXTURE_PATH, load_fixture  # noqa: E4
 from scripts.eval_gcs_demo_ports import JsonValue  # noqa: E402
 
 PLAN_PATH = Path(__file__).resolve().parent / "delivery_demo_plan.json"
+ROTATED_PLAN_PATH = PLAN_PATH.with_name("delivery_demo_plan_rotated.json")
+#: The rotated plan's turn, clockwise seen from above, about the launch point.
+ROTATION_DEG = 90.0
+#: Hub names after the turn: the fixture names say where each hub lies.
+ROTATED_HUB_NAMES = {"home-west": "home-north", "home-middle": "home-middle", "home-east": "home-south"}
+#: The turn is made in the planner's own metres (projection.js: a sphere of this
+#: radius, flat about the turn's centre), which keep the 1350 m area 9 lanes of
+#: 150 m. WGS84 local ENU metres differ by up to 0.4 % between north and east,
+#: enough to give the turned area a tenth lane and move the docks.
+PLANNER_EARTH_RADIUS_M = 6_371_000.0
+#: Plan coordinates keep 7 decimals (about 1 cm), as the fixture's.
+_DECIMALS = 7
 #: Line spacing: the distance between the two dock waypoints, the fixture's
 #: d1-d2 distance. Both stay in the ZR10's zoom-1 frame on the way to the first.
 LINE_SPACING_M = 150.0
@@ -84,21 +100,65 @@ def _hub_index(hubs: list, hub: Mapping[str, JsonValue]) -> int:
     return matches[0]
 
 
+def rotated_plan_file(fixture: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
+    """plan_file turned ROTATION_DEG clockwise about the launch point.
+
+    The planner aims the lines at the launch point, so they turn with the area.
+    partition_angle_deg is counter-clockwise from east (planner.js), so it drops
+    by the turn. Hub order, and so every zone's hub index, stays the same.
+    """
+    data = plan_file(fixture)
+    launch = fixture["inputs"]["launch_point"]
+    data["polygon"] = [_rotated(p, launch) for p in data["polygon"]]
+    data["partition_angle_deg"] = (data["partition_angle_deg"] - ROTATION_DEG) % 360.0
+    data["default_delivery_hubs"] = [
+        {**hub, **_rotated(hub, launch), "name": ROTATED_HUB_NAMES[hub["name"]]}
+        for hub in data["default_delivery_hubs"]
+    ]
+    return data
+
+
+def planner_metres(point: Mapping[str, float], centre: Mapping[str, float]) -> tuple[float, float]:
+    """East and north metres of *point* from *centre*, in the planner's frame."""
+    east = math.radians(point["lon"] - centre["lon"]) * PLANNER_EARTH_RADIUS_M * math.cos(
+        math.radians(centre["lat"]))
+    return east, math.radians(point["lat"] - centre["lat"]) * PLANNER_EARTH_RADIUS_M
+
+
+def _rotated(point: Mapping[str, float], centre: Mapping[str, float]) -> dict[str, float]:
+    """*point* turned ROTATION_DEG clockwise about *centre*, in planner metres."""
+    east, north = planner_metres(point, centre)
+    turn = math.radians(ROTATION_DEG)
+    east, north = (east * math.cos(turn) + north * math.sin(turn),
+                   -east * math.sin(turn) + north * math.cos(turn))
+    lat = centre["lat"] + math.degrees(north / PLANNER_EARTH_RADIUS_M)
+    lon = centre["lon"] + math.degrees(
+        east / (PLANNER_EARTH_RADIUS_M * math.cos(math.radians(centre["lat"]))))
+    return {"lat": round(lat, _DECIMALS), "lon": round(lon, _DECIMALS)}
+
+
 def render(fixture: Mapping[str, JsonValue]) -> str:
     return json.dumps(plan_file(fixture), indent=2) + "\n"
 
 
+def render_rotated(fixture: Mapping[str, JsonValue]) -> str:
+    return json.dumps(rotated_plan_file(fixture), indent=2) + "\n"
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
-    parser.add_argument("--check", action="store_true", help="fail if the plan file is stale")
+    parser.add_argument("--check", action="store_true", help="fail if a plan file is stale")
     args = parser.parse_args(argv)
-    text = render(load_fixture(FIXTURE_PATH))
+    fixture = load_fixture(FIXTURE_PATH)
+    outputs = {PLAN_PATH: render(fixture), ROTATED_PLAN_PATH: render_rotated(fixture)}
     if args.check:
-        if not PLAN_PATH.exists() or PLAN_PATH.read_text(encoding="utf-8") != text:
-            print(f"{PLAN_PATH} is stale; run: python scripts/delivery_demo_plan.py", file=sys.stderr)
-            return 1
-        return 0
-    PLAN_PATH.write_text(text, encoding="utf-8", newline="\n")
+        stale = [path for path, text in outputs.items()
+                 if not path.exists() or path.read_text(encoding="utf-8") != text]
+        for path in stale:
+            print(f"{path} is stale; run: python scripts/delivery_demo_plan.py", file=sys.stderr)
+        return 1 if stale else 0
+    for path, text in outputs.items():
+        path.write_text(text, encoding="utf-8", newline="\n")
     return 0
 
 

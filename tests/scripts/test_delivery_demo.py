@@ -5,11 +5,13 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import json
+import math
 import subprocess
 import sys
 from types import SimpleNamespace
 
 import pytest
+from geographiclib.geodesic import Geodesic
 
 from scripts import delivery_demo as demo
 from scripts import delivery_demo_manifest as manifest
@@ -214,7 +216,54 @@ def test_start_refuses_a_frontend_that_never_answers():
 
 def test_committed_plan_file_is_the_builders_output():
     assert plan.PLAN_PATH.read_text(encoding="utf-8") == plan.render(FIXTURE)
+    assert plan.ROTATED_PLAN_PATH.read_text(encoding="utf-8") == plan.render_rotated(FIXTURE)
     assert plan.main(["--check"]) == 0
+
+
+def test_rotated_plan_keeps_every_distance_and_turns_every_bearing_90_degrees_clockwise():
+    original, rotated = plan.plan_file(FIXTURE), plan.rotated_plan_file(FIXTURE)
+    launch = FIXTURE["inputs"]["launch_point"]
+    pairs = list(zip(original["polygon"], rotated["polygon"])) + list(
+        zip(original["default_delivery_hubs"], rotated["default_delivery_hubs"]))
+    assert len(pairs) == 7
+    for before, after in pairs:
+        # Exact, to the 1e-7 deg rounding, in the planner's metres.
+        e, n = plan.planner_metres(before, launch)
+        e2, n2 = plan.planner_metres(after, launch)
+        assert math.hypot(e2, n2) == pytest.approx(math.hypot(e, n), abs=0.02)
+        turn = math.degrees(math.atan2(e2, n2) - math.atan2(e, n)) % 360.0
+        assert turn == pytest.approx(plan.ROTATION_DEG, abs=0.001)
+        # On WGS84 the planner's sphere is off by up to 0.4 % north to east,
+        # which turns a diagonal bearing by up to 0.11 deg each way.
+        a = Geodesic.WGS84.Inverse(launch["lat"], launch["lon"], before["lat"], before["lon"])
+        b = Geodesic.WGS84.Inverse(launch["lat"], launch["lon"], after["lat"], after["lon"])
+        assert b["s12"] == pytest.approx(a["s12"], rel=0.004)
+        assert (b["azi1"] - a["azi1"]) % 360.0 == pytest.approx(plan.ROTATION_DEG, abs=0.25)
+
+
+def test_rotated_plan_changes_only_the_layout_and_names_the_hubs_for_where_they_are():
+    original, rotated = plan.plan_file(FIXTURE), plan.rotated_plan_file(FIXTURE)
+    layout = {"polygon", "partition_angle_deg", "default_delivery_hubs"}
+    assert {k: v for k, v in rotated.items() if k not in layout} == {
+        k: v for k, v in original.items() if k not in layout}
+    assert rotated["partition_angle_deg"] == 0.0
+    launch = FIXTURE["inputs"]["launch_point"]
+    # The area lies west of the launch point and the hubs east of it.
+    assert max(p["lon"] for p in rotated["polygon"]) < launch["lon"]
+    hubs = rotated["default_delivery_hubs"]
+    assert all(h["lon"] > launch["lon"] for h in hubs)
+    assert [h["name"] for h in hubs] == ["home-north", "home-middle", "home-south"]
+    assert hubs[0]["lat"] > hubs[1]["lat"] > hubs[2]["lat"]
+
+
+def test_plan_check_fails_when_the_rotated_file_is_stale(monkeypatch, tmp_path):
+    for name in ("PLAN_PATH", "ROTATED_PLAN_PATH"):
+        target = tmp_path / getattr(plan, name).name
+        target.write_text(getattr(plan, name).read_text(encoding="utf-8"), encoding="utf-8")
+        monkeypatch.setattr(plan, name, target)
+    assert plan.main(["--check"]) == 0
+    plan.ROTATED_PLAN_PATH.write_text("{}\n", encoding="utf-8")
+    assert plan.main(["--check"]) == 1
 
 
 #: Runs the builder as a script, then names the navpy package it imported.

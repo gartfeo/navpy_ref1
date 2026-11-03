@@ -1,0 +1,66 @@
+{
+  "polygon": [
+    {
+      "lat": 40.3178721,
+      "lon": 44.4431742
+    },
+    {
+      "lat": 40.3057491,
+      "lon": 44.4431742
+    },
+    {
+      "lat": 40.3057491,
+      "lon": 44.407766
+    },
+    {
+      "lat": 40.3178721,
+      "lon": 44.407766
+    }
+  ],
+  "search_pattern": "distributed",
+  "uav_count": 3,
+  "partition_angle_deg": 0.0,
+  "route_offset_m": 150.0,
+  "set_launch_points": [
+    {
+      "lat": 40.3118106,
+      "lon": 44.45604
+    }
+  ],
+  "delivery_hub_assignments": [
+    2,
+    1,
+    0
+  ],
+  "sim_dock_wps": {
+    "2": [
+      1,
+      2
+    ]
+  },
+  "detect_after_wps": {
+    "0": 0,
+    "1": 0,
+    "2": 0
+  },
+  "default_delivery_hubs": [
+    {
+      "lat": 40.3252617,
+      "lon": 44.4621898,
+      "name": "home-north",
+      "type": "building"
+    },
+    {
+      "lat": 40.3118411,
+      "lon": 44.4621898,
+      "name": "home-middle",
+      "type": "building"
+    },
+    {
+      "lat": 40.2983442,
+      "lon": 44.4621898,
+      "name": "home-south",
+      "type": "building"
+    }
+  ]
+}
