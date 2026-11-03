@@ -26,7 +26,8 @@ SKIPPED_DIRS = ("vendor",)
 
 _CALL = re.compile(r"(?<![\w.#$])(fetch|fetchWithRetry|new\s+WebSocket|sendWsMessage)\s*\(")
 _OTHER_APIS = re.compile(r"\b(XMLHttpRequest|EventSource|sendBeacon|axios)\b")
-_METHOD = re.compile(r"\bmethod\s*:\s*['\"](\w+)['\"]")
+_METHOD = re.compile(r"(['\"]?)method\1\s*:\s*['\"](\w+)['\"]")
+_PLAIN_KEY = re.compile(r"(['\"]?)([A-Za-z_$][\w$]*)\1\s*:")
 _ROUTE = re.compile(r"/(?:api|ws)/")
 _IDENT = re.compile(r"[A-Za-z_$][\w$]*\Z")
 _NAMED = re.compile(r"\{[a-z_]+\}")
@@ -115,7 +116,7 @@ def _template_code(text: str, i: int, j: int) -> str:
             k += 2
         elif text.startswith("${", k):
             end = _skip_code(text, k + 2, "}")
-            out.append(text[k:end])
+            out.append("${" + strip_comments(text[k + 2:end - 1])[1] + "}")
             k = end
         else:
             out.append(_blank(text[k]))
@@ -240,14 +241,18 @@ def _method(rest: list[str]) -> str:
     if not (options.startswith("{") and options.endswith("}")):
         return "?"
     method = "GET"
-    for prop in _split_args(options[1:-1]):
-        if prop.startswith("..."):
-            return "?"
-        if re.match(r"['\"]?method\b", prop):
+    for prop in filter(None, _split_args(options[1:-1])):
+        # Only a plain ``key: value`` or a shorthand other than ``method`` is
+        # read; anything else (a spread, a computed key, a getter) fails closed.
+        key = _PLAIN_KEY.match(prop)
+        if key is None:
+            if not _IDENT.match(prop) or prop == "method":
+                return "?"
+        elif key.group(2) == "method":
             m = _METHOD.fullmatch(prop)
             if m is None:
                 return "?"
-            method = m.group(1).upper()
+            method = m.group(2).upper()
     return method
 
 
@@ -400,6 +405,8 @@ def test_the_scanner_pairs_each_method_with_its_route_and_skips_comments() -> No
     "sendWsMessage({ type: 'manual_control', ...message });",
     "fetch('/api/settings', { method: 'PUT', ...opts });",
     "const t = `${await fetch('/api/new-route')}`;",
+    "fetch('/api/settings', { ['method']: 'DELETE' });",
+    "fetch('/api/settings', { get method() { return 'DELETE'; } });",
 ])
 def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
     with pytest.raises(Unresolved):
@@ -407,8 +414,10 @@ def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
 
 
 def test_words_inside_strings_are_not_code() -> None:
-    scan, left = scan_text("const help = 'axios, fetch(x) and new EventSource';")
-    assert scan.requests == set() and not scan.built and not left
+    for source in ("const help = 'axios, fetch(x) and new EventSource';",
+                   "const a = `${'axios'}`; const b = `${/* fetch('/api/x') */ v} ${`fetch(y)`}`;"):
+        scan, left = scan_text(source)
+        assert scan.requests == set() and not scan.built and not left
 
 
 def test_a_built_url_with_two_methods_keeps_both() -> None:
@@ -419,6 +428,8 @@ def test_a_built_url_with_two_methods_keeps_both() -> None:
 def test_only_the_options_own_method_counts() -> None:
     scan, _ = scan_text("fetch('/api/x', { body: JSON.stringify({ method: 'PUT' }) });")
     assert scan.requests == {("GET", "/api/x")}
+    scan, _ = scan_text("fetch('/api/x', { \"method\": 'PUT', signal });")
+    assert scan.requests == {("PUT", "/api/x")}
 
 
 def _frontend_with(extra: str, inv: Inventory) -> Scan:
