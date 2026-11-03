@@ -349,4 +349,8 @@ def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
     finally:
         proc.kill()
     assert SUMMARY_TAG in out
-    assert json.loads(log.read_text(encoding="utf-8").splitlines()[-1])["event"] == "summary"
+    lines = log.read_text(encoding="utf-8").splitlines()
+    assert json.loads(lines[-1])["event"] == "summary"
+    # strict JSON, as step 12's timing check reads it: the ideal infinite zoom speed is logged as "inf"
+    start = json.loads(lines[0], parse_constant=lambda name: pytest.fail(f"non-standard JSON {name}"))
+    assert start["event"] == "start" and start["config"]["absolute_zoom_speed_per_s"] == "inf"

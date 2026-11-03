@@ -111,7 +111,7 @@ class Zr10Emulator:
             raise
         for sock in (self.siyi_sock, self.vehicle_sock, self.unreal_sock):
             sock.setblocking(False)
-        self._write({"event": "start", "config": asdict(device.config), "non_ideal": device.config.non_ideal(),
+        self._write({"event": "start", "config": device.config.logged(), "non_ideal": device.config.non_ideal(),
                      "sources": dict(SOURCES), "siyi": list(self.siyi_sock.getsockname()),
                      "vehicle_state": list(self.vehicle_sock.getsockname()), "unreal": list(unreal),
                      "session_id": self.session_id})

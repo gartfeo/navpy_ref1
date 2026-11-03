@@ -54,6 +54,10 @@ class EmulatorConfig:
         """The effects switched on: every value that differs from the ideal run's."""
         return {name: value for name, value in asdict(self).items() if value != IDEAL[name]}
 
+    def logged(self) -> dict[str, float | str]:
+        """Every value for the run's JSON log, strict JSON: an infinite one (the ideal zoom jump) as "inf"."""
+        return {name: value if math.isfinite(value) else str(value) for name, value in asdict(self).items()}
+
 
 # The ideal run. Slew rate, limits, the manual zoom speed and the 0x0D push have no "off" value; they are the
 # hardware's (a push rate of 0, request/reply only, is listed as non-ideal).
