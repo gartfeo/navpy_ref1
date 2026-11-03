@@ -25,7 +25,7 @@ function loadEsm(relPath) {
   return m.exports;
 }
 
-const { nextPlacementState, toggleSimDock } = loadEsm('utils/planningModes.js');
+const { nextPlacementState, toggleSimDock, withoutDraftUndo } = loadEsm('utils/planningModes.js');
 
 let passed = 0;
 function test(name, fn) {
@@ -139,6 +139,20 @@ test('toggleSimDock: add second wpIndex to existing zone', () => {
 test('toggleSimDock: preserves other zones', () => {
   const result = toggleSimDock({ 0: [1], 1: [3, 4] }, 0, 7);
   assert.deepStrictEqual(result, { 0: [1, 7], 1: [3, 4] });
+});
+
+// ---- withoutDraftUndo ----
+
+test('withoutDraftUndo: drops the draft clicks and drags, keeps corridor and launch steps', () => {
+  const stack = [
+    { type: 'launch' },
+    { type: 'vertex' },
+    { type: 'polygonDrag', oldPolygon: [{ lat: 1, lon: 2 }] },
+    { type: 'corridor' },
+    { type: 'vertex' },
+  ];
+  assert.deepStrictEqual(withoutDraftUndo(stack), [{ type: 'launch' }, { type: 'corridor' }]);
+  assert.strictEqual(stack.length, 5, 'input is not mutated');
 });
 
 console.log(`PASS -- All ${passed} planning modes tests passed.`);

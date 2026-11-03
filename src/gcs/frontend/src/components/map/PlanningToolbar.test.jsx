@@ -7,7 +7,7 @@
  * FENCE_AUTOENABLE value, including 3 (ONLY_WHEN_ARMED) and 2
  * (ENABLE_DISABLE_FLOOR_ONLY).
  */
-import { render } from '@testing-library/react';
+import { fireEvent, render } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import PlanningToolbar from './PlanningToolbar';
 
@@ -85,5 +85,28 @@ describe('PlanningToolbar — auto-enable tooltip', () => {
     });
     const btn = getByTitle(/planningToolbar\.fenceObserved\.mixed/);
     expect(btn.getAttribute('title')).not.toContain('FENCE_AUTOENABLE=');
+  });
+});
+
+describe('PlanningToolbar — zone shape picker', () => {
+  it('offers polygon and rectangle while a new zone is drawn, marking the current one', () => {
+    const onDrawShapeChange = vi.fn();
+    const { getAllByRole } = renderToolbar({
+      isDrawing: true, polygon: [], drawShape: 'rectangle', onDrawShapeChange,
+    });
+    const radios = getAllByRole('radio');
+    expect(radios.map((r) => r.textContent)).toEqual([
+      'planningToolbar.shape.polygon', 'planningToolbar.shape.rectangle',
+    ]);
+    expect(radios.map((r) => r.getAttribute('aria-checked'))).toEqual(['false', 'true']);
+    fireEvent.click(radios[0]);
+    expect(onDrawShapeChange).toHaveBeenCalledExactlyOnceWith('polygon');
+  });
+
+  it('is hidden when not drawing or once the zone has 3 corners', () => {
+    expect(renderToolbar({ isDrawing: false, polygon: [], onDrawShapeChange: vi.fn() })
+      .queryAllByRole('radio')).toHaveLength(0);
+    expect(renderToolbar({ isDrawing: true, polygon: ring(), onDrawShapeChange: vi.fn() })
+      .queryAllByRole('radio')).toHaveLength(0);
   });
 });
