@@ -47,7 +47,7 @@ class Literal:
 class Scan:
     requests: set[tuple[str, str]]
     messages: set[str]
-    built: dict[str, str]  # identifier -> method
+    built: dict[str, set[str]]  # identifier -> methods; "?" when not a literal
     hosts: set[str]
 
 
@@ -101,19 +101,26 @@ def _skip_code(text: str, i: int, close: str) -> int:
             i += 1
 
 
-def strip_comments(text: str) -> tuple[str, list[Literal]]:
-    """The code with comments blanked, and its top-level string literals."""
-    out, literals, i = [], [], 0
+def _blank(text: str) -> str:
+    return re.sub(r"[^\n]", " ", text)
+
+
+def strip_comments(text: str) -> tuple[str, str, list[Literal]]:
+    """The code with comments blanked; the same with string contents blanked
+    too, to search for code only; and the top-level string literals."""
+    out, code_only, literals, i = [], [], [], 0
     while i < len(text):
         c = text[i]
         if text.startswith("//", i):
             j = text.find("\n", i)
             j = len(text) if j < 0 else j
             out.append(" " * (j - i))
+            code_only.append(out[-1])
             i = j
         elif text.startswith("/*", i):
             j = text.index("*/", i) + 2
-            out.append(re.sub(r"[^\n]", " ", text[i:j]))
+            out.append(_blank(text[i:j]))
+            code_only.append(out[-1])
             i = j
         elif c in "'\"`":
             parts: list[str] = []
@@ -121,11 +128,13 @@ def strip_comments(text: str) -> tuple[str, list[Literal]]:
             body = "".join(parts) if c == "`" else text[i + 1:j - 1]
             literals.append(Literal(i, j, body))
             out.append(text[i:j])
+            code_only.append(c + _blank(text[i + 1:j - 1]) + text[j - 1] if j - i > 1 else c)
             i = j
         else:
             out.append(c)
+            code_only.append(c)
             i += 1
-    return "".join(out), literals
+    return "".join(out), "".join(code_only), literals
 
 
 def _split_args(args: str) -> list[str]:
@@ -166,14 +175,14 @@ def _route_of(literal: Literal) -> str:
 
 def scan_text(text: str) -> tuple[Scan, list[Literal]]:
     """The requests in one file; also its route literals no call used."""
-    code, literals = strip_comments(text)
-    if (other := _OTHER_APIS.search(code)):
+    code, code_only, literals = strip_comments(text)
+    if (other := _OTHER_APIS.search(code_only)):
         raise Unresolved(f"another request API: {other.group(1)}")
     by_start = {lit.start: lit for lit in literals}
     scan = Scan(set(), set(), {}, set())
     used: set[int] = set()
-    for call in _CALL.finditer(code):
-        if code[:call.start()].rstrip().endswith("function"):
+    for call in _CALL.finditer(code_only):
+        if code_only[:call.start()].rstrip().endswith("function"):
             continue  # a definition, not a call
         open_paren = call.end() - 1
         args = code[open_paren + 1:_skip_code(code, open_paren + 1, ")") - 1]
@@ -183,14 +192,15 @@ def scan_text(text: str) -> tuple[Scan, list[Literal]]:
             scan.messages |= _ws_types(first, code)
             continue
         start = open_paren + 1 + (len(args) - len(args.lstrip()))
-        method = "WS" if name == "new WebSocket" else (
-            m.group(1).upper() if (m := _METHOD.search(",".join(rest))) else "GET")
+        method = "WS" if name == "new WebSocket" else _method(rest)
         literal = by_start.get(start)
         if literal is not None and literal.end - literal.start == len(first):
+            if method == "?":
+                raise Unresolved(f"a request whose method is not a literal: {args.strip()!r}")
             scan.requests.add((method, _route_of(literal)))
             used.add(literal.start)
         elif _IDENT.match(first):
-            scan.built[first] = method
+            scan.built.setdefault(first, set()).add(method)
         else:
             raise Unresolved(f"a request URL that is neither a literal nor a name: {first!r}")
     for lit in literals:
@@ -200,8 +210,21 @@ def scan_text(text: str) -> tuple[Scan, list[Literal]]:
     return scan, left
 
 
+def _method(rest: list[str]) -> str:
+    """The ``method:`` literal of the options; GET when the options name no
+    method and spread nothing; ``?`` when the text cannot tell."""
+    if (m := _METHOD.search(",".join(rest))):
+        return m.group(1).upper()
+    options = strip_comments(",".join(rest))[1]
+    if re.search(r"\bmethod\b|\.\.\.", options) or (rest and _IDENT.match(rest[0])):
+        return "?"
+    return "GET"
+
+
 def _ws_types(first: str, code: str) -> set[str]:
-    if first.startswith("{"):
+    if first.startswith("{") and "..." in strip_comments(first)[1]:
+        found = set()  # a spread could carry its own type
+    elif first.startswith("{"):
         found = set(re.findall(r"\btype\s*:\s*['\"]([a-z_]+)['\"]", first))
     elif _IDENT.match(first):
         found = set(re.findall(rf"\b{re.escape(first)}\.type\s*=\s*['\"]([a-z_]+)['\"]", code))
@@ -272,16 +295,19 @@ def scan_frontend(inv: Inventory) -> Scan:
         total.messages |= scan.messages
         total.hosts |= scan.hosts
         built_routes: set[str] = set()
-        for name, method in scan.built.items():
+        for name, methods in scan.built.items():
             if (file, name) not in inv.built:
                 raise Unresolved(f"{file}: a request URL built in {name!r} has no Built URLs row")
-            total.built[f"{file}:{name}"] = method
-            for route in inv.built[(file, name)]:
-                total.requests.add((method, route))
-                built_routes.add(route)
-        stray = {_route_of(lit) for lit in left} - built_routes
-        if stray:
-            raise Unresolved(f"{file}: route strings no request call uses: {sorted(stray)}")
+            routes = inv.built[(file, name)]
+            if routes and "?" in methods:
+                raise Unresolved(f"{file}: a request through {name!r} whose method is not a literal")
+            total.built[f"{file}:{name}"] = methods
+            total.requests |= {(method, route) for method in methods for route in routes}
+            built_routes |= set(routes)
+        # Both ways: a route string no call uses, or a Built URLs route the file no longer holds.
+        left_routes = {_route_of(lit) for lit in left}
+        if left_routes != built_routes:
+            raise Unresolved(f"{file}: route strings {sorted(left_routes)}, Built URLs routes {sorted(built_routes)}")
     return total
 
 
@@ -321,7 +347,7 @@ def test_the_scanner_pairs_each_method_with_its_route_and_skips_comments() -> No
         ("GET", "/api/settings"), ("PUT", "/api/settings"), ("GET", "/api/vehicles/{}/parameters"),
         ("POST", "/api/vehicles/connect"), ("WS", "/ws/telemetry"), ("POST", "/api/vehicles/upload"),
     }
-    assert scan.built == {"url": "GET", "endpoint": "POST"}
+    assert scan.built == {"url": {"?"}, "endpoint": {"POST"}}
     assert scan.messages == {"manual_control", "manual_control_stop"}
     assert {_route_of(lit) for lit in left} == {
         "/api/control/launch/esp32-sim/stop", "/api/control/launch/esp32-sim/start"}
@@ -338,10 +364,24 @@ def test_the_scanner_pairs_each_method_with_its_route_and_skips_comments() -> No
     "new EventSource('/api/stream');",
     "sendWsMessage(buildMsg());",
     "const msg = {}; sendWsMessage(msg);",
+    "const method = 'DELETE'; fetch('/api/settings', { method });",
+    "fetch('/api/settings', { ...opts });",
+    "fetch('/api/settings', opts);",
+    "sendWsMessage({ type: 'manual_control', ...message });",
 ])
 def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
     with pytest.raises(Unresolved):
         scan_text(source)
+
+
+def test_words_inside_strings_are_not_code() -> None:
+    scan, left = scan_text("const help = 'axios, fetch(x) and new EventSource';")
+    assert scan.requests == set() and not scan.built and not left
+
+
+def test_a_built_url_with_two_methods_keeps_both() -> None:
+    scan, _ = scan_text("fetch(u, { method: 'PUT' }); fetch(u, { method: 'DELETE' });")
+    assert scan.built == {"u": {"PUT", "DELETE"}}
 
 
 def _frontend_with(extra: str, inv: Inventory) -> Scan:
@@ -361,6 +401,15 @@ def test_a_new_method_or_route_without_a_row_fails_and_a_stale_row_fails() -> No
     assert added.requests - inv.requests == {("GET", "/api/vehicles/{}/rally")}
     stale = inventory(text.replace("| PUT | /api/settings |", "| PUT | /api/settings |\n| DELETE | /api/settings | x | x | x | x | x |"))
     assert stale.requests - scan_frontend(stale).requests == {("DELETE", "/api/settings")}
+    dropped = text.replace("/api/control/launch/esp32-sim/start, /api/control/launch/esp32-sim/stop |",
+                           "/api/control/launch/esp32-sim/start |")
+    assert dropped != text
+    with pytest.raises(Unresolved):  # the stop branch is in the source but not in the row
+        scan_frontend(inventory(dropped))
+    extra = text.replace("| `url` | /api/vehicles/{sys_id}/parameters |", "| `url` | /api/vehicles/{sys_id}/parameters, /api/gone |")
+    assert extra != text
+    with pytest.raises(Unresolved):  # a row route the file no longer holds
+        scan_frontend(inventory(extra))
     renamed = text.replace("| `settings/LaunchTab.jsx` | `endpoint` |", "| `settings/LaunchTab.jsx` | `other` |")
     assert renamed != text
     with pytest.raises(Unresolved):

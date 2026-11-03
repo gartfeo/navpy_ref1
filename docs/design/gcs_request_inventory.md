@@ -7,13 +7,13 @@ These are about the requests the relay forwards into the run (the backend's rout
 - **Headers: no backend route needs one.** Some calls send `X-GCS-Client-ID` and `X-GCS-Request-ID` (`utils/diagnostics.js:28-36`). The backend uses them only to label diagnostic records (`main.py:175-176`, `routes/full_params.py:77,147`, `routes/missions.py:50`). Without them it makes its own request id with `rt.uuid4()` (`main.py:175`), so nothing the run does changes; only the timeline loses the browser's ids. `Content-Type: application/json` is implied by the wire's `json`.
 - **Bodies: every backend request body is JSON** (`JSON.stringify`, checked at every `body:`), or there is none. No upload is a file or form; the mission "upload" is JSON that the backend sends over MAVLink. So the HTTP payload does not grow.
 - **But one input is not HTTP:** the WebSocket messages `manual_control` (checked every 50 ms, sent when the sticks moved) and `manual_control_stop` (`hooks/useManualControl.js:44,49,87`). The backend turns them into MAVLink `MANUAL_CONTROL` (`routes/telemetry.py:62-84,127-130`). The wire has no kind for them. They are not demo-required; step 11 must refuse them in simulation, or add a payload kind (todo 240).
-- **Two responses are files, not text:** the diagnostics zip and the log zip. Neither is demo-required; refuse both in simulation (todo 241).
+- **Two responses are files, not text:** the diagnostics zip and the log zip. Neither is demo-required. Simulation should refuse both; nothing refuses them yet (todo 241).
 
 ## Columns
 - **Demo:** `yes` if the hand demo (`delivery_demo_prep.md`, "Normal-run demo") needs it: auto-connect, plan load, upload, Launch, confirm, abort. `sent` if not needed but sent anyway during the demo, so it is still an input. `dead` if no live code path calls it (todo 242).
 - **When:** `startup` (on page load or when settings arrive), `connect` (when a vehicle appears), `user` (a click or edit), `timer` (a wall timer sends it, sends it again or decides it; see the clock audit).
 - **Needs:** `MAVLink` (talks to a vehicle), `NavPy` (starts, stops or messages a companion), `ESP32` (the launcher), `files` (reads or writes host files), `local` (backend state only).
-- **Sim today:** `eval` (the eval's operator workflow calls it on lockstep), `untested` (no refusal known in its path, but nothing calls it on lockstep; step 13 proves it or refuses it), `step 13` (wall-only today), `refuse` (to answer 501, hardware-only), `none` (no backend route).
+- **Sim today:** `eval` (the eval's operator workflow calls it on lockstep), `untested` (no refusal known in its path, but nothing calls it on lockstep; step 13 proves it or refuses it), `step 13` (wall-only today), `refuse` (planned: to answer 501, hardware-only; not enforced yet), `none` (no backend route).
 
 ## Requests
 | Method | Route | Sent from | When | Demo | Needs | Sim today |
@@ -29,7 +29,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 | PUT | /api/vision-profiles/{profile_name}/devices/{device_name} | `settings/ProfileSelector.jsx:87` | user | no | files, NavPy (as above) | untested |
 | POST | /api/vehicles/scan | `hooks/usePlanningApi.js:232` | never: `scanVehicles` has no caller | dead | MAVLink | untested |
 | POST | /api/vehicles/discover | `hooks/usePlanningApi.js:246` via `handleScan` (`hooks/useVehicleConnection.js:632-634`) | startup, timer (auto-connect retry 3 s, 20 tries, `App.jsx:487-492`), user (Scan) | yes | MAVLink, NavPy, ESP32 (starts companions and the ESP32 sim, `routes/vehicles.py:87-93`) | untested |
-| POST | /api/vehicles/connect | `hooks/usePlanningApi.js:210` | user (20 s abort) | no | MAVLink, NavPy (auto lifecycle) | eval |
+| POST | /api/vehicles/connect | `hooks/usePlanningApi.js:210` | user (20 s abort) | no | MAVLink, NavPy (auto lifecycle), ESP32 (starts the ESP32 sim, `routes/vehicles.py:37-39`) | eval |
 | POST | /api/vehicles/disconnect | `hooks/usePlanningApi.js:259` | user | no | MAVLink, NavPy | untested |
 | GET | /api/vehicles/{sys_id}/params | `hooks/useVehicleConnection.js:188,653`, `hooks/useAasParams.js:135` | connect, user (10 s abort) | yes | MAVLink | eval |
 | PUT | /api/vehicles/{sys_id}/params | `hooks/useAasParams.js:362`, `hooks/usePlanningApi.js:130` | user (upload writes `targ_wps`, `nav_last_wp`) | yes | MAVLink | eval |
@@ -84,13 +84,12 @@ These go to other servers, so the relay never forwards them and they never enter
 ## Clock audit
 **Backend, behind every request simulation supports** (all rows but `refuse` and `none`):
 - The RuntimeTime lint (`tests/guards/runtime_time_lint.py`, run by `tests/guards`: 155 passed) covers all of `src/gcs/backend` and `src/navpy`. Covered code reads clocks, sleeps, makes threads, timers and ids only through `runtime_time`. `asyncio.sleep`, `wait_for` and timeouts run on the loop's clock, which under lockstep is the baton loop's sim time (`lockstep/backend_host.py:16`); AnyIO worker threads run on its managed executor (`backend_host.py:8,64-72`). So the resend gaps (`task_confirm.py:94`, `task_confirm_override.py:78`), the launch stagger and settle waits (`control_launch_actions.py:53,67,96`, `control_launch_workflow.py:158,172`, `control_preflight.py:134`), the manual-control loop (`telemetry.py:51`), the broadcast loop (`telemetry_loop.py:252`) and the startup auto-connect retry (`startup_autoconnect.py:90`) are on sim time.
-- The lint's exemptions: `instance_registry*` and `cpu_share*` serve the launcher and the backend's start and stop, never a route. `_mavftp` is behind `GET .../parameters`, which serial-step refuses (step 13). Not reached by a supported request.
+- The lint's exemptions: `instance_registry*` and `cpu_share*` serve the launcher and the backend's start and stop, never a route. `_mavftp` is behind `GET .../parameters`. That request is not supported (step 13), but the app sends it on its own when a vehicle appears (the prewarm), so a lockstep run with the app reaches it: `full_params.py:134` to `parameter_snapshot.py:38-44`, where `VehicleFtp` stamps `time.time()` (`_upstream_mavftp.py:354-355,431-446`) and waits on a wall-timed queue (`vehicle_ftp.py:51`) for up to 30 s (`full_params.py:86`), while serial-step never answers MAVFTP. This is the one wall clock found on a path a run reaches; isolating it is step 13 (todo 245).
 - What the lint cannot see:
   - `navpy_process_*` waits on processes with wall timeouts (`navpy_process_instance.py:254-267`, `navpy_process_spawn.py:51`, `navpy_process_stop.py:61`). Only the subprocess manager does this, and lockstep refuses it (`backend_host.py:111`); companions go through the launcher port. Not reached.
-  - The two zip downloads take wall time from the standard library: `zipfile` stamps entries with file times or `time.localtime()`, and `FileResponse` sends `Last-Modified` and `ETag` from the file's stat (`routes/diagnostics.py:101-113`, `diagnostics.py:210-214`, `routes/logs.py:59-72`). Both are `refuse` (todo 241).
+  - The two zip downloads take wall time from the standard library: `zipfile` stamps entries with file times or `time.localtime()`, and `FileResponse` sends `Last-Modified` and `ETag` from the file's stat (`routes/diagnostics.py:101-113`, `diagnostics.py:210-214`, `routes/logs.py:59-72`). Both are to be refused; today nothing stops them (todo 241).
   - The diagnostic session prunes old sessions by directory mtime (wall) against a sim-time cutoff (`diagnostics.py:136-149`). It runs at backend start, not on a request; a lockstep run starts in a fresh directory, so nothing is pruned. Logged (todo 243).
-- `GET .../parameters` is sent on its own when a vehicle appears (the prewarm), and it needs MAVFTP, which serial-step refuses. Its answer on lockstep is not checked (todo 245).
-- Found nothing else: no `time.time`, `datetime.now`, wall sleep or wall timer outside `RuntimeTime` behind a supported request.
+- Found nothing else: no `time.time`, `datetime.now`, wall sleep or wall timer outside `RuntimeTime` behind a supported request, and none on a reached path but the MAVFTP one above.
 
 **Frontend timers that can send a request** (display-only timers, such as map animation, blink and toasts, are left out):
 | Timer | Sends | Status |
@@ -103,7 +102,7 @@ These go to other servers, so the relay never forwards them and they never enter
 | Manual control, `useManualControl.js:49` (50 ms) | `manual_control` | todo 240 |
 | Debounce: camera check 400 ms (`usePlanCameraCheck.js:48`); the area-analyze debounce (`usePlanningApi.js:39`) is dead code | the request for the operator's latest edit | accepted: a debounce only picks when an edit is sent, like a click; the action file records it |
 | Plan regeneration throttle 100 ms, `usePlanGeneration.js:317-325` | a new plan, then the `plan_rendered` diagnostic (`App.jsx:115-122`) and the camera check (after its debounce) | accepted, as for the debounces: it follows an edit |
-| Status re-check 500 ms, `LaunchTab.jsx:56` | `GET .../esp32-sim/status` | accepted, a read after a click |
+| Status re-check 500 ms, `LaunchTab.jsx:56` | `GET /api/control/launch/esp32-status` | accepted, a read after a click |
 | WebSocket reconnect 2 s, `telemetryStore.js:150` | a new telemetry connection | accepted: the relay serves telemetry from the journaled broadcasts, so watching never enters the run |
 | Press timers: long press (`ParametersTab.jsx:710-714`), press guard (`usePressGuard.js`, `useLongPress.js`) | the request once the hold counts | accepted: the operator's own gesture; the request it gives is recorded |
 
