@@ -90,6 +90,10 @@ def _skip_code(text: str, i: int, close: str) -> int:
             i = _skip_string(text, i)
         elif c == "`":
             i = _skip_template(text, i, None)
+        elif text.startswith("//", i):
+            i = text.index("\n", i)
+        elif text.startswith("/*", i):
+            i = text.index("*/", i) + 2
         elif c in "([{":
             depth += 1
             i += 1
@@ -248,6 +252,8 @@ def _method(rest: list[str]) -> str:
         if key is None:
             if not _IDENT.match(prop) or prop == "method":
                 return "?"
+        elif key.group(2) == "__proto__":
+            return "?"  # an inherited method
         elif key.group(2) == "method":
             m = _METHOD.fullmatch(prop)
             if m is None:
@@ -407,6 +413,7 @@ def test_the_scanner_pairs_each_method_with_its_route_and_skips_comments() -> No
     "const t = `${await fetch('/api/new-route')}`;",
     "fetch('/api/settings', { ['method']: 'DELETE' });",
     "fetch('/api/settings', { get method() { return 'DELETE'; } });",
+    "fetch('/api/settings', { __proto__: { method: 'DELETE' } });",
 ])
 def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
     with pytest.raises(Unresolved):
@@ -415,7 +422,7 @@ def test_a_request_the_scanner_cannot_resolve_fails(source: str) -> None:
 
 def test_words_inside_strings_are_not_code() -> None:
     for source in ("const help = 'axios, fetch(x) and new EventSource';",
-                   "const a = `${'axios'}`; const b = `${/* fetch('/api/x') */ v} ${`fetch(y)`}`;"):
+                   "const a = `${'axios'}`; const b = `${/* fetch('/api/x') } */ v} ${`fetch(y)`}`;"):
         scan, left = scan_text(source)
         assert scan.requests == set() and not scan.built and not left
 
