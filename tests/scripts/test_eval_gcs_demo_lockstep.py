@@ -558,3 +558,37 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
     assert isinstance(made["pace"], app_side.RealTimePacer)
     assert (tmp_path / "run" / app_side.ACTIONS_FILE).read_text(encoding="ascii") == (
         '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n')
+
+
+def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_path, monkeypatch):
+    """A stop error is not a run fault: it is raised as it is, after the fleet stop and the release."""
+    import dataclasses
+
+    events = []
+
+    class Stack:
+        relay = object()
+        url = "http://localhost:3040"
+
+        def stop(self):
+            events.append("app stop failed")
+            raise RuntimeError("frontend still running")
+
+    class Coordinator:
+        def __init__(self, *args, **kwargs):
+            self.journal = lockstep_eval.RunJournal()
+
+        def run(self):
+            events.append("run")
+
+    fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval.lockstep, "release_if_owner", lambda *_a: events.append("released"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", lambda *_a: fleet)
+    monkeypatch.setattr(app_side, "start_app_stack", lambda *_a, **_k: Stack())
+    monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Coordinator)
+    with pytest.raises(RuntimeError, match="frontend still running") as raised:
+        execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
+    assert type(raised.value) is RuntimeError  # not scored as a RegressionError
+    assert events == ["run", "app stop failed", "fleet stopped", "released"]

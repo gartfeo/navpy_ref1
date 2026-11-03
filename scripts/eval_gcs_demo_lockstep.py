@@ -32,6 +32,7 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
+from contextlib import ExitStack
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -231,9 +232,12 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     ids = RequestIds(0)
     operator = lockstep_operator(ids, scenario, run_dir, options)
     result = fault = coordinator = side = None
+    app_stop = ExitStack()  # closed outside the handler: a failed app stop is raised, not scored
     try:
-        with operator_side(run_dir, slot, owner, layout.backend, ids, app=options.app,
-                           pace=options.pace, frontend=options.frontend) as side:
+        try:
+            side = app_stop.enter_context(operator_side(
+                run_dir, slot, owner, layout.backend, ids, app=options.app, pace=options.pace,
+                frontend=options.frontend))
             # The backend spawns and registers before the coordinator launches the SITL.
             coordinator = LockstepCoordinator(
                 plan, fleet.sitls, operator, roster, ids, run_dir,
@@ -242,8 +246,10 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                 faults=fault_plans(realization, len(plan.sitl_ports)),
                 admission=side.admission, pace=side.pace)
             result = coordinator.run()
-    except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
-        fault = error
+        except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
+            fault = error
+        finally:
+            app_stop.close()
     finally:
         try:
             fleet.stop()  # idempotent after the coordinator's own stop
