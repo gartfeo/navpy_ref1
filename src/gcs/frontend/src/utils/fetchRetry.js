@@ -1,4 +1,4 @@
-import { isLockstepRun } from './simDeadline';
+import { isLockstepRun } from './simDeadline.js';
 
 /**
  * Fetch wrapper with exponential-backoff retry for network and server errors.

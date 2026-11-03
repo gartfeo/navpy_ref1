@@ -179,7 +179,7 @@ def test_relay_requests_share_the_run_with_the_script(tmp_path):
     assert any(json.loads(data)["type"] == "telemetry" for data in relay.broadcasts)
 
     # The action file: every admitted item, scripted and relay alike, with tick and id.
-    actions = coordinator.admission.actions
+    actions = run.admission.actions
     assert {a["source"] for a in actions} == {SCRIPT, RELAY}
     relay_actions = [a for a in actions if a["source"] == RELAY]
     assert [a["kind"] for a in relay_actions].count("request") == 8
@@ -192,5 +192,5 @@ def test_a_run_without_relay_traffic_journals_no_admission(tmp_path):
     run = build(tmp_path / "run", relay=relay, refuse=refusal)
     assert run.run().outcome == "timeout"
     assert not _admissions(run.coordinator)
-    assert run.coordinator.admission.actions
-    assert {a["source"] for a in run.coordinator.admission.actions} == {SCRIPT}
+    assert run.admission.actions
+    assert {a["source"] for a in run.admission.actions} == {SCRIPT}

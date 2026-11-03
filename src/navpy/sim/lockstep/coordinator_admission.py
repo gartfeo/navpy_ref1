@@ -37,7 +37,7 @@ import logging
 import threading
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
-from typing import Any, Protocol
+from typing import Any, Protocol, Union
 
 from navpy.sim.lockstep.coordinator_journal import sha256
 from navpy.sim.lockstep.coordinator_types import OperatorCancel, OperatorRequest
@@ -67,7 +67,7 @@ class RelayCancel:
     ticket: int
 
 
-RelayItem = RelayRequest | RelayCancel
+RelayItem = Union[RelayRequest, RelayCancel]
 
 
 class RelayPort(Protocol):

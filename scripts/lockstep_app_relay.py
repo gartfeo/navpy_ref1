@@ -20,7 +20,8 @@ A page that closed or reloaded gets nothing: the relay logs it and sends no
 cancel, as a disconnect is not an operator action. Only an explicit
 ``POST /__relay/cancel/{X-GCS-Request-ID}`` of a pending request is a
 cancel. The relay keeps no timer, retry or batching window: what it sends
-the run is what it received, when the coordinator takes it.
+the run is what it received, when the coordinator takes it. What a request
+and an answer become is ``lockstep_app_wire``.
 """
 
 from __future__ import annotations
@@ -29,64 +30,29 @@ import asyncio
 import itertools
 import json
 import logging
-import math
 import threading
 from collections.abc import Callable
-from typing import Any
 
 import uvicorn
 
 from navpy.sim.lockstep.coordinator_admission import RelayCancel, RelayInbox, RelayRequest
-from navpy.sim.lockstep.part_wire_codec import dumps
+from scripts.lockstep_app_wire import (
+    CLIENT_ID_HEADER,
+    ENDED_STATUS,
+    TelemetryState,
+    http_reply,
+    relay_payload,
+    send_json,
+)
 
-DEADLINE_HEADER = b"x-navpy-deadline-s"
-CLIENT_ID_HEADER = b"x-gcs-request-id"
 CANCEL_PREFIX = "/__relay/cancel/"
 #: Messages queued for one page before the relay closes it (a page that stopped reading).
 PAGE_QUEUE = 1000
-#: HTTP status of each coordinator or backend outcome that is not a response.
-CANCELLED_STATUS, DEADLINE_STATUS, ENDED_STATUS = 499, 504, 503
 #: Seconds uvicorn waits for open connections at stop before it cancels them
 #: (a page that sent its headers but never its body).
 STOP_GRACE_S = 2.0
 
 _log = logging.getLogger(__name__)
-
-
-def http_reply(answer: object) -> tuple[int, bytes]:
-    """The HTTP status and JSON body of one answer from the run."""
-    if isinstance(answer, dict) and isinstance(answer.get("status"), int) \
-            and isinstance(answer.get("body"), str):
-        return answer["status"], answer["body"].encode("utf-8")
-    if answer == {"cancelled": True}:
-        return CANCELLED_STATUS, b'{"detail":"cancelled"}'
-    if answer == {"deadline": True}:
-        return DEADLINE_STATUS, b'{"detail":"sim-time deadline passed"}'
-    return 502, json.dumps({"detail": f"unexpected answer {answer!r}"}).encode("utf-8")
-
-
-class TelemetryState:
-    """The latest vehicle state, merged as ``telemetryStore.js`` merges broadcasts."""
-
-    def __init__(self) -> None:
-        self._vehicles: dict[Any, dict] = {}
-        self._last: dict[str, Any] | None = None
-
-    def observe(self, message: dict[str, Any]) -> None:
-        if message.get("type") != "telemetry" or not isinstance(message.get("vehicles"), list):
-            return
-        for vehicle in message["vehicles"]:
-            self._vehicles[vehicle.get("sys_id")] = {**self._vehicles.get(vehicle.get("sys_id"), {}),
-                                                     **vehicle}
-        if isinstance(message.get("active_ids"), list):
-            active = set(message["active_ids"])
-            self._vehicles = {key: value for key, value in self._vehicles.items() if key in active}
-        self._last = message
-
-    def snapshot(self) -> str | None:
-        if self._last is None:
-            return None
-        return json.dumps({**self._last, "vehicles": list(self._vehicles.values())})
 
 
 class AppRelay:
@@ -220,31 +186,18 @@ class AppRelay:
             body += message.get("body", b"")
             if not message.get("more_body"):
                 break
-        headers = dict(scope.get("headers", []))
         try:
-            # As sent, still percent-encoded: the backend decodes it once.
-            raw = (scope.get("raw_path") or path.encode("utf-8")).decode("ascii")
-            query = scope.get("query_string", b"").decode("ascii")
-            payload: dict[str, Any] = {"kind": "http", "method": method,
-                                       "target": raw + (f"?{query}" if query else "")}
-            if body:
-                payload["json"] = json.loads(body)
-            if DEADLINE_HEADER in headers:
-                deadline = float(headers[DEADLINE_HEADER])
-                if not (math.isfinite(deadline) and deadline > 0):
-                    raise ValueError(f"deadline {deadline}")
-                payload["deadline_s"] = deadline
-            dumps(payload)  # the journal's encoding: no NaN or infinity (``1e400``)
+            payload = relay_payload(scope, body)
         except ValueError as error:  # never sent to the run
-            await _reply(send, 400, json.dumps({"detail": f"not carried into the run: {error}"}).encode())
+            await send_json(send, 400, json.dumps({"detail": f"not carried into the run: {error}"}).encode())
             return
         if self._ended:
-            await _reply(send, ENDED_STATUS, b'{"detail":"lockstep run ended"}')
+            await send_json(send, ENDED_STATUS, b'{"detail":"lockstep run ended"}')
             return
         ticket = next(self._tickets)
         future = asyncio.get_running_loop().create_future()
         self._pending[ticket] = future
-        client_id = headers.get(CLIENT_ID_HEADER)
+        client_id = dict(scope.get("headers", [])).get(CLIENT_ID_HEADER)
         if client_id:
             self._client_ids[client_id.decode("latin-1")] = ticket
         self.inbox.submit(RelayRequest(ticket, payload))
@@ -253,7 +206,7 @@ class AppRelay:
         if future.done():
             gone.cancel()
             status, data = http_reply(future.result())
-            await _reply(send, status, data)
+            await send_json(send, status, data)
             return
         self._gone.add(ticket)  # a disconnect is not an operator action: no cancel
         self.notes.append(("disconnected", ticket))
@@ -262,10 +215,10 @@ class AppRelay:
     async def _cancel(self, client_id: str, send: Callable) -> None:
         ticket = self._client_ids.get(client_id)
         if ticket is None or ticket not in self._pending:
-            await _reply(send, 404, b'{"detail":"no pending request with that id"}')
+            await send_json(send, 404, b'{"detail":"no pending request with that id"}')
             return
         self.inbox.submit(RelayCancel(ticket))
-        await _reply(send, 202, b'{"cancel":"queued"}')
+        await send_json(send, 202, b'{"cancel":"queued"}')
 
     async def _websocket(self, scope: dict, receive: Callable, send: Callable) -> None:
         message = await receive()
@@ -326,12 +279,4 @@ async def _disconnected(receive: Callable) -> None:
         pass
 
 
-async def _reply(send: Callable, status: int, body: bytes) -> None:
-    await send({"type": "http.response.start", "status": status,
-                "headers": [(b"content-type", b"application/json"),
-                            (b"content-length", str(len(body)).encode())]})
-    await send({"type": "http.response.body", "body": body})
-
-
-__all__ = ["AppRelay", "CANCEL_PREFIX", "CANCELLED_STATUS", "DEADLINE_HEADER", "DEADLINE_STATUS",
-           "ENDED_STATUS", "TelemetryState", "http_reply"]
+__all__ = ["AppRelay", "CANCEL_PREFIX"]

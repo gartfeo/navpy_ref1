@@ -15,7 +15,8 @@ import pytest
 from websockets.sync.client import connect
 
 from navpy.sim.lockstep.coordinator_admission import RelayCancel, RelayRequest
-from scripts.lockstep_app_relay import AppRelay, TelemetryState, http_reply
+from scripts.lockstep_app_relay import AppRelay
+from scripts.lockstep_app_wire import TelemetryState, http_reply
 
 WAIT_S = 10.0
 

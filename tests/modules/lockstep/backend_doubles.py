@@ -22,6 +22,7 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from navpy.sim.lockstep.coordinator_admission import Admission
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator, RunResult
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
@@ -128,6 +129,7 @@ class BackendRun:
     coordinator: LockstepCoordinator
     sitl: AutopilotSitl
     operator: OperatorBaton
+    admission: Admission
     #: Every ``DONE`` the backend sent, decoded, in tick order.
     dones: list[Done] = field(default_factory=list)
     #: Every ``TICK`` the backend was sent, in tick order.
@@ -153,9 +155,10 @@ class BackendRun:
 
 
 def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
-          companions: bool = False, navpy: bool = False, **coordinator_options) -> BackendRun:
+          companions: bool = False, navpy: bool = False, relay=None,
+          refuse=lambda payload: None) -> BackendRun:
     """``script(scenario)`` makes the operator's script (default: the setup calls);
-    ``coordinator_options`` go to the coordinator (a relay, its refusals, a pacer)."""
+    ``relay`` and its refusals go to the coordinator's admission."""
     scenario = load_scenario(SLICE_SCENARIO)
     plan = manifest(scenario, companions=companions or navpy, navpy=navpy)
     delays = HostDelays(delay_seed)
@@ -166,9 +169,10 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
     ids = RequestIds(0)
     operator = OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
+    admission = Admission(ids, relay, refuse)
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
-                                      delay=delays, **coordinator_options)
-    run = BackendRun(coordinator, sitl, operator)
+                                      delay=delays, admission=admission)
+    run = BackendRun(coordinator, sitl, operator, admission)
     receive, send = roster.receive, roster.send
 
     def sent(member, tick):
