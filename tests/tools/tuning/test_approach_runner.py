@@ -205,6 +205,8 @@ def test_the_navpy_spec_carries_the_timing_inputs_and_the_link_identity(tmp_path
     assert argv[argv.index("--integration-timing") + 1] == str(tmp_path / "approach_record.json")
     assert argv[argv.index("-mwp") + 1] == str(FIRST_LANE_SEQ)
     assert chain.navpy_link_id() == f"{argv[argv.index('-c') + 1]}#{argv[argv.index('-ss') + 1]}"
+    backing = list(chain.backing(paths, "40,44,1300,0", "/fw/sim-hil/arduplane").argv)
+    assert backing[backing.index("--binary") + 1] == "/fw/sim-hil/arduplane" and "hil" in backing
 
 
 def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkeypatch):

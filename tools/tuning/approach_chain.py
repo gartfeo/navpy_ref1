@@ -53,7 +53,7 @@ class ChainPaths:
 
 
 def win_path(path: Path, distro: Optional[str] = None) -> str:
-    """/mnt/c/a/b -> C:\\a\\b; another absolute path in WSL -> \\\\wsl.localhost\\DISTRO\\... (Unreal's command line)."""
+    """Unreal's command line: /mnt/c/a/b -> C:\\a\\b; another absolute WSL path -> \\\\wsl.localhost\\DISTRO\\..."""
     parts = Path(path).as_posix().split("/")
     if len(parts) >= 3 and parts[1] == "mnt" and len(parts[2]) == 1:
         return parts[2].upper() + ":\\" + "\\".join(parts[3:])
@@ -77,9 +77,9 @@ def tool(paths: ChainPaths, *args: str) -> tuple[str, ...]:
     return (paths.python, "-s", "-m", *args)
 
 
-def backing(paths: ChainPaths, origin: str) -> ProcSpec:
+def backing(paths: ChainPaths, origin: str, binary: str) -> ProcSpec:
     return ProcSpec("backing", tool(paths, "tools.tuning.hitl", "sitl-backing", "--model", "hil", f"--origin={origin}",
-                                    "--workdir", str(paths.run_dir / "backing")),
+                                    "--binary", binary, "--workdir", str(paths.run_dir / "backing")),
                     r"^\[backing\] SITL instance", READY_TIMEOUT_S["backing"], STOP_SIGINT,
                     ports=(("tcp", SITL_PORT), ("tcp", HIL_PORT)), cwd=str(paths.repo))
 
@@ -87,7 +87,8 @@ def backing(paths: ChainPaths, origin: str) -> ProcSpec:
 def router(paths: ChainPaths) -> ProcSpec:
     return ProcSpec("router", tool(paths, "tools.tuning.mav_router", "--board", f"tcp:127.0.0.1:{SITL_PORT}",
                                    "--client", f"runner={RUNNER_PORT}", "--client", f"navpy={NAVPY_PORT}",
-                                   "--control", str(CONTROL_PORT), "--write-log", str(paths.run_dir / "router_writes.csv"),
+                                   "--control", str(CONTROL_PORT),
+                                   "--write-log", str(paths.run_dir / "router_writes.csv"),
                                    "--stats", str(paths.run_dir / "router_stats.json"), "--exit-on-stdin-eof"),
                     r"^\[router\] tcp:\S+ <-> ", READY_TIMEOUT_S["router"], STOP_EOF,
                     ports=(("udp", RUNNER_PORT), ("udp", NAVPY_PORT), ("udp", CONTROL_PORT)), cwd=str(paths.repo))

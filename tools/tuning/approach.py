@@ -18,6 +18,7 @@ Exit 0 only when the flight, the handoff, every stop, the link health and the or
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import shutil
 import subprocess
@@ -49,6 +50,9 @@ from tools.tuning.navpy_handoff import NavpyHandoff, direct_rtl, end_process, st
 from tools.tuning.private_data import private_dir
 
 MODE = "pc-sitl"
+# The SITL binary speaking the bridge's HIL link contract v2 (the protocol-100 port, sitl_sim HIL_SERIAL);
+# sitl-backing's default flight-tune build speaks v1 on a fixed SERIAL8 (SIM_HIL.h). My choice for step 13.
+SIM_HIL_BINARY = Path.home() / "fw-worktrees" / "ardupilot-sim-hil" / "build" / "sitl" / "bin" / "arduplane"
 YEGHVARD_ORIGIN = "40.3117412,44.4552112,1292.8,0"      # hitl_unreal_camera.md: the Unreal level's origin
 OBSERVE_S = 660.0               # my value: the held-out check needs 600 s of scored frames, plus margin
 SERVO_SPEED_S = 0.03            # the bridge's servo lag in the dock-pass runs (hitl_unreal_camera.md)
@@ -71,6 +75,11 @@ def _addresses() -> tuple[str, str]:
 def _source_id(repo: Path) -> str:
     profiles = json.loads((repo / "src/navpy/core/perception/profile/vision_profiles.json").read_text(encoding="utf-8"))
     return profiles["profiles"][chain.VISION_PROFILE]["detector"]["camera_index"]
+
+
+def _binary(path: str) -> dict:
+    data = Path(path).read_bytes() if Path(path).is_file() else b""
+    return {"path": path, "sha256": hashlib.sha256(data).hexdigest() if data else None}
 
 
 def _corrections(path: str | None) -> tuple[float, float]:
@@ -179,7 +188,8 @@ def approach(args: argparse.Namespace) -> int:
     lens = repo / "src/navpy/core/perception/profile/vision_profiles.json"
     group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity)},
                          chain.port_free)
-    run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "addresses": [wsl_ip, windows_ip]}
+    run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "addresses": [wsl_ip, windows_ip],
+                 "sitl_binary": _binary(args.sitl_binary)}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
                          run_dir / "board", args.origin, popen=_adopting_popen(group))
     files = board_param_files([], [Path(p) for p in args.params_file or []], True, False, args.hitl_data)
@@ -187,7 +197,7 @@ def approach(args: argparse.Namespace) -> int:
                   log_fetch=False)
     failed = None
     try:
-        specs = [chain.backing(paths, args.origin), chain.router(paths), chain.emulator(paths),
+        specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens), chain.unreal(paths, lens),
                  chain.navpy(paths, record_path, FIRST_LANE_SEQ)]
         problems = group.refusals(specs)
@@ -223,6 +233,7 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--mode", choices=(MODE,), required=True)
     a.add_argument("--run-root", help="folder for the run folder (default: the private folder's runs/approach)")
     a.add_argument("--origin", default=YEGHVARD_ORIGIN, help="lat,lon,alt,hdg (default: the Unreal level's)")
+    a.add_argument("--sitl-binary", default=str(SIM_HIL_BINARY), help="the backing's arduplane (default: sim-hil)")
     a.add_argument("--model-dir", required=True, help="the JSBSim model folder (WSL path)")
     a.add_argument("--model-input", required=True, help="the model folder's declaration (tools/hitl/model_input.py)")
     a.add_argument("--media-runtime", required=True, help="a passing check_media_runtime.py result for pc-wsl")
