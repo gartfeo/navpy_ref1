@@ -2130,6 +2130,27 @@
   its assert after the earlier mutations have already run.
 
 
+## Dev sim step 9: wall-bug fit and seed search (2026-11-03)
+
+- Look at a stall's shape before choosing the model that fits it. Todo 65's long stalls were readers
+  that kept receiving while they fell behind (lag grew over 6-19 s), not freezes; 80 seeds of a fitted
+  `process_freeze` found nothing, and the stall shape showed why in minutes.
+- Match the failure the wall gate actually failed, not a symptom in its logs. A long source-time gap in
+  the cadence episodes is no wall failure (the wall gate measures wall time); Codex caught a first
+  "reproduction" built on it.
+- Read the confirmed attempt of a settled seed (`attempts[-2:]` at one digest), not the first attempt.
+- Lockstep `report.json` errors do not carry `NAV_FAIL` text; read the run's `uav_*_navigation.log` too.
+- Wall lag in aircraft time has a per-path offset (often negative); measure stalls above the median lag.
+  At 10x, 200 ms of aircraft time is a 20 ms wall hiccup, so nothing smaller is a stall.
+- Older wall runs write one arrival file per pid, including ground pids; pair each NavPy pid with the
+  GCS file that overlaps it in time.
+- Check what a fitted model puts in by measuring a lockstep run with the same tool as the wall run: the
+  stalls should fall on the drawn episodes.
+- To undo a commit that is not pushed, `git reset --hard` to the commit before it; a failed
+  `git revert -q` followed by `--amend` relabelled the wrong commit.
+- In a baton test, sleep half a tick to wake on the next tick; a sleep of exactly one tick can miss it
+  through float rounding.
+
 ## Status texts wait; a failed hold names its bound (ready plan step 4, 2026-11-02)
 - Validate a new run-check script on the run the audit measured before trusting it on new
   runs: mine reproduced 81 of 474 lost frames and the 134-284 ms lag exactly on 17:38.

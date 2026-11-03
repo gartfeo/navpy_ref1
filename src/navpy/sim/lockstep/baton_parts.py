@@ -10,6 +10,8 @@ import threading
 from collections import deque
 from dataclasses import dataclass, field
 
+from navpy.sim.lockstep.reader_lag import ReaderLag
+
 
 @dataclass(eq=False)
 class ManagedThread:
@@ -93,6 +95,8 @@ class Scheduling:
     timers_first: bool = False
     #: Each lockstep bus reader's service budget (None: one packet, then a yield).
     reader_budget: ReaderBudget | None = None
+    #: A NavPy's reader lag (dev sim step 9, ``reader_lag.ReaderLag``; None: none).
+    reader_lag: ReaderLag | None = None
 
 
 class RunQueue(deque[ManagedThread]):

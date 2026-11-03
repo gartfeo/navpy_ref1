@@ -27,7 +27,9 @@ is a run input in the manifest. A model that is off sets no key; with none the
 loop runs as before step 4. The same key carries the sim camera's model
 (``camera_frames``, step 5), which the NavPy host applies, not this loop, and
 the scheduling models (``scheduling_models``, step 6), which every product
-participant applies to its baton; the backend role carries only those.
+participant applies to its baton; the backend role carries only those. A
+NavPy also applies ``reader_lag`` (step 9, :mod:`reader_lag`) to its baton's
+bus readers.
 """
 
 from __future__ import annotations
@@ -37,15 +39,16 @@ import random
 from collections.abc import Mapping
 
 from navpy.sim.lockstep.camera_frames import CAMERA_FRAMES, camera_frame_factory
+from navpy.sim.lockstep.reader_lag import READER_LAG, ReaderLag
 from navpy.sim.lockstep.scheduling_models import SCHEDULING_MODELS, check_scheduling
 from navpy.sim.lockstep.sim_profile import Number, Realization, model_stream
 
 PROCESS_FREEZE = "process_freeze"
 CPU_BUDGET = "cpu_budget"
 MODELS = (CPU_BUDGET, PROCESS_FREEZE)
-#: Every model a NavPy's role config may carry: these two, the sim camera's (``camera_frames``)
-#: and the baton's scheduling models (``scheduling_models``).
-PARTICIPANT_MODELS = (CAMERA_FRAMES, *MODELS, *SCHEDULING_MODELS)
+#: Every model a NavPy's role config may carry: these two, the sim camera's (``camera_frames``),
+#: its readers' lag (``reader_lag``) and the baton's scheduling models (``scheduling_models``).
+PARTICIPANT_MODELS = (CAMERA_FRAMES, *MODELS, READER_LAG, *SCHEDULING_MODELS)
 #: The role config key of the on participant models and their drawn parameters.
 SIM_MODELS_KEY = "sim_models"
 
@@ -134,12 +137,21 @@ def participant_models(realization: Realization) -> dict[str, dict[str, Number]]
               if (draw := realization.model(name)) is not None and draw.on}
     TickBudget(models, realization.seed, 1, 1)
     camera_frame_factory(models, realization.seed, 1, 1)
+    reader_lag(models, realization.seed, 1, 1)
     check_scheduling(models)
     return models
+
+
+def reader_lag(models: Mapping[str, Mapping[str, Number]], seed: int, ordinal: int,
+               generation: int) -> ReaderLag | None:
+    """The NavPy's reader lag, if the model is on."""
+    if READER_LAG not in models:
+        return None
+    return ReaderLag(models[READER_LAG], model_stream(seed, READER_LAG, f"participant.{ordinal}.{generation}"))
 
 
 __all__ = [
     "SIM_MODELS_KEY", "CPU_BUDGET", "FreezeSchedule", "MODELS", "PARTICIPANT_MODELS", "PROCESS_FREEZE",
     "TickBudget",
-    "participant_models",
+    "participant_models", "reader_lag",
 ]
