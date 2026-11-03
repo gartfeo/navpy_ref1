@@ -2212,3 +2212,12 @@
 - The startup auto-connect copied the connect route's NavPy start but not its ESP32 start, so Launch stayed
   disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
   effects and check each one; a test that removes the call and fails proves the new one is needed.
+
+## HITL step 12: offline timing check (2026-11-03)
+
+- A PTS-delta join from a short receiver window to a long sender log can fit several anchors: a shift can put one of navpy's own gaps on sender frames navpy never got. I first picked the anchor implying the fewest lost frames; Codex showed a two-frame counterexample where that picks the wrong one. A lost frame leaves no trace, so only a single fitting anchor identifies frames. Test a receiver window that ends early, and spread sender gaps across synthetic logs as real uneven output does.
+- An association reads only a window of history (attitude_history_reader(count)), so a receipt log written from it starts at the first window. Tests that expect "every sample" must expect the window's samples.
+- Python's json.loads accepts NaN, and a NaN skew makes `x > budget` false, so a check passes. Parse with parse_constant that raises, and write budget tests as `not ok <= budget`.
+- An offline fit must refuse the same brackets the live code refuses. Replaying the live function (interpolate_attitude_at with the logged limits) is safer than re-deriving its rules.
+- A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data, and so does one that picks block starts per pair (dense stretches win). Redraw whole occupied time bins, each equally likely.
+- Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.

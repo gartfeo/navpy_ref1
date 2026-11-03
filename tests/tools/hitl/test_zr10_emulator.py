@@ -1,6 +1,7 @@
 """The emulator process loop: vehicle_state in, gimbal_state out, and navpy's real SIYI client (GimbalSiyi) on UDP."""
 from __future__ import annotations
 
+import io
 import json
 import math
 import socket
@@ -297,3 +298,36 @@ def test_log_records_reach_the_file_before_close(tmp_path):
         assert path.read_text(encoding="utf-8") == '{"event":"step"}\n'     # a killed process keeps it
     finally:
         log.close()
+
+
+def test_siyi_out_names_each_frames_sequence_and_the_plant_time_a_0x0d_reports():
+    """Step 17 for step 12: a 0x0D frame's record carries its wire sequence and the plant time it reports, the report
+    lag applied; its send time alone would hide that lag."""
+    unreal = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    unreal.bind(LOOPBACK)
+    log = io.StringIO()
+    lag_s = 0.06
+    emulator = Zr10Emulator(Zr10Device(EmulatorConfig(attitude_report_lag_s=lag_s), load_zoom_table("siyi_zr10")),
+                            LOOPBACK, LOOPBACK, unreal.getsockname(), log=log)
+    navpy = ("127.0.0.1", 9)
+    try:
+        state = emulator.vehicle.accept(vehicle_state(1), 10.0)
+        emulator.device.set_vehicle_attitude(state.attitude)
+        for reply in emulator.device.handle_datagram(frame(0x0D), navpy):     # starts the 0x0D push
+            emulator._send_siyi(reply, navpy)
+        for reply in emulator.device.handle_datagram(frame(0x18), navpy):     # another command's reply between
+            emulator._send_siyi(reply, navpy)
+        for step in range(1, 11):
+            emulator._step(10.0 + 0.02 * step, 10.0 + 0.02 * step)
+    finally:
+        emulator.close()
+        unreal.close()
+    records = [json.loads(line) for line in log.getvalue().splitlines()]
+    sent = [record for record in records if record["event"] == "siyi_out"]
+    assert [record["seq"] for record in sent] == list(range(sent[0]["seq"], sent[0]["seq"] + len(sent)))
+    assert [record["cmd"] for record in sent[:2]] == ["0d", "18"] and "report_t" not in sent[1]
+    pushes = [record for record in sent if record["cmd"] == "0d"]
+    assert len(pushes) > 2 and all(record["dest"] == list(navpy) and record["sent"] for record in pushes)
+    late = [record for record in pushes if record["device_t"] >= lag_s]
+    assert late and all(record["report_t"] == pytest.approx(record["device_t"] - lag_s) for record in late)
+    assert all(record["report_t"] <= record["device_t"] for record in pushes)
