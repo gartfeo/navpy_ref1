@@ -32,11 +32,12 @@ export default function useMapInteraction(cesiumRef, viewerRef, readyRef, callba
 
     // LEFT_CLICK
     handler.setInputAction((click) => {
+      // Every click counts for the guard, also one that ends a drag.
+      finishGuard.onClick(callbacksRef.current, { handled: !skipNextClick });
       if (skipNextClick) {
         skipNextClick = false;
         return;
       }
-      finishGuard.onClick(callbacksRef.current);
       handleClick(Cesium, viewer, click, callbacksRef);
     }, Cesium.ScreenSpaceEventType.LEFT_CLICK);
 

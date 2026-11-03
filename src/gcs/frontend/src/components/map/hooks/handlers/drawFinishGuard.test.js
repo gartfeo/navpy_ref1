@@ -36,3 +36,13 @@ it('never skips in the polygon flow', () => {
   expect(guard.skipDoubleClick()).toBe(false);
   expect(createDrawFinishGuard().skipDoubleClick()).toBe(false);
 });
+
+it('a drag-ending click counts in the sequence but never finishes', () => {
+  const guard = createDrawFinishGuard();
+  guard.onClick(widthClick, { handled: false });
+  guard.onClick(afterFinish, { handled: false });
+  expect(guard.skipDoubleClick()).toBe(false);
+  guard.onClick(widthClick);
+  guard.onClick(afterFinish, { handled: false });
+  expect(guard.skipDoubleClick()).toBe(true);
+});
