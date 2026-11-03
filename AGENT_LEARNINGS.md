@@ -2274,6 +2274,11 @@
   missing include). Edit line-ending files on bytes in a Python script and check with `file` afterwards.
 - A poisoned-open test (builtins.open, io.open, os.open) proves nothing until it fails once: removing the manifest's
   private-folder exclusion made it fail, as it should.
+- Escapes in edit scripts went wrong three more times in the review rounds: a regex \b became a backspace byte
+  and a \n in generated test code became a real newline, even from a quoted heredoc. Both showed only as
+  odd test failures. Write edit scripts with the Write tool, and grep the result for control bytes.
+- Changing a function's signature needs a search for every caller, tools included: Codex found the scene check
+  still calling the old chain.unreal, which only a test through the real call would have caught.
 
 ## Rehearsals (ready plan step 8, 2026-11-03)
 
