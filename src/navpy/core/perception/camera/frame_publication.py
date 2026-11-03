@@ -36,6 +36,7 @@ class FramePublicationStore:
         self,
         clock: Callable[[], float] | None = None,
         monotonic: Callable[[], float] | None = None,
+        observer: Callable[[CaptureStamp | None], None] | None = None,
     ) -> None:
         self._condition = rt.Condition(rt.Lock())
         self._snapshot = FrameSnapshot(None, 0, 0, 0, None)
@@ -47,6 +48,8 @@ class FramePublicationStore:
         # capture stamps, so no age here mixes in the wall clock.
         self._clock = clock
         self._monotonic = monotonic
+        # Sees every publication's stamp once, in order (integration timing).
+        self._observer = observer
 
     def set_running(self, running: bool) -> None:
         with self._condition:
@@ -99,6 +102,8 @@ class FramePublicationStore:
                 ),
                 capture=capture,
             )
+            if self._observer is not None:
+                self._observer(capture)
             self._condition.notify_all()
 
     def get_frame(self) -> Tuple[Optional[np.ndarray], int, int]:

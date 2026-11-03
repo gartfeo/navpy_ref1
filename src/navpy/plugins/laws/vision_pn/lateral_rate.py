@@ -100,7 +100,7 @@ class LateralRateFilter:
     def seed(self, frame: FinalApproachVisionFrame) -> None:
         self._state = LateralRateState(
             frame.continuity_key,
-            frame.source_timestamp_s,
+            frame.rate_time_s,
             _bearing(frame),
             frame.aircraft_yaw_rate_rad_s,
             0.0,
@@ -117,7 +117,7 @@ class LateralRateFilter:
         raw_inertial_rate = 0.0
         filtered = 0.0
         if previous is not None and previous.continuity_key == frame.continuity_key:
-            dt_s = frame.source_timestamp_s - previous.timestamp_s
+            dt_s = frame.rate_time_s - previous.timestamp_s
             if dt_s <= 0.0:
                 return LateralRatePlan(0.0, 0.0, 0.0, previous)
             delta = math.atan2(
@@ -157,7 +157,7 @@ class LateralRateFilter:
             filtered,
             LateralRateState(
                 frame.continuity_key,
-                frame.source_timestamp_s,
+                frame.rate_time_s,
                 bearing,
                 frame.aircraft_yaw_rate_rad_s,
                 filtered,

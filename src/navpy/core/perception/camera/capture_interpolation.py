@@ -40,10 +40,22 @@ STATUS_NO_CAPTURE_RECEIPT = "real_frame_pose_capture_receipt_unavailable"
 
 
 @dataclass(frozen=True)
+class AttitudeBracket:
+    """The two ATTITUDE samples a lookup was interpolated between, for the timing log."""
+
+    earlier_time_boot_s: float | None
+    later_time_boot_s: float | None
+    earlier_receipt_s: float
+    later_receipt_s: float
+    fraction: float
+
+
+@dataclass(frozen=True)
 class AttitudeAtLookup:
     attitude: Attitude
     body_rates_rad_s: tuple[float, float, float] | None
     time_boot_s: float | None
+    bracket: AttitudeBracket | None = None
 
 
 def _finite(value: object) -> float | None:
@@ -155,11 +167,19 @@ def interpolate_attitude_at(
     boot = None
     if earlier_boot is not None and later_boot is not None:
         boot = earlier_boot + (later_boot - earlier_boot) * fraction
-    return AttitudeAtLookup(attitude, rates, boot), "bracketed"
+    bracket_record = AttitudeBracket(
+        earlier_time_boot_s=earlier_boot,
+        later_time_boot_s=later_boot,
+        earlier_receipt_s=earlier.capture_receipt_s,
+        later_receipt_s=later.capture_receipt_s,
+        fraction=fraction,
+    )
+    return AttitudeAtLookup(attitude, rates, boot, bracket_record), "bracketed"
 
 
 __all__ = [
     "AttitudeAtLookup",
+    "AttitudeBracket",
     "BRACKET_MAX_WIDTH_S",
     "CLOCK_SEAM_TOLERANCE_S",
     "STATUS_CLOCK_SEAM",

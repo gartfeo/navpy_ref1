@@ -37,7 +37,7 @@ class VerticalRateFilter:
         delta = _vertical_angle(frame)
         self._state = VerticalRateState(
             frame.continuity_key,
-            frame.source_timestamp_s,
+            frame.rate_time_s,
             delta,
             0.0,
         )
@@ -48,7 +48,7 @@ class VerticalRateFilter:
         filtered = 0.0
         interval_mean = 0.0
         if previous is not None and previous.continuity_key == frame.continuity_key:
-            dt_s = frame.source_timestamp_s - previous.timestamp_s
+            dt_s = frame.rate_time_s - previous.timestamp_s
             if dt_s <= 0.0:
                 return VerticalRatePlan(0.0, previous)
             raw_rate = (delta - previous.delta_rad) / dt_s
@@ -65,7 +65,7 @@ class VerticalRateFilter:
                 )
         state = VerticalRateState(
             frame.continuity_key,
-            frame.source_timestamp_s,
+            frame.rate_time_s,
             delta,
             filtered,
         )

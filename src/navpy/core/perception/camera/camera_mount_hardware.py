@@ -10,6 +10,7 @@ import numpy as np
 from navpy.core.perception.camera.camera_mount_types import ZoomWrite
 from navpy.core.ports.camera_abc import CameraAbc
 from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_capture_history import GimbalCaptureHistory
 from navpy.core.ports.worker_failure import require_failure_health
 
 
@@ -107,6 +108,14 @@ class MountGimbalHardware:
                 "missing frame-state sample provider"
             )
         return cast(tuple[GimbalData, object, object, object], provider())
+
+    def capture_history(self) -> GimbalCaptureHistory | None:
+        """Recent readback for capture-time brackets, None when the gimbal keeps none."""
+        provider = _provider(self._source(), "get_capture_history")
+        if provider is None:
+            return None
+        history = provider()
+        return history if isinstance(history, GimbalCaptureHistory) else None
 
     def start(self) -> None:
         provider = _provider(self._source(), "start")

@@ -115,6 +115,13 @@ def _measurement_timestamp_s(
     return association.frame_timestamp_s
 
 
+def _interval_timestamp_s(
+        association: RealFrameAssociation,
+) -> float | None:
+    """The frame's interval clock for visual rates (PTS on integration timing)."""
+    return association.interval_timestamp_s
+
+
 def _pixel_observation(
         observation: MappedTrackObservation,
         calibration: PixelCalibration,
@@ -140,6 +147,7 @@ def _pixel_observation(
             aircraft_roll_deg,
             association.uas_body_rates_rad_s,
         ),
+        interval_timestamp_s=_interval_timestamp_s(association),
     )
 
 
@@ -193,6 +201,7 @@ def _source_timing(
         detection_now_s=rt.perf_counter,
         source_receipt_now_s=rt.perf_counter,
         source_air_speed_mps=association.air_speed_mps,
+        interval_timestamp_s=_interval_timestamp_s(association),
     )
 
 

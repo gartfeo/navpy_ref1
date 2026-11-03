@@ -25,6 +25,9 @@ class FinalApproachVisionFrame:
     air_speed_mps: float = 25.0
     aircraft_yaw_rate_rad_s: float = 0.0
     aircraft_pitch_deg: float = 0.0
+    # The frame's own interval clock (encoded PTS on integration timing,
+    # HITL step 11); NaN, the default, keeps rates on source_timestamp_s.
+    interval_timestamp_s: float = math.nan
 
     def __post_init__(self) -> None:
         if type(self.source_name) is not str or not self.source_name:
@@ -43,6 +46,9 @@ class FinalApproachVisionFrame:
         )
         if not all(math.isfinite(value) for value in values):
             raise ValueError("final-approach frame values must be finite")
+        interval = self.interval_timestamp_s
+        if type(interval) is not float or math.isinf(interval):
+            raise ValueError("interval_timestamp_s must be a finite float or NaN")
         if self.air_speed_mps <= 0.0:
             raise ValueError("final-approach frame airspeed must be positive")
         self._validate_unit(self.body_ray, "body")
@@ -55,6 +61,13 @@ class FinalApproachVisionFrame:
     @property
     def control_ray(self) -> tuple[float, float, float]:
         return self.control_x, self.control_y, self.control_z
+
+    @property
+    def rate_time_s(self) -> float:
+        """The time visual rates difference: the interval clock when present."""
+        if math.isnan(self.interval_timestamp_s):
+            return self.source_timestamp_s
+        return self.interval_timestamp_s
 
     @property
     def continuity_key(self) -> tuple[str, int, int, int]:

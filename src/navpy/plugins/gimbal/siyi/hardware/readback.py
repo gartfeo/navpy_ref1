@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_capture_history import GimbalCaptureHistory
 from navpy.plugins.gimbal.siyi.hardware.ports import MonotonicClock
 from navpy.plugins.gimbal.siyi.hardware.state import SiyiReadbackStore
 
@@ -25,6 +26,9 @@ class SiyiHardwareReadback:
         sample = self._store.snapshot()
         age_s = self._age(sample.zoom_receipt_monotonic_s)
         return sample.data, sample.zoom_level, age_s, sample.zoom_sample_id
+
+    def get_capture_history(self) -> GimbalCaptureHistory:
+        return self._store.capture_history()
 
     def get_zoom_level(self) -> float | None:
         return self._store.snapshot().zoom_level

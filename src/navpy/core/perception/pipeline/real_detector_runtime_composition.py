@@ -7,6 +7,10 @@ from dataclasses import dataclass
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.perception.camera.board_clock_map import AttitudeBoardClock
 from navpy.core.perception.camera.frame_provider import FrameProvider
+from navpy.core.perception.camera.pts_read_map import IntegrationTimingSource
+from navpy.core.perception.pipeline.integration_association import (
+    IntegrationAssociation,
+)
 from navpy.core.perception.pipeline.real_detector_config import (
     DetectorDependencies,
     DetectorPipelineConfig,
@@ -88,11 +92,19 @@ def build_state(config: RealDetectorConfig) -> RealDetectorState:
 def build_association(
     dependencies: DetectorDependencies,
     pipeline: DetectorPipelineConfig | None = None,
+    integration_source: IntegrationTimingSource | None = None,
 ) -> FrameAssociationBuilder:
     vehicle = dependencies.vehicle
     mount = dependencies.mount
     calibration = None if pipeline is None else pipeline.capture_calibration
     source = "" if pipeline is None else str(pipeline.frame_source)
+    integration = None
+    if integration_source is not None:
+        integration = IntegrationAssociation(
+            integration_source,
+            mount.gimbal_capture_history,
+            None if pipeline is None else pipeline.integration_timing_log,
+        )
     return FrameAssociationBuilder(
         attitude_sample_reader=lambda: vehicle.attitude_sample,
         mount_state_reader=mount.capture_frame_state,
@@ -103,6 +115,7 @@ def build_association(
         link_identity_reader=lambda: vehicle.link_identity,
         calibration=calibration,
         source_id=source,
+        integration=integration,
     )
 
 
@@ -113,6 +126,9 @@ def build_runtime(
     models: RealDetectorModels,
 ) -> RealDetectorRuntime:
     pipeline = config.pipeline
+    integration_source = None
+    if pipeline.integration_timing is not None:
+        integration_source = IntegrationTimingSource(pipeline.integration_timing)
     frame_provider = FrameProvider(
         source=pipeline.frame_source,
         logger=dependencies.logger,
@@ -120,6 +136,10 @@ def build_runtime(
         # receipt clock (npyc:// sources); it never reads a pose.
         board_clock=AttitudeBoardClock(
             lambda count: dependencies.vehicle.attitude_history(count)
+        ),
+        # Every published frame feeds the integration map once.
+        publication_observer=(
+            None if integration_source is None else integration_source.observe
         ),
     )
     navigation = None
@@ -130,7 +150,7 @@ def build_runtime(
             tracking=config.gimbal.tracking,
             zoom_config=config.gimbal.zoom,
         )
-    association = build_association(dependencies, pipeline)
+    association = build_association(dependencies, pipeline, integration_source)
     return RealDetectorRuntime(
         frame_provider=frame_provider,
         navigation=navigation,

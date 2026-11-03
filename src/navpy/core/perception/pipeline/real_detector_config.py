@@ -10,6 +10,8 @@ from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
+from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
+from navpy.core.perception.pipeline.integration_association import TimingLog
 from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
     CharucoDetectionSettings,
@@ -93,6 +95,11 @@ class DetectorPipelineConfig:
     # Absent by default: an uncalibrated real source can never be
     # frame-atomic.
     capture_calibration: "CaptureLookupCalibration | None" = None
+    # HITL-only uncertified timing (stage 1 step 11), exclusive with
+    # capture_calibration; set by the HITL runner only, never by a profile.
+    integration_timing: "IntegrationTimingConfig | None" = None
+    # Receives one record per association on integration timing.
+    integration_timing_log: "TimingLog | None" = None
 
 
 @dataclass(frozen=True)

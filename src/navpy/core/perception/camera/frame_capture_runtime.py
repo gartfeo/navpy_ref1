@@ -5,6 +5,7 @@ from __future__ import annotations
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.app.perception.frame_capture_factory import open_capture_backend
@@ -12,6 +13,7 @@ from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import (
     BoardClock,
     CaptureLogger,
+    CaptureStamp,
 )
 from navpy.core.perception.camera.frame_capture_session import (
     CaptureSession,
@@ -157,8 +159,9 @@ def build_frame_provider_parts(
     source: int | str | None,
     logger: CaptureLogger,
     board_clock: BoardClock | None = None,
+    publication_observer: Callable[[CaptureStamp | None], None] | None = None,
 ) -> FrameProviderParts:
-    publications = FramePublicationStore()
+    publications = FramePublicationStore(observer=publication_observer)
     return FrameProviderParts(
         capture=FrameCaptureRuntime(source, logger, publications, board_clock),
         publications=publications,

@@ -25,6 +25,10 @@ from navpy.core.perception.camera.capture_lookup import (
 )
 from navpy.core.perception.camera.capture_interpolation import interpolate_attitude_at
 from navpy.core.perception.camera.frame_provider import FrameSnapshot
+from navpy.core.perception.camera.integration_timing import NS_PER_S
+from navpy.core.perception.pipeline.integration_association import (
+    IntegrationAssociation,
+)
 from navpy.core.perception.pipeline.real_frame_association_gate import (
     CaptureTiming,
     finite_body_rates,
@@ -102,6 +106,9 @@ class RealFrameAssociation:
     pose_status: str
     pose_age_s: float | None
     capture: CaptureTiming | None = None
+    # The time visual rates difference: on integration timing the frame's PTS
+    # (seconds), set for refused frames too so a tracker never mixes axes.
+    interval_timestamp_s: float | None = None
 
 
 class FrameAssociationBuilder:
@@ -118,7 +125,14 @@ class FrameAssociationBuilder:
             calibration: CaptureLookupCalibration | None = None,
             source_id: str = "",
             maximum_skew_s: float = POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
+            integration: IntegrationAssociation | None = None,
     ) -> None:
+        if calibration is not None and integration is not None:
+            # One authority per run: integration timing never sits beside,
+            # or stands in for, a certified calibration.
+            raise ValueError(
+                "capture calibration and integration timing are exclusive"
+            )
         self._attitude_sample_reader = attitude_sample_reader
         self._mount_state_reader = mount_state_reader
         self._location_reader = location_reader
@@ -128,6 +142,7 @@ class FrameAssociationBuilder:
         self._calibration = calibration
         self._source_id = source_id
         self._maximum_skew_s = float(maximum_skew_s)
+        self._integration = integration
 
     def set_maximum_skew(self, maximum_skew_s: float) -> None:
         self._maximum_skew_s = float(maximum_skew_s)
@@ -181,9 +196,34 @@ class FrameAssociationBuilder:
             frame: np.ndarray,
     ) -> RealFrameAssociation:
         frame_timestamp_s = finite_time(snapshot.published_at_s)
-        capture_timing, capture_status, interpolated = self._capture_lookup(
-            snapshot,
-        )
+        try:
+            mount_state = self._mount_state_reader(snapshot.width, snapshot.height)
+        except Exception:
+            mount_state = None
+        interval_timestamp_s = None
+        if self._integration is None:
+            capture_timing, capture_status, interpolated = self._capture_lookup(
+                snapshot,
+            )
+        else:
+            stamp = getattr(snapshot, "capture", None)
+            source = None if stamp is None else stamp.source
+            if source is not None:
+                interval_timestamp_s = source.pts_ns / NS_PER_S
+            outcome = self._integration.associate(
+                stamp,
+                self._source_id,
+                self._link_identity_reader(),
+                self._attitude_history_reader(ATTITUDE_HISTORY_COUNT),
+                mount_state,
+                rt.perf_counter(),
+                attitude_bracket_max_s=self._maximum_skew_s,
+                seam_tolerance_s=self._maximum_skew_s / 2.0,
+            )
+            capture_timing = outcome.timing
+            capture_status = outcome.status
+            interpolated = outcome.attitude
+            mount_state = outcome.mount_state
         if interpolated is not None and capture_status == "bracketed":
             # The de-rotating attitude describes the CAPTURE instant.
             uas_att = interpolated.attitude
@@ -208,10 +248,6 @@ class FrameAssociationBuilder:
                 ) = pose
                 uas_att = copy.deepcopy(uas_att)
 
-        try:
-            mount_state = self._mount_state_reader(snapshot.width, snapshot.height)
-        except Exception:
-            mount_state = None
         try:
             c_g_loc = copy.deepcopy(self._location_reader())
         except Exception:
@@ -247,6 +283,7 @@ class FrameAssociationBuilder:
             pose_status=pose_status,
             pose_age_s=pose_age_s,
             capture=capture_timing,
+            interval_timestamp_s=interval_timestamp_s,
         )
 
 

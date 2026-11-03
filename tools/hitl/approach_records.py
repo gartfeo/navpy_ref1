@@ -11,8 +11,9 @@ A record is refused (RecordError, every problem listed) when a field is missing,
 its model input is refused, or when the run disagrees with it: a plant version the model was not validated
 with, a step that is not the bridge's 1/N s or is longer than the model's maximum, a servo speed other than
 the declared one, a sensor map that is not the bridge's, a law other than the pure-vision law (AGENTS.md), or a
-substitution of the mode left out or reworded, or a media runtime that did not pass on the mode's host with the
-pinned GStreamer, packages and elements. new_record also refuses a model folder that differs from the model input.
+substitution of the mode left out or reworded, a media runtime that did not pass on the mode's host with the
+pinned GStreamer, packages and elements, or integration timing (step 11) that integration_timing.py refuses or
+that claims another authority. new_record also refuses a model folder that differs from the model input.
 """
 from __future__ import annotations
 
@@ -20,12 +21,14 @@ import hashlib
 import json
 import subprocess
 from collections.abc import Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from datetime import datetime, timezone
 from pathlib import Path, PurePosixPath
 from typing import Any, Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
+from navpy.core.perception.camera.integration_timing import (AUTHORITY_INTEGRATION, IntegrationTimingConfig,
+                                                            IntegrationTimingLimits)
 from tools.hitl import check_media_runtime as media
 from tools.hitl import media_profiles, media_roundtrip
 from tools.hitl import json_checks as jc
@@ -36,7 +39,7 @@ from tools.tuning.hitl_bridge.board_clock import step_rate_hz
 from tools.tuning.private_data import private_dir
 
 RECORD_FILE = "approach_record.json"
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NAVPY_SOURCE = Path("src", "navpy")     # the package folder every navpy checkout holds at its top
 
@@ -81,6 +84,17 @@ MEDIA_RUNTIME_SPEC: Mapping[str, jc.Check] = {
     "gpu_driver": jc.text,
 }
 
+# The explicit integration timing frozen for the run (integration_timing.py, stage 1 step 11).
+INTEGRATION_TIMING_SPEC: Mapping[str, jc.Check] = {
+    "authority": jc.equals(AUTHORITY_INTEGRATION),
+    "source_id": jc.text,
+    "link_id": jc.text,
+    "attitude_correction_s": jc.finite,
+    "gimbal_correction_s": jc.finite,
+    "limits": jc.obj({limit.name: jc.index if limit.name == "min_frames" else jc.positive
+                      for limit in fields(IntegrationTimingLimits)}),
+}
+
 _SOURCE = jc.obj({"git_head": jc.hex_digits(40), "uncommitted_diff_sha256": jc.hex_digits(64),
                   "untracked_sha256": jc.hex_digits(64)})
 RECORD_SPEC: Mapping[str, jc.Check] = {
@@ -94,6 +108,7 @@ RECORD_SPEC: Mapping[str, jc.Check] = {
     "law": jc.obj({"algorithm": jc.text}),
     "media_runtime": jc.obj(MEDIA_RUNTIME_SPEC),
     "substitutions": jc.map_of(jc.text),
+    "integration_timing": jc.obj(INTEGRATION_TIMING_SPEC),
 }
 
 
@@ -137,7 +152,17 @@ def _run_problems(record: Mapping[str, Any]) -> list[str]:
             problems.append(f"record.substitutions.{name} is missing for mode {mode}")
         elif substitutions[name] != text:
             problems.append(f"record.substitutions.{name} {substitutions[name]!r} is not mode {mode}'s {text!r}")
+    problems += _integration_timing_problems(record)
     return problems + _media_runtime_problems(record["media_runtime"], MODE_MEDIA_HOST[mode])
+
+
+def _integration_timing_problems(record: Mapping[str, Any]) -> list[str]:
+    section = record["integration_timing"]
+    config = IntegrationTimingConfig(
+        run_id=record["run"]["run_id"], mode=record["run"]["mode"], source_id=section["source_id"],
+        link_id=section["link_id"], limits=IntegrationTimingLimits(**section["limits"]),
+        attitude_correction_s=section["attitude_correction_s"], gimbal_correction_s=section["gimbal_correction_s"])
+    return [f"record.integration_timing: {problem}" for problem in config.problems()]
 
 
 def _media_runtime_problems(result: Mapping[str, Any], host: str) -> list[str]:
@@ -207,12 +232,14 @@ def source_identity(repo: Path = REPO_ROOT) -> dict[str, str]:
 
 def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mapping[str, Any], model_dir: Path,
                bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]],
-               media_runtime: Mapping[str, Any],
+               media_runtime: Mapping[str, Any], integration_timing: IntegrationTimingConfig,
                extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
     """The validated record of a run about to start; the model folder must match the model input, and
-    media_runtime is the video host's check_media_runtime.py result."""
+    media_runtime is the video host's check_media_runtime.py result; integration_timing must be this run's."""
     if created.tzinfo is None:
         raise RecordError(["created must carry its time zone"])
+    if integration_timing.run_id != run_id or integration_timing.mode != mode:
+        raise RecordError(["integration_timing is another run's"])
     record = {
         "schema_version": SCHEMA_VERSION,
         "run": {"run_id": run_id, "mode": mode,
@@ -225,6 +252,7 @@ def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mappin
         "law": {"algorithm": law},
         "media_runtime": json.loads(json.dumps(media_runtime)),
         "substitutions": {**MODE_SUBSTITUTIONS.get(mode, {}), **(extra_substitutions or {})},
+        "integration_timing": integration_timing.record(),
     }
     validate_record(record)
     check_model_files(record["model_input"], model_dir)

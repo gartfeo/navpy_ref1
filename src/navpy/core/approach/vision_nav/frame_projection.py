@@ -59,6 +59,11 @@ class FinalApproachFrameProjector:
                 roll=_finite(observation.aircraft_roll_deg),
             )
             source_timestamp_s = _finite(observation.source_timestamp_s)
+            interval_timestamp_s = (
+                math.nan
+                if observation.interval_timestamp_s is None
+                else _finite(observation.interval_timestamp_s)
+            )
             air_speed = _finite(air_speed_mps)
             if air_speed <= 0.0:
                 return None
@@ -100,6 +105,7 @@ class FinalApproachFrameProjector:
             air_speed_mps=air_speed,
             aircraft_yaw_rate_rad_s=yaw_rate,
             aircraft_pitch_deg=float(attitude.pitch),
+            interval_timestamp_s=interval_timestamp_s,
         )
 
 

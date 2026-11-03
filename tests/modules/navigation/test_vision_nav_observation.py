@@ -60,6 +60,7 @@ def test_final_approach_frame_has_exact_primitive_schema_and_is_frozen_slotted()
         "source_timestamp_s", "body_x", "body_y", "body_z",
         "control_x", "control_y", "control_z", "aircraft_roll_deg",
         "air_speed_mps", "aircraft_yaw_rate_rad_s", "aircraft_pitch_deg",
+        "interval_timestamp_s",
     ]
     assert not hasattr(frame, "__dict__")
     with pytest.raises(FrozenInstanceError):

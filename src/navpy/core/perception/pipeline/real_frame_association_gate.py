@@ -19,6 +19,7 @@ from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
 )
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
+from navpy.core.perception.camera.integration_timing import AUTHORITY_CERTIFIED
 from navpy.core.ports.frame_capture_ports import CaptureStampKind
 
 
@@ -36,6 +37,11 @@ class CaptureTiming:
     captured_at_s: float
     lookup_s: float
     estimate_s: float
+    # Who vouches for these times (integration_timing.is_certified), and the
+    # time visual rates difference: the frame's PTS on integration timing,
+    # else None (rates then use estimate_s).
+    authority: str = AUTHORITY_CERTIFIED
+    interval_s: float | None = None
 
 
 def finite_time(value: float | int | None) -> float | None:
@@ -90,7 +96,10 @@ def real_frame_association_quality(
         return False, "real_frame_mount_snapshot_unavailable", frame_age_s
 
     skews = [frame_age_s]
-    if not mount_state.gimbal_is_static or mount_state.zoom_command is not None:
+    gimbal_at_capture = (
+        mount_state.gimbal_is_static or mount_state.gimbal_capture_relative
+    )
+    if not gimbal_at_capture or mount_state.zoom_command is not None:
         # A dynamic MOUNT is a moving gimbal OR a zoom-capable camera: both
         # sample their state at association time
         # (`camera_mount_frame_state.py:55`), which cannot describe the
@@ -98,7 +107,9 @@ def real_frame_association_quality(
         # zoom matches exposure-time optics, and the approved contract
         # (decision doc §3d) admits no window. Fail closed for EVERY stamp
         # kind until a capture-relative mount-state contract exists; a truly
-        # fixed camera (no zoom command) has timeless optics and is exempt.
+        # fixed camera (no zoom command) has timeless optics and is exempt, and
+        # so is a fixed-lens gimbal whose angles were bracketed at the capture
+        # instant (integration timing, HITL step 11).
         return False, "real_frame_mount_dynamic_unsupported", frame_age_s
 
     if mount_state.zoom_sample_id is None:
