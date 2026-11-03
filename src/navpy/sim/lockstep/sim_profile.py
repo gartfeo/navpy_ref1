@@ -64,7 +64,8 @@ class ModelSpec:
 #: participant loop (``participant_budget``). Step 5: camera latency and frame drops, in each
 #: NavPy's sim camera (``camera_frames``). Step 6: thread order, reader budget and timers first, in
 #: each product participant's baton (``scheduling_models``). Step 7: the scheduled faults, in the
-#: coordinator (``fault_schedule``, ``coordinator_faults``).
+#: coordinator (``fault_schedule``, ``coordinator_faults``). Step 9: reader lag, in each NavPy's bus
+#: readers (``reader_lag``).
 CATALOGUE: Mapping[str, ModelSpec] = {
     "baud_limit": ModelSpec("baud_limit", {}),
     "camera_frames": ModelSpec("camera_frames", {
@@ -78,6 +79,9 @@ CATALOGUE: Mapping[str, ModelSpec] = {
         "min_ticks": "int", "max_ticks": "int", "min_gap_s": "float", "max_gap_s": "float"}),
     "radio_partition": ModelSpec("radio_partition", {"start_s": "float", "duration_s": "float"}),
     "reader_budget": ModelSpec("reader_budget", {"packets_per_tick": "int"}),
+    "reader_lag": ModelSpec("reader_lag", {
+        "min_peak_ticks": "int", "max_peak_ticks": "int", "min_rise_s": "float", "max_rise_s": "float",
+        "min_drain_s": "float", "max_drain_s": "float", "min_gap_s": "float", "max_gap_s": "float"}),
     "sensor_noise": ModelSpec("sensor_noise", {"gps_noise_m": "float"}),
     "thread_order": ModelSpec("thread_order", {}),
     "timers_first": ModelSpec("timers_first", {}),

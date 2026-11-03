@@ -172,11 +172,11 @@ def test_the_none_profile_lists_no_model_and_the_file_needs_none_and_hw():
 
 
 def test_the_shipped_profiles_load_and_none_is_empty():
-    for name in ("none", "quiet", "hw", "stress"):
+    for name in ("none", "quiet", "hw", "stress", "wall_todo31", "wall_todo65"):
         assert sp.load_profile(name).name == name
     assert sp.load_profile("none").models == {}
     assert sp.DEFAULT_PROFILE == "hw"
-    assert sp.profile_names() == ["hw", "none", "quiet", "stress"]
+    assert sp.profile_names() == ["hw", "none", "quiet", "stress", "wall_todo31", "wall_todo65"]
     with pytest.raises(ValueError, match="unknown sim profile 'bogus'"):
         sp.load_profile("bogus")
 

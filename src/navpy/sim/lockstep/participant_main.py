@@ -27,7 +27,7 @@ from collections.abc import Callable
 from navpy.sim.lockstep.camera_frames import CameraFrameFactory, camera_frame_factory
 from navpy.sim.lockstep.part_socket import PartSocket
 from navpy.sim.lockstep.participant import Participant, bootstrap
-from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget
+from navpy.sim.lockstep.participant_budget import SIM_MODELS_KEY, TickBudget, reader_lag
 from navpy.sim.lockstep.participant_env import (
     ENVIRONMENT_VARIABLE,
     EXIT_NO_CONNECT,
@@ -70,6 +70,8 @@ def apply_sim_models(record: EnvironmentRecord, participant: Participant) -> tup
     tick; the camera schedules (for the hooks) and the handoff caps (for the loop) are returned."""
     models = record.config.get(SIM_MODELS_KEY, {})
     apply_scheduling(participant.runtime.baton, models, record.seed, record.ordinal, record.generation)
+    participant.runtime.baton.runnable.scheduling.reader_lag = reader_lag(
+        models, record.seed, record.ordinal, record.generation)
     return (camera_frame_factory(models, record.seed, record.ordinal, record.generation),
             TickBudget(models, record.seed, record.ordinal, record.generation))
 
