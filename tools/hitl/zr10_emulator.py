@@ -24,7 +24,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import select
 import socket
 import sys
@@ -36,6 +35,7 @@ from dataclasses import asdict, dataclass
 from typing import IO
 
 from navpy.plugins.gimbal.siyi.siyi_message import COMMAND
+from tools.hitl.process_identity import own_identity
 from tools.hitl.zr10_config import SOURCES, STEP_S, EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device, mode_name
 from tools.hitl.zr10_gimbal import TrueState
@@ -281,7 +281,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.exit_on_stdin_eof:
         threading.Thread(target=lambda: (sys.stdin.buffer.read(), stop.set()), daemon=True).start()
     print(f"ZR10 emulator: SIYI {emulator.siyi_address}, vehicle_state {emulator.vehicle_state_address}, "
-          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}, pid {os.getpid()}", flush=True)
+          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}, {own_identity()}", flush=True)
     try:
         emulator.serve(stop)
     except KeyboardInterrupt:

@@ -376,7 +376,8 @@ class _Proxy:
     pid = 1
 
 
-READY = "ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, non-ideal none, pid 29860\r\n"
+READY = ("ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, non-ideal none, pid 29860, "
+         "started 134062000000000000\r\n")
 
 
 def _interop(tmp_path, monkeypatch, started: dict, owners: set, ready: str = READY):
@@ -456,11 +457,18 @@ def test_the_windows_query_answer_is_a_start_time_gone_or_a_failure():
 
 def test_a_ready_line_without_a_running_pid_fails_the_start(tmp_path, monkeypatch):
     handle, _ = _interop(tmp_path, monkeypatch, {}, set())
-    with pytest.raises(RunnerError, match="names no running Windows pid"):
+    with pytest.raises(RunnerError, match="names no running Windows pid with its start time"):
         handle.confirm_ready()
-    handle, _ = _interop(tmp_path, monkeypatch, {29860: "1"}, set(), ready="ZR10 emulator: SIYI a\n")
-    with pytest.raises(RunnerError, match="names no running Windows pid"):
+    handle, _ = _interop(tmp_path, monkeypatch, {29860: "134062000000000000"}, set(), ready="ZR10 emulator: SIYI a\n")
+    with pytest.raises(RunnerError, match="names no running Windows pid with its start time"):
         handle.confirm_ready()
+    # the emulator exited and its pid went to another process before the runner looked: never adopted
+    handle, killed = _interop(tmp_path, monkeypatch, {29860: "134062000099990000"}, {29860})
+    with pytest.raises(RunnerError, match="names no running Windows pid with its start time"):
+        handle.confirm_ready()
+    assert handle.windows_pid is None
+    handle.kill()
+    assert killed == ["proxy"]
 
 
 def test_before_ready_a_port_owner_counts_as_alive_but_is_never_killed(tmp_path, monkeypatch):

@@ -30,7 +30,7 @@ RUNNER_PORT, NAVPY_PORT, CONTROL_PORT = 9641, 9642, 9643     # router clients an
 POSE_PORT, VEHICLE_STATE_PORT, GIMBAL_PORT = 17110, 17113, 17212
 SIYI_PORT = 37260
 EMULATOR_PORTS = (VEHICLE_STATE_PORT, SIYI_PORT)    # the emulator's Windows binds
-EMULATOR_PID_LINE = r"^ZR10 emulator: .*, pid (\d+)"    # its ready line names its own Windows pid
+EMULATOR_PID_LINE = r"^ZR10 emulator: .*, pid (\d+), started (\d+)"    # its own pid and creation time
 NATIVE_PORT, RTSP_PORT, RTP_PORT, MEDIA_API_PORT = 18110, 18554, 18556, 9997
 # The frame consumers' Linux nice value. Section 8 puts the bridge and router above them; WSL lets a user only lower a
 # priority (RLIMIT_NICE 0), so navpy and the publisher start lowered instead. Fit run 8 (2026-11-03): with frames
@@ -149,7 +149,8 @@ def publisher_profile(paths: ChainPaths) -> Path:
 def publisher(paths: ChainPaths, profile: Path, lens_table: Path) -> ProcSpec:
     out = paths.run_dir / "publisher"
     return ProcSpec("publisher", (*CONSUMER_NICE, "/usr/bin/python3", "-E", "-s", "-m",
-                                  "aas_hitl.video.gstreamer_encoder", "--profile", str(profile), "--lens-table", str(lens_table), "--out", str(out)),
+                                  "aas_hitl.video.gstreamer_encoder", "--profile", str(profile),
+                                  "--lens-table", str(lens_table), "--out", str(out)),
                     r'"ready_monotonic_ns"', READY_TIMEOUT_S["publisher"], STOP_SIGINT, stop_wait_s=60.0,
                     ready_file=out / "publisher.json",
                     ports=(("tcp", NATIVE_PORT), ("tcp", RTSP_PORT), ("udp", RTP_PORT), ("tcp", MEDIA_API_PORT)),

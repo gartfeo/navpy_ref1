@@ -68,9 +68,9 @@ def parse_process(returncode: int, stdout: str, stderr: str) -> str:
 
 class InteropHandle(PosixHandle):
     """A Windows Python behind its WSL interop proxy: the proxy ending does not end it. Its ready line (*pid_line*)
-    names its own pid; at ready that pid's start time is recorded, and from then on it counts as alive, and a kill
-    ends it, only while that pid has that start time (a reused pid is another process; a failed query raises, so
-    it counts as alive). Before ready, a Windows owner of its *ports* counts as alive (reported, never killed)."""
+    names its own pid and creation time (process_identity.py); at ready that pid must have that start time, and
+    from then on it counts as alive, and a kill ends it, only while it still does (a reused pid is another
+    process; a failed query raises, so it counts as alive). Before ready, a Windows owner of its *ports* counts as alive (reported, never killed)."""
 
     def __init__(self, process: subprocess.Popen, stop: str, ports: tuple[int, ...], output: Path,
                  pid_line: str) -> None:
@@ -81,10 +81,9 @@ class InteropHandle(PosixHandle):
 
     def confirm_ready(self) -> None:
         match = self.pid_line.search(self.output.read_text(encoding="utf-8", errors="replace"))
-        started = windows_process(int(match.group(1))) if match else GONE
-        if started == GONE:
-            raise RunnerError(f"the ready line names no running Windows pid; see {self.output}")
-        self.windows_pid, self._started = int(match.group(1)), started
+        if not match or windows_process(int(match.group(1))) != match.group(2):     # gone, or its pid reused
+            raise RunnerError(f"the ready line names no running Windows pid with its start time; see {self.output}")
+        self.windows_pid, self._started = int(match.group(1)), match.group(2)
 
     def kill(self) -> None:
         super().kill()

@@ -348,6 +348,7 @@ def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
         ready = re.match(EMULATOR_PID_LINE, proc.stdout.readline())
         # the runner kills only the pid this line names; a Windows venv's python.exe starts the real one as a child
         assert ready and (os.name == "nt" or int(ready.group(1)) == proc.pid)
+        assert (int(ready.group(2)) > 0) is (os.name == "nt")          # its creation time, read on Windows only
         proc.stdin.close()
         proc.wait(timeout=10)
         out = proc.stdout.read()
