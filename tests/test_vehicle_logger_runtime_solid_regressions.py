@@ -1041,18 +1041,22 @@ def test_main_delegates_to_composed_runtime_and_propagates_programming_error(mon
         "compose_runtime",
         lambda args: FailingRuntime(),
     )
+    monkeypatch.setattr(main_module, "install_gc_record", lambda source_system: None)
 
     with pytest.raises(TypeError, match="programming defect"):
-        main_module.main(object())
+        main_module.main(SimpleNamespace(source_system=3))
 
 
 def test_main_returns_runtime_exit_code_without_calling_sys_exit(monkeypatch):
     main_module = importlib.import_module("navpy.main")
     runtime = SimpleNamespace(run=MagicMock(return_value=7))
     monkeypatch.setattr(main_module, "compose_runtime", lambda args: runtime)
+    install_gc_record = MagicMock()
+    monkeypatch.setattr(main_module, "install_gc_record", install_gc_record)
 
-    assert main_module.main(object()) == 7
+    assert main_module.main(SimpleNamespace(source_system=3)) == 7
     runtime.run.assert_called_once_with()
+    install_gc_record.assert_called_once_with(3)
 
 
 def test_refactored_facades_and_main_are_thin_physical_boundaries():
