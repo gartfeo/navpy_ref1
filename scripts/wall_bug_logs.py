@@ -70,6 +70,8 @@ class Stall:
     #: Aircraft time from the first late packet to the peak, and from the peak to the last late packet.
     rise_ms: int = 0
     drain_ms: int = 0
+    #: The log ended inside the stall, so its drain (and maybe its peak) was not seen.
+    open_at_end: bool = False
 
     @property
     def slow(self) -> bool:
@@ -159,7 +161,7 @@ def stalls(arrivals: UavArrivals) -> list[Stall]:
                 peak, peak_at = excess, boot
             last = boot
         elif start is not None:
-            found.append(Stall(arrivals.uav, start, round(peak), peak_at - start, last - peak_at))
+            found.append(Stall(arrivals.uav, start, round(peak), peak_at - start, last - peak_at, boot is None))
             start = peak_at = last = None
             peak = 0
     return found

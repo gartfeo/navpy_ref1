@@ -17,7 +17,8 @@ the reader's ``_dispatch`` fans out. Only the edges change:
   on a timer, which a delivery does not wake (todo 200). With a NavPy's
   ``reader_lag`` (dev sim step 9) each packet waits, on a timer, until its
   delivery tick's time plus the lag then: a packet's time is that of the
-  delivery that completes it.
+  delivery that completes it. Such a reader also drains with no budget, as the
+  wall reader does: it dispatches every packet that is due in one turn.
 - **Outbound:** :class:`LockstepConnection` is the encoder (a ``MAVLink`` on
   the link's byte sink, with the product's source ids) plus ``mode_mapping``;
   the link drains the sink into ``DONE``.
@@ -50,6 +51,10 @@ log = logging.getLogger(__name__)
 
 #: A wait that is due at the next tick: any positive wait is (ticks are about 20 ms).
 NEXT_TICK_S = 1e-6
+#: A lag wait ends this much before its due time: the baton compares timer deadlines in float seconds
+#: (``baton.py``), where ``now + (due - now)`` can land just past the due tick. Far under the 1 us grid
+#: of sim time, far over float error at any run length; the wait loop re-checks in integer microseconds.
+LAG_WAIT_SLACK_S = 1e-9
 
 
 class ReaderService:
@@ -70,7 +75,7 @@ class ReaderService:
         if self._lag is not None:
             due_us = self._lag.due_us(delivered_us)
             while not stop.is_set() and self._baton.now_us < due_us:
-                stop.wait((due_us - self._baton.now_us) / 1_000_000)
+                stop.wait((due_us - self._baton.now_us) / 1_000_000 - LAG_WAIT_SLACK_S)
         if self._budget is None:
             return
         if self._baton.now_us != self._tick_us:
@@ -80,9 +85,11 @@ class ReaderService:
             self._tick_us, self._served = self._baton.now_us, 0
 
     def after_packet(self) -> None:
-        if self._budget is None:
+        if self._budget is None and self._lag is None:
             yield_now(self._baton)
             return
+        if self._budget is None:
+            return  # A lagged reader drains: its turn ends where it blocks, on input or its lag.
         # No yield: the turn ends where the reader blocks, on empty input or
         # in before_packet (``todo65_root_cause.md``).
         self._served += 1

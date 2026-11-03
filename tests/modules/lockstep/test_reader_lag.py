@@ -24,6 +24,9 @@ def test_an_episodes_delay_rises_to_its_peak_then_drains_to_zero():
     episode = LagEpisode(start_us=10_000_000, peak_us=1_000_000, rise_us=4_000_000, drain_us=6_000_000)
     at = {t_s: episode.delay_us(round(t_s * 1e6)) for t_s in (9.0, 10.0, 12.0, 14.0, 17.0, 20.0, 21.0)}
     assert at == {9.0: 0, 10.0: 0, 12.0: 500_000, 14.0: 1_000_000, 17.0: 500_000, 20.0: 0, 21.0: 0}
+    # Rising up to the peak, never past it.
+    assert episode.delay_us(13_999_000) == 999_750
+    assert max(episode.delay_us(t) for t in range(10_000_000, 20_000_000, 500)) == 1_000_000
 
 
 def test_episodes_are_due_a_gap_after_the_last_due_time_and_never_overlap():
@@ -56,6 +59,19 @@ def test_the_stream_draws_a_gap_a_peak_a_rise_and_a_drain_per_episode():
     start_us = round(1e6 * gap)
     assert lag.delay_us(start_us + round(1e6 * rise)) == peak * TICK_US
     assert lag.delay_us(start_us) == 0 and lag.delay_us(start_us + TICK_US) > 0
+
+
+def test_peaks_reach_both_ends_of_their_range():
+    lag = ReaderLag({**FIXED, "min_peak_ticks": 1, "max_peak_ticks": 2}, random.Random(5))
+    lag.delay_us(2_000_000_000)
+    assert {episode.peak_us for episode in lag._episodes} == {TICK_US, 2 * TICK_US}
+
+
+def test_a_restarted_navpy_draws_a_schedule_of_its_own():
+    params = {**FIXED, "min_gap_s": 5.0}
+    first, restarted = reader_lag({READER_LAG: params}, 1, 1, 1), reader_lag({READER_LAG: params}, 1, 1, 2)
+    times = range(0, 300_000_000, 1_000_000)
+    assert [first.delay_us(t) for t in times] != [restarted.delay_us(t) for t in times]
 
 
 @pytest.mark.parametrize("change, message", [
@@ -126,3 +142,47 @@ def test_a_lagged_reader_dispatches_each_packet_at_its_due_tick_in_order_while_o
     # Ticks 1, 2 pass at once; from tick 3 each waits 4 ticks, and none passes an earlier one.
     assert got == [1, 2, 7, 8, 9, 10]
     assert ran[:10] == list(range(0, 10))  # the NavPy's other threads kept running every tick
+
+
+class _DueAt:
+    """A stub lag: every packet is due at ``tick`` at the earliest."""
+
+    def __init__(self, tick: int) -> None:
+        self._due_us = tick * TICK_US
+
+    def due_us(self, delivered_us: int) -> int:
+        return max(delivered_us, self._due_us)
+
+
+@pytest.mark.parametrize("lagged, woken_at", [(True, [4]), (False, [1, 2, 3, 4])])
+def test_a_lagged_reader_drains_the_packets_due_together_in_one_turn(lagged, woken_at):
+    """As the wall reader does: a consumer the first packet wakes runs once the reader blocks, not between
+    packets. Without the lag the lockstep reader still yields after each packet (``none``, ``hw``)."""
+    with _lockstep(None) as (baton, _rng):
+        if lagged:
+            baton.runnable.scheduling.reader_lag = _DueAt(tick=6)
+        link = LockstepLink(baton, SERIAL0)
+        got: list[int] = []
+        seen: list[int] = []
+        woke = BatonEvent(baton)
+
+        class Receiver:
+            def feed_message(self, _message) -> None:
+                got.append(baton.now_us // TICK_US)
+                woke.set()
+
+        def consumer() -> None:
+            link.open(SERIAL0).reserve(1).attach(Receiver())
+            while len(got) < 4:
+                woke.wait()
+                woke.clear()
+                seen.append(len(got))
+            link.close()
+
+        baton.spawn(consumer, name="consumer")
+        baton.run_until_quiescent()
+        baton.tick(TICK_US, lambda: link.deliver(_heartbeat() * 4))
+        for k in range(2, 10):
+            baton.tick(k * TICK_US)
+        assert not baton.threads.alive()
+    assert got == ([6] * 4 if lagged else [1] * 4) and seen == woken_at

@@ -100,9 +100,9 @@ def freeze_fit(found: Sequence[Stall], seconds: float, tail_ms: int) -> dict[str
 
 def lag_fit(found: Sequence[Stall], nav_s: float, tail_ms: int) -> dict[str, float | int]:
     """``reader_lag``'s parameters from the slow lags at or over the tail bound in ``nav_s`` seconds of
-    NAV (module docstring). A stall is measured from the threshold up, so a linear slope seen over
+    NAV (module docstring); one the log ended inside is left out, as its drain was not seen. A stall is measured from the threshold up, so a linear slope seen over
     ``t`` up to a peak ``p`` above it is ``t * p / (p - STALL_MIN_MS)`` long from zero."""
-    slow = [s for s in found if s.slow and s.length_ms >= tail_ms]
+    slow = [s for s in found if s.slow and s.length_ms >= tail_ms and not s.open_at_end]
     if not slow or nav_s <= 0:
         raise ValueError("no slow lag to fit")
 

@@ -72,6 +72,15 @@ def _slow(start_ms: int, peak_ms: int, rise_ms: int, drain_ms: int, seconds: int
     return UavArrivals(1, navpy, ground)
 
 
+def test_a_lag_held_at_its_peak_rises_to_the_first_peak_packet():
+    uav = _slow(10_000, peak_ms=1_000, rise_ms=4_000, drain_ms=4_000)
+    navpy = [(T0 + (b + 1_000) / 1000 / SPEEDUP, b) if 14_000 <= b < 16_000 else (w, b)
+             for w, b in uav.navpy]  # flat at the peak for 2 s
+    found = stalls(UavArrivals(1, navpy, uav.ground))
+    # The drain runs from the first peak packet (14 s) to the last late one (17.2 s), not from the last peak.
+    assert abs(found[0].rise_ms - 3_200) <= 40 and abs(found[0].drain_ms - 3_200) <= 40
+
+
 def test_a_slow_lag_measures_its_rise_and_drain_from_the_threshold():
     found = stalls(_slow(10_000, peak_ms=1_000, rise_ms=8_000, drain_ms=4_000))
     assert len(found) == 1 and found[0].slow and found[0].length_ms == 1_000
@@ -93,7 +102,8 @@ def test_a_stall_still_open_at_the_end_of_the_log_still_counts():
     uav = _uav(stall_at_ms=59_000, stall_ms=2_000, seconds=62)
     held = [(wall, boot) for wall, boot in uav.navpy if boot < 59_500]  # the log ends inside the stall
     found = stalls(UavArrivals(1, held, uav.ground))
-    assert len(found) == 1 and found[0].boot_ms == 59_000
+    assert len(found) == 1 and found[0].boot_ms == 59_000 and found[0].open_at_end
+    assert not stalls(_uav(stall_at_ms=10_000, stall_ms=700))[0].open_at_end
 
 
 def test_the_aircraft_time_needs_a_fresh_ground_packet():
@@ -232,6 +242,17 @@ def test_the_lag_fit_takes_the_slow_lags_over_the_bound_and_scales_their_slopes_
         fit.lag_fit(found[2:], 120.0, 500)
     with pytest.raises(ValueError, match="no slow lag"):
         fit.lag_fit(found, 0.0, 500)
+
+
+def test_a_slow_lag_the_log_ended_inside_is_left_out_of_the_lag_fit():
+    uav = _slow(10_000, peak_ms=1_000, rise_ms=8_000, drain_ms=4_000)
+    cut = UavArrivals(1, [(w, b) for w, b in uav.navpy if b < 18_000], uav.ground)  # ends at the peak
+    (open_lag,) = stalls(cut)
+    assert open_lag.slow and open_lag.open_at_end and open_lag.drain_ms < 200  # the drain was not seen
+    closed = Stall(1, 0, 1_000, rise_ms=8_000, drain_ms=4_000)
+    assert fit.lag_fit([open_lag, closed], 60.0, 500) == fit.lag_fit([closed], 60.0, 500)
+    with pytest.raises(ValueError, match="no slow lag"):
+        fit.lag_fit([open_lag], 60.0, 500)
 
 
 def test_a_nav_window_runs_from_nav_entry_to_its_end_line_or_the_last_line(tmp_path):
