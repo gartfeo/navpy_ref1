@@ -2213,6 +2213,9 @@
   disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
   effects and check each one; a test that removes the call and fails proves the new one is needed.
 
+- 2026-11-03 (dev sim step 10): `pytest tests` skips `tests/gcs` (pyproject addopts `--ignore=tests/gcs`). Run `tests/gcs` by path with `-o addopts=` too, or a GCS test change goes unchecked.
+- 2026-11-03 (dev sim step 10): a source-text scanner test drew six Codex rounds of JS syntax edge cases. Fail closed on any syntax the scanner does not read, from the start. Then judge each later finding by one question: does it miss or misread a request in the real source?
+
 ## HITL step 12: offline timing check (2026-11-03)
 
 - A PTS-delta join from a short receiver window to a long sender log can fit several anchors: a shift can put one of navpy's own gaps on sender frames navpy never got. I first picked the anchor implying the fewest lost frames; Codex showed a two-frame counterexample where that picks the wrong one. A lost frame leaves no trace, so only a single fitting anchor identifies frames. Test a receiver window that ends early, and spread sender gaps across synthetic logs as real uneven output does.
