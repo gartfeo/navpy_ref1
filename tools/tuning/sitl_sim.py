@@ -45,8 +45,7 @@ HIL_SERIAL = 5
 # SERIALn_PROTOCOL 100 for that port (hil model only)
 HIL_SITL_PARAMS = HERE / "sitl" / "hitl_sitl.parm"
 # The HIL port's TCP port, inside the instance's own SITL block 5760+10*I .. +9 (serial0 +0,
-# serial1 +2, serial2 +3 are SITL's). +8 is also the fork binary's own SERIAL8 default (tcp:8, SITL_State.h), and
-# SITL exits when a second port binds it, so the HIL model maps SERIAL8 to none.
+# serial1 +2, serial2 +3 are SITL's); +8 is unused there.
 HIL_PORT_OFFSET = 8
 
 # Instance 240: serial0 TCP 8160 and RC UDP 7901. A GCS chat slot N runs SITL
@@ -177,7 +176,7 @@ class Sitl(Vehicle):
         (fork libraries/AP_HAL_SITL/UARTDriver.cpp _tcp_start_connection)."""
         cmd = [str(self.binary), "--model", self.model, "--speedup", str(self.speedup),
                "-I", str(self.instance), "--home", self.home]
-        cmd += [f"--serial{HIL_SERIAL}=tcp:{self.hil_port}", "--serial8=none"] if self.hil_port is not None else []
+        cmd += [f"--serial{HIL_SERIAL}=tcp:{self.hil_port}"] if self.hil_port is not None else []
         return cmd + (["--defaults", ",".join(str(p) for p in self.params)] if self.params else [])
 
     def start(self) -> "Sitl":
