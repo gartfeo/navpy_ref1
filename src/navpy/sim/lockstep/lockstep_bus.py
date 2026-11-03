@@ -14,7 +14,10 @@ the reader's ``_dispatch`` fans out. Only the edges change:
   With the baton's ``reader_budget`` (dev sim step 6) it drains as the wall
   reader does: its turn ends when the delivery is drained or at
   ``packets_per_tick``. The rest stays queued, in order; the reader then waits
-  on a timer, which a delivery does not wake (todo 200).
+  on a timer, which a delivery does not wake (todo 200). With a NavPy's
+  ``reader_lag`` (dev sim step 9) each packet waits, on a timer, until its
+  delivery tick's time plus the lag then: a packet's time is that of the
+  delivery that completes it.
 - **Outbound:** :class:`LockstepConnection` is the encoder (a ``MAVLink`` on
   the link's byte sink, with the product's source ids) plus ``mode_mapping``;
   the link drains the sink into ``DONE``.
@@ -41,6 +44,7 @@ from navpy.sim.lockstep.baton_parts import ReaderBudget
 from navpy.sim.lockstep.baton_queue import BatonQueue
 from navpy.sim.lockstep.baton_sync import yield_now
 from navpy.sim.lockstep.mavlink_wire import ByteSink, StreamDecoder, encoder
+from navpy.sim.lockstep.reader_lag import ReaderLag
 
 log = logging.getLogger(__name__)
 
@@ -49,17 +53,24 @@ NEXT_TICK_S = 1e-6
 
 
 class ReaderService:
-    """When a lockstep reader yields: after each packet, or by its ``ReaderBudget``."""
+    """When a lockstep reader yields: after each packet, or by its ``ReaderBudget``; and when a packet
+    may be dispatched, by the NavPy's ``ReaderLag``."""
 
-    def __init__(self, baton: BatonRuntime, budget: ReaderBudget | None) -> None:
+    def __init__(self, baton: BatonRuntime, budget: ReaderBudget | None, lag: ReaderLag | None = None) -> None:
         self._baton = baton
         self._budget = budget
+        self._lag = lag
         self._tick_us: int | None = None
         self._served = 0
 
-    def before_packet(self, stop: rt.Event) -> None:
-        """Wait on a timer due at the next tick once this tick's packets are served; ``stop`` ends the wait,
-        so a close in this tick still joins the reader."""
+    def before_packet(self, stop: rt.Event, delivered_us: int) -> None:
+        """Wait on a timer until the lag lets the packet delivered at ``delivered_us`` through, then until
+        the next tick once this tick's packets are served; ``stop`` ends either wait, so a close in this
+        tick still joins the reader."""
+        if self._lag is not None:
+            due_us = self._lag.due_us(delivered_us)
+            while not stop.is_set() and self._baton.now_us < due_us:
+                stop.wait((due_us - self._baton.now_us) / 1_000_000)
         if self._budget is None:
             return
         if self._baton.now_us != self._tick_us:
@@ -131,19 +142,20 @@ class LockstepBusReader(MavBusReader):
 
     def join(self, timeout_s: float | None = None) -> bool:
         """Close sets the stop, then joins: wake a reader parked on input first."""
-        self._inbound.put(b"")
+        self._inbound.put((0, b""))
         return super().join(timeout_s)
 
     def _read_until_stopped(self) -> None:
-        pending: deque[mavlink.MAVLink_message] = deque()
+        pending: deque[tuple[int, mavlink.MAVLink_message]] = deque()
         while not self._stop.is_set():
             if not pending:
-                pending.extend(self._decoder.feed(self._inbound.get()))
+                delivered_us, data = self._inbound.get()
+                pending.extend((delivered_us, message) for message in self._decoder.feed(data))
                 continue
-            self._service.before_packet(self._stop)
+            self._service.before_packet(self._stop, pending[0][0])
             if self._stop.is_set():
                 return
-            message = pending.popleft()
+            _delivered_us, message = pending.popleft()
             self._connection.observe(message)
             try:
                 self._dispatch(message)
@@ -168,6 +180,7 @@ class LockstepBus:
         unregister: Callable[[], None],
     ) -> None:
         self.device = device
+        self._baton = baton
         self._conn = connection
         self._send_lock = rt.RLock()
         self._heartbeats = MavBusHeartbeats()
@@ -176,7 +189,7 @@ class LockstepBus:
         self.lifecycle = MavBusLifecycle(connection, device, self._membership, unregister)
         reader = LockstepBusReader(
             self._inbound, connection, device, self._membership, self._heartbeats, self.lifecycle,
-            ReaderService(baton, baton.runnable.scheduling.reader_budget),
+            ReaderService(baton, baton.runnable.scheduling.reader_budget, baton.runnable.scheduling.reader_lag),
         )
         self.lifecycle.bind_reader(reader)
         reader.start()
@@ -223,8 +236,8 @@ class LockstepBus:
         return self._heartbeats.wait_for(target_sysid, timeout)
 
     def deliver(self, data: bytes) -> None:
-        """The coordinator's input path: one tick's bytes, in order."""
-        self._inbound.deliver(data)
+        """The coordinator's input path: one tick's bytes, in order, stamped with the tick's time."""
+        self._inbound.deliver((self._baton.now_us, data))
 
 
 __all__ = ["LockstepBus", "LockstepBusReader", "LockstepConnection", "NEXT_TICK_S", "ReaderService"]

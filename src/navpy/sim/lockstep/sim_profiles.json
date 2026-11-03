@@ -47,7 +47,7 @@
     "wall_todo65": {"models": {
       "baud_limit": {"p_on": 0.0},
       "camera_frames": {"p_on": 0.0, "params": {"min_latency_ticks": 4, "max_latency_ticks": 4, "tail_latency_ticks": 6, "tail_pct": 0.6, "gap_ticks": 2, "long_gap_pct": 3.0, "drop_pct": 0.0}},
-      "process_freeze": {"p_on": 1.0, "params": {"min_ticks": 10, "max_ticks": 25, "min_gap_s": 2.608, "max_gap_s": 7.823}},
+      "reader_lag": {"p_on": 1.0, "params": {"min_peak_ticks": 70, "max_peak_ticks": 115, "min_rise_s": 7.233, "max_rise_s": 20.875, "min_drain_s": 5.181, "max_drain_s": 21.205, "min_gap_s": 24.451, "max_gap_s": 73.352}},
       "sensor_noise": {"p_on": 1.0, "params": {"gps_noise_m": [0.0, 1.0]}},
       "thread_order": {"p_on": 1.0},
       "timers_first": {"p_on": 0.25}

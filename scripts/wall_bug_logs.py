@@ -9,8 +9,12 @@ then, so a NavPy packet's lag in aircraft time is that time less its own boot
 time, whatever the wall speedup and whether the SITL itself kept pace. The
 median lag is the path's own offset; a **stall** is a stretch where the NavPy's
 lag rises :data:`STALL_MIN_MS` or more above it, and its length is the peak.
-That is a NavPy that ran nothing, or whose reader did not, for that long in
-aircraft time: the lockstep ``process_freeze`` model's unit.
+Its **rise** is the aircraft time from its first late packet to the peak and
+its **drain** from the peak to its last late packet. A NavPy that read nothing
+(a freeze, a blocked reader) shows a lag that jumps at once and drains: the
+lockstep ``process_freeze`` model. One whose lag grew slower than aircraft time
+passed (:attr:`Stall.slow`) kept receiving while it fell behind: the
+``reader_lag`` model (todo 65).
 
 Failures are what failed on the wall: each UAV's ``navigation.log``
 (``NAV_FAIL``/``DOCK_FAILED`` lines) and the run's ``report.json`` gate errors,
@@ -53,6 +57,8 @@ KINDS: dict[str, re.Pattern[str]] = {
     "observation_gap": re.compile(r"(median|max) observation gap [\d.]+s > [\d.]+s"),
 }
 _NAV_FAILURE = re.compile(r"(NAV_FAIL|DOCK_FAILED): \w+")
+#: A NAV window's end: a failure, a dock, or a passed-POI reset.
+_NAV_END = re.compile(r"NAV_FAIL|DOCK_FAILED|DOCKED|RESET: PASSED POI")
 
 
 @dataclass(frozen=True)
@@ -61,6 +67,15 @@ class Stall:
     #: Aircraft time (``time_boot_ms``) of the first late packet and the stall's peak lag above the median.
     boot_ms: int
     length_ms: int
+    #: Aircraft time from the first late packet to the peak, and from the peak to the last late packet.
+    rise_ms: int = 0
+    drain_ms: int = 0
+
+    @property
+    def slow(self) -> bool:
+        """The lag grew slower than aircraft time passed (a silent reader's grows as fast), so the
+        reader kept receiving while it fell behind."""
+        return self.rise_ms > self.length_ms
 
 
 @dataclass(frozen=True)
@@ -134,16 +149,19 @@ def stalls(arrivals: UavArrivals) -> list[Stall]:
         return []
     base = median(lag for _, lag in lags)
     found: list[Stall] = []
-    start: int | None = None
+    start = peak_at = last = None
     peak = 0
     for boot, lag in [*lags, (None, base)]:
         excess = lag - base
         if excess >= STALL_MIN_MS:
             start = boot if start is None else start
-            peak = max(peak, excess)
+            if excess > peak:
+                peak, peak_at = excess, boot
+            last = boot
         elif start is not None:
-            found.append(Stall(arrivals.uav, start, round(peak)))
-            start, peak = None, 0
+            found.append(Stall(arrivals.uav, start, round(peak), peak_at - start, last - peak_at))
+            start = peak_at = last = None
+            peak = 0
     return found
 
 
@@ -161,6 +179,25 @@ def _log_lines(path: Path) -> list[tuple[float, str]]:
             when = datetime.strptime(match.group(1), "%Y-%m-%d %H:%M:%S,%f").timestamp()
             lines.append((when, match.group(2)))
     return lines
+
+
+def nav_windows(run_dir: Path, uav: int, pairs: Sequence[UavArrivals]) -> list[tuple[float, float]]:
+    """The UAV's NAV windows in aircraft seconds: each NAV entry to its end line (a NAV failure, a
+    dock or a pass reset), or to its last mapped log line."""
+    log = run_dir / f"uav_{uav}_navigation.log"
+    windows: list[tuple[float, float]] = []
+    entry: float | None = None
+    now: float | None = None
+    for wall, text in _log_lines(log) if log.is_file() else []:
+        now = _boot_s(pairs, wall) or now
+        if _NAV_ENTRY in text and now is not None:
+            entry = now
+        elif entry is not None and now is not None and _NAV_END.search(text):
+            windows.append((entry, now))
+            entry = None
+    if entry is not None and now is not None:
+        windows.append((entry, now))
+    return windows
 
 
 def _boot_s(pairs: Sequence[UavArrivals], wall_s: float) -> float | None:
@@ -201,4 +238,4 @@ def _json(path: Path) -> object:
 
 
 __all__ = ["GAP_GATE_MS", "KINDS", "STALL_MIN_MS", "Stall", "UavArrivals", "WallFailure", "failure_kinds", "span_s",
-           "stalls", "uav_arrivals", "wall_failures"]
+           "nav_windows", "stalls", "uav_arrivals", "wall_failures"]

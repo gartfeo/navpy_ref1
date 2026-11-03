@@ -52,7 +52,31 @@ def _uav(stall_at_ms: int | None = None, stall_ms: int = 0, *, offset_ms: int = 
 
 def test_a_navpy_stall_is_found_at_its_start_with_its_length_above_the_paths_own_offset():
     found = stalls(_uav(stall_at_ms=10_000, stall_ms=700))
-    assert found == [Stall(1, 10_000, 700)]
+    # A burst: the first held packet is the latest, and the lag drains to the threshold over 500 ms.
+    assert found == [Stall(1, 10_000, 700, rise_ms=0, drain_ms=500)] and not found[0].slow
+
+
+def _slow(start_ms: int, peak_ms: int, rise_ms: int, drain_ms: int, seconds: int = 60) -> UavArrivals:
+    """A reader that falls behind while it keeps receiving: lag rises linearly to ``peak_ms`` over
+    ``rise_ms`` of aircraft time, then drains over ``drain_ms``."""
+    boots = list(range(0, seconds * 1000, 20))
+    ground = [(T0 + b / 1000 / SPEEDUP, b) for b in boots]
+
+    def extra(b: int) -> float:
+        if start_ms <= b < start_ms + rise_ms:
+            return peak_ms * (b - start_ms) / rise_ms
+        if start_ms + rise_ms <= b < start_ms + rise_ms + drain_ms:
+            return peak_ms * (start_ms + rise_ms + drain_ms - b) / drain_ms
+        return 0.0
+    navpy = [(T0 + (b + extra(b)) / 1000 / SPEEDUP, b) for b in boots]
+    return UavArrivals(1, navpy, ground)
+
+
+def test_a_slow_lag_measures_its_rise_and_drain_from_the_threshold():
+    found = stalls(_slow(10_000, peak_ms=1_000, rise_ms=8_000, drain_ms=4_000))
+    assert len(found) == 1 and found[0].slow and found[0].length_ms == 1_000
+    # 200 ms of the 1000 ms peak lie under the threshold: 4/5 of each slope is seen.
+    assert abs(found[0].rise_ms - 6_400) <= 40 and abs(found[0].drain_ms - 3_200) <= 40
 
 
 def test_jitter_under_the_threshold_and_a_constant_offset_are_no_stall():
@@ -188,11 +212,38 @@ def test_the_tail_bound_follows_the_walls_failures():
 
 def test_the_fitted_profile_is_a_valid_profile_and_the_shipped_wall_profiles_are_its_output():
     freeze = {"min_ticks": 10, "max_ticks": 25, "min_gap_s": 2.608, "max_gap_s": 7.823}
-    parse_profile("fitted", fit.fitted_profile(freeze), CATALOGUE)
+    parse_profile("fitted", fit.fitted_profile("process_freeze", freeze), CATALOGUE)
     shipped = json.loads(PROFILES_FILE.read_text(encoding="utf-8"))["profiles"]
-    for name in ("wall_todo31", "wall_todo65"):
-        params = shipped[name]["models"]["process_freeze"]["params"]
-        assert shipped[name] == fit.fitted_profile(params), name
+    for name, model in (("wall_todo31", "process_freeze"), ("wall_todo65", "reader_lag")):
+        params = shipped[name]["models"][model]["params"]
+        assert shipped[name] == fit.fitted_profile(model, params), name
+        parse_profile(name, shipped[name], CATALOGUE)
+
+
+def test_the_lag_fit_takes_the_slow_lags_over_the_bound_and_scales_their_slopes_to_zero():
+    found = [Stall(1, 0, 1_000, rise_ms=8_000, drain_ms=4_000),   # slow, scaled x 1000/800
+             Stall(1, 0, 2_200, rise_ms=10_000, drain_ms=20_000),  # slow, x 2200/2000
+             Stall(1, 0, 3_000, rise_ms=0, drain_ms=900),          # a burst: no lag episode
+             Stall(1, 0, 400, rise_ms=4_000, drain_ms=4_000)]      # slow but under the bound
+    lag = fit.lag_fit(found, 120.0, 500)
+    assert lag == {"min_peak_ticks": 50, "max_peak_ticks": 110, "min_rise_s": 10.0, "max_rise_s": 11.0,
+                   "min_drain_s": 5.0, "max_drain_s": 22.0, "min_gap_s": 30.0, "max_gap_s": 90.0}
+    with pytest.raises(ValueError, match="no slow lag"):
+        fit.lag_fit(found[2:], 120.0, 500)
+    with pytest.raises(ValueError, match="no slow lag"):
+        fit.lag_fit(found, 0.0, 500)
+
+
+def test_a_nav_window_runs_from_nav_entry_to_its_end_line_or_the_last_line(tmp_path):
+    run = tmp_path / "wall"
+    uav = _uav()
+    _write_arrivals(run / "source-time" / "pose_cadence_attitude_arrival_uav_1_navpy.csv", list(uav.navpy))
+    _write_arrivals(run / "source-time" / "pose_cadence_attitude_arrival_uav_1_gcs.csv", list(uav.ground))
+    _log(run / "uav_1_navigation.log", [(T0 + 0.5, "INIT: NAV MODE"), (T0 + 1.5, "RESET: PASSED POI"),
+                                        (T0 + 2.0, "INIT: NAV MODE"), (T0 + 2.5, "DOCKED: task=2"),
+                                        (T0 + 3.0, "INIT: NAV MODE"), (T0 + 4.0, "other")])
+    windows = fit.nav_windows(run, 1, uav_arrivals(run, 1))
+    assert [(round(a, 1), round(b, 1)) for a, b in windows] == [(5.0, 15.0), (20.0, 25.0), (30.0, 40.0)]
 
 
 def test_fit_pools_the_runs_and_names_the_walls_failures(tmp_path):
@@ -205,7 +256,9 @@ def test_fit_pools_the_runs_and_names_the_walls_failures(tmp_path):
     result = fit.fit([run])
     assert result["wall_kinds"] == ["source_command_stale"] and result["tail_bound_ms"] == 1000
     assert result["stalls"] == result["at_or_over_tail"] == 1
-    assert result["process_freeze"]["max_ticks"] == 55
+    assert result["process_freeze"]["max_ticks"] == 55 and result["nav_s"] == pytest.approx(2.0, abs=0.03)
+    with pytest.raises(ValueError, match="no slow lag"):  # a burst is no lag episode
+        fit.fit([run], "reader_lag")
     assert result["per_uav"][1]["failures"][0]["after_nav_s"] == pytest.approx(2.0, abs=0.03)
 
 
