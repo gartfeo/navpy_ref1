@@ -3,15 +3,25 @@
 from __future__ import annotations
 
 import math
+from collections import deque
 from dataclasses import dataclass, replace
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_capture_history import (
+    GimbalCaptureHistory,
+    GimbalHistorySample,
+)
 from navpy.plugins.gimbal.siyi.siyi_convention import yaw_from_wire
 
 
 _ParsedAttitude = tuple[int, float, float, float, float]
+# Accepted attitude readbacks kept for capture-time brackets: at the 20-50 Hz
+# poll this is 1.3-3.2 s, beyond any frame the association still maps.
+GIMBAL_HISTORY_COUNT = 64
+# SIYI frame sequence numbers are 16 bits and wrap (siyi_message.incrementSEQ).
+SIYI_SEQ_MODULUS = 65536
 _ParsedZoom = tuple[int, float, float]
 
 
@@ -123,6 +133,10 @@ class SiyiReadbackStore:
         self._lock = rt.Lock()
         self._snapshot = SiyiReadbackSnapshot(self._initial_data)
         self._attitude_ready = rt.Event()
+        self._session = 0
+        self._history: deque[GimbalHistorySample] = deque(
+            maxlen=GIMBAL_HISTORY_COUNT,
+        )
 
     @property
     def attitude_ready(self) -> rt.Event:
@@ -132,6 +146,8 @@ class SiyiReadbackStore:
         with self._lock:
             self._snapshot = SiyiReadbackSnapshot(self._initial_data)
             self._attitude_ready.clear()
+            self._session += 1
+            self._history.clear()
 
     def accept_attitude(self, sample: object) -> bool:
         parsed = _parse_attitude(sample)
@@ -139,6 +155,7 @@ class SiyiReadbackStore:
             updated, accepted = _with_attitude(self._snapshot, parsed)
             if accepted:
                 self._snapshot = updated
+                self._remember_attitude(updated)
                 self._attitude_ready.set()
             return accepted
 
@@ -168,6 +185,7 @@ class SiyiReadbackStore:
             if attitude_accepted or zoom_accepted:
                 self._snapshot = updated
             if attitude_accepted:
+                self._remember_attitude(updated)
                 self._attitude_ready.set()
             return attitude_accepted, zoom_accepted
 
@@ -182,5 +200,34 @@ class SiyiReadbackStore:
         with self._lock:
             return self._snapshot
 
+    def capture_history(self) -> GimbalCaptureHistory:
+        with self._lock:
+            return GimbalCaptureHistory(
+                session=self._session,
+                samples=tuple(self._history),
+                data=self._snapshot.data,
+            )
 
-__all__ = ["SiyiReadbackSnapshot", "SiyiReadbackStore"]
+    def _remember_attitude(self, snapshot: SiyiReadbackSnapshot) -> None:
+        """Keep an accepted attitude only when it is newer than the last kept one.
+
+        Newer means a later receipt AND a later sequence number (16 bits,
+        wrap-aware): a delayed older packet gets a fresh receipt when parsed,
+        so the receipt alone cannot order it. The snapshot keeps its own
+        rule; only this history feeds capture-time brackets.
+        """
+        receipt = snapshot.data.timestamp_s
+        if self._history:
+            last = self._history[-1]
+            ahead = (snapshot.attitude_sample_id - last.seq) % SIYI_SEQ_MODULUS
+            if not receipt > last.receipt_s or not 0 < ahead < SIYI_SEQ_MODULUS // 2:
+                return
+        self._history.append(GimbalHistorySample(
+            session=self._session,
+            seq=snapshot.attitude_sample_id,
+            receipt_s=receipt,
+            att=snapshot.data.att,
+        ))
+
+
+__all__ = ["GIMBAL_HISTORY_COUNT", "SiyiReadbackSnapshot", "SiyiReadbackStore"]

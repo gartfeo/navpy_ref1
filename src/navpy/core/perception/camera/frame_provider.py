@@ -2,11 +2,16 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from typing import Optional, Tuple
 
 import numpy as np
 
-from navpy.core.ports.frame_capture_ports import BoardClock, CaptureLogger
+from navpy.core.ports.frame_capture_ports import (
+    BoardClock,
+    CaptureLogger,
+    CaptureStamp,
+)
 from navpy.core.perception.camera.frame_capture_runtime import (
     FrameProviderParts,
     build_frame_provider_parts,
@@ -29,11 +34,13 @@ class FrameProvider:
         source: int | str | None,
         logger: CaptureLogger,
         board_clock: BoardClock | None = None,
+        publication_observer: Callable[[CaptureStamp | None], None] | None = None,
     ) -> None:
         self._parts: FrameProviderParts = build_frame_provider_parts(
             source,
             logger,
             board_clock,
+            publication_observer,
         )
 
     def start(self) -> None:

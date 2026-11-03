@@ -153,7 +153,7 @@ class VisionNavLaw:
                 reason="bootstrap",
             )
 
-        dt_s = frame.source_timestamp_s - anchor.timestamp_s
+        dt_s = frame.rate_time_s - anchor.timestamp_s
         if dt_s <= 0.0:
             return held_plan(
                 frame, config, rate, lateral_rate, anchor,
@@ -199,7 +199,7 @@ class VisionNavLaw:
             lateral_rate,
             FinalApproachCommandAnchor(
                 frame.continuity_key,
-                frame.source_timestamp_s,
+                frame.rate_time_s,
                 # Conditional integration: the CLAMPED command becomes the next
                 # anchor, so a saturated cycle cannot wind the integrator up.
                 # The integrator state and the output are the same variable, so

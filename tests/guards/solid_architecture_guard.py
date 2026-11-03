@@ -137,15 +137,22 @@ PASSIVE_RECORD_FIELD_LIMITS = {
     # 17 = the original 16 plus ONE nested frozen CaptureTiming record added
     # by the capture-time association change; capture-domain times are one
     # value-object field, not four loose floats.
+    # 18 = 17 + interval_timestamp_s, the frame's PTS on integration timing
+    # (HITL stage 1 step 11). It stays outside CaptureTiming because refused
+    # frames carry no CaptureTiming yet still need the PTS axis, so a rate
+    # tracker never mixes it with publication time -- a ratchet, not headroom.
     (
         "src/navpy/core/perception/pipeline/real_frame_association.py",
         "RealFrameAssociation",
-    ): 17,
+    ): 18,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
+    # 16 = 15 + interval_timestamp_s, the PTS axis visual rates use on
+    # integration timing (HITL stage 1 step 11, hitl_final_approach.md
+    # section 9) -- a ratchet, not headroom.
     (
         "src/navpy/core/ports/frame.py",
         "FinalApproachVisionFrame",
-    ): 15,
+    ): 16,
     (
         "src/navpy/core/approach/vision_nav/command_transaction.py",
         "FinalApproachLawEvidence",
@@ -205,12 +212,15 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
     ): FacadeMethodAllowance(1, 88, frozenset({"_parts"})),
+    # 45 = 44 + gimbal_capture_history, the gimbal readback history that
+    # integration timing brackets at the capture instant (HITL stage 1
+    # step 11, hitl_final_approach.md section 9) -- a ratchet, not headroom.
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",
     ): FacadeMethodAllowance(
         1,
-        44,
+        45,
         frozenset({
             "_optics_lock",
             "_parts",
@@ -241,10 +251,12 @@ FACADE_METHOD_ALLOWANCES = {
         "src/navpy/app/perception/vision_controller.py",
         "VisionController",
     ): FacadeMethodAllowance(17, 17, frozenset({"_ports"})),
+    # 23 = 22 + get_capture_history, the session- and sequence-ordered
+    # readback history (HITL stage 1 step 11) -- a ratchet, not headroom.
     (
         "src/navpy/plugins/gimbal/siyi/gimbal_siyi.py",
         "GimbalSiyi",
-    ): FacadeMethodAllowance(1, 22, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 23, frozenset({"_parts"})),
     (
         "src/navpy/sim/gimbal/siyi/gimbal_physics.py",
         "GimbalPhysics",

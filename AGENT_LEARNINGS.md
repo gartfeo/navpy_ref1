@@ -2097,6 +2097,20 @@
 - Prove a clock test catches the mix: put `rt.time()` back in one place at a time (association, board clock, freshness) and see it fail, then restore.
 - In Git Bash, `PYTHONPATH="$PWD/src;..."` becomes `C:\c\Users\...` and Python silently imports the main checkout's packages. Use `W=$(pwd -W)` and print `navpy.__path__` before trusting a test run.
 - Python `open(..., 'w')` in text mode writes LF; on this Windows checkout that turned CRLF files into "w/mixed" or LF. Git normalizes, but byte-hashed files do not.
+
+
+## HITL step 11: integration timing (2026-11-02)
+
+- A clock-rate estimate from 2 s of jittered minima is noise at 300 ppm: two half-window minimums sit anywhere in their halves, and a hull edge over 2 s swung 0.67 ms/s. Fit the rate over a long window (10 s, lower convex hull, Moon et al.) and take the level from a short recent window, rate-corrected.
+- Synthetic sims with 2 seeds passed a detector that a third seed broke. Sweep many seeds, drifts, jitters and slip sizes in a scratch script before trusting fixed test cases, and report the sweep separately.
+- `tests/guards/test_frozen_inventories.py` freezes `FinalApproachVisionFrame` to str/int/float fields. A new optional value goes in as a float with NaN for "absent", and the guard's field list changes on purpose.
+- Counting carriage returns with `grep -c` in Git Bash reported 0 for CRLF files. Check line endings from the raw bytes in Python and edit through a helper that keeps them.
+- The gate's absolute 0.5 s frame-age check runs before any capture status, so a test of a smaller own age limit must stay under 0.5 s or it only sees `real_frame_publication_stale`.
+- A detector state rebuilt from a rolling window forgets across a gap: after a PTS gap the floor was refitted from post-gap frames only, so a 1.05 ms slip inside the gap became the new normal (Codex found it; the sweep had no gaps). Keep the last fitted reference until new frames cover a fit, and add gaps to the sweep. Round 2 then found two more gap cases (no floor yet at the first admitted frame; a raw offset check across a gap that sees drift as a jump), and the new gap sweep found a third (a floor level from one 1 s window rides up on jitter). Sweep the boundaries: gap right after settling, both drift signs, slips just over the limit. Round 3 showed the real limit: a floor carried across a long gap drifts by rate error (up to 35 ppm here), so no resettle rule keeps a 1 ms promise. Measure the estimator's error first, and fail closed where it cannot hold, instead of patching each counterexample.
+- A latched abort set by another thread can land between the map lookup and the end of association. Recheck the latch after the work, not only before.
+- The SOLID guard caps modules at 300 lines and classes at 12 fields. Plan a new estimator as its own small classes (map, slip detector, locked wrapper) from the start instead of splitting after the review.
+- Scratchpad files can vanish between days (temp cleanup at the date change took edit.py, sweeps and review outputs). Keep anything needed for a hand-over in the notes folder or the repo, not only in the scratchpad.
+- A stray `cat > file` with no heredoc waits on stdin and hangs the whole Bash call until timeout. Give background commands `< /dev/null`.
 ## Dev sim step 8: seed sweep (2026-11-02)
 
 - Do not edit a tracked file while a matrix runs, not even a doc. The input manifest records the

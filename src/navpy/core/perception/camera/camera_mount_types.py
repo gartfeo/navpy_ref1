@@ -30,6 +30,8 @@ class CameraMountFrameState:
     zoom_command: Optional[str]
     zoom_sample_id: Optional[str]
     zoom_sample_age_s: Optional[float]
+    # gimbal_data was interpolated at the capture instant, not read at association.
+    gimbal_capture_relative: bool = False
 
 
 @dataclass(frozen=True)

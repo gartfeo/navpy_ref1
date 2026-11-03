@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from tests.tools.hitl import media_fakes
 from tools.hitl import approach_records as ar
 from tools.hitl import model_input as mi
@@ -18,6 +19,9 @@ from tools.hitl.json_checks import RecordError, sha256_file
 
 CREATED = datetime(2026, 10, 19, 8, 30, 5, tzinfo=timezone(timedelta(hours=2)))
 SOURCES = {"navpy": {"git_head": "a" * 40, "uncommitted_diff_sha256": "b" * 64, "untracked_sha256": "c" * 64}}
+TIMING = IntegrationTimingConfig(run_id="r001-pc-sitl", mode="pc-sitl", source_id="rtsp://zr10/main",
+                                 link_id="udp:127.0.0.1:14550", limits=IntegrationTimingLimits(),
+                                 attitude_correction_s=0.004, gimbal_correction_s=-0.002)
 BRIDGE = ar.BridgeRun(plant="program", jsbsim_version="synthetic-1.0", integration_dt_s=1.0 / 1200.0,
                       loop_rate_hz=200.0, servo_speed_s=0.03)
 
@@ -58,7 +62,7 @@ def declaration_of(name: str, files_sha256: dict) -> dict:
 def make(folder: Path, **changes) -> dict:
     kwargs = dict(run_id="r001-pc-sitl", mode="pc-sitl", created=CREATED, model_input=declaration(folder),
                   model_dir=folder, bridge=BRIDGE, law="vision-nav-pn", sources=SOURCES,
-                  media_runtime=MEDIA)
+                  media_runtime=MEDIA, integration_timing=TIMING)
     kwargs.update(changes)
     return ar.new_record(**kwargs)
 
@@ -154,9 +158,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 2"),
-    (("schema_version",), 2.0, "must be 2"),
-    (("schema_version",), 1, "must be 2"),
+    (("schema_version",), True, "must be 3"),
+    (("schema_version",), 3.0, "must be 3"),
+    (("schema_version",), 2, "must be 3"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),
@@ -421,3 +425,30 @@ def test_media_runtime_needs_every_element_it_selected(model_dir):
         ar.validate_record, without(record, ("media_runtime", "elements", "nvcudah265enc")))
     assert "media_runtime.elements are" in refused(
         ar.validate_record, edited(record, ("media_runtime", "selected", "encoder"), "x265enc"))
+
+
+def test_integration_timing_is_frozen_in_the_record(model_dir):
+    record = make(model_dir)
+    assert record["integration_timing"] == TIMING.record()
+    assert record["integration_timing"]["authority"] == "integration_uncertified"
+    assert record["integration_timing"]["limits"]["window_s"] == 2.0
+    assert "record.integration_timing is missing" in refused(ar.validate_record, without(record, ("integration_timing",)))
+
+
+@pytest.mark.parametrize("path, value, reason", [
+    (("integration_timing", "authority"), "certified", "must be 'integration_uncertified'"),
+    (("integration_timing", "attitude_correction_s"), "0.004", "must be a finite number"),
+    (("integration_timing", "limits", "min_frames"), 2.5, "whole number >= 0"),
+    (("integration_timing", "limits", "min_frames"), 1, "min_frames must be an integer >= 2"),
+    (("integration_timing", "limits", "update_limit_s"), 0.002, "update_limit_s must be below slip_limit_s"),
+    (("integration_timing", "limits", "slip_window_s"), 1.5, "at most half of window_s"),
+    (("integration_timing", "source_id"), "", "non-empty text"),
+])
+def test_integration_timing_that_is_refused_is_not_recorded(model_dir, path, value, reason):
+    assert reason in refused(ar.validate_record, edited(make(model_dir), path, value))
+
+
+def test_integration_timing_of_another_run_is_refused(model_dir):
+    other = IntegrationTimingConfig(**{**TIMING.__dict__, "run_id": "r002-pc-sitl"})
+    with pytest.raises(RecordError, match="another run's"):
+        make(model_dir, integration_timing=other)

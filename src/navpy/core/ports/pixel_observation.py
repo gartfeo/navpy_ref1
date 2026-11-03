@@ -86,6 +86,9 @@ class PixelObservation:
     pose_is_frame_atomic: bool | None
     source_name: str
     aircraft_yaw_rate_rad_s: float | None = None
+    # Visual rates difference this when set (encoded PTS, HITL step 11);
+    # source_timestamp_s stays the measurement time for age.
+    interval_timestamp_s: float | None = None
 
 
 @dataclass(frozen=True)

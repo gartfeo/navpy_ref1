@@ -197,7 +197,7 @@ def _observation_times(
         None
         if poi is None
         else (
-            poi.timing.detection_timestamp_s
+            _rate_timestamp_s(poi)
             if isinstance(poi, DetectedObject)
             else getattr(poi, "timestamp", None)
         )
@@ -226,6 +226,12 @@ def _observation_times(
         rt.perf_counter(),
     )
     return measurement_time, loss_time
+
+
+def _rate_timestamp_s(poi: DetectedObject) -> float | None:
+    """The tracker differentiates the frame's interval clock when it has one."""
+    interval = poi.timing.interval_timestamp_s
+    return poi.timing.detection_timestamp_s if interval is None else interval
 
 
 def _finite_time(value: object) -> float | None:

@@ -125,7 +125,7 @@ def clamped_anchor(
 def bootstrap_anchor(frame: FinalApproachVisionFrame) -> FinalApproachCommandAnchor:
     return FinalApproachCommandAnchor(
         frame.continuity_key,
-        frame.source_timestamp_s,
+        frame.rate_time_s,
         frame.aircraft_pitch_deg,
         0.0,
         frame_bearing(frame),
@@ -141,7 +141,7 @@ def advanced_anchor(
 ) -> FinalApproachCommandAnchor:
     return FinalApproachCommandAnchor(
         anchor.continuity_key,
-        frame.source_timestamp_s,
+        frame.rate_time_s,
         anchor.cmd_pitch_deg,
         anchor.cmd_roll_deg,
         bearing,

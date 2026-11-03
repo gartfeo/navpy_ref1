@@ -103,6 +103,8 @@ class SourceTiming:
     detection_now_s: Callable[[], float] | None = None
     source_receipt_now_s: Callable[[], float] | None = None
     source_air_speed_mps: float | None = None
+    # Visual rates difference this when set (encoded PTS, HITL step 11).
+    interval_timestamp_s: float | None = None
 
 
 @dataclass(frozen=True)

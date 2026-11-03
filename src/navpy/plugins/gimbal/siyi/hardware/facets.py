@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.ports.gimbal_abc import GimbalData
+from navpy.core.ports.gimbal_capture_history import GimbalCaptureHistory
 from navpy.plugins.gimbal.siyi.hardware.composition import (
     SiyiHardwareParts,
 )
@@ -35,6 +36,9 @@ class SiyiHardwareReadbackFacet:
         self,
     ) -> tuple[GimbalData, float | None, float | None, int | None]:
         return self._parts.readback.get_frame_state_sample()
+
+    def get_capture_history(self) -> GimbalCaptureHistory:
+        return self._parts.readback.get_capture_history()
 
     def get_zoom_level(self) -> float | None:
         return self._parts.readback.get_zoom_level()
