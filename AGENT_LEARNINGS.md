@@ -2231,3 +2231,9 @@
 - "The exact investor configuration" was not reproducible: the 1 Nov plan was built in the UI and never saved (todo 176). Check what a past run actually loaded (timeline `plan_rendered`, saved settings hubs) before calling a rehearsal a copy of it.
 - I first read the sim battery rate from the takeoff sag (1 % per 0.3 s); Codex measured 1 % per second over the 90-50 % stretch. Take a rate from a stretch, not from the first readings.
 - Scratchpad files vanish when the session restarts; keep analysis scripts with the evidence (`.logs/step8`).
+
+## Demo plan for a new area (2026-11-03)
+
+- Before generating plan geometry, find the planner's own projection (projection.js: a sphere, flat about each polygon's centroid). Turning the 1350 m demo area 90 deg in WGS84 ENU metres gave it 1351.8 m across in the planner's metres. Lane count is ceil(width / spacing), so the planner drew 10 lanes instead of 9, and docks on waypoints 1 and 2 would have moved. A planner vitest caught it; run one on any generated plan file.
+- Before building a rotation or shift, put the candidate on a map with roads and terrain for the owner. The pure 90 deg turn crossed a road and a 100 m height range. The owner then drew the area they wanted, so the rotation code was dropped.
+- `git rm --cached` before a later `git add` that failed left a commit holding only the deletion. Check `git show --stat HEAD` after each commit.
