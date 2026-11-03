@@ -420,39 +420,30 @@ describe('delivery demo plan file', () => {
     expect(metres).toBeLessThan(160);
   });
 
-  // The rotated file is the same layout turned 90 degrees clockwise about the
-  // launch point, so every planned waypoint must be the original's, turned.
-  it('plans the rotated file as the original turned 90 degrees clockwise', async () => {
-    const { default: originalFile } = await import('../../../../../scripts/delivery_demo_plan.json');
-    const { default: rotatedFile } = await import('../../../../../scripts/delivery_demo_plan_rotated.json');
+  // The drawn file flies the owner's box along the A327: the planner aims its
+  // lines at the launch point, so they cross the box diagonally and its three
+  // routes have 4, 2 and 3 lines; the docks stay on zone 2's waypoints 1 and 2.
+  it('plans the drawn file with the docks on the lowest zone\'s west-edge turn', async () => {
+    const { default: file } = await import('../../../../../scripts/delivery_demo_plan_drawn.json');
     const planner = renderPlanner(stubFileIo());
-    planner.load(originalFile);
-    const original = { plan: structuredClone(planner.result.current.mission.plan) };
-    planner.load(rotatedFile);
-    const rotated = planner.result.current.mission;
-    expect(waypointsPerUav(rotated.plan)).toEqual([6, 6, 6]);
-    expect(rotated.simDockWps).toEqual({ 2: [1, 2] });
-    expect(rotated.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
-    expect(rotated.deliveryHubAssignments).toEqual([2, 1, 0]);
-    expect(rotated.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
+    planner.load(file);
 
-    const [launch] = rotatedFile.set_launch_points;
-    const local = (p) => [
-      (p.lon - launch.lon) * 111320 * Math.cos((launch.lat * Math.PI) / 180),
-      (p.lat - launch.lat) * 111320,
-    ];
-    original.plan.zones.forEach((zone, z) => {
-      zone.track.forEach((p, i) => {
-        const [e, n] = local(p);
-        const [e2, n2] = local(rotated.plan.zones[z].track[i]);
-        // Clockwise: east' = north, north' = -east; metres within the
-        // planner's flat projection and 1e-6 deg output rounding.
-        expect(Math.abs(e2 - n)).toBeLessThan(3);
-        expect(Math.abs(n2 + e)).toBeLessThan(3);
-      });
-    });
-    // The docks are zone 2's west-end turn, west of the launch point.
-    const docks = [1, 2].map((i) => rotated.plan.zones[2].track[i]);
-    docks.forEach((d) => expect(d.lon).toBeLessThan(launch.lon));
+    const { mission } = planner.result.current;
+    expect(waypointsPerUav(mission.plan)).toEqual([8, 4, 6]);
+    expect(mission.simDockWps).toEqual({ 2: [1, 2] });
+    expect(mission.detectAfterWps).toEqual({ 0: 0, 1: 0, 2: 0 });
+    expect(mission.deliveryHubAssignments).toEqual([2, 1, 0]);
+    expect(mission.plan.zones.map((z) => z.altitude_m)).toEqual([240, 220, 200]);
+    const [a, b] = [1, 2].map((i) => mission.plan.zones[2].track[i]);
+    const metres = Math.hypot(
+      (a.lat - b.lat) * 111320,
+      (a.lon - b.lon) * 111320 * Math.cos((a.lat * Math.PI) / 180),
+    );
+    // 150 m line spacing, met by the box's west edge at about 62 deg.
+    expect(metres).toBeGreaterThan(160);
+    expect(metres).toBeLessThan(180);
+    // The west edge: both docks west of every other corner of the box.
+    const eastOfWestEdge = Math.min(...file.polygon.map((p) => p.lon).sort((x, y) => x - y).slice(2));
+    [a, b].forEach((d) => expect(d.lon).toBeLessThan(eastOfWestEdge));
   });
 });

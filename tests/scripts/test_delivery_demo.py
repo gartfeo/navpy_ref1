@@ -5,7 +5,6 @@ from __future__ import annotations
 import datetime as dt
 import importlib
 import json
-import math
 import subprocess
 import sys
 from types import SimpleNamespace
@@ -216,53 +215,40 @@ def test_start_refuses_a_frontend_that_never_answers():
 
 def test_committed_plan_file_is_the_builders_output():
     assert plan.PLAN_PATH.read_text(encoding="utf-8") == plan.render(FIXTURE)
-    assert plan.ROTATED_PLAN_PATH.read_text(encoding="utf-8") == plan.render_rotated(FIXTURE)
+    assert plan.DRAWN_PLAN_PATH.read_text(encoding="utf-8") == plan.render_drawn(FIXTURE)
     assert plan.main(["--check"]) == 0
 
 
-def test_rotated_plan_keeps_every_distance_and_turns_every_bearing_90_degrees_clockwise():
-    original, rotated = plan.plan_file(FIXTURE), plan.rotated_plan_file(FIXTURE)
+def test_drawn_plan_changes_only_the_area():
+    original, drawn = plan.plan_file(FIXTURE), plan.drawn_plan_file(FIXTURE)
+    assert {k: v for k, v in drawn.items() if k != "polygon"} == {
+        k: v for k, v in original.items() if k != "polygon"}
+    assert drawn["polygon"] == [dict(corner) for corner in plan.DRAWN_AREA]
+
+
+def test_drawn_area_is_the_owners_box_south_west_of_the_launch_point():
+    corners = plan.DRAWN_AREA
+    sides, bearings = [], []
+    for a, b in zip(corners, corners[1:] + corners[:1]):
+        line = Geodesic.WGS84.Inverse(a["lat"], a["lon"], b["lat"], b["lon"])
+        sides.append(line["s12"])
+        bearings.append(line["azi1"])
+    # About 1.26 x 0.77 km, its long sides along the A327 (about 74 deg).
+    assert [round(s / 10) * 10 for s in sides] == [770, 1260, 760, 1260]
+    for turn in (bearings[i] - bearings[i - 1] for i in range(4)):
+        assert turn % 180.0 == pytest.approx(90.0, abs=2.0)
     launch = FIXTURE["inputs"]["launch_point"]
-    pairs = list(zip(original["polygon"], rotated["polygon"])) + list(
-        zip(original["default_delivery_hubs"], rotated["default_delivery_hubs"]))
-    assert len(pairs) == 7
-    for before, after in pairs:
-        # Exact, to the 1e-7 deg rounding, in the planner's metres.
-        e, n = plan.planner_metres(before, launch)
-        e2, n2 = plan.planner_metres(after, launch)
-        assert math.hypot(e2, n2) == pytest.approx(math.hypot(e, n), abs=0.02)
-        turn = math.degrees(math.atan2(e2, n2) - math.atan2(e, n)) % 360.0
-        assert turn == pytest.approx(plan.ROTATION_DEG, abs=0.001)
-        # On WGS84 the planner's sphere is off by up to 0.4 % north to east,
-        # which turns a diagonal bearing by up to 0.11 deg each way.
-        a = Geodesic.WGS84.Inverse(launch["lat"], launch["lon"], before["lat"], before["lon"])
-        b = Geodesic.WGS84.Inverse(launch["lat"], launch["lon"], after["lat"], after["lon"])
-        assert b["s12"] == pytest.approx(a["s12"], rel=0.004)
-        assert (b["azi1"] - a["azi1"]) % 360.0 == pytest.approx(plan.ROTATION_DEG, abs=0.25)
+    assert all(c["lat"] < launch["lat"] for c in corners)
+    assert sum(c["lon"] for c in corners) / 4 < launch["lon"]
 
 
-def test_rotated_plan_changes_only_the_layout_and_names_the_hubs_for_where_they_are():
-    original, rotated = plan.plan_file(FIXTURE), plan.rotated_plan_file(FIXTURE)
-    layout = {"polygon", "partition_angle_deg", "default_delivery_hubs"}
-    assert {k: v for k, v in rotated.items() if k not in layout} == {
-        k: v for k, v in original.items() if k not in layout}
-    assert rotated["partition_angle_deg"] == 0.0
-    launch = FIXTURE["inputs"]["launch_point"]
-    # The area lies west of the launch point and the hubs east of it.
-    assert max(p["lon"] for p in rotated["polygon"]) < launch["lon"]
-    hubs = rotated["default_delivery_hubs"]
-    assert all(h["lon"] > launch["lon"] for h in hubs)
-    assert [h["name"] for h in hubs] == ["home-north", "home-middle", "home-south"]
-    assert hubs[0]["lat"] > hubs[1]["lat"] > hubs[2]["lat"]
-
-
-def test_plan_check_fails_when_the_rotated_file_is_stale(monkeypatch, tmp_path):
-    for name in ("PLAN_PATH", "ROTATED_PLAN_PATH"):
+def test_plan_check_fails_when_the_drawn_file_is_stale(monkeypatch, tmp_path):
+    for name in ("PLAN_PATH", "DRAWN_PLAN_PATH"):
         target = tmp_path / getattr(plan, name).name
         target.write_text(getattr(plan, name).read_text(encoding="utf-8"), encoding="utf-8")
         monkeypatch.setattr(plan, name, target)
     assert plan.main(["--check"]) == 0
-    plan.ROTATED_PLAN_PATH.write_text("{}\n", encoding="utf-8")
+    plan.DRAWN_PLAN_PATH.write_text("{}\n", encoding="utf-8")
     assert plan.main(["--check"]) == 1
 
 
