@@ -410,3 +410,13 @@ def test_the_publisher_stops_by_drain_then_stop_on_its_control_socket(tmp_path, 
     handle.request_stop()
     assert sent == [("/tmp/p/control.sock", "drain"), ("/tmp/p/control.sock", "stop")] and len(signals) == 1
     assert chain.publisher(_windows_paths(tmp_path), tmp_path / "p.json", tmp_path / "lens.json").kind == "publisher"
+
+
+def test_the_frame_consumers_start_below_the_link_roles(tmp_path):
+    """Section 8: the bridge and router above navpy and the publisher; WSL only lets a user lower a priority."""
+    paths = _windows_paths(tmp_path)
+    for spec in (chain.navpy(paths, tmp_path / "r.json", FIRST_LANE_SEQ),
+                 chain.publisher(paths, tmp_path / "p.json", tmp_path / "lens.json")):
+        assert spec.argv[:3] == ("nice", "-n", "10")
+    for spec in (chain.backing(paths, "40,44,1300,0", "/fw/arduplane"), chain.router(paths)):
+        assert spec.argv[0] == "/venv/python"
