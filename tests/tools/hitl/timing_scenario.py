@@ -40,6 +40,8 @@ BOARD_START_S = 100.0
 SESSION = "emu-session-1"
 RUN = "camera-run-1"
 TICK_NS = 1e9 / 90000.0
+ATTITUDE_BRACKET_S = 0.05            # the live builder's two ATTITUDE periods at the 40 Hz fallback
+SEAM_TOLERANCE_S = 0.025             # half of it, as real_frame_association passes
 PUBLISHER_COLUMNS = ("received_ns,frame_index,timestamp_s,npyc_version,board_time_us,pose_sequence,pose_flags,"
                      "lens_reading_tenths,lens_setting_tenths,lens_status,pts_ns,missed_slots,outcome,flow_return,"
                      "queue_level,reason")
@@ -186,7 +188,8 @@ def build(world: World) -> Logs:
         now = read + 0.005
         navpy_pts = int(round((pts_ns - first_pts) / TICK_NS) * TICK_NS)
         record = {"event": "association", "run_id": world.run_id, "authority": "integration_uncertified",
-                  "now_s": now, "open_id": "open-1", "frame_sequence": sequence, "pts_ns": navpy_pts}
+                  "now_s": now, "open_id": "open-1", "frame_sequence": sequence, "pts_ns": navpy_pts,
+                  "attitude_bracket_max_s": ATTITUDE_BRACKET_S, "seam_tolerance_s": SEAM_TOLERANCE_S}
         if world.abort_after_s is not None and board - BOARD_START_S > world.abort_after_s:
             record["status"] = STATUS_ABORTED
             events.append((now, 1, record))
@@ -207,8 +210,9 @@ def build(world: World) -> Logs:
                       gimbal_history={"session": 1, "count": len(g_snapshot),
                                       "first_receipt_s": g_snapshot[0].receipt_s,
                                       "last_receipt_s": g_snapshot[-1].receipt_s})
-        found, status = interpolate_attitude_at(snapshot, mapped + config.attitude_correction_s, 2.0,
-                                                bracket_max_width_s=0.05, seam_tolerance_s=0.05)
+        found, status = interpolate_attitude_at(snapshot, mapped + config.attitude_correction_s,
+                                                config.limits.window_s, bracket_max_width_s=ATTITUDE_BRACKET_S,
+                                                seam_tolerance_s=SEAM_TOLERANCE_S)
         if found is None:
             record["status"] = status
             events.append((now, 1, record))

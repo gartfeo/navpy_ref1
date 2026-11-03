@@ -11,7 +11,7 @@ from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetu
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
-from navpy.core.perception.pipeline.integration_association import TimingLog
+from navpy.core.perception.pipeline.integration_log import TimingLog
 from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
     CharucoDetectionSettings,

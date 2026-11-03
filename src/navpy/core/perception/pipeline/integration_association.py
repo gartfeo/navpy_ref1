@@ -5,9 +5,7 @@ mapped receiver time (``camera/integration_timing.py``) plus each source's
 correction C places the ATTITUDE and gimbal lookups, both strictly bracketed.
 Everything it admits carries ``AUTHORITY_INTEGRATION``, never certified. Every
 attempt, admitted or refused, writes one timing record naming the samples and
-weights used. Before it, every ATTITUDE and gimbal receipt not logged yet is
-logged once (``attitude_receipt``, ``gimbal_receipt``): the receiver-local
-histories step 12 fits each C from (``tools/hitl/check_integration_timing.py``).
+weights used, and before it every receipt not logged yet (``integration_log.py``).
 """
 
 from __future__ import annotations
@@ -30,6 +28,15 @@ from navpy.core.perception.camera.integration_timing import (
     IntegrationTimingConfig,
 )
 from navpy.core.perception.camera.pts_read_map import IntegrationTimingSource, MappedFrame
+from navpy.core.perception.pipeline.integration_log import (
+    EVENT_ASSOCIATION,
+    ReceiptLog,
+    TimingLog,
+    attitude_history_record,
+    attitude_record,
+    gimbal_history_record,
+    mapping_record,
+)
 from navpy.core.perception.pipeline.real_frame_association_gate import CaptureTiming
 from navpy.core.ports.frame_capture_ports import CaptureStamp
 from navpy.core.ports.gimbal_capture_history import (
@@ -37,9 +44,6 @@ from navpy.core.ports.gimbal_capture_history import (
     GimbalHistorySample,
 )
 
-EVENT_ASSOCIATION = "association"
-EVENT_ATTITUDE_RECEIPT = "attitude_receipt"
-EVENT_GIMBAL_RECEIPT = "gimbal_receipt"
 STATUS_BRACKETED = "bracketed"
 STATUS_TIMESTAMP_UNAVAILABLE = "real_frame_capture_timestamp_unavailable"
 STATUS_CONTEXT_MISMATCH = "real_frame_integration_context_mismatch"
@@ -50,7 +54,6 @@ STATUS_GIMBAL_HISTORY_UNAVAILABLE = "real_frame_gimbal_history_unavailable"
 STATUS_GIMBAL_UNBRACKETED = "real_frame_gimbal_unbracketed"
 STATUS_GIMBAL_GAP = "real_frame_gimbal_gap"
 
-TimingLog = Callable[[dict[str, object]], None]
 
 
 def _lerp_angle_deg(first: float, second: float, fraction: float) -> float:
@@ -114,9 +117,7 @@ class IntegrationAssociation:
         self._source = source
         self._gimbal_history_reader = gimbal_history_reader
         self._log = log
-        # The newest receipt already logged per history, so each sample is logged once.
-        self._logged_attitude_s = -math.inf
-        self._logged_gimbal: tuple[int, float] | None = None
+        self._receipts = None if log is None else ReceiptLog(log, source.config.run_id)
 
     @property
     def config(self) -> IntegrationTimingConfig:
@@ -135,13 +136,15 @@ class IntegrationAssociation:
     ) -> IntegrationOutcome:
         # One gimbal snapshot per attempt: the log and the lookup see the same history.
         gimbal_history = self._gimbal_history_reader()
-        if self._log is not None:
-            self._log_receipts(attitude_history, gimbal_history)
+        if self._receipts is not None:
+            self._receipts.log(attitude_history, gimbal_history)
         record: dict[str, object] = {
             "event": EVENT_ASSOCIATION, "run_id": self.config.run_id, "authority": AUTHORITY_INTEGRATION,
             "now_s": now_s,
-            "attitude_history": _attitude_history_record(attitude_history),
-            "gimbal_history": _gimbal_history_record(gimbal_history),
+            # The limits this attempt's attitude lookup ran with, so the offline fit applies the same.
+            "attitude_bracket_max_s": attitude_bracket_max_s, "seam_tolerance_s": seam_tolerance_s,
+            "attitude_history": attitude_history_record(attitude_history),
+            "gimbal_history": gimbal_history_record(gimbal_history),
         }
         outcome = self._associate(
             record, stamp, source_id, link_id, attitude_history, gimbal_history, mount_state,
@@ -155,35 +158,6 @@ class IntegrationAssociation:
         if self._log is not None:
             self._log(record)
         return outcome
-
-    def _log_receipts(
-        self,
-        attitude_history: Sequence[SimpleNamespace],
-        gimbal_history: GimbalCaptureHistory | None,
-    ) -> None:
-        """Every receipt this association can see, once, before its record (the offline C fit's histories)."""
-        assert self._log is not None
-        for sample in attitude_history:
-            receipt = getattr(sample, "capture_receipt_s", None)
-            if not _finite(receipt) or receipt <= self._logged_attitude_s:
-                continue
-            self._logged_attitude_s = receipt
-            boot = getattr(sample, "time_boot_s", None)
-            self._log({
-                "event": EVENT_ATTITUDE_RECEIPT, "run_id": self.config.run_id,
-                "time_boot_s": boot if _finite(boot) else None, "capture_receipt_s": receipt,
-            })
-        if not isinstance(gimbal_history, GimbalCaptureHistory):
-            return
-        for sample in gimbal_history.samples:
-            last = self._logged_gimbal
-            if last is not None and last[0] == sample.session and sample.receipt_s <= last[1]:
-                continue
-            self._logged_gimbal = (sample.session, sample.receipt_s)
-            self._log({
-                "event": EVENT_GIMBAL_RECEIPT, "run_id": self.config.run_id,
-                "session": sample.session, "seq": sample.seq, "receipt_s": sample.receipt_s,
-            })
 
     def _associate(
         self,
@@ -208,7 +182,7 @@ class IntegrationAssociation:
         mapped, status = self._source.frame(stamp.source)
         if status != STATUS_MAPPED or mapped is None:
             return IntegrationOutcome(None, status, None, mount_state)
-        record.update(_mapping_record(mapped))
+        record.update(mapping_record(mapped))
         attitude_lookup_s = mapped.mapped_s + config.attitude_correction_s
         timing = CaptureTiming(
             kind=stamp.kind,
@@ -235,7 +209,7 @@ class IntegrationAssociation:
         )
         if attitude is None:
             return IntegrationOutcome(timing, status, None, mount_state)
-        record.update(_attitude_record(attitude))
+        record.update(attitude_record(attitude))
         if mount_state is None:
             return IntegrationOutcome(timing, STATUS_BRACKETED, attitude, None)
         record["zoom_sample_id"] = mount_state.zoom_sample_id
@@ -289,54 +263,7 @@ def _finite(value: object) -> bool:
     )
 
 
-def _attitude_history_record(history: Sequence[SimpleNamespace]) -> dict[str, object]:
-    receipts = [getattr(sample, "capture_receipt_s", None) for sample in history]
-    return {
-        "count": len(receipts),
-        "first_receipt_s": receipts[0] if receipts else None,
-        "last_receipt_s": receipts[-1] if receipts else None,
-    }
-
-
-def _gimbal_history_record(history: GimbalCaptureHistory | None) -> dict[str, object] | None:
-    """The snapshot this attempt saw, so an offline replay uses exactly its samples."""
-    if not isinstance(history, GimbalCaptureHistory):
-        return None
-    samples = history.samples
-    return {
-        "session": history.session,
-        "count": len(samples),
-        "first_receipt_s": samples[0].receipt_s if samples else None,
-        "last_receipt_s": samples[-1].receipt_s if samples else None,
-    }
-
-
-def _mapping_record(mapped: MappedFrame) -> dict[str, object]:
-    return {
-        "read_s": mapped.read_s,
-        "mapped_s": mapped.mapped_s,
-        "offset_s": mapped.offset_s,
-        "envelope_s": mapped.envelope_s,
-        "rate": mapped.rate,
-    }
-
-
-def _attitude_record(attitude: AttitudeAtLookup) -> dict[str, object]:
-    record: dict[str, object] = {"attitude_time_boot_s": attitude.time_boot_s}
-    bracket = attitude.bracket
-    if bracket is not None:
-        record.update(
-            attitude_bracket_time_boot_s=[bracket.earlier_time_boot_s, bracket.later_time_boot_s],
-            attitude_bracket_receipts_s=[bracket.earlier_receipt_s, bracket.later_receipt_s],
-            attitude_weight=bracket.fraction,
-        )
-    return record
-
-
 __all__ = [
-    "EVENT_ASSOCIATION",
-    "EVENT_ATTITUDE_RECEIPT",
-    "EVENT_GIMBAL_RECEIPT",
     "GimbalAtLookup",
     "IntegrationAssociation",
     "IntegrationOutcome",
@@ -347,6 +274,5 @@ __all__ = [
     "STATUS_GIMBAL_UNBRACKETED",
     "STATUS_SOURCE_STALE",
     "STATUS_ZOOM_UNSETTLED",
-    "TimingLog",
     "interpolate_gimbal_at",
 ]

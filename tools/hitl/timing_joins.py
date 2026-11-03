@@ -2,8 +2,7 @@
 
 Every join is by identity, never by subtracting one host's clock from another's:
 - navpy frame -> publisher frame by PTS. navpy's decoded PTS has its own zero (rtspsrc running time), so the join
-  is by PTS delta from one anchor, within one RTP tick per side; every frame must fit, and of the anchors that fit,
-  exactly one may imply the fewest sender frames navpy never got.
+  is by PTS delta from one anchor, within one RTP tick per side; every frame must fit, and exactly one anchor may.
 - publisher frame -> Unreal sent slot by frame index and board time, both equal: the represented board time.
 - Unreal slot -> emulator steps by gimbal session and the two step sequences it rendered between, and their weight:
   the rendered plant time on the emulator's device clock.
@@ -94,14 +93,12 @@ def join_publisher(frames: Sequence[NavpyFrame], publisher: Sequence[PublisherFr
         fits.append((int(extra.sum()), rows))
     if not fits:
         raise JoinError(MISSING, "no publisher anchor fits every navpy frame's PTS")
-    # An anchor may also fit by putting a gap of navpy's on sender frames navpy never got. The true anchor implies
-    # the fewest such lost frames; a tie cannot be told apart.
-    fewest = min(lost for lost, _ in fits)
-    best = [rows for lost, rows in fits if lost == fewest]
-    if len(best) > 1:
-        raise JoinError(AMBIGUOUS, f"{len(best)} publisher anchors fit every navpy frame's PTS with {fewest} "
-                                   f"sender frames navpy never got")
-    return PublisherJoin({int(sequence): publisher[int(row)] for sequence, row in zip(sequences, best[0])}, fewest)
+    # Sender frames navpy never got leave no trace in its sequence, so an anchor that implies more of them is as
+    # possible as one that implies fewer: only a single fitting anchor identifies the frames.
+    if len(fits) > 1:
+        raise JoinError(AMBIGUOUS, f"{len(fits)} publisher anchors fit every navpy frame's PTS")
+    lost, rows = fits[0]
+    return PublisherJoin({int(sequence): publisher[int(row)] for sequence, row in zip(sequences, rows)}, lost)
 
 
 def join_slots(frames: dict[int, PublisherFrame], slots: Sequence[RenderedSlot]) -> dict[int, RenderedSlot]:

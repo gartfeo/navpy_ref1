@@ -63,12 +63,18 @@ class MedianFit:
 
 
 def block_count(times_s: Sequence[float], block_s: float) -> int:
-    span = max(times_s) - min(times_s)
-    return int(math.floor(span / block_s)) + 1
+    """How many block_s bins from the first time hold at least one pair: empty stretches are no evidence."""
+    first = min(times_s)
+    return len({int(math.floor((time - first) / block_s)) for time in times_s})
 
 
 def fit_median(values: Sequence[float], times_s: Sequence[float], block_s: float) -> MedianFit:
-    """The median of ``values`` (in time order, at ``times_s``) and its moving-block bootstrap interval."""
+    """The median of ``values`` (at ``times_s``) and its moving-block bootstrap interval.
+
+    Blocks are by time, not by count: each is every pair in [t_i, t_i + block_s) from a pair i whose whole window
+    lies inside the series, so uneven sampling or gaps never shorten a block's time. Each resample joins random
+    blocks until it holds as many pairs as the series.
+    """
     if len(values) != len(times_s) or not values:
         raise ValueError("values and times must be non-empty and the same length")
     order = np.argsort(np.asarray(times_s, dtype=float), kind="stable")
@@ -77,14 +83,19 @@ def fit_median(values: Sequence[float], times_s: Sequence[float], block_s: float
     span = float(times[-1] - times[0])
     blocks = block_count(times, block_s)
     count = len(data)
-    # Block length in pairs: the mean number of pairs per block_s of the series.
-    length = max(1, min(count, int(round(count / blocks))))
-    starts = count - length + 1
+    candidates = np.flatnonzero(times + block_s <= times[-1])
+    if blocks < MIN_BLOCKS or not len(candidates):
+        raise ValueError(f"pairs fill {blocks} blocks of {block_s:g} s, fewer than {MIN_BLOCKS}")
+    ends = np.searchsorted(times, times + block_s, side="left")
     rng = np.random.default_rng(BOOTSTRAP_SEED)
-    per_sample = math.ceil(count / length)
-    picks = rng.integers(0, starts, size=(BOOTSTRAP_RESAMPLES, per_sample))
-    index = (picks[:, :, None] + np.arange(length)[None, None, :]).reshape(BOOTSTRAP_RESAMPLES, -1)[:, :count]
-    medians = np.median(data[index], axis=1)
+    medians = np.empty(BOOTSTRAP_RESAMPLES)
+    for resample in range(BOOTSTRAP_RESAMPLES):
+        pieces, held = [], 0
+        while held < count:
+            start = candidates[rng.integers(0, len(candidates))]
+            pieces.append(data[start:ends[start]])
+            held += ends[start] - start
+        medians[resample] = np.median(np.concatenate(pieces)[:count])
     tail = (1.0 - CONFIDENCE) / 2.0 * 100.0
     lower, upper = np.percentile(medians, [tail, 100.0 - tail])
     return MedianFit(float(np.median(data)), float(lower), float(upper), count, blocks, span)

@@ -21,7 +21,7 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from navpy.core.perception.pipeline.integration_association import (
+from navpy.core.perception.pipeline.integration_log import (
     EVENT_ASSOCIATION,
     EVENT_ATTITUDE_RECEIPT,
     EVENT_GIMBAL_RECEIPT,
@@ -44,6 +44,20 @@ def _number(record: dict, name: str, where: str) -> float:
     return float(value)
 
 
+def _reject_constant(name: str) -> float:
+    raise TimingInputError(f"non-finite number {name} in JSON")
+
+
+def json_record(line: str, where: str) -> object:
+    """One JSON value; NaN and Infinity are refused, since a NaN skew or bound makes every comparison false."""
+    try:
+        return json.loads(line, parse_constant=_reject_constant)
+    except json.JSONDecodeError as exc:
+        raise TimingInputError(f"{where}: not JSON ({exc})") from exc
+    except TimingInputError as exc:
+        raise TimingInputError(f"{where}: {exc}") from exc
+
+
 def _integer(record: dict, name: str, where: str) -> int:
     value = record.get(name)
     if isinstance(value, bool) or not isinstance(value, int):
@@ -51,9 +65,43 @@ def _integer(record: dict, name: str, where: str) -> int:
     return value
 
 
+# Association fields the check reads: each a finite number or null.
+_ASSOCIATION_NUMBERS = ("read_s", "mapped_s", "attitude_lookup_s", "attitude_time_boot_s", "attitude_weight",
+                        "gimbal_lookup_s", "gimbal_weight")
+_ASSOCIATION_LIMITS = ("now_s", "attitude_bracket_max_s", "seam_tolerance_s")     # required finite numbers
+
+
+def _check_association(record: dict, at: str) -> None:
+    if not isinstance(record.get("status"), str):
+        raise TimingInputError(f"{at}: association without a status")
+    for name in _ASSOCIATION_LIMITS:
+        _number(record, name, at)
+    for name in _ASSOCIATION_NUMBERS:
+        if record.get(name) is not None:
+            _number(record, name, at)
+    for name in ("frame_sequence", "pts_ns"):
+        if record.get(name) is not None:
+            _integer(record, name, at)
+    receipts = record.get("gimbal_receipts_s")
+    if receipts is not None:
+        if not isinstance(receipts, list) or len(receipts) != 2:
+            raise TimingInputError(f"{at}: gimbal_receipts_s is not a pair")
+        for index in range(2):
+            _number({"value": receipts[index]}, "value", f"{at} gimbal_receipts_s[{index}]")
+    snapshot = record.get("gimbal_history")
+    if snapshot is not None:
+        if not isinstance(snapshot, dict):
+            raise TimingInputError(f"{at}: gimbal_history is not an object")
+        _integer(snapshot, "count", f"{at} gimbal_history")
+        if snapshot["count"]:
+            _integer(snapshot, "session", f"{at} gimbal_history")
+            for name in ("first_receipt_s", "last_receipt_s"):
+                _number(snapshot, name, f"{at} gimbal_history")
+
+
 @dataclass(frozen=True)
 class AttitudeReceipt:
-    time_boot_s: float
+    time_boot_s: float | None     # None: a sample without board time, which breaks adjacency (a seam)
     receipt_s: float
 
 
@@ -92,10 +140,7 @@ def read_navpy_log(lines: Iterable[str], where: str = "navpy log") -> NavpyLog:
         if not line.strip():
             continue
         at = f"{where}:{number}"
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise TimingInputError(f"{at}: not JSON ({exc})") from exc
+        record = json_record(line, at)
         if not isinstance(record, dict):
             raise TimingInputError(f"{at}: not a JSON object")
         run_id = record.get("run_id")
@@ -104,13 +149,11 @@ def read_navpy_log(lines: Iterable[str], where: str = "navpy log") -> NavpyLog:
         log.run_ids.add(run_id)
         event = record.get("event")
         if event == EVENT_ASSOCIATION:
+            _check_association(record, at)
             log.associations.append(Association(record, number))
         elif event == EVENT_ATTITUDE_RECEIPT:
-            boot = record.get("time_boot_s")
-            if boot is None:
-                continue          # a sample without board time cannot be placed: never part of a bracket
-            log.attitude.append(AttitudeReceipt(_number(record, "time_boot_s", at),
-                                                _number(record, "capture_receipt_s", at)))
+            boot = None if record.get("time_boot_s") is None else _number(record, "time_boot_s", at)
+            log.attitude.append(AttitudeReceipt(boot, _number(record, "capture_receipt_s", at)))
         elif event == EVENT_GIMBAL_RECEIPT:
             log.gimbal.append(GimbalReceipt(_integer(record, "session", at), _integer(record, "seq", at),
                                             _number(record, "receipt_s", at), number))
@@ -197,10 +240,9 @@ def read_emulator_log(lines: Iterable[str], where: str = "emulator log") -> Emul
         if not line.strip():
             continue
         at = f"{where}:{number}"
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError as exc:
-            raise TimingInputError(f"{at}: not JSON ({exc})") from exc
+        record = json_record(line, at)
+        if not isinstance(record, dict):
+            raise TimingInputError(f"{at}: not a JSON object")
         event = record.get("event")
         if event == "start":
             if log.session:
@@ -236,6 +278,7 @@ __all__ = [
     "RenderedSlot",
     "SiyiOut",
     "TimingInputError",
+    "json_record",
     "read_emulator_log",
     "read_navpy_log",
     "read_publisher_frames",

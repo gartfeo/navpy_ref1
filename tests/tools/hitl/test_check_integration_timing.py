@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 from dataclasses import replace
 
+import numpy as np
 import pytest
 
 from tests.tools.hitl import timing_scenario as ts
+from tools.hitl.encoded_capture_score import INTERVAL_TOLERANCE_NS
 from tools.hitl import check_integration_timing as cit
 from tools.hitl.timing_inputs import (
     TimingInputError,
@@ -16,9 +18,14 @@ from tools.hitl.timing_inputs import (
     read_publisher_frames,
     read_unreal_slots,
 )
-from tools.hitl.timing_joins import AMBIGUOUS, INVALID, MISSING, JoinError
+from tools.hitl.timing_inputs import PublisherFrame
+from tools.hitl.timing_fit import calibration_pairs as cit_pairs
+from tools.hitl.timing_stats import block_count, fit_median
+from tools.hitl.timing_joins import AMBIGUOUS, INVALID, MISSING, JoinError, NavpyFrame, join_publisher
 
 CALIBRATION = ts.World()
+# Unreal's missed slots across the whole sender log, irregular: every shift of a short receiver window crosses one.
+SPREAD_HOLES = tuple(17 + i * 97 + (i * i * 7) % 41 for i in range(19))
 
 
 def joined(logs: ts.Logs, tmp_path, *, navpy=None, unreal=None, emulator=None, publisher=None):
@@ -81,7 +88,7 @@ def test_held_out_run_passes_with_small_skews_and_reports_them(calibration, tmp_
         assert section["max_abs_s"] + section["uncertainty_s"] <= cit.SKEW_BUDGET_S
         assert section["p95_abs_s"] <= section["max_abs_s"]
     assert report["counts"]["gimbal:replayed"] > 1000
-    assert report["intervals"]["max_pts_error_s"] <= cit.INTERVAL_TOLERANCE_NS / 1e9
+    assert report["intervals"]["max_pts_error_s"] <= INTERVAL_TOLERANCE_NS / 1e9
 
 
 def test_live_gimbal_associations_must_equal_their_replay(calibration, tmp_path):
@@ -116,7 +123,7 @@ def test_receipt_jitter_over_the_budget_fails_even_with_true_constants(calibrati
 
 
 def test_a_map_abort_fails_the_run_even_with_a_good_prefix(calibration, tmp_path):
-    report = held_out_check(calibration, tmp_path, abort_after_s=30.0)
+    report = held_out_check(calibration, tmp_path, abort_after_s=30.0, holes=SPREAD_HOLES)
     assert not report["passed"]
     assert any(text.startswith("map interrupted") for text in report["failures"])
 
@@ -159,6 +166,19 @@ def _expect(kind, function):
     with pytest.raises(JoinError) as raised:
         function()
     assert raised.value.kind == kind, str(raised.value)
+
+
+def test_an_anchor_implying_fewer_lost_frames_is_still_ambiguous():
+    # navpy got frames 0 and 2 (frame 1 lost on the way); frames 3 and 4 fit the same PTS delta with no loss.
+    publisher = [PublisherFrame(index, index * 1000, pts_ms * 1_000_000)
+                 for index, pts_ms in enumerate((0, 33, 66, 330, 396))]
+    _expect(AMBIGUOUS, lambda: join_publisher([NavpyFrame(1, 0), NavpyFrame(2, 66_000_000)], publisher))
+
+
+def test_a_short_window_past_the_last_missed_slot_is_ambiguous(calibration, tmp_path):
+    # Every navpy gap can be a frame lost on the way, so a window that crosses no sender gap fits many anchors.
+    logs = ts.build(ts.held_out(calibration[0].world, calibration[1], abort_after_s=30.0))
+    _expect(AMBIGUOUS, lambda: joined(logs, tmp_path))
 
 
 def test_a_stream_without_missed_slots_joined_late_is_ambiguous(tmp_path):
@@ -248,6 +268,116 @@ def test_unknown_or_unreadable_records_are_errors():
         read_navpy_log(['{"event": "gimbal_receipt", "run_id": "r", "session": 1, "seq": 1, "receipt_s": NaN}'])
     with pytest.raises(TimingInputError):
         read_emulator_log(['{"event": "step", "seq": 1, "device_t": 0.0}'])     # no start: no session
+
+
+def _edit_associations(navpy, change, after_board_s=None, world=None):
+    """navpy lines with ``change(record)`` applied to each mapped association (from a board time on, if given)."""
+    edited = []
+    for line in navpy:
+        record = json.loads(line)
+        if record["event"] == "association" and record.get("mapped_s") is not None and (
+                after_board_s is None or record["mapped_s"] - world.video_delay_s - ts.EPOCH_R
+                > ts.BOARD_START_S + after_board_s):
+            change(record)
+            line = json.dumps(record)
+        edited.append(line)
+    return edited
+
+
+def test_a_good_prefix_then_frames_without_results_fails(calibration, tmp_path):
+    logs, result = calibration
+    held = ts.build(ts.held_out(logs.world, result))
+
+    def refuse(record):
+        record["status"] = "real_frame_integration_source_stale"
+        record.pop("attitude_time_boot_s", None)
+
+    navpy = _edit_associations(held.navpy, refuse, after_board_s=40.0, world=held.world)
+    report = cit.check(joined(held, tmp_path, navpy=navpy), result, False)
+    assert not report["passed"]
+    assert report["attitude"]["unscored"] > 400 and report["gimbal"]["unscored"] > 400
+    assert any(text.startswith("attitude:") and "have no result" in text for text in report["failures"])
+
+
+def test_non_finite_association_values_are_input_errors(calibration):
+    logs, _ = calibration
+    index = next(i for i, line in enumerate(logs.navpy) if '"attitude_time_boot_s"' in line)
+    for name in ("attitude_time_boot_s", "mapped_s", "now_s"):
+        record = json.loads(logs.navpy[index])
+        record[name] = float("nan")
+        with pytest.raises(TimingInputError):
+            read_navpy_log([json.dumps(record)])
+    record = json.loads(logs.navpy[index])
+    del record["seam_tolerance_s"]
+    with pytest.raises(TimingInputError):
+        read_navpy_log([json.dumps(record)])
+
+
+@pytest.mark.parametrize("uncertainty", [float("nan"), -0.001, None])
+def test_a_fit_without_a_finite_uncertainty_fails_the_check(calibration, tmp_path, uncertainty):
+    logs, result = calibration
+    constants = json.loads(json.dumps(result))
+    constants["attitude"]["uncertainty_s"] = uncertainty
+    report = cit.check(joined(ts.build(ts.held_out(logs.world, result)), tmp_path), constants, False)
+    assert not report["passed"]
+    assert any("fitted uncertainty" in text for text in report["failures"])
+
+
+def test_a_sample_without_board_time_breaks_brackets_as_it_does_live(calibration, tmp_path):
+    logs, result = calibration
+    navpy = list(logs.navpy)
+    index = [i for i, line in enumerate(navpy) if '"attitude_receipt"' in line][len(navpy) // 4]
+    record = json.loads(navpy[index])
+    record["time_boot_s"] = None
+    navpy[index] = json.dumps(record)
+    attitude, _ = cit_pairs(joined(logs, tmp_path, navpy=navpy))
+    baseline, _ = cit_pairs(joined(logs, tmp_path))
+    # The seam's 2 s quarantine refuses about 60 frames of 30 fps, as navpy's own lookup would.
+    assert attitude.unpaired - baseline.unpaired >= 30
+
+
+def test_a_clock_seam_breaks_brackets_as_it_does_live(calibration, tmp_path):
+    logs, _ = calibration
+    navpy = list(logs.navpy)
+    receipts = [i for i, line in enumerate(navpy) if '"attitude_receipt"' in line]
+    for index in receipts[len(receipts) // 2:]:
+        record = json.loads(navpy[index])
+        record["capture_receipt_s"] += 0.03     # the link delay steps by 30 ms: a seam over the 25 ms tolerance
+        navpy[index] = json.dumps(record)
+    attitude, _ = cit_pairs(joined(logs, tmp_path, navpy=navpy))
+    baseline, _ = cit_pairs(joined(logs, tmp_path))
+    assert attitude.unpaired - baseline.unpaired >= 30
+
+
+def test_attitude_limits_that_change_within_a_run_are_invalid(calibration, tmp_path):
+    logs, _ = calibration
+
+    def widen(record):
+        record["attitude_bracket_max_s"] = 0.1
+
+    navpy = _edit_associations(logs.navpy, widen, after_board_s=30.0, world=logs.world)
+    _expect(INVALID, lambda: cit_pairs(joined(logs, tmp_path, navpy=navpy)))
+
+
+def test_blocks_count_only_bins_that_hold_pairs():
+    cluster = [0.01 * index for index in range(100)] + [25.0]
+    assert block_count(cluster, 10.0) == 2
+    with pytest.raises(ValueError):
+        fit_median([0.0] * len(cluster), cluster, 10.0)
+
+
+def test_bootstrap_interval_reflects_correlation_within_blocks():
+    # Six 10 s stretches, each with its own offset (correlated within a block): the median's interval must reflect
+    # the offsets' spread, not the tiny noise inside each block.
+    rng = np.random.default_rng(3)
+    offsets = rng.normal(0.0, 0.001, 6)
+    times = [block * 10.0 + 0.1 * index for block in range(6) for index in range(100)]
+    values = [offsets[int(time // 10.0)] + rng.normal(0.0, 1e-6) for time in times]
+    fitted = fit_median(values, times, 10.0)
+    assert fitted.uncertainty_s > 0.0002
+    uneven = [time for time in times if time % 10.0 < 1.0 or time > 40.0]     # gaps and an uneven density
+    fitted = fit_median([values[times.index(time)] for time in uneven], uneven, 10.0)
+    assert fitted.uncertainty_s > 50e-6 and fitted.blocks == 6     # still far over the 1 us noise
 
 
 # --- command line -----------------------------------------------------------------------------------------------
