@@ -184,7 +184,7 @@ def approach(args: argparse.Namespace) -> int:
     record_path = approach_records.write_record(record, run_dir)
     wsl_ip, windows_ip = _addresses()
     paths = chain.ChainPaths(run_dir, repo, args.python, Path(args.aas_hitl), Path(args.publisher_profile),
-                             args.uproject, wsl_ip, windows_ip, args.unreal_affinity)
+                             Path(args.uproject), wsl_ip, windows_ip, args.unreal_affinity)
     lens = repo / "src/navpy/core/perception/profile/vision_profiles.json"
     group = ProcessGroup(run_dir, {"posix": spawn_posix, "windows": chain.spawn_unreal(args.unreal_affinity)},
                          chain.port_free)
@@ -240,7 +240,7 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--timing-constants", help="a passing step 12 fit: its corrections go into a held-out run")
     a.add_argument("--publisher-profile", required=True, help="the aas-hitl publisher profile template")
     a.add_argument("--aas-hitl", required=True, help="the aas-hitl checkout the publisher runs from (WSL path)")
-    a.add_argument("--uproject", required=True, help="Windows path of the Unreal project")
+    a.add_argument("--uproject", required=True, help="WSL path of the Unreal project (/mnt/c/...)")
     a.add_argument("--unreal-affinity", type=int, help="Unreal's processor mask (the CPU share granted)")
     a.add_argument("--python", default=sys.executable, help="the Python navpy and the tools run with")
     a.add_argument("--params-file", action="append", help="starting parameters, as dock-pass")

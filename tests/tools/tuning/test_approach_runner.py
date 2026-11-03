@@ -198,7 +198,7 @@ def test_the_lane_is_fixed_from_home_and_repeats():
 
 
 def test_the_navpy_spec_carries_the_timing_inputs_and_the_link_identity(tmp_path):
-    paths = chain.ChainPaths(tmp_path, Path("/repo"), "/venv/python", Path("/aas"), tmp_path / "p.json", "C:\\u",
+    paths = chain.ChainPaths(tmp_path, Path("/repo"), "/venv/python", Path("/aas"), tmp_path / "p.json", Path("/mnt/c/u/A.uproject"),
                              "172.0.0.2", "172.0.0.1")
     spec = chain.navpy(paths, tmp_path / "approach_record.json", FIRST_LANE_SEQ)
     argv = list(spec.argv)
@@ -265,7 +265,7 @@ def approach_args(tmp_path):
     approach.add_parser(parser.add_subparsers())
     return parser.parse_args(["approach", "--mode", "pc-sitl", "--run-root", str(tmp_path / "runs"),
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
-                              "--publisher-profile", "p.json", "--aas-hitl", "/aas", "--uproject", "C:\\u"])
+                              "--publisher-profile", "p.json", "--aas-hitl", "/aas", "--uproject", "/mnt/c/u/A.uproject"])
 
 
 def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
@@ -274,3 +274,10 @@ def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
         r"\\wsl.localhost\Ubuntu-24.04\home\gart\repo\x.json"
     with pytest.raises(ValueError):
         chain.win_path(Path("relative/x.json"), "Ubuntu-24.04")
+
+
+def test_unreal_gets_its_project_as_a_windows_path(tmp_path):
+    paths = chain.ChainPaths(Path("/mnt/c/runs/r1"), Path("/repo"), "py", Path("/aas"), tmp_path / "p.json",
+                             Path("/mnt/c/repos/Aas/Aas.uproject"), "172.0.0.2", "172.0.0.1")
+    argv = chain.unreal(paths, Path("/mnt/c/lens.json")).argv
+    assert argv[1] == r"C:\repos\Aas\Aas.uproject" and r"-abslog=C:\runs\r1\unreal.log" in argv

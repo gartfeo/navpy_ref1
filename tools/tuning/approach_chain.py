@@ -46,7 +46,7 @@ class ChainPaths:
     python: str                  # the WSL venv python navpy and the tools run with (python -s)
     aas_hitl: Path               # WSL path of the aas-hitl clone the publisher runs from
     publisher_profile: Path      # the publisher's JSON profile template (native_host is set per run)
-    uproject: str                # Windows path of the Unreal project
+    uproject: Path               # WSL path of the Unreal project (/mnt/c/...); Unreal gets its Windows form
     wsl_ip: str                  # WSL's own address, Unreal's frame target
     windows_ip: str              # the Windows host's address seen from WSL
     unreal_affinity: Optional[int] = None
@@ -199,7 +199,7 @@ class WindowsHandle:
 
 def unreal(paths: ChainPaths, lens_table: Path) -> ProcSpec:
     log = paths.run_dir / "unreal.log"
-    args = (paths.uproject, UNREAL_LEVEL, "-game", "-windowed", "-ResX=640", "-ResY=360",
+    args = (win_path(paths.uproject), UNREAL_LEVEL, "-game", "-windowed", "-ResX=640", "-ResY=360",
             "-NavPyEnableNativeCameraStream=1", f"-NavPyNativeCameraHost={paths.wsl_ip}",
             "-NavPyInterpolatedVehiclePose=1", "-NavPyNativeCameraHeaderVersion=3",
             "-NavPyNativeCameraOverscan=80,48", "-NavPyNativeCameraBoardTimeCadence=1",
