@@ -233,7 +233,7 @@ def approach(args: argparse.Namespace) -> int:
     try:
         specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens),
-                 chain.unreal(paths, lens, scenario_run.unreal_file(run_dir)),
+                 chain.unreal(paths, lens, scenario_run.unreal_file(run_dir), run["scenario"]["scene_hash"]),
                  chain.navpy(paths, record_path, FIRST_LANE_SEQ)]
         problems = group.refusals(specs)
         if problems:

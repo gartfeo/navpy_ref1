@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import socket
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -145,6 +146,36 @@ def test_a_ready_file_other_than_the_output_is_awaited(tmp_path):
     status.write_text(json.dumps({"ready_monotonic_ns": 5}), encoding="utf-8")
     spec = ProcSpec("publisher", ("p",), r'"ready_monotonic_ns"', 5.0, ready_file=status)
     group.start(spec)
+
+
+def _unreal_log(tmp_path, monkeypatch, *lines):
+    monkeypatch.setattr(chain, "win_path", str)
+    log = tmp_path / "unreal.log"
+    log.write_text("".join(f"LogTemp: {line}\n" for line in lines), encoding="utf-8")
+    paths = chain.ChainPaths(tmp_path, Path("/repo"), "py", Path("/aas"), tmp_path / "p.json",
+                             Path("/mnt/c/repos/Aas/Aas.uproject"), "172.0.0.2", "172.0.0.1")
+    spec = chain.unreal(paths, Path("/mnt/c/lens.json"), Path("/mnt/c/s/unreal.json"), "e" * 64)
+    return replace(spec, ready_timeout_s=5.0, kind="posix", refuse=None)
+
+
+@pytest.mark.parametrize("lines, error", [
+    (("NavPyCameraMount ok",), "unreal not ready within 5 s"),                    # terrain sample not back yet
+    (("NavPyCameraMount ok", "NavPyScenario applied scene_hash=" + "f" * 64), "not ready within"),
+    (("NavPyScenario applied scene_hash=" + "e" * 64,), "not ready within"),     # no camera yet
+    (("NavPyCameraMount ok", "Error: NavPyScenario refused: the dock board was not placed"),
+     "unreal refused to start: NavPyScenario refused: the dock board was not placed"),
+    (("NavPyCameraMount ok", "NavPyScenario applied scene_hash=" + "e" * 64), None),
+])
+def test_unreal_is_ready_only_once_it_built_this_runs_scene(tmp_path, monkeypatch, lines, error):
+    log: list = []
+    group, _, _ = _group(tmp_path, log, writes_ready=False)
+    spec = _unreal_log(tmp_path, monkeypatch, *lines)
+    if error is None:
+        group.start(spec)
+    else:
+        with pytest.raises(RunnerError, match=error):
+            group.start(spec)
+    group.stop_all()
 
 
 def test_stop_escalates_and_names_orphans(tmp_path):
@@ -311,7 +342,8 @@ def test_unreal_gets_windows_paths_for_drive_and_wsl_disk_files():
 def test_unreal_gets_its_project_as_a_windows_path(tmp_path):
     paths = chain.ChainPaths(Path("/mnt/c/runs/r1"), Path("/repo"), "py", Path("/aas"), tmp_path / "p.json",
                              Path("/mnt/c/repos/Aas/Aas.uproject"), "172.0.0.2", "172.0.0.1")
-    argv = chain.unreal(paths, Path("/mnt/c/lens.json"), Path("/mnt/c/run/scenario/private/unreal.json")).argv
+    argv = chain.unreal(paths, Path("/mnt/c/lens.json"), Path("/mnt/c/run/scenario/private/unreal.json"),
+                        "e" * 64).argv
     assert argv[1] == r"C:\repos\Aas\Aas.uproject" and r"-abslog=C:\runs\r1\unreal.log" in argv
 
 

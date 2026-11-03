@@ -59,6 +59,7 @@ class ProcSpec:
     cwd: Optional[str] = None
     env: Optional[Mapping[str, str]] = None
     kind: str = "posix"                      # which spawner starts it
+    refused: Optional[str] = None            # regex in the ready file: the role refused to start, stop waiting
 
 
 Spawner = Callable[[ProcSpec, IO[str]], Handle]
@@ -216,7 +217,11 @@ class ProcessGroup:
         while True:
             if owned.output is not None:
                 owned.output.flush()
-            if path.exists() and pattern.search(path.read_text(encoding="utf-8", errors="replace")):
+            text = path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+            refusal = re.search(spec.refused, text) if spec.refused else None
+            if refusal:
+                raise RunnerError(f"{spec.role} refused to start: {refusal.group(0).strip()}")
+            if pattern.search(text):
                 return
             if not owned.handle.running():
                 raise RunnerError(f"{spec.role} exited with code {owned.handle.exit_code()} before it was ready; "
