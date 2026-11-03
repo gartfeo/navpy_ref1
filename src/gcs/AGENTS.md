@@ -125,7 +125,8 @@ Frontend:
   only the scenario's needs: a run-local SITL root, settings pins over the
   checkout's `gcs_settings.json` (a copy; the original is not touched) and
   the vehicles' static AAS params. It then opens the UI. Load
-  `scripts/delivery_demo_plan.json` (or build a plan), Upload, Launch, and
+  `scripts/delivery_demo_plan.json` (or the drawn-area
+  `scripts/delivery_demo_plan_drawn.json`, or build a plan), Upload, Launch, and
   approve each dock. Regenerate the plan file with
   `scripts/delivery_demo_plan.py`. Stop with `gcs_stop.py`. Logs in
   `.logs/delivery-demo/<time>`.
