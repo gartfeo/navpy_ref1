@@ -52,7 +52,7 @@ def check_seed(series_path: Path, index: int, seed_dir: Path, paths: chain.Chain
     group = ProcessGroup(seed_dir, {"windows": chain.spawn_unreal(paths.unreal_affinity)}, chain.port_free)
     error: Optional[str] = None
     try:
-        group.start(chain.unreal(paths, lens, sp.consumer_file(scenario_dir, "unreal")))
+        group.start(chain.unreal(paths, lens, sp.consumer_file(scenario_dir, "unreal"), public["scene_hash"]))
         if not _wait_terrain(seed_dir / "unreal.log", TERRAIN_WAIT_S):
             error = f"no terrain check within {TERRAIN_WAIT_S:g} s"
     except RunnerError as exc:
@@ -62,7 +62,8 @@ def check_seed(series_path: Path, index: int, seed_dir: Path, paths: chain.Chain
     verdict = scoring.verify_unreal(scenario_dir, seed_dir / "unreal.log")
     audit = scoring.audit(scenario_dir)
     redrawn = first["scene_hash"] == second["scene_hash"] == public["scene_hash"]
-    clean = not audit["outside_allowed"] and not audit["refused"] and not audit["stray_files"]
+    clean = not any(audit[key] for key in ("outside_allowed", "refused", "missing", "repeated", "other_scene",
+                                           "stray_files"))
     return {"seed_index": index, "scene_hash": public["scene_hash"], "redrawn_same": redrawn,
             "reproduced": verdict["reproduced"], "problems": verdict["problems"], "audit": audit,
             "unreal_error": error, "orphans": group.orphans(),

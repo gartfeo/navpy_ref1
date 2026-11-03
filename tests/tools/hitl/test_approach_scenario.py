@@ -9,11 +9,13 @@ import builtins
 import io
 import json
 import os
+import re
 from pathlib import Path
 
 import pytest
 
 from tools.hitl import scenario_public as sp
+from tools.hitl import scenario_scene_check as scene_check
 from tools.hitl import scenario_scoring as scoring
 from tools.hitl import scenario_service as service
 from tools.hitl.json_checks import RecordError
@@ -227,6 +229,39 @@ def test_private_files_and_unreal_output_of_another_seed_fail_the_public_scene(t
     verdict = scoring.verify_unreal(folder, log)
     assert not verdict["reproduced"] and "the scoring file is not the scene scenario.json names" in verdict["problems"]
     assert verdict["audit"]["other_scene"] == ["scoring", "unreal"]
+
+
+class _SceneGroup:
+    """The scene check's process group: 'starting' Unreal leaves what a run of it would, through its real spec."""
+
+    def __init__(self, seed_dir, spawners, port_free) -> None:
+        self.seed_dir, self.specs = Path(seed_dir), []
+
+    def start(self, spec) -> None:
+        self.specs.append(spec)
+        scenario = self.seed_dir / "scenario"
+        _unreal(scenario, self.seed_dir / "unreal.log", extra="LogTemp: NavPyCameraMount ok\n")
+
+    def stop_all(self) -> None:
+        """Nothing runs."""
+
+    def orphans(self):
+        return []
+
+
+def test_the_scene_check_starts_unreal_on_the_seeds_scene_and_passes_it(tmp_path, monkeypatch):
+    groups: list = []
+    monkeypatch.setattr(scene_check, "ProcessGroup", lambda *args: groups.append(_SceneGroup(*args)) or groups[-1])
+    monkeypatch.setattr(scene_check.chain, "win_path", str)
+    seed_dir = tmp_path / "seed-00"
+    seed_dir.mkdir()
+    paths = approach.chain.ChainPaths(seed_dir, REPO, "py", Path("/unused"), Path("/unused"),
+                                      Path("/mnt/c/u/A.uproject"), "172.0.0.2", "172.0.0.1")
+    result = scene_check.check_seed(_series(tmp_path), 0, seed_dir, paths, tmp_path / "lens.json")
+    assert result["passed"] and result["unreal_error"] is None, result
+    spec = groups[0].specs[0]
+    log = (seed_dir / "unreal.log").read_text(encoding="utf-8")
+    assert re.search(spec.ready, log, re.MULTILINE) and result["scene_hash"] in spec.ready
 
 
 def test_without_an_unreal_log_or_a_scoring_file_nothing_is_reproduced(tmp_path):
