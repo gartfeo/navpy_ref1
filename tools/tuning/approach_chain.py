@@ -219,6 +219,9 @@ class WindowsHandle:
     def group_alive(self) -> bool:
         return self.running()
 
+    def confirm_ready(self) -> None:
+        """Its pid came from Start-Process; nothing more to learn."""
+
 
 def unreal(paths: ChainPaths, lens_table: Path) -> ProcSpec:
     log = paths.run_dir / "unreal.log"

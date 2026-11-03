@@ -57,6 +57,9 @@ class FakeHandle:
     def group_alive(self) -> bool:
         return self.running() or self.alive_after
 
+    def confirm_ready(self) -> None:
+        """Nothing more to learn at ready."""
+
 
 def _spec(role: str, ready: str | None = "ready", ports=(), refuse=None, timeout_s: float = 5.0) -> ProcSpec:
     return ProcSpec(role, (role,), ready, timeout_s, STOP_SIGINT, stop_wait_s=1.0, ports=ports, refuse=refuse)
@@ -369,52 +372,78 @@ def test_the_windows_owners_of_the_emulators_ports_are_found():
     assert handles.windows_udp_owners((9999,), NETSTAT) == set()
 
 
-TASKLIST = '"python.exe","29860","Console","1","41,212 K"\n'
-
-
-def test_the_image_of_a_windows_pid_is_read_from_tasklist():
-    assert handles.windows_image(29860, TASKLIST) == "python.exe"
-    assert handles.windows_image(29861, TASKLIST) == ""
-    assert handles.windows_image(5, "INFO: No tasks are running which match the specified criteria.\n") == ""
-
-
 class _Proxy:
     pid = 1
 
 
-def _interop(tmp_path, monkeypatch, images: dict, owners: set, ready: str):
+READY = "ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, non-ideal none, pid 29860\r\n"
+
+
+def _interop(tmp_path, monkeypatch, started: dict, owners: set, ready: str = READY):
+    """*started*: Windows pid -> its start time now (a kill clears it)."""
     killed: list = []
     monkeypatch.setattr(handles.PosixHandle, "group_alive", lambda self: False)     # the interop proxy is gone
     monkeypatch.setattr(handles.PosixHandle, "kill", lambda self: killed.append("proxy"))
     monkeypatch.setattr(handles, "windows_udp_owners", lambda ports: set(owners))
-    monkeypatch.setattr(handles, "windows_image", lambda pid: images.get(pid, ""))
-    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), images.clear()))
+    monkeypatch.setattr(handles, "windows_started", lambda pid: started.get(pid, ""))
+    monkeypatch.setattr(handles.subprocess, "run", lambda argv, **kwargs: (killed.append(argv), started.clear()))
     output = tmp_path / "emulator.out"
     output.write_text(ready, encoding="utf-8")
     return handles.InteropHandle(_Proxy(), STOP_EOF, chain.EMULATOR_PORTS, output, chain.EMULATOR_PID_LINE), killed
 
 
 def test_an_interop_role_is_alive_while_its_own_windows_python_runs_and_a_kill_ends_only_that(tmp_path, monkeypatch):
-    ready = "ZR10 emulator: SIYI ('172.0.0.1', 37260), vehicle_state x, Unreal y, non-ideal none, pid 29860\r\n"
-    handle, killed = _interop(tmp_path, monkeypatch, {29860: "python.exe", 77: "other.exe"}, {29860, 77}, ready)
-    assert handle.windows_pid() == 29860 and handle.group_alive()
+    started = {29860: "134062000000000000", 77: "134061000000000000"}
+    handle, killed = _interop(tmp_path, monkeypatch, started, {29860, 77})
+    handle.confirm_ready()
+    assert handle.windows_pid == 29860 and handle.group_alive()
     handle.kill()
     assert killed == ["proxy", ["taskkill.exe", "/PID", "29860", "/T", "/F"]] and not handle.group_alive()
 
 
-def test_a_pid_reused_by_another_program_is_neither_alive_nor_killed(tmp_path, monkeypatch):
-    ready = "ZR10 emulator: SIYI a, vehicle_state b, Unreal c, non-ideal none, pid 29860\n"
-    handle, killed = _interop(tmp_path, monkeypatch, {29860: "notepad.exe"}, {29860}, ready)
+def test_a_pid_reused_by_another_python_is_neither_alive_nor_killed(tmp_path, monkeypatch):
+    started = {29860: "134062000000000000"}
+    handle, killed = _interop(tmp_path, monkeypatch, started, {29860})
+    handle.confirm_ready()
+    started[29860] = "134062000099990000"          # the emulator exited; Windows gave its pid to a new process
     assert not handle.group_alive()
     handle.kill()
     assert killed == ["proxy"]
 
 
-def test_before_its_ready_line_a_port_owner_counts_as_alive_but_is_never_killed(tmp_path, monkeypatch):
-    handle, killed = _interop(tmp_path, monkeypatch, {77: "python.exe"}, {77}, "starting\n")
-    assert handle.windows_pid() is None and handle.group_alive()
+def test_a_ready_line_without_a_running_pid_fails_the_start(tmp_path, monkeypatch):
+    handle, _ = _interop(tmp_path, monkeypatch, {}, set())
+    with pytest.raises(RunnerError, match="names no running Windows pid"):
+        handle.confirm_ready()
+    handle, _ = _interop(tmp_path, monkeypatch, {29860: "1"}, set(), ready="ZR10 emulator: SIYI a\n")
+    with pytest.raises(RunnerError, match="names no running Windows pid"):
+        handle.confirm_ready()
+
+
+def test_before_ready_a_port_owner_counts_as_alive_but_is_never_killed(tmp_path, monkeypatch):
+    handle, killed = _interop(tmp_path, monkeypatch, {77: "1"}, {77}, "starting\n")
+    assert handle.windows_pid is None and handle.group_alive()
     handle.kill()
     assert killed == ["proxy"] and handle.group_alive()
+
+
+def test_a_failing_alive_check_counts_as_alive_and_the_stop_goes_on(tmp_path):
+    log: list = []
+    group, handles_, _ = _group(tmp_path, log, behaviour={"emulator": {"exits_on": "terminate"}})
+    group.start(_spec("emulator"))
+    emulator, calls = handles_["emulator"], []
+
+    def flaky() -> bool:
+        calls.append(1)
+        if len(calls) == 1:
+            raise OSError("tasklist timed out")
+        return emulator.running()
+
+    emulator.group_alive = flaky
+    group.stop_all()
+    stopped = group.producers()["emulator"]
+    assert stopped["how"] == "terminate" and log[-2:] == ["emulator stop", "emulator terminate"]
+    assert group.orphans() == []
 
 
 class _Members(FakeHandle):

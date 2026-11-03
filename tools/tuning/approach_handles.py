@@ -6,7 +6,6 @@ is a failure, exit 1).
 """
 from __future__ import annotations
 
-import csv
 import json
 import os
 import re
@@ -16,7 +15,7 @@ import subprocess
 from pathlib import Path
 from typing import IO, Callable, Optional
 
-from tools.tuning.approach_procs import PosixHandle, ProcSpec, spawn_posix
+from tools.tuning.approach_procs import PosixHandle, ProcSpec, RunnerError, spawn_posix
 
 CONTROL_TIMEOUT_S = 30.0         # the publisher's drain waits its profile's drain_timeout_s (5 s) for the encoder
 
@@ -40,45 +39,46 @@ def windows_udp_in_use(ports: tuple[int, ...]) -> Optional[str]:
     return f"Windows pid(s) {sorted(owners)} own udp port(s) {list(ports)}" if owners else None
 
 
-def windows_image(pid: int, listing: Optional[str] = None) -> str:
-    """The image name of Windows process *pid*, or "" when there is none (tasklist /FO CSV: image, pid, ...)."""
-    if listing is None:
-        listing = subprocess.run(["tasklist.exe", "/FI", f"PID eq {pid}", "/NH", "/FO", "CSV"], capture_output=True,
-                                 text=True, timeout=30, check=False).stdout
-    return next((row[0] for row in csv.reader(listing.splitlines()) if len(row) > 1 and row[1] == str(pid)), "")
+def windows_started(pid: int) -> str:
+    """When Windows process *pid* started (FILETIME, UTC), or "" when there is none: with the pid, its identity."""
+    script = f"(Get-Process -Id {pid} -ErrorAction SilentlyContinue).StartTime.ToFileTimeUtc()"
+    return subprocess.run(["powershell.exe", "-NoProfile", "-Command", script], capture_output=True, text=True,
+                          timeout=30, check=False).stdout.strip()
 
 
 class InteropHandle(PosixHandle):
-    """A Windows Python behind its WSL interop proxy: the proxy ending does not end it. Its own pid comes from its
-    ready line (*pid_line*); it counts as alive while that pid is a Python, and a kill ends that pid's tree only.
-    Before the line names a pid, a Windows owner of its *ports* counts as alive (reported, never killed)."""
+    """A Windows Python behind its WSL interop proxy: the proxy ending does not end it. Its ready line (*pid_line*)
+    names its own pid; at ready that pid's start time is recorded, and from then on it counts as alive, and a kill
+    ends its tree, only while that pid has that start time (a reused pid is another process). Before ready, a
+    Windows owner of its *ports* counts as alive (reported, never killed)."""
 
     def __init__(self, process: subprocess.Popen, stop: str, ports: tuple[int, ...], output: Path,
                  pid_line: str) -> None:
         super().__init__(process, stop)
         self.ports, self.output, self.pid_line = ports, output, re.compile(pid_line, re.MULTILINE)
-        self._windows_pid: Optional[int] = None
+        self.windows_pid: Optional[int] = None
+        self._started = ""
 
-    def windows_pid(self) -> Optional[int]:
-        if self._windows_pid is None and self.output.exists():
-            match = self.pid_line.search(self.output.read_text(encoding="utf-8", errors="replace"))
-            self._windows_pid = int(match.group(1)) if match else None
-        return self._windows_pid
+    def confirm_ready(self) -> None:
+        match = self.pid_line.search(self.output.read_text(encoding="utf-8", errors="replace"))
+        started = windows_started(int(match.group(1))) if match else ""
+        if not started:
+            raise RunnerError(f"the ready line names no running Windows pid; see {self.output}")
+        self.windows_pid, self._started = int(match.group(1)), started
 
     def _own_alive(self) -> bool:
-        pid = self.windows_pid()
-        return pid is not None and windows_image(pid).lower().startswith("python")
+        return self.windows_pid is not None and windows_started(self.windows_pid) == self._started
 
     def kill(self) -> None:
         super().kill()
         if self._own_alive():
-            subprocess.run(["taskkill.exe", "/PID", str(self.windows_pid()), "/T", "/F"], capture_output=True,
+            subprocess.run(["taskkill.exe", "/PID", str(self.windows_pid), "/T", "/F"], capture_output=True,
                            timeout=30, check=False)
 
     def group_alive(self) -> bool:
         if super().group_alive():
             return True
-        return self._own_alive() if self.windows_pid() is not None else bool(windows_udp_owners(self.ports))
+        return self._own_alive() if self.windows_pid is not None else bool(windows_udp_owners(self.ports))
 
 
 def spawn_interop(ports: tuple[int, ...], pid_line: str) -> Callable[[ProcSpec, IO[str]], InteropHandle]:

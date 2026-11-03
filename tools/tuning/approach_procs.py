@@ -42,6 +42,7 @@ class Handle(Protocol):
     def terminate(self) -> None: ...
     def kill(self) -> None: ...
     def group_alive(self) -> bool: ...
+    def confirm_ready(self) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -94,6 +95,9 @@ class PosixHandle:
     def kill(self) -> None:
         self._signal(signal.SIGKILL)
 
+    def confirm_ready(self) -> None:
+        """Nothing more to learn once its ready line came."""
+
     def group_alive(self) -> bool:
         self.process.poll()                  # reap the leader first: a zombie still counts as a member
         try:
@@ -126,6 +130,17 @@ class Owned:
     output: Optional[IO[str]]
     started_utc: str
     stopped: dict = field(default_factory=dict)
+
+
+def _alive(handle: Handle, errors: list[str]) -> bool:
+    """Its group_alive; a check that fails counts as alive (recorded), so the stop goes on and it is reported."""
+    try:
+        return handle.group_alive()
+    except Exception as exc:       # noqa: BLE001 - unknown is not gone
+        message = f"alive check: {type(exc).__name__}: {exc}"
+        if message not in errors:
+            errors.append(message)
+        return True
 
 
 def _utc() -> str:
@@ -173,6 +188,7 @@ class ProcessGroup:
         owned = Owned(spec, handle, output, _utc())
         self.owned.append(owned)
         self._wait_ready(owned)
+        handle.confirm_ready()
         print(f"[approach] {spec.role} ready (pid {handle.pid})", flush=True)
         return owned
 
@@ -226,7 +242,7 @@ class ProcessGroup:
             try:
                 if not owned.stopped:
                     owned.stopped = self._stop(owned)
-                elif owned.handle.group_alive():       # its other owner stopped the leader; members are left
+                elif _alive(owned.handle, []):       # its other owner stopped the leader; members are left
                     leftover = self._escalate(owned.handle, self._steps(owned, own_stop=False))
                     owned.stopped = {**owned.stopped, "leftover": leftover, "ended_after_stop": False}
             except Exception as exc:       # noqa: BLE001 - the others must still stop
@@ -236,7 +252,7 @@ class ProcessGroup:
 
     def _stop(self, owned: Owned) -> dict:
         handle = owned.handle
-        if not handle.group_alive():
+        if not _alive(handle, []):
             return {"how": "already exited", "exit_code": handle.exit_code(), "ended_after_stop": False}
         leader_gone = not handle.running()       # the leader exited during the run; its members are left
         result = self._escalate(handle, self._steps(owned, own_stop=True))
@@ -258,16 +274,16 @@ class ProcessGroup:
                 errors.append(f"{how}: {type(exc).__name__}: {exc}")
                 continue
             deadline = self._clock() + wait_s
-            while handle.group_alive() and self._clock() < deadline:
+            while _alive(handle, errors) and self._clock() < deadline:
                 self._sleep(READY_POLL_S)
-            if not handle.group_alive():
+            if not _alive(handle, errors):
                 return {"how": how, "exit_code": handle.exit_code(), "ended_utc": _utc(),
                         **({"errors": errors} if errors else {})}
-        how = "still running after kill" if handle.group_alive() else "ended after a failed step"
+        how = "still running after kill" if _alive(handle, errors) else "ended after a failed step"
         return {"how": how, "exit_code": handle.exit_code(), **({"errors": errors} if errors else {})}
 
     def orphans(self) -> list[str]:
-        return [owned.spec.role for owned in self.owned if owned.handle.group_alive()]
+        return [owned.spec.role for owned in self.owned if _alive(owned.handle, [])]
 
     def producers(self) -> dict[str, dict]:
         return {owned.spec.role: {"pid": owned.handle.pid, "argv": list(owned.spec.argv),
