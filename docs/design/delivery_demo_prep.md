@@ -441,7 +441,7 @@ During:
   "3 vehicles need attention" caution is the sim's arming checks; Launch stays
   enabled. The ESP32 sim now starts by itself. The upload view's hub pickers
   may read "-- None --" (todo 250); run 2 flew so and UAV 1 still went to its
-  hub, so judge the hubs by the plan file and the map, not the pickers.
+  hub, so judge the hubs by the plan file, not the pickers.
 - Approve each card within its 30 s; a card left alone is denied at 30 s.
   - Denied in flight: the UAV goes on with its mission to its hub.
   - Timed out in flight: asked again at once, on a card that looks like the
