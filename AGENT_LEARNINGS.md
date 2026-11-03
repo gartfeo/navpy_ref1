@@ -2238,3 +2238,9 @@
 - An undo step that only one stack knows: the planner's undoRef and useDrawing's undo stack both hold draft steps. When a draft is dropped, clear every step type that belongs to it ('vertex' and 'polygonDrag'), or Undo brings it back.
 - After a mutation test, `git checkout <file>` restores the last commit, not your uncommitted fix. Keep a copy of the file and copy it back.
 - vitest "Failed to start forks worker ... Timeout waiting for worker" while a live stack, a build and Codex run together is load, not code: rerun the suite on a quiet PC before reading results.
+
+## Demo plan for a new area (2026-11-03)
+
+- Before generating plan geometry, find the planner's own projection (projection.js: a sphere, flat about each polygon's centroid). Turning the 1350 m demo area 90 deg in WGS84 ENU metres gave it 1351.8 m across in the planner's metres. Lane count is ceil(width / spacing), so the planner drew 10 lanes instead of 9, and docks on waypoints 1 and 2 would have moved. A planner vitest caught it; run one on any generated plan file.
+- Before building a rotation or shift, put the candidate on a map with roads and terrain for the owner. The pure 90 deg turn crossed a road and a 100 m height range. The owner then drew the area they wanted, so the rotation code was dropped.
+- `git rm --cached` before a later `git add` that failed left a commit holding only the deletion. Check `git show --stat HEAD` after each commit.
