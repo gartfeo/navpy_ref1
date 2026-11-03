@@ -3,6 +3,8 @@ starts, ready lines awaited, every owned process stopped on every exit, orphans 
 from __future__ import annotations
 
 import json
+import os
+import socket
 from pathlib import Path
 
 import pytest
@@ -281,3 +283,25 @@ def test_unreal_gets_its_project_as_a_windows_path(tmp_path):
                              Path("/mnt/c/repos/Aas/Aas.uproject"), "172.0.0.2", "172.0.0.1")
     argv = chain.unreal(paths, Path("/mnt/c/lens.json")).argv
     assert argv[1] == r"C:\repos\Aas\Aas.uproject" and r"-abslog=C:\runs\r1\unreal.log" in argv
+
+
+def test_a_listener_owns_its_port():
+    with socket.socket() as listener:
+        listener.bind(("0.0.0.0", 0))
+        listener.listen()
+        assert not chain.port_free("tcp", listener.getsockname()[1])
+
+
+@pytest.mark.skipif(os.name == "nt", reason="the runner runs in WSL; Linux TIME_WAIT bind rules")
+def test_the_time_wait_a_stopped_run_leaves_is_not_an_owner():
+    with socket.socket() as listener:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)     # as MediaMTX's Go listener does
+        listener.bind(("0.0.0.0", 0))
+        listener.listen()
+        port = listener.getsockname()[1]
+        client = socket.create_connection(("127.0.0.1", port))
+        served, _ = listener.accept()
+        served.close()                 # the server closes first, so its port keeps the TIME_WAIT
+        client.recv(1)
+        client.close()
+    assert chain.port_free("tcp", port)

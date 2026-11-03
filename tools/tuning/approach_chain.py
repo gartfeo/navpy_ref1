@@ -64,8 +64,13 @@ def win_path(path: Path, distro: Optional[str] = None) -> str:
 
 
 def port_free(protocol: str, port: int) -> bool:
+    """No other socket owns the port. On Linux SO_REUSEADDR lets a TCP bind pass over the TIME_WAIT a run just
+    stopped leaves for 60 s when its listener set it too (MediaMTX's RTSP port: Go sets it), while a listener still
+    refuses it; on Windows it would let the bind take a listener's port, so it is set only off Windows."""
     kind = socket.SOCK_STREAM if protocol == "tcp" else socket.SOCK_DGRAM
     with socket.socket(socket.AF_INET, kind) as sock:
+        if kind == socket.SOCK_STREAM and os.name != "nt":
+            sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         try:
             sock.bind(("0.0.0.0", port))
         except OSError:
