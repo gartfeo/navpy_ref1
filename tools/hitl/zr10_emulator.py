@@ -34,10 +34,12 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import IO
 
+from navpy.plugins.gimbal.siyi.siyi_message import COMMAND
 from tools.hitl.zr10_config import SOURCES, STEP_S, EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device, mode_name
 from tools.hitl.zr10_gimbal import TrueState
 from tools.hitl.zr10_vehicle_input import VehicleInput
+from tools.hitl.zr10_wire import frame_identity
 
 GIMBAL_STATE_SCHEMA = "navpy.unreal.gimbal_state.v1"     # NavPyGimbalCameraActor.cpp GimbalStateSchema
 DEFAULT_SIYI = "127.0.0.1:37260"      # siyi_sdk.py SIYISDK port 37260; loopback for HITL
@@ -200,10 +202,29 @@ class Zr10Emulator:
                 self._send_siyi(reply, address)
 
     def _send_siyi(self, frame: bytes, address: tuple[str, int]) -> None:
+        sent = True
         try:
             self.siyi_sock.sendto(frame, address)
         except OSError:
             self.stats.siyi_send_errors += 1
+            sent = False
+        self._write(self._siyi_out_record(frame, address, sent))
+
+    def _siyi_out_record(self, frame: bytes, address: tuple[str, int], sent: bool) -> dict:
+        """One sent SIYI frame for step 12's joins: its wire sequence and, for 0x0D, the plant time it reports.
+
+        A 0x0D frame carries the report of ``device.reported()`` at the device time it was built (the modelled
+        report lag already applied); nothing advances the device between building and sending it, so that report's
+        own time ``report_t`` (device clock, as the step records' ``device_t``) is the plant time the readback
+        represents. Its send time alone would hide the report lag.
+        """
+        seq, cmd = frame_identity(frame)
+        record = {"event": "siyi_out", "seq": seq, "cmd": cmd, "dest": list(address), "sent": sent,
+                  "run_t": self._clock(), "device_t": self.device.now_s}
+        if cmd == COMMAND.ACQUIRE_GIMBAL_ATT:
+            report = self.device.reported()
+            record["report_t"] = None if report is None else report.t_s
+        return record
 
     def _write_records(self) -> None:
         for record in self.device.drain_records():
@@ -238,7 +259,8 @@ def build_parser() -> argparse.ArgumentParser:
                         help="Unreal gimbal actor's gimbal_state listener")
     parser.add_argument("--device-id", type=int, default=DEFAULT_DEVICE_ID, help="gimbal_state device_id")
     parser.add_argument("--profile", default="siyi_zr10", help="vision profile holding camera.zoom_calibration")
-    parser.add_argument("--log", default=None, metavar="FILE", help="JSONL log: config, every command, every step")
+    parser.add_argument("--log", default=None, metavar="FILE",
+                        help="JSONL log: config, every command, every step, every SIYI frame sent")
     for item in EmulatorConfig.__dataclass_fields__.values():
         parser.add_argument("--" + item.name.replace("_", "-"), type=float if item.type == "float" else int,
                             default=item.default, help=SOURCES[item.name])

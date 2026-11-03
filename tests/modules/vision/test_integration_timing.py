@@ -348,7 +348,8 @@ def test_dynamic_fixed_lens_gimbal_is_admitted_at_the_capture_instant_and_logged
     gimbal_lookup = capture.estimate_s - 0.003
     assert mount.gimbal_capture_relative and mount.gimbal_timestamp_s == pytest.approx(gimbal_lookup)
     assert mount.gimbal_data.att.pitch == pytest.approx(-30.0 + 4.0 * (gimbal_lookup - (T0_S - 1.0)), abs=1e-6)
-    [record] = records
+    [record] = [item for item in records if item["event"] == "association"]
+    assert record is records[-1]     # the receipts it saw are logged before it
     assert record["status"] == "bracketed" and record["authority"] == AUTHORITY_INTEGRATION
     assert record["pts_ns"] == pts_ns and record["read_s"] == read_s
     assert record["attitude_time_boot_s"] == pytest.approx(association.attitude_boot_time_s)
@@ -358,6 +359,44 @@ def test_dynamic_fixed_lens_gimbal_is_admitted_at_the_capture_instant_and_logged
     assert record["gimbal_lookup_s"] == pytest.approx(gimbal_lookup)
     earlier_seq, later_seq = record["gimbal_seqs"]
     assert (later_seq - earlier_seq) % 65536 == 1 and record["gimbal_session"] == 1
+
+
+def test_every_receipt_is_logged_once_before_the_first_record_that_could_see_it():
+    source = IntegrationTimingSource(_config())
+    store = FramePublicationStore(clock=lambda: 0.0, observer=source.observe)
+    frame = np.zeros((4, 4, 3), dtype=np.uint8)
+    frames = _trace(14.0)
+    for index, (pts_ns, read_s, _) in enumerate(frames):
+        store.publish(frame, _stamp(pts_ns, read_s, index))
+    now_s = frames[-1][1] + 0.03
+    attitude = _attitude_history(T0_S - 1.0, now_s)
+    gimbal = _gimbal_history(T0_S - 1.0, now_s)
+    views = [(attitude[:-5], GimbalCaptureHistory(1, gimbal.samples[:-3], gimbal.data)), (attitude, gimbal)]
+    records = []
+    current = {}
+    integration = IntegrationAssociation(source, lambda: current["gimbal"], records.append)
+    for attitude_view, gimbal_view in views:
+        current["gimbal"] = gimbal_view
+        builder = _builder(integration, mount=_mount(), history=attitude_view)
+        with patch("navpy.core.perception.pipeline.real_frame_association.rt.perf_counter", return_value=now_s):
+            builder.capture(store.snapshot(), frame)
+    attitude_logged = [item["capture_receipt_s"] for item in records if item["event"] == "attitude_receipt"]
+    gimbal_logged = [(item["session"], item["seq"]) for item in records if item["event"] == "gimbal_receipt"]
+    # The association reads a window of attitude history: receipts are logged from the first window's start on.
+    window_start = next(item for item in records if item["event"] == "association")["attitude_history"]
+    assert attitude_logged == [sample.capture_receipt_s for sample in attitude
+                               if sample.capture_receipt_s >= window_start["first_receipt_s"]]
+    assert gimbal_logged == [(sample.session, sample.seq) for sample in gimbal.samples]
+    first, second = [index for index, item in enumerate(records) if item["event"] == "association"]
+    # The second record's new receipts come after the first record and before the second.
+    late = [item for item in records[first + 1:second] if item["event"] != "association"]
+    assert len(late) == 5 + 3
+    for index, (attitude_view, gimbal_view) in zip((first, second), views):
+        bounds = records[index]
+        assert bounds["now_s"] == now_s
+        assert bounds["attitude_history"]["last_receipt_s"] == attitude_view[-1].capture_receipt_s
+        assert bounds["gimbal_history"]["count"] == len(gimbal_view.samples)
+        assert bounds["gimbal_history"]["last_receipt_s"] == gimbal_view.samples[-1].receipt_s
 
 
 @pytest.mark.parametrize("kwargs, status", [

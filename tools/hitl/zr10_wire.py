@@ -56,6 +56,14 @@ def split_frames(datagram: bytes, decoder: SIYIMESSAGE) -> tuple[list[tuple[str,
     return frames, bad
 
 
+def frame_identity(frame: bytes) -> tuple[int, str]:
+    """The wire sequence number (16 bits) and command id of one encoded frame."""
+    if len(frame) < MIN_FRAME_CHARS // 2 or frame[:2].hex() != HEADER:
+        raise ValueError(f"{frame.hex()!r} is not a SIYI frame")
+    seq, = struct.unpack_from("<H", frame, 5)
+    return seq, f"{frame[7]:02x}"
+
+
 def tenths(value: float) -> int:
     return max(-32768, min(32767, int(round(value * 10.0))))
 
@@ -65,4 +73,4 @@ def int16s(*values: float) -> str:
     return struct.pack(f"<{len(values)}h", *(tenths(v) for v in values)).hex()
 
 
-__all__ = ["CTRL_ACK", "ReplyEncoder", "int16s", "split_frames", "tenths"]
+__all__ = ["CTRL_ACK", "ReplyEncoder", "frame_identity", "int16s", "split_frames", "tenths"]

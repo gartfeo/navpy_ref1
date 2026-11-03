@@ -2191,3 +2191,9 @@
 - The startup auto-connect copied the connect route's NavPy start but not its ESP32 start, so Launch stayed
   disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
   effects and check each one; a test that removes the call and fails proves the new one is needed.
+
+## HITL step 12: offline timing check (2026-11-03)
+
+- A PTS-delta join from a short receiver window to a long sender log can fit several anchors: a shift can put one of navpy's own gaps on a run of sender frames navpy never got. Score each fitting anchor by the sender frames it implies were lost and require a unique minimum; a tie still fails as ambiguous. Test a receiver window that ends early, not only full-length logs.
+- An association reads only a window of history (attitude_history_reader(count)), so a receipt log written from it starts at the first window. Tests that expect "every sample" must expect the window's samples.
+- Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.
