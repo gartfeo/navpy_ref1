@@ -7,7 +7,7 @@ router = APIRouter()
 
 
 @router.get("/api/map-config")
-async def get_map_config(response: Response):
+async def get_map_config(response: Response) -> dict[str, str | None]:
     # Read on every request, so a token file added later needs no restart.
     response.headers["Cache-Control"] = "no-store"
     return {"cesium_ion_token": cesium_ion_token()}
