@@ -2233,3 +2233,19 @@
   import falls back to whatever navpy is installed.
 - Python heredoc edits whose old text holds a backslash or a "\n" escape silently fail their assert; use the Edit tool
   for those.
+- Check the HIL contract of the binary that runs, not of the branch: sitl-backing's default flight-tune binary speaks
+  contract v1; the approach runner needs the sim-hil binary.
+- wsl.exe from Git Bash needs MSYS_NO_PATHCONV=1, and it strips backslashes from arguments; pass Windows paths with
+  forward slashes or through a script file. git inside WSL cannot use a Windows worktree; clone into WSL instead.
+- A TCP port reused right after a run is held in TIME_WAIT; set SO_REUSEADDR on both sides.
+- Anything Unreal joins on QPC must stamp on Windows: the emulator moved from WSL to Windows via interop.
+- SIGINT through WSL interop reaches only the proxy, never the Windows process: stop interop children by closing
+  stdin, and find and kill their Windows owners by port (netstat.exe -ano -p UDP).
+- The aas-hitl publisher exits 1 on SIGINT; its clean stop is "drain" then "stop" on its control socket.
+- WSL lets a user only lower a priority (nice). To keep the bridge and router ahead, start the frame consumers at
+  nice 10; without it navpy's decoding starved the bridge and the board lost its state (fit 8 crashed after RTL).
+- The SITL log starts at the arm and loses its ARM record: a gate counting armed windows must treat a leading disarm
+  as a log that began armed.
+- json.dumps writes Infinity, which strict JSON readers refuse: log infinite settings as strings.
+- The SITL board clock loses real time unevenly under WSL load (±3000 ppm local slopes, +93 ms over 200 s); a 1 ms
+  slip map on PTS cannot settle on pc-sitl. Measure receive-minus-PTS at the publisher before blaming navpy.
