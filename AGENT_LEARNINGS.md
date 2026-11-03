@@ -2215,6 +2215,9 @@
 
 - 2026-11-03 (dev sim step 10): `pytest tests` skips `tests/gcs` (pyproject addopts `--ignore=tests/gcs`). Run `tests/gcs` by path with `-o addopts=` too, or a GCS test change goes unchecked.
 - 2026-11-03 (dev sim step 10): a source-text scanner test drew six Codex rounds of JS syntax edge cases. Fail closed on any syntax the scanner does not read, from the start. Then judge each later finding by one question: does it miss or misread a request in the real source?
+- 2026-11-04 (dev sim step 11): the size guards (`tests/guards/test_solid_architecture.py`, the 300-line budget in `test_eval_gcs_navigation_demo_review_regressions.py`) and the Python 3.9 alias guard failed only in the final full suite, after a 40-minute gate run. Run `tests/guards` and those budgets after each change to a large module, before the gates.
+- 2026-11-04 (dev sim step 11): moving teardown into a context manager entered inside `try` moves its exception into the handler: a failed app stop became a scored run fault. Enter it with an `ExitStack` closed in `finally`, and test that a failing stop is raised as it is.
+- 2026-11-04 (dev sim step 11): `WSL command failed (4294967295)` and a lockstep `relay closed` came from the WSL VM restarting mid-run. Check `wsl.exe -e sh -c "uptime -s"` against the fault time before reading a host fault as a code fault.
 
 ## HITL step 12: offline timing check (2026-11-03)
 
