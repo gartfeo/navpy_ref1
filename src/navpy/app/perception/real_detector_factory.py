@@ -18,6 +18,7 @@ from navpy.core.kernel.config.detector_backend import (
     backend_requires_model_path,
     validate_detector_backend,
 )
+from navpy.app.perception.integration_timing_input import IntegrationTimingInput
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
 from navpy.core.perception.profile.vision_detector_profile import validate_detector_settings_keys
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
@@ -51,6 +52,7 @@ class RealDetectorFactory:
         debug_show: bool,
         *,
         backend: DetectorBackend,
+        integration: IntegrationTimingInput | None = None,
     ) -> None:
         self._vehicle = vehicle
         self._logger = logger
@@ -62,6 +64,9 @@ class RealDetectorFactory:
             else None
         )
         self._debug_show = bool(debug_show)
+        # One receiver per run: the integration log holds one stream.
+        self._integration = integration
+        self._integration_taken = False
 
     @property
     def dock_contact(self) -> DockContactSensor | None:
@@ -75,6 +80,7 @@ class RealDetectorFactory:
         mount_index: int,
     ) -> VisionDetectorNode:
         validate_detector_settings_keys(detector_settings)
+        integration = self._take_integration()
         try:
             from navpy.core.perception.pipeline.detector import Detector
             from navpy.core.perception.pipeline.real_detector_composition import (
@@ -156,6 +162,12 @@ class RealDetectorFactory:
                     ),
                     output_mode="all",
                     use_poi_lock=True,
+                    integration_timing=(
+                        None if integration is None else integration.config
+                    ),
+                    integration_timing_log=(
+                        None if integration is None else integration.log
+                    ),
                 ),
                 debug=DetectorDebugConfig(
                     show=self._debug_show,
@@ -179,6 +191,16 @@ class RealDetectorFactory:
             sim_debug=None,
             camera_health=CameraHealth(NAVPY_CAMERA_VENDOR, detector.has_fresh_frame),
         )
+
+    def _take_integration(self) -> IntegrationTimingInput | None:
+        if self._integration is None:
+            return None
+        if self._integration_taken:
+            raise ValueError(
+                "integration timing covers one camera mount per run"
+            )
+        self._integration_taken = True
+        return self._integration
 
 
 __all__ = ["RealDetectorFactory", "resolve_real_model_path"]

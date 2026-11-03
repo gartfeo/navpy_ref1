@@ -35,6 +35,7 @@ from dataclasses import asdict, dataclass
 from typing import IO
 
 from navpy.plugins.gimbal.siyi.siyi_message import COMMAND
+from tools.hitl.process_identity import own_identity
 from tools.hitl.zr10_config import SOURCES, STEP_S, EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device, mode_name
 from tools.hitl.zr10_gimbal import TrueState
@@ -111,7 +112,7 @@ class Zr10Emulator:
             raise
         for sock in (self.siyi_sock, self.vehicle_sock, self.unreal_sock):
             sock.setblocking(False)
-        self._write({"event": "start", "config": asdict(device.config), "non_ideal": device.config.non_ideal(),
+        self._write({"event": "start", "config": device.config.logged(), "non_ideal": device.config.non_ideal(),
                      "sources": dict(SOURCES), "siyi": list(self.siyi_sock.getsockname()),
                      "vehicle_state": list(self.vehicle_sock.getsockname()), "unreal": list(unreal),
                      "session_id": self.session_id})
@@ -261,6 +262,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default="siyi_zr10", help="vision profile holding camera.zoom_calibration")
     parser.add_argument("--log", default=None, metavar="FILE",
                         help="JSONL log: config, every command, every step, every SIYI frame sent")
+    parser.add_argument("--exit-on-stdin-eof", action="store_true", help="stop cleanly when stdin reaches "
+                        "end-of-file (a runner in WSL starting it on Windows, where a signal does not reach it)")
     for item in EmulatorConfig.__dataclass_fields__.values():
         parser.add_argument("--" + item.name.replace("_", "-"), type=float if item.type == "float" else int,
                             default=item.default, help=SOURCES[item.name])
@@ -275,8 +278,10 @@ def main(argv: list[str] | None = None) -> int:
     emulator = Zr10Emulator(device, parse_endpoint(args.siyi), parse_endpoint(args.vehicle_state),
                             parse_endpoint(args.unreal), args.device_id, log)
     stop = threading.Event()
+    if args.exit_on_stdin_eof:
+        threading.Thread(target=lambda: (sys.stdin.buffer.read(), stop.set()), daemon=True).start()
     print(f"ZR10 emulator: SIYI {emulator.siyi_address}, vehicle_state {emulator.vehicle_state_address}, "
-          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}", flush=True)
+          f"Unreal {args.unreal}, non-ideal {config.non_ideal() or 'none'}, {own_identity()}", flush=True)
     try:
         emulator.serve(stop)
     except KeyboardInterrupt:

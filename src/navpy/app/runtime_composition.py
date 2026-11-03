@@ -10,8 +10,6 @@ from collections.abc import Callable
 from dataclasses import dataclass
 from typing import NoReturn
 
-import cv2
-
 from navpy.app.network_args import NetworkArgs
 from navpy.app.conn_args import ConnArgs
 from navpy.core.kernel.config.navigation_args import NavigationArgs
@@ -123,7 +121,6 @@ def _build_foundation(
     )
     resources.own("logger", logger.close)
     ports.observe_logger(logger)
-    resources.own_independent("OpenCV windows", cv2.destroyAllWindows)
 
     terminal_handoff = build_terminal_handoff(args)
     bus = open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))

@@ -184,6 +184,8 @@ def test_vision_composition_passes_cli_backend_to_real_factory():
         detector_backend="charuco",
         model_path="",
         debug_show=False,
+        integration_timing="",
+        integration_log="",
     )
     with patch(
         "navpy.app.perception.vision_controller_composition.build_vision_profile",
@@ -195,7 +197,7 @@ def test_vision_composition_passes_cli_backend_to_real_factory():
         with pytest.raises(RuntimeError, match="stop after factory"):
             build_vision_controller(Mock(), Mock(), vision_args, Mock(), None, None)
 
-    assert factory.call_args.kwargs == {"backend": "charuco"}
+    assert factory.call_args.kwargs == {"backend": "charuco", "integration": None}   # no timing flags: none
     assert factory.call_args.args[3] == ""
 
 

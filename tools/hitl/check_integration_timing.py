@@ -4,6 +4,8 @@
         --unreal U.log --emulator E.jsonl --out constants.json
     python -m tools.hitl.check_integration_timing check --run-record R.json --navpy N.jsonl --publisher F.csv ...
         --unreal U.log --emulator E.jsonl --constants constants.json [--observation] --out report.json
+    either with --manifest M.json (the runner's run_manifest.py; --observation needs it): every input must be a
+        file of that run, from its one set of producers, ending cleanly
 
 One receiver, one stream, one run per call. Logs: timing_inputs.py; joins: timing_joins.py and timing_run.py;
 ``fit`` (calibration-only run, each source's receiver-local correction C = Ds - Dc): timing_fit.py; ``check``
@@ -21,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
-from tools.hitl import approach_records
+from tools.hitl import approach_records, run_manifest
 from tools.hitl.timing_check import OBSERVATION_S, SKEW_BUDGET_S, check
 from tools.hitl.timing_fit import FIT_SCHEMA, MIN_PAIRS, fit
 from tools.hitl.timing_inputs import (
@@ -72,18 +74,37 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "check":
             command.add_argument("--constants", required=True, help="the fit's JSON")
             command.add_argument("--observation", action="store_true",
-                                 help="the held-out 10-minute observation's coverage rules")
+                                 help="the held-out 10-minute observation's coverage rules (needs --manifest)")
+        command.add_argument("--manifest", help="the run's manifest (tools/hitl/run_manifest.py)")
     return parser
 
 
+def manifest_failures(args: argparse.Namespace, joined: Joined) -> list[str]:
+    """Why the inputs are not one whole run of the manifest (empty without --manifest)."""
+    if not args.manifest:
+        return []
+    manifest = json_record(Path(args.manifest).read_text(encoding="utf-8"), args.manifest)
+    if not isinstance(manifest, dict):
+        raise TimingInputError(f"{args.manifest}: not a JSON object")
+    inputs = [("run_record", Path(args.run_record)), ("navpy_integration_log", Path(args.navpy)),
+              ("publisher_status", Path(args.publisher[0]).parent / "publisher.json"),
+              *(("publisher_frames", Path(path)) for path in args.publisher),
+              ("unreal_log", Path(args.unreal)), ("emulator_log", Path(args.emulator))]
+    return run_manifest.verify(manifest, joined.config.run_id, inputs, joined.log.run_ids)
+
+
 def main(argv: list[str] | None = None) -> int:
-    args = build_parser().parse_args(argv)
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    if getattr(args, "observation", False) and not args.manifest:
+        parser.error("--observation needs --manifest")
     try:
         if args.command == "check":
             constants = json_record(Path(args.constants).read_text(encoding="utf-8"), args.constants)
             if not isinstance(constants, dict) or constants.get("schema") != FIT_SCHEMA or not constants.get("passed"):
                 raise TimingInputError(f"{args.constants}: not a passing {FIT_SCHEMA}")
         joined = load(args)
+        unproven = manifest_failures(args, joined)
     except (OSError, ValueError, KeyError, TypeError) as exc:
         if isinstance(exc, JoinError):
             result = {"passed": False, "failures": [str(exc)]}
@@ -96,6 +117,8 @@ def main(argv: list[str] | None = None) -> int:
         result = fit(joined) if args.command == "fit" else check(joined, constants, args.observation)
     except JoinError as exc:
         result = {"passed": False, "failures": [str(exc)]}
+    if unproven:
+        result = {**result, "passed": False, "failures": [*result["failures"], *unproven]}
     Path(args.out).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8")
     print(("PASS" if result["passed"] else "FAIL") + f" {args.command}: " + "; ".join(result["failures"]), flush=True)
     return 0 if result["passed"] else 1

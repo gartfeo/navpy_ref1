@@ -31,6 +31,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
     def _create_vision_args(self, profile_name="c270hd", detector_type="sim"):
         """Create mock VisionArgs."""
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = profile_name
         vision_args.detector_type = detector_type
         vision_args.model_path = ""
@@ -176,6 +177,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "novoxy_dual"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -193,6 +195,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "novoxy_dual"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -233,6 +236,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -917,6 +921,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -975,6 +980,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.sim.detection.detector_sim import DetectorSim
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -992,6 +998,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -1010,6 +1017,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.profile_name = "ideal_360"
         vision_args.detector_type = "sim"
         vision_args.model_path = ""
@@ -1244,6 +1252,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         profile.profile = {}
         profile.detector_settings = {}
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.detector_type = "real"
         vision_args.detector_backend = "yolo"
         vision_args.model_path = "missing-model-that-must-not-exist.pt"
@@ -1279,6 +1288,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         profile.profile = {}
         profile.detector_settings = {}
         vision_args = Mock()
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
         vision_args.detector_type = "real"
 
         with patch(

@@ -311,9 +311,9 @@ def test_the_detector_type_selects_the_gimbal_path(detector_type, use_sim_gimbal
     with patch("navpy.app.perception.vision_controller_composition.build_vision_profile",
                side_effect=stop) as build_profile:
         with pytest.raises(RuntimeError, match="stop after the profile"):
-            build_vision_controller(Mock(), Mock(), Mock(detector_type=detector_type, profile_name="siyi_zr10"),
-                                    Mock(), None, None, fence)
-    assert build_profile.call_args.kwargs == {"use_sim_gimbal": use_sim_gimbal, "siyi_fence": fence}
+            build_vision_controller(Mock(), Mock(), Mock(detector_type=detector_type, profile_name="siyi_zr10",
+                                                         siyi_ip=""), Mock(), None, None, fence)
+    assert build_profile.call_args.kwargs == {"use_sim_gimbal": use_sim_gimbal, "siyi_fence": fence, "siyi_ip": ""}
 
 
 def test_every_build_vision_profile_call_chooses_the_gimbal_path():

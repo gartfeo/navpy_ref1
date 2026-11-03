@@ -4,7 +4,11 @@ from __future__ import annotations
 import io
 import json
 import math
+import os
+import re
 import socket
+import subprocess
+import sys
 import threading
 import time
 
@@ -18,8 +22,9 @@ from tests.tools.hitl.zr10_frames import frame, parse
 from tests.tools.tuning.test_hitl_bridge_physics import rest_state
 from tools.hitl.zr10_config import EmulatorConfig, load_zoom_table
 from tools.hitl.zr10_device import Zr10Device
-from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, Zr10Emulator, build_parser, open_log
+from tools.hitl.zr10_emulator import GIMBAL_STATE_SCHEMA, SUMMARY_TAG, Zr10Emulator, build_parser, open_log
 from tools.hitl.zr10_vehicle_input import VEHICLE_STATE_TIMEOUT_S, VehicleInput, decode_vehicle_state
+from tools.tuning.approach_chain import EMULATOR_PID_LINE
 from tools.tuning.hitl_bridge.unreal_pose import UnrealPoseSender
 
 LOOPBACK = ("127.0.0.1", 0)
@@ -331,3 +336,27 @@ def test_siyi_out_names_each_frames_sequence_and_the_plant_time_a_0x0d_reports()
     late = [record for record in pushes if record["device_t"] >= lag_s]
     assert late and all(record["report_t"] == pytest.approx(record["device_t"] - lag_s) for record in late)
     assert all(record["report_t"] <= record["device_t"] for record in pushes)
+
+
+def test_stdin_end_of_file_stops_the_emulator_cleanly(tmp_path):
+    # The step 13 runner starts it on Windows from WSL, where a signal does not reach it: closing stdin must.
+    log = tmp_path / "emulator.jsonl"
+    proc = subprocess.Popen([sys.executable, "-m", "tools.hitl.zr10_emulator", "--vehicle-state", "127.0.0.1:0",
+                             "--siyi", "127.0.0.1:0", "--unreal", "127.0.0.1:9", "--log", str(log),
+                             "--exit-on-stdin-eof"], stdin=subprocess.PIPE, stdout=subprocess.PIPE, text=True)
+    try:
+        ready = re.match(EMULATOR_PID_LINE, proc.stdout.readline())
+        # the runner kills only the pid this line names; a Windows venv's python.exe starts the real one as a child
+        assert ready and (os.name == "nt" or int(ready.group(1)) == proc.pid)
+        assert (int(ready.group(2)) > 0) is (os.name == "nt")          # its creation time, read on Windows only
+        proc.stdin.close()
+        proc.wait(timeout=10)
+        out = proc.stdout.read()
+    finally:
+        proc.kill()
+    assert SUMMARY_TAG in out
+    lines = log.read_text(encoding="utf-8").splitlines()
+    assert json.loads(lines[-1])["event"] == "summary"
+    # strict JSON, as step 12's timing check reads it: the ideal infinite zoom speed is logged as "inf"
+    start = json.loads(lines[0], parse_constant=lambda name: pytest.fail(f"non-standard JSON {name}"))
+    assert start["event"] == "start" and start["config"]["absolute_zoom_speed_per_s"] == "inf"

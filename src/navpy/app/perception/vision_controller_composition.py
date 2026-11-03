@@ -21,6 +21,7 @@ from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import (
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
+from navpy.app.perception.integration_timing_input import open_integration_input
 from navpy.app.perception.vision_controller_ports import VisionControllerPorts
 from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.sim.debug_view.vision_debug_hud import SimTrackerHudRenderer
@@ -59,8 +60,10 @@ def build_vision_controller(
         scheduler_cadence,
         use_sim_gimbal=vision_args.detector_type != "real",
         siyi_fence=siyi_fence,
+        siyi_ip=vision_args.siyi_ip,
     )
     nodes = ()
+    integration = None
     try:
         factory: VisionDetectorFactory
         if vision_args.detector_type == "real":
@@ -78,6 +81,12 @@ def build_vision_controller(
                 RealDetectorFactory,
             )
 
+            integration = open_integration_input(
+                vision_args.integration_timing,
+                vision_args.integration_log,
+                vision_args.detector_type,
+            )
+
             factory = RealDetectorFactory(
                 vehicle,
                 logger,
@@ -85,8 +94,14 @@ def build_vision_controller(
                 vision_args.model_path,
                 vision_args.debug_show,
                 backend=vision_args.detector_backend,
+                integration=integration,
             )
         else:
+            open_integration_input(
+                vision_args.integration_timing,
+                vision_args.integration_log,
+                vision_args.detector_type,
+            )
             from navpy.app.perception.sim_detector_factory import (
                 SimDetectorFactory,
             )
@@ -159,10 +174,13 @@ def build_vision_controller(
             lifecycle=lifecycle,
             ui=ui,
             dock_contact=factory.dock_contact,
+            integration_log=None if integration is None else integration.log,
         )
     except Exception as construction_error:
         cleanup_errors = cleanup_detector_nodes(nodes)
         cleanup_errors.extend(cleanup_mount_specs(profile.mount_specs))
+        if integration is not None:
+            integration.log.close()
         if cleanup_errors:
             raise ExceptionGroup(
                 "vision construction and rollback failed",

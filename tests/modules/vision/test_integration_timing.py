@@ -246,10 +246,17 @@ def test_integration_timing_is_never_certified_and_never_beside_a_calibration():
         _builder(integration, calibration=calibration)
 
 
-def test_no_vision_profile_or_cli_path_sets_integration_timing():
+# Step 13: the one CLI path, the HITL runner's run record (--integration-timing), and the files wiring it.
+INTEGRATION_CLI_FILES = {"vision_args.py", "integration_timing_input.py", "real_detector_factory.py",
+                         "vision_controller_composition.py"}
+
+
+def test_no_vision_profile_and_only_the_runner_cli_path_sets_integration_timing():
     root = Path(__file__).resolve().parents[3]
     for folder in ("src/navpy/app", "src/navpy/core/kernel/config", "src/navpy/products"):
         for path in (root / folder).rglob("*.py"):
+            if folder == "src/navpy/app" and path.parent.name in {"app", "perception"}                     and path.name in INTEGRATION_CLI_FILES:
+                continue
             assert "integration_timing" not in path.read_text(encoding="utf-8"), path
     for path in (root / "src").rglob("vision_profiles*.json"):
         assert "integration" not in path.read_text(encoding="utf-8"), path

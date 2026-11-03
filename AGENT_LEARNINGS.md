@@ -2225,6 +2225,45 @@
 - A block bootstrap that sizes blocks by pair count understates uncertainty on gapped or uneven data, and so does one that picks block starts per pair (dense stretches win). Redraw whole occupied time bins, each equally likely.
 - Skew tests on jittered synthetic data: assert bounds (max >= slip), not near-equality, because receipt jitter adds to the slip. Keep the scenario's jitter small enough that the true constants pass the 8 ms budget, and add a separate test that heavy jitter fails.
 
+## HITL step 13: approach runner (2026-11-03)
+
+- A fake spawner that writes a generic "ready" line hangs a runner test for the real ready timeout (120 s): the
+  spec's regex never matches. Write each role's real ready line in the fake, or give the group a fake clock.
+- Build a run's process specs inside the try that stops them: a spec builder can raise (win_path on a non-/mnt path),
+  and outside the try the run folder is left with no run JSON.
+- `x.write_text(...) or path` returns the byte count, not the path: write a two-line helper.
+- From Git Bash, the Windows venv needs Windows paths in PYTHONPATH (`pwd -W`); a /c/... path is ignored and the
+  import falls back to whatever navpy is installed.
+- Python heredoc edits whose old text holds a backslash or a "\n" escape silently fail their assert; use the Edit tool
+  for those.
+- Check the HIL contract of the binary that runs, not of the branch: sitl-backing's default flight-tune binary speaks
+  contract v1; the approach runner needs the sim-hil binary.
+- wsl.exe from Git Bash needs MSYS_NO_PATHCONV=1, and it strips backslashes from arguments; pass Windows paths with
+  forward slashes or through a script file. git inside WSL cannot use a Windows worktree; clone into WSL instead.
+- A TCP port reused right after a run is held in TIME_WAIT; set SO_REUSEADDR on both sides.
+- Anything Unreal joins on QPC must stamp on Windows: the emulator moved from WSL to Windows via interop.
+- SIGINT through WSL interop reaches only the proxy, never the Windows process: stop interop children by closing
+  stdin, and find and kill their Windows owners by port (netstat.exe -ano -p UDP).
+- The aas-hitl publisher exits 1 on SIGINT; its clean stop is "drain" then "stop" on its control socket.
+- WSL lets a user only lower a priority (nice). To keep the bridge and router ahead, start the frame consumers at
+  nice 10; without it navpy's decoding starved the bridge and the board lost its state (fit 8 crashed after RTL).
+- The SITL log starts at the arm and loses its ARM record: a gate counting armed windows must treat a leading disarm
+  as a log that began armed.
+- json.dumps writes Infinity, which strict JSON readers refuse: log infinite settings as strings.
+- The SITL board clock loses real time unevenly under WSL load (±3000 ppm local slopes, +93 ms over 200 s); a 1 ms
+  slip map on PTS cannot settle on pc-sitl. Measure receive-minus-PTS at the publisher before blaming navpy.
+- Stop a role until its whole process group is gone, not until its leader exits: a dead leader can leave members,
+  and an interop proxy can exit while its Windows process runs. A stop step or alive check that raises must not
+  abandon the role: record it, count unknown as alive, run the next step.
+- Never kill a Windows process by port owner or bare pid. The child names its own pid and creation time
+  (GetProcessTimes) in its ready line; the owner adopts the pid only if PowerShell reads the same start time, and
+  checks and kills in one call after `$null = $p.Handle` (PowerShell 5.1's StartTime and Kill each open their own
+  handle by pid otherwise). A Windows venv python.exe starts the real interpreter as a child: os.getpid() is the
+  child's.
+- Python edits through Bash heredocs turn "\b" into a backspace byte; check edited files for \x08.
+- Under heavy PC load (other programs at 100% CPU) the Windows emulator took over 30 s to print its ready line;
+  a smoke script must still stop what it started when a start fails.
+
 ## Rehearsals (ready plan step 8, 2026-11-03)
 
 - A hand demo from a live tester: set `$env:BROWSER` to a no-op exe for the launch only, so `delivery_demo.py`'s `webbrowser.open` does not open the owner's Chrome, and use the built-in pane. The native plan file picker is out of reach there: set a File built from the plan JSON on the page's input and dispatch change. Launch needs real mouse coordinates for its hold. Cards come in pairs and last 30 s; press by DOM, not by a screenshot that lags about 5 s.

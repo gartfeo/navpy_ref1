@@ -341,8 +341,19 @@ def test_armed_windows_pair_each_arming_with_its_disarm():
         return FlightLog("x.BIN", {"ARM": {"TimeUS": np.array(times, dtype=float),
                                            "ArmState": np.array(states, dtype=float)}}, {}, [])
     assert armed_windows(log([10, 20, 30, 35, 40], [1, 0, 1, 1, 0])) == [(10.0, 20.0), (30.0, 40.0)]
-    assert armed_windows(log([5, 10], [0, 1])) == [(10.0, np.inf)]                  # still armed at the end
+    assert armed_windows(log([10], [1])) == [(10.0, np.inf)]                         # still armed at the end
+    # a disarm before any arm: the log began armed (its arm record is not in it)
+    assert armed_windows(log([5, 10], [0, 1])) == [(-np.inf, 5.0), (10.0, np.inf)]
     assert armed_windows(FlightLog("x.BIN", {}, {}, [])) == []
+
+
+def test_a_log_that_began_armed_counts_from_its_first_record(tmp_path):
+    """The SITL backing starts its log at the arm (LOG_DISARMED 0) and loses the arm record: only the
+    force-disarm is in the log (approach fit run 7, 2026-11-03)."""
+    log = _hil_log(tmp_path / "00000001.BIN", [0] * 15, [9_000] * 14 + [78_302], armed=(-1, 13))
+    link = hil_link_from_log(hitl_gate.read_log(str(log), {"HIL": HIL_FIELDS, "ARM": ARM_FIELDS}))
+    assert (link["records"], link["age_max_us"]) == (14, 9_000)       # not the record after the disarm
+    assert link_health([log], _bridge_csv(tmp_path / "link.csv", [(FIRST, 0), (STEP, 1)]))["ok"]
 
 
 def test_link_gate_fails_on_too_many_stale_frames_or_an_old_state(tmp_path):

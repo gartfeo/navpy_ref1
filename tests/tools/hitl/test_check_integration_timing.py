@@ -10,7 +10,7 @@ import pytest
 
 from tests.tools.hitl import timing_scenario as ts
 from tools.hitl.encoded_capture_score import INTERVAL_TOLERANCE_NS
-from tools.hitl import check_integration_timing as cit
+from tools.hitl import check_integration_timing as cit, run_manifest
 from tools.hitl.timing_inputs import (
     TimingInputError,
     read_emulator_log,
@@ -430,3 +430,48 @@ def test_command_line_fit_then_check(calibration, tmp_path, monkeypatch):
     (tmp_path / "obs" / "unreal.log").write_text("", encoding="utf-8")
     assert cit.main(["check", *args, "--constants", str(tmp_path / "fit.json"),
                      "--out", str(tmp_path / "report.json")]) == 1
+
+
+def _manifest_run(tmp_path, run_id):
+    """One run's files as the runner leaves them, and their manifest (run_manifest.py)."""
+    folder = tmp_path / "run"
+    (folder / "publisher").mkdir(parents=True)
+    texts = {"run_record": "{}\n",
+             "navpy_integration_log": f'{{"event":"log_end","run_id":"{run_id}","records":0}}\n',
+             "publisher_status": json.dumps({"exit_code": 0, "ended_monotonic_ns": 5}),
+             "publisher_frames": "frame_index,outcome\n1,pushed\n",
+             "unreal_log": "[x]Log file closed\n", "emulator_log": '{"event":"summary"}\n'}
+    names = {"run_record": "approach_record.json", "navpy_integration_log": "navpy.jsonl",
+             "publisher_status": "publisher/publisher.json", "publisher_frames": "publisher/frames-001.csv",
+             "unreal_log": "unreal.log", "emulator_log": "emulator.jsonl"}
+    files = {role: folder / names[role] for role in texts}
+    for role, text in texts.items():
+        files[role].write_text(text, encoding="utf-8")
+    producers = {name: {"pid": 1, "argv": [name], "ended_after_stop": True}
+                 for name in set(run_manifest.FILE_PRODUCERS.values())}
+    manifest = tmp_path / "run_manifest.json"
+    manifest.write_text(json.dumps(run_manifest.build(run_id, producers, list(files.items()))), encoding="utf-8")
+    argv = ["--run-record", str(files["run_record"]), "--navpy", str(files["navpy_integration_log"]),
+            "--publisher", str(files["publisher_frames"]), "--unreal", str(files["unreal_log"]),
+            "--emulator", str(files["emulator_log"]), "--out", str(tmp_path / "out.json"), "--manifest", str(manifest)]
+    return files, argv
+
+
+def test_the_cli_fit_passes_only_with_its_runs_whole_files(calibration, tmp_path, monkeypatch):
+    logs, _ = calibration
+    run = joined(logs, tmp_path)
+    monkeypatch.setattr(cit, "load", lambda args: run)
+    files, argv = _manifest_run(tmp_path, run.config.run_id)
+    assert cit.main(["fit", *argv]) == 0
+    navpy = files["navpy_integration_log"]
+    navpy.write_text("", encoding="utf-8")                  # cut at a line boundary after the manifest
+    assert cit.main(["fit", *argv]) == 1
+    failures = json.loads((tmp_path / "out.json").read_text(encoding="utf-8"))["failures"]
+    assert any("navpy_integration_log" in text for text in failures)
+
+
+def test_the_cli_observation_needs_a_manifest(tmp_path):
+    with pytest.raises(SystemExit) as exit_info:
+        cit.main(["check", "--run-record", "r", "--navpy", "n", "--publisher", "p", "--unreal", "u",
+                  "--emulator", "e", "--out", str(tmp_path / "o.json"), "--constants", "c", "--observation"])
+    assert exit_info.value.code == 2

@@ -17,6 +17,7 @@ from navpy.app.perception.vision_camera_factory import build_camera_mounts
 from navpy.core.perception.profile.vision_detector_profile import get_detector_settings
 from navpy.core.perception.profile.vision_profile_loader import resolve_profile
 from navpy.core.perception.profile.vision_profile_types import CameraMountSpec, VisionProfile
+from navpy.app.perception.siyi_address_override import with_siyi_ip
 from navpy.app.perception.sim_video_test_source import with_sim_video_stream
 from navpy.app.perception.vision_tracking_composition import build_tracking_config
 
@@ -42,6 +43,7 @@ def build_vision_profile(
     *,
     use_sim_gimbal: bool,
     siyi_fence: SiyiCommandFence | None = None,
+    siyi_ip: str = "",
 ) -> VisionProfileAssembly:
     """use_sim_gimbal: False for a real run, which then never gets a simulated gimbal (design section 4, B3)."""
     resolved_name, raw_profile, _ = resolve_profile(
@@ -50,6 +52,7 @@ def build_vision_profile(
     )
     if use_sim_gimbal:  # simulated companions only; real aircraft use their profile
         raw_profile = with_sim_video_stream(raw_profile, os.environ)
+    raw_profile = with_siyi_ip(raw_profile, siyi_ip)
     profile = cast(VisionProfile, raw_profile)
     mount_specs = tuple(
         build_camera_mounts(

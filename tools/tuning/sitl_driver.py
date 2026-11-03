@@ -21,6 +21,7 @@ from pathlib import Path
 
 from tools.tuning.dock_pass import (DOCK_BOARD_YEGHVARD, DOCK_PASS_MIN_HEIGHT_M, build_card, fly_passes,
                                     home_position)
+from tools.tuning.approach import add_parser as add_approach_parser
 from tools.tuning.cruise_trim import CruisePitchTrim
 from tools.tuning.flight_floor import HeightFloor, add_floor_arg
 from tools.tuning.flight_steps import (CLIMB_MARGIN_M, FTUNE_SWITCH_CH, PILOT_THROTTLE_PWM, TEST_HEIGHT_M,
@@ -266,6 +267,7 @@ def main() -> None:
     d.add_argument("--dock", default=DOCK_BOARD_YEGHVARD, metavar="LAT,LON,ALT_MSL",
                    help="the board's centre (default: the Yeghvard dock, with --origin at the Yeghvard origin)")
     d.set_defaults(func=dock_pass)
+    add_approach_parser(sub)
     args = ap.parse_args()
     try:
         code = args.func(args)           # 1: a board run whose HITL link failed its health gate
