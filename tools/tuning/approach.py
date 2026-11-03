@@ -58,6 +58,9 @@ OBSERVE_S = 660.0               # my value: the held-out check needs 600 s of sc
 SERVO_SPEED_S = 0.03            # the bridge's servo lag in the dock-pass runs (hitl_unreal_camera.md)
 JSBSIM = "/usr/games/JSBSim"
 TERMINAL_POLL_S = 1.0           # one HEARTBEAT wait per check of navpy's output and the owned processes
+AAS_SCRIPT = Path("scripts") / "lua" / "aas_params.lua"     # navpy's AAS_* parameters, as on the aircraft's SD card
+BOARD_SCRIPTING = "board_scripting.parm"                   # the run's parameter file: SCR_ENABLE 1
+
 
 
 def _jsbsim_version() -> str:
@@ -70,6 +73,17 @@ def _addresses() -> tuple[str, str]:
     own = subprocess.run(["hostname", "-I"], capture_output=True, text=True, check=True).stdout.split()[0]
     route = subprocess.run(["ip", "route", "show", "default"], capture_output=True, text=True, check=True).stdout
     return own, route.split()[2]
+
+
+def _board_scripts(repo: Path, run_dir: Path) -> None:
+    """The board's SD card in SITL: aas_params.lua where SITL loads Lua (its workdir, the backing's), CRLF stripped
+    like the aircraft deploy step, and the run's parameter file enabling scripting; the board setup's reboot starts it.
+    Without it navpy waits 6 s for each AAS_* parameter the board never answers."""
+    scripts = run_dir / "backing" / "scripts"
+    scripts.mkdir(parents=True, exist_ok=True)
+    text = (repo / AAS_SCRIPT).read_text(encoding="utf-8").replace("\r\n", "\n")
+    (scripts / AAS_SCRIPT.name).write_text(text, encoding="utf-8", newline="\n")
+    (run_dir / BOARD_SCRIPTING).write_text("SCR_ENABLE 1\n", encoding="utf-8")
 
 
 def _source_id(repo: Path) -> str:
@@ -192,7 +206,8 @@ def approach(args: argparse.Namespace) -> int:
                  "sitl_binary": _binary(args.sitl_binary)}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
                          run_dir / "board", args.origin, popen=_adopting_popen(group))
-    files = board_param_files([], [Path(p) for p in args.params_file or []], True, False, args.hitl_data)
+    files = board_param_files([run_dir / BOARD_SCRIPTING], [Path(p) for p in args.params_file or []], True, False,
+                              args.hitl_data)
     board = Board(f"udpin:127.0.0.1:{chain.RUNNER_PORT}", run_dir / "board", files, origin=args.origin, hitl=hitl,
                   log_fetch=False)
     failed = None
@@ -205,6 +220,7 @@ def approach(args: argparse.Namespace) -> int:
             raise RunnerError("; ".join(problems))
         for spec in specs[:2]:
             group.start(spec)
+        _board_scripts(repo, run_dir)                # after sitl-backing wiped its workdir, before the reboot
         board.start()
         for spec in specs[2:]:
             group.start(spec)

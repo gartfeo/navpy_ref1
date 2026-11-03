@@ -305,3 +305,13 @@ def test_the_time_wait_a_stopped_run_leaves_is_not_an_owner():
         client.recv(1)
         client.close()
     assert chain.port_free("tcp", port)
+
+
+def test_the_board_gets_navpys_parameter_script_and_scripting(tmp_path):
+    script = tmp_path / "repo" / approach.AAS_SCRIPT
+    script.parent.mkdir(parents=True)
+    script.write_bytes(b"param:add_table(88)\r\nreturn\r\n")
+    approach._board_scripts(tmp_path / "repo", tmp_path / "run")
+    # SITL loads Lua from its workdir (the backing's), with LF ends like the aircraft deploy step.
+    assert (tmp_path / "run" / "backing" / "scripts" / "aas_params.lua").read_bytes() == b"param:add_table(88)\nreturn\n"
+    assert (tmp_path / "run" / approach.BOARD_SCRIPTING).read_text(encoding="utf-8") == "SCR_ENABLE 1\n"
