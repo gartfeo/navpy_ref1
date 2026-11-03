@@ -406,3 +406,54 @@ which the run does not keep (todo 176).
    detection 7 m out (`no_detection`, DOCK_FAILED). That was an endgame miss
    that began before the offerer's reset. The homing UAV hit the known
    `source_command_stale` bug.
+
+## Demo day (ready plan step 8, 2026-11-03)
+
+Rehearsed on main `341c6a5e`, simulator only (evidence: `.logs/step8` of the
+step 8 worktree). Run 1 denied and timed out cards; run 2 was the 1 Nov setup
+(its settings file, the plan file, a 60 min share, every card approved): all
+three UAVs DOCKED (sim), 21-63 s after Launch.
+
+Before:
+- Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
+  the demo ends: the share does not cover WSL, and 8 CPUs are not proven
+  enough. Both rehearsals ran beside other chats' pytest (about 2 cores).
+- Launch with `delivery_demo.py --cpu-share-min N`, N up to 120, long enough
+  for setup, every flight and a margin (1 Nov and run 2: 60).
+- The Ready line must show 8 or more CPUs and no WARNING; otherwise stop,
+  free CPUs (`cpu_share.py --list`) and launch again.
+- Finish before the share's end time on the Ready line: a share never grows,
+  and after it the stack runs as background. For a new share, stop and launch
+  again.
+
+During:
+- One GCS page, opened after Ready (reload one opened earlier). Load plan,
+  Upload, Launch (hold, then confirm "Launch container"). The upload's
+  "3 vehicles need attention" caution is the sim's arming checks; Launch stays
+  enabled. The ESP32 sim now starts by itself.
+- Approve each card within its 30 s. A card left alone is denied at 30 s:
+  - denied or timed out on a dock seen in flight: the UAV goes on with its
+    mission, or (a timed-out one) is asked again at once on a card that looks
+    the same as the last;
+  - timed out at the hub: the UAV orbits the hub (500 m) and no new card came
+    in 4 minutes (todo 248).
+- NavPy restarts at each upload. Fly soon after it: the only generation-2
+  collection recorded in a hand demo so far (step 5's check run) came about
+  9 min after NavPy start, 55-60 ms per UAV; the rehearsal flights ended
+  2-5 min after the restart, with no generation-2 collection and 2.65 ms the
+  largest pause.
+- The sim battery falls about 1 % per 0.3 s of wall time in flight: 50 % about
+  50 s and 0 % about 100 s after Launch, and the HUD then says "Battery low
+  (0%)" (todo 247). Short flights stay above it; say it is the sim's battery.
+- A dock can still fail: run 1's hub approach ended NAV_FAIL `no_detection`
+  3 s after approval, and 1 Nov had one in 10. It is a fact to state, not a
+  fault to fix on the day.
+
+After: `gcs_stop.py`, then `delivery_demo_check.py`, and copy the run folder
+out of the checkout before any worktree removal. For a no_detection failure
+the check prints "no DOCKED or DOCK_FAILED row"; the NavPy log has the
+DOCK_FAILED line (todo 246).
+
+OpenCV 5.0.0 in the shared venv breaks 4 board-detector tests; the demo runs
+the sim detector ("Created sim detector" in each NavPy log), so the rehearsals
+did not use the board detector.
