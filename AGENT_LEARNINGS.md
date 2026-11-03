@@ -2292,3 +2292,10 @@
   regression.
 - **Read the storage property inside try.** `localStorage` itself can throw
   (blocked site data); a default argument reads it before the try block.
+
+## Rehearsing both demo plans (2026-11-04)
+
+- Lost one launch to a missing `node_modules` in a fresh worktree, although lines 723 and 1209 say so: run `npm ci` in `src/gcs/frontend` before `delivery_demo.py`.
+- A wait loop on a launch file started before the relaunch's `>` truncated it, so it reported the old failure. Clear or rename the old output first, or wait on a new file name.
+- To see WebSocket gaps and sizes without a second page, run a passive `/ws/telemetry` client that logs time and bytes per frame. Measure telemetry-to-telemetry gaps, not gaps to any message (Codex caught the mix), and call them reception gaps, not backend stalls.
+- A rehearsal claim from the live tester's JS inspection is not evidence unless saved: ask it to write the numbers to a file.

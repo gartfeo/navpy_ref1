@@ -438,6 +438,27 @@ Before:
     peer it offered a dock DOCKED (sim), 0.15 and 0.10 m. UAV 1 ended
     DOCK_FAILED `source_command_stale` (source 1.08 s old, limit 1 s) on its
     hub approach, 613 m out, 29 s after Launch.
+  - **Demo-day plan (owner, 2026-11-04): the drawn area.** The owner flew
+    their own save, `C:\Users\GARTF\Downloads\plan.json`. It is the drawn
+    file with `route_offset_m` 90 instead of 150 and one corridor point
+    (40.307462, 44.457417); area, docks and hubs are the same. The committed
+    drawn file does not hold it yet.
+- Rehearsals on main `bcbabd9b` (trail fix and map layer picker), sim only,
+  8 CPUs, investor settings, SITL speedup 10 (evidence:
+  `.logs/rehearse_both` of the rehearse-both-plans worktree):
+  - Owner's `plan.json`, the owner driving (run `20261104-012806`): 3 of 3
+    DOCKED, UAV 2 0.08 m 26 s, UAV 1 0.04 m 46 s, UAV 3 0.50 m 69 s after
+    Launch (UAV 3's first card denied by the owner, then its hub dock; every other card approved).
+  - `delivery_demo_plan.json`, the live tester driving (run
+    `20261104-014019`): 0 of 3. UAVs 2 and 3, both approved at the same
+    moment (every card approved), ended DOCK_FAILED `source_command_stale` (source 1.40 and
+    1.20 s old) 0.4-0.8 s after approval, 577-600 m out, 30 s after Launch
+    (todo 256); UAV 1 DOCK_FAILED `no_detection` 0.56 m out, 64 s. The
+    tester loaded the file and held Launch through page scripts.
+  - One run each: neither plan's result is a rate.
+  - No trail is visible on the map (todo 253). Right after each upload's
+    NavPy restart the telemetry stream had a 5-6 s gap (todo 254, cause not
+    found); start the flight after the map moves again.
 - Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
   the demo ends: the share does not cover WSL, and 8 CPUs are not proven
   enough. Both rehearsals ran beside other Python processes, 2-3 cores
