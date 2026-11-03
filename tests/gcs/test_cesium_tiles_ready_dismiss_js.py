@@ -39,11 +39,9 @@ _MAP_SRC = _read_map_file("CesiumMap.jsx")
 
 
 def _ion_upgrade_block(src):
-    """Return the async Ion upgrade IIFE body (imagery + terrain swap)."""
-    start = src.index(
-        "const ionImagery = await Cesium.IonImageryProvider.fromAssetId(3)"
-    )
-    end = src.index("Cesium Ion upgrade failed", start)  # inside the catch's warn
+    """Return the async Ion terrain upgrade IIFE body."""
+    start = src.index("const ionTerrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(ION_TERRAIN_ASSET_ID)")
+    end = src.index("Cesium Ion terrain upgrade failed", start)  # inside the catch's warn
     return src[start:end]
 
 
@@ -69,17 +67,28 @@ class TestTilesReadyDismiss(unittest.TestCase):
             "tilesReady must be flipped from exactly one place (the drain watcher)",
         )
 
-    def test_ion_provider_add_does_not_flip_tiles_ready(self):
-        """The Ion imagery swap must NOT latch tilesReady on provider-add."""
+    def test_ion_upgrade_does_not_flip_tiles_ready(self):
+        """The Ion terrain upgrade must NOT latch tilesReady on provider-add."""
         block = _ion_upgrade_block(_VIEWER_SRC)
-        # The imagery swap itself is intact...
-        self.assertIn("viewer.imageryLayers.removeAll()", block)
-        self.assertIn("viewer.imageryLayers.addImageryProvider(ionImagery)", block)
-        # ...but it must not touch tilesReady (that would be the P2 #2 regression).
         self.assertNotIn(
             "setTilesReady", block,
             "Ion upgrade must not flip tilesReady — let the drain watcher do it",
         )
+
+    def test_ion_upgrade_leaves_imagery_to_the_layer_choice(self):
+        """Imagery comes from the operator's base layer; the terrain upgrade
+        must not replace it (the layer picker changes imagery only)."""
+        self.assertNotIn("imageryLayers", _ion_upgrade_block(_VIEWER_SRC))
+
+    def test_base_layer_set_at_construction(self):
+        """The chosen base layer is passed to the Viewer, so the drain watcher
+        sees its first tiles whatever the default is. Cesium >= 1.107 ignores
+        the old imageryProvider option."""
+        compact = _compact(_VIEWER_SRC)
+        self.assertIn(
+            "baseLayer: watchBaseLayer( createBaseLayer(Cesium, initialLayerId),", compact,
+        )
+        self.assertNotIn("imageryProvider:", _VIEWER_SRC)
 
     def test_terrain_upgrade_still_flips_terrain_ready(self):
         """Terrain path is independent and unchanged (does not gate dismissal)."""

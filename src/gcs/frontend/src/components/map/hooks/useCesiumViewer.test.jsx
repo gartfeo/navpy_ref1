@@ -6,9 +6,28 @@ import useCesiumViewer from './useCesiumViewer';
 
 const { fake } = vi.hoisted(() => {
   const event = () => ({ addEventListener() {}, removeEventListener() {} });
-  const fake = { viewers: [], ionToken: '' };
+  const fake = { viewers: [], ionToken: null, ionImagery: null };
+  class Event {
+    constructor() { this.listeners = []; }
+    addEventListener(fn) { this.listeners.push(fn); }
+    raise(arg) { this.listeners.forEach((fn) => fn(arg)); }
+  }
   class ImageryLayer {
-    constructor(imageryProvider) { this.imageryProvider = imageryProvider; }
+    constructor(imageryProvider) {
+      this.imageryProvider = imageryProvider;
+      this.errorEvent = new Event();
+      this.destroyed = false;
+    }
+
+    // Cesium ImageryLayer.fromProviderAsync: the layer exists at once; a
+    // provider that fails raises errorEvent.
+    static fromProviderAsync(promise) {
+      const layer = new ImageryLayer(undefined);
+      promise.then((p) => { layer.imageryProvider = p; }, (e) => layer.errorEvent.raise(e));
+      return layer;
+    }
+
+    isDestroyed() { return this.destroyed; }
   }
   class Viewer {
     constructor(container, options) {
@@ -30,8 +49,13 @@ const { fake } = vi.hoisted(() => {
       this.camera = { setView() {}, moveEnd: event(), flyTo() {} };
       this.imageryLayers = {
         layers,
-        removeAll() { layers.length = 0; },
-        addImageryProvider(provider) { layers.push(new ImageryLayer(provider)); },
+        get length() { return layers.length; },
+        get(i) { return layers[i]; },
+        remove(layer, destroy) {
+          layers.splice(layers.indexOf(layer), 1);
+          if (destroy) layer.destroyed = true;
+        },
+        add(layer, i) { layers.splice(i, 0, layer); },
       };
       this.scene = {
         globe: { tileLoadProgressEvent: event() },
@@ -51,8 +75,10 @@ const { fake } = vi.hoisted(() => {
   fake.Cesium = {
     Viewer,
     ImageryLayer,
+    Credit: class { constructor(html) { this.html = html; } },
     OpenStreetMapImageryProvider: class { constructor(options) { this.url = options.url; } },
-    IonImageryProvider: { fromAssetId: async (id) => ({ ionAssetId: id }) },
+    UrlTemplateImageryProvider: class { constructor(options) { this.url = options.url; } },
+    IonImageryProvider: { fromAssetId: (id) => fake.ionImagery ?? Promise.resolve({ ionAssetId: id }) },
     CesiumTerrainProvider: {
       fromIonAssetId: async () => ({ requestTileGeometry: async () => {} }),
     },
@@ -62,19 +88,24 @@ const { fake } = vi.hoisted(() => {
   return { fake };
 });
 vi.mock('cesium', () => fake.Cesium);
-vi.mock('../../../utils/cesiumConfig', () => ({ cesiumIonToken: () => fake.ionToken }));
+vi.mock('../../../utils/cesiumConfig', () => ({ loadCesiumIonToken: async () => fake.ionToken }));
 
-function Harness({ onState }) {
-  const state = useCesiumViewer(null, null, undefined, {});
+function Harness({ onState, options = {} }) {
+  const state = useCesiumViewer(null, null, undefined, options);
   onState(state);
   return <div ref={state.containerRef} />;
 }
 
-async function start() {
+async function start(options) {
   let state = null;
-  render(<Harness onState={(s) => { state = s; }} />);
+  const onState = (s) => { state = s; };
+  const { rerender } = render(<Harness onState={onState} options={options} />);
   await waitFor(() => expect(state.viewerReady).toBe(true));
-  return { viewer: fake.viewers.at(-1), current: () => state };
+  return {
+    viewer: fake.viewers.at(-1),
+    current: () => state,
+    pick: (next) => rerender(<Harness onState={onState} options={{ ...options, ...next }} />),
+  };
 }
 
 const providers = (viewer) => viewer.imageryLayers.layers.map((l) => l.imageryProvider);
@@ -82,29 +113,54 @@ const providers = (viewer) => viewer.imageryLayers.layers.map((l) => l.imageryPr
 describe('useCesiumViewer base layer', () => {
   beforeEach(() => {
     fake.viewers = [];
-    fake.ionToken = '';
+    fake.ionToken = null;
+    fake.ionImagery = null;
   });
 
-  it('without an Ion token the map draws OpenStreetMap imagery', async () => {
-    const { viewer } = await start();
-    const [osm, ...rest] = providers(viewer);
-    expect(osm).toBeInstanceOf(fake.Cesium.OpenStreetMapImageryProvider);
-    expect(osm.url).toBe('https://tile.openstreetmap.org/');
-    expect(rest).toEqual([]);
-  });
-
-  it('with an Ion token Ion imagery replaces OpenStreetMap', async () => {
-    fake.ionToken = 'token';
+  it('starts on the OpenTopoMap terrain layer by default', async () => {
     const { viewer, current } = await start();
+    const [topo, ...rest] = providers(viewer);
+    expect(topo).toBeInstanceOf(fake.Cesium.UrlTemplateImageryProvider);
+    expect(topo.url).toBe('https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png');
+    expect(rest).toEqual([]);
+    expect(current().terrainReady).toBe(false);
+  });
+
+  it('starts on the default when satellite is chosen without an Ion token', async () => {
+    const { viewer } = await start({ baseLayerId: 'satellite' });
+    expect(providers(viewer)[0]).toBeInstanceOf(fake.Cesium.UrlTemplateImageryProvider);
+  });
+
+  it('with an Ion token starts on satellite and the terrain upgrade keeps it', async () => {
+    fake.ionToken = 'token';
+    const { viewer, current } = await start({ baseLayerId: 'satellite' });
     await waitFor(() => expect(current().terrainReady).toBe(true));
     expect(providers(viewer)).toEqual([{ ionAssetId: 3 }]);
+  });
+
+  it('swaps the base imagery when another layer is picked', async () => {
+    const { viewer, pick } = await start({ baseLayerId: 'terrain' });
+    const first = viewer.imageryLayers.layers[0];
+    pick({ baseLayerId: 'street' });
+    await waitFor(() => expect(providers(viewer)[0]).toBeInstanceOf(fake.Cesium.OpenStreetMapImageryProvider));
+    expect(providers(viewer)).toHaveLength(1);
+    expect(first.isDestroyed()).toBe(true);
+  });
+
+  it('reports a base layer whose provider fails to load', async () => {
+    fake.ionToken = 'token';
+    const error = new Error('Ion refused');
+    fake.ionImagery = Promise.reject(error);
+    const onBaseLayerFailed = vi.fn();
+    await start({ baseLayerId: 'satellite', onBaseLayerFailed });
+    await waitFor(() => expect(onBaseLayerFailed).toHaveBeenCalledWith('satellite', error));
   });
 });
 
 describe('useCesiumViewer map stop', () => {
   beforeEach(() => {
     fake.viewers = [];
-    fake.ionToken = '';
+    fake.ionToken = null;
     vi.spyOn(console, 'error').mockImplementation(() => {});
   });
 

@@ -29,6 +29,8 @@ import SettingsModal from './components/SettingsModal';
 import PreflightReadiness from './components/PreflightReadiness';
 import MapIconBtn from './components/MapIconBtn';
 import MapDisplayToggles from './components/map/MapDisplayToggles';
+import MapLayerPicker from './components/map/MapLayerPicker';
+import useBaseLayerChoice from './components/map/hooks/useBaseLayerChoice';
 import ManualControlOverlay, { STICK_INSET_PX, STICK_SIZE_PX } from './components/ManualControlOverlay';
 import { rcPwmToStickY } from './utils/joystickMath';
 import { APP_BRANCH } from './utils/appBranch';
@@ -157,6 +159,7 @@ export default function App() {
   const [windowChromePx, setWindowChromePx] = useState(null);
   const [ionTerrain, setIonTerrain] = useState(false);
   const [topControlsBottom, setTopControlsBottom] = useState(DEFAULT_TOP_CONTROLS_BOTTOM_PX);
+  const baseLayerChoice = useBaseLayerChoice();
   const [mapReady, setMapReady] = useState(false);
   const [vehicleTargWps, setVehicleTargWps] = useState({});
   const [vehicleNavLastWp, setVehicleNavLastWp] = useState({});
@@ -758,6 +761,8 @@ export default function App() {
             assignments={taskAssign.assignments}
             availableTasks={taskAssign.availableTasks}
             mapDefaults={settings?.map_display}
+            baseLayer={baseLayerChoice.baseLayer}
+            onBaseLayerFailed={baseLayerChoice.onFailed}
             simMode={settings?.simulation?.sim_mode ?? false}
             simDockWps={simDockWps}
             onToggleSimDock={planning.handleToggleSimDock}
@@ -976,7 +981,7 @@ export default function App() {
             showLaunchZone={showLaunchZone}
             setShowLaunchZone={setShowLaunchZone}
           />}
-          {/* Reset zoom — hidden during manual control (the RC FPV camera
+          {/* Layer switch + reset zoom — hidden during manual control (the RC FPV camera
               would override it every frame) and while the map is small (a fit
               there would use the small box's aspect ratio) */}
           {!mc.manualControlEnabled && !swapped && <div style={{
@@ -984,7 +989,16 @@ export default function App() {
             bottom: 12,
             right: 12,
             zIndex: 10,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'flex-end',
+            gap: 6,
           }}>
+            <MapLayerPicker
+              value={baseLayerChoice.baseLayer}
+              onChange={baseLayerChoice.onChange}
+              hasIon={baseLayerChoice.hasIon}
+            />
             <MapIconBtn
               title={t('monitorOverlay.resetView')}
               onClick={centerView}

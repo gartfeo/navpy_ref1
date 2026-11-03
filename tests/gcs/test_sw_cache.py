@@ -72,8 +72,9 @@ class TestServiceWorker:
         self.sw_text = self.sw_path.read_text()
 
     def test_tile_patterns(self):
-        """SW caches OSM, Bing, and Cesium Ion tile URLs."""
+        """SW caches OSM, OpenTopoMap, Bing, and Cesium Ion tile URLs."""
         assert "openstreetmap" in self.sw_text
+        assert "opentopomap" in self.sw_text
         assert "virtualearth" in self.sw_text
         assert "ion" in self.sw_text and "cesium" in self.sw_text
         assert "api" in self.sw_text
