@@ -128,6 +128,8 @@ def run_lockstep(
                               args.host_delay_seed, args.sim_profile or DEFAULT_PROFILE)
     run = execute_lockstep_run(run_dir, scenario, options)
     errors = [f"lockstep outcome {run.outcome!r}, not 'ok'"] if run.outcome != "ok" else []
+    if run.product_failure is not None:
+        errors.append(run.product_failure)
     if run.operator_error is not None:
         errors.append(f"operator: {run.operator_error}")
     try:

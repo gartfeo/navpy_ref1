@@ -13,6 +13,7 @@ from navpy.core.approach.vision_nav.command_transaction import (
 from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
     FinalApproachCommandTiming,
+    FinalApproachFreshnessCheck,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandFailureSink,
@@ -92,12 +93,16 @@ class FinalApproachCommandHold:
         failures: FinalApproachCommandFailureSink,
         freshness: FinalApproachCommandFreshness,
         monotonic_s: Callable[[], float] = rt.perf_counter,
+        report_stale: Callable[[FinalApproachFreshnessCheck], None] = (
+            lambda check: None
+        ),
     ) -> None:
         self._actuator = actuator
         self._source_time = source_time
         self._failures = failures
         self._freshness = freshness
         self._monotonic_s = monotonic_s
+        self._report_stale = report_stale
         self._lock = rt.RLock()
         self._command: FinalApproachHeldCommand | None = None
         self._last_sent_source_s: float | None = None
@@ -139,7 +144,9 @@ class FinalApproachCommandHold:
             issued = False
             refresh_not_due = False
             try:
-                if not self._freshness.is_fresh(command.timing):
+                check = self._freshness.check(command.timing)
+                if not check.fresh:
+                    self._report(check)
                     return None
                 source_now_s = _source_now_s(command.timing)
                 if not self._refresh_due(source_now_s):
@@ -163,6 +170,13 @@ class FinalApproachCommandHold:
                     self._command = None
                     self._last_sent_source_s = None
                     self._failures.mark_failed()
+
+    def _report(self, check: FinalApproachFreshnessCheck) -> None:
+        """Name the failed bound with its sampled values; never changes the decision."""
+        try:
+            self._report_stale(check)
+        except Exception:  # noqa: BLE001 - diagnostic sink is non-authoritative
+            return
 
     def _refresh_due(self, source_now_s: float | None) -> bool:
         """Due once a refresh period passed; unknown or regressed time sends."""

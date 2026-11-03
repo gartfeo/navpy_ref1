@@ -25,6 +25,8 @@ _REQUIRED_COLUMNS: dict[str, frozenset[str]] = {
     "worker": frozenset({"wall_start_s", "obs_ts", "src_now_s"}),
     "detector_poll": POLL_COLUMNS,
     "frame_lineage": LINEAGE_COLUMNS,
+    # Read for its schema only; no summary uses it yet.
+    "gc": frozenset({"wall_s", "perf_s", "generation", "dur_ms"}),
 }
 SOURCE_STREAMS = frozenset(_REQUIRED_COLUMNS)
 

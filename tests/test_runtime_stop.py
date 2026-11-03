@@ -64,16 +64,18 @@ def test_the_request_latches_only_on_the_exact_line():
 
 
 def test_the_ack_flushes_pose_cadence_first(monkeypatch, capsys):
-    from navpy.core.kernel.logging import pose_cadence_debug
+    from navpy.core.kernel.logging import pose_cadence_debug, pose_cadence_gc
 
     order: list[str] = []
+    monkeypatch.setattr(pose_cadence_gc, "uninstall_gc_record", lambda: order.append("gc off"))
     monkeypatch.setattr(pose_cadence_debug, "stop_flusher", lambda: order.append("stop"))
     monkeypatch.setattr(pose_cadence_debug, "dump_all",
                         lambda *, strict: order.append(f"dump strict={strict}"))
 
     runtime_stop.acknowledge_stop()
 
-    assert order == ["stop", "dump strict=True"]
+    # The GC record stops first, so no collection adds a row after the final dump.
+    assert order == ["gc off", "stop", "dump strict=True"]
     assert capsys.readouterr().out == f"{NAVPY_STOPPED_MARKER}\n"
 
 

@@ -5,7 +5,8 @@ import { describe, it, expect } from 'vitest';
 import { colors, sidebarWidth, topBarHeight, bottomBarHeight } from '../styles';
 import {
   COLLAPSED_LIST_MIN_PX, DOCKED_MIN_VIEWPORT_PX, OVERLAY_Z_INDEX, COLLAPSED_LIST_Z_INDEX, RC_RAISED_Z_INDEX,
-  RC_LIST_MIN_WIDTH_PX, collapsedListBox, panelHostStyle, panelOpenAtStart, rcListPlacement, sidePanelMode,
+  HUD_TAPE_MAX_PX, HUD_TAPE_MIN_PX, RC_LIST_MIN_WIDTH_PX, collapsedListBox, hudTapeBox, panelHostStyle, speedTapeBox, panelOpenAtStart,
+  rcListPlacement, sidePanelMode,
 } from './appLayout';
 import {
   DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, RESET_VIEW_PX, vehicleWindowLayout,
@@ -292,5 +293,74 @@ describe('RC list placement', () => {
     const placed = placeAt(paneOf(812, 375));
     expect(placed.style).toBeNull();
     expect(placed.heightPx).toBe(100);
+  });
+});
+
+describe('RC HUD tape box', () => {
+  // App's band: below the heading-tape row (54), above the sticks (24 + 150 + 8).
+  const boxAt = (paneHeight) => hudTapeBox({ paneHeight, top: 54, bottom: 182 });
+
+  it('on a tall pane it stays centred at full height, as before', () => {
+    expect(HUD_TAPE_MAX_PX).toBe(200);
+    expect(boxAt(800)).toEqual({ top: 300, height: 200 });
+  });
+
+  it('on the UniRC 10 Pro (853 x 533) neither tape covers the mode column or a stick', () => {
+    const pane = paneOf(853, 533);
+    const box = boxAt(pane.height);
+    expect(box).toEqual({ top: 55, height: 200 });
+    const modeColumn = rect(12, 12, 80, pane.height - 12);
+    const leftStick = rect(24, pane.height - 174, 150, 150);
+    const rightStick = rect(pane.width - 174, pane.height - 174, 150, 150);
+    const speed = rect(100, box.top, 70, box.height);
+    const altitude = rect(pane.width - 12 - 70, box.top, 70, box.height);
+    for (const tape of [speed, altitude]) {
+      for (const control of [modeColumn, leftStick, rightStick]) expect(overlap(tape, control)).toBe(false);
+    }
+    // The old place, centred at left 12, lay over the column.
+    expect(overlap(rect(12, (pane.height - 200) / 2, 70, 200), modeColumn)).toBe(true);
+  });
+
+  it('a shorter band shortens the tape to it', () => {
+    expect(boxAt(375)).toEqual({ top: 54, height: 139 });
+  });
+
+  it('a band shorter than the minimum keeps the minimum from its top, over the sticks', () => {
+    expect(HUD_TAPE_MIN_PX).toBe(80);
+    expect(boxAt(54 + 182 + 80)).toEqual({ top: 54, height: 80 });
+    // 640 x 360 landscape phone: 264 px pane, 28 px band.
+    expect(boxAt(paneOf(640, 360).height)).toEqual({ top: 54, height: 80 });
+    expect(boxAt(200)).toEqual({ top: 54, height: 80 });
+  });
+});
+
+describe('RC speed tape box', () => {
+  // App's numbers: column at 12, its right edge 92, band 54 to 182 above the bottom.
+  const at = (paneHeight, columnBottom) => speedTapeBox({
+    paneHeight, columnBottom, top: 54, bottom: 182, gap: 8, edgeLeft: 12, besideLeft: 100,
+  });
+
+  it('on the UniRC in flight it sits at the left edge below the column, clear of it and the stick', () => {
+    const pane = paneOf(853, 533);
+    // RC, picker, ARM and the wrapped hold hint: about 150 px from the pane top.
+    const box = at(pane.height, 150);
+    expect(box).toEqual({ left: 12, top: 158, height: pane.height - 182 - 158 });
+    expect(box.height).toBeGreaterThanOrEqual(HUD_TAPE_MIN_PX);
+    const tape = rect(box.left, box.top, 70, box.height);
+    expect(overlap(tape, rect(12, 12, 80, 150 - 12))).toBe(false);
+    expect(overlap(tape, rect(24, pane.height - 174, 150, 150))).toBe(false);
+  });
+
+  it('on a tall pane it is at most 200 px', () => {
+    expect(at(900, 150)).toEqual({ left: 12, top: 158, height: 200 });
+  });
+
+  it('unmeasured, or with under 80 px below the column, it goes beside the column in the shared band', () => {
+    expect(at(437, null)).toEqual({ left: 100, ...hudTapeBox({ paneHeight: 437, top: 54, bottom: 182 }) });
+    // 960 x 448: a 352 px pane leaves 12 px below the column.
+    expect(at(paneOf(960, 448).height, 150)).toEqual({ left: 100, top: 54, height: 116 });
+    // Pre-arm warnings make the column tall.
+    expect(at(437, 200)).toMatchObject({ left: 100 });
+    expect(at(150 + 8 + 80 + 182, 150)).toEqual({ left: 12, top: 158, height: 80 });
   });
 });

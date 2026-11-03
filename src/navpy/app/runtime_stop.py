@@ -101,7 +101,10 @@ def flush_pose_cadence() -> None:
     # Imported here: under its debug env the module starts a flush thread on
     # import, which the GCS backend (it imports the markers) must not get.
     from navpy.core.kernel.logging import pose_cadence_debug
+    from navpy.core.kernel.logging.pose_cadence_gc import uninstall_gc_record
 
+    # No collection may add a row the final dump has already passed.
+    uninstall_gc_record()
     # stop_flusher joins the periodic flush and drops its atexit hook, so the
     # final dump below is the last and only concurrent-free write.
     pose_cadence_debug.stop_flusher()

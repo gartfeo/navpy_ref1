@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Optional
 
 
 class IStatusLogger(ABC):
@@ -11,5 +12,6 @@ class IStatusLogger(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def close(self):
+    def close(self) -> Optional[list[str]]:
+        """Release the sink; return the status texts it could not send, if any."""
         raise NotImplementedError

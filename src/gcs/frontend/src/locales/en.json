@@ -398,7 +398,7 @@
   },
   "flightMode": {
     "rc": "RC",
-    "other": "Other",
+    "mode": "Mode",
     "arm": "ARM",
     "disarm": "DISARM",
     "armed": "ARMED",

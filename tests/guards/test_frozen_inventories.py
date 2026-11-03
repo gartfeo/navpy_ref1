@@ -423,7 +423,7 @@ def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
     freshness_tree = _tree(COMMAND_FRESHNESS)
     owner = _definition(tree, "FinalApproachCommandHold", ast.ClassDef)
     issue = _definition(owner, "issue", ast.FunctionDef)
-    freshness = _definition(freshness_tree, "_age_is_fresh", ast.FunctionDef)
+    freshness = _definition(freshness_tree, "_check_age", ast.FunctionDef)
     assert owner is not None and issue is not None and freshness is not None
     assert "_monotonic_s" not in _identifiers(freshness)
     clocks = _calls(issue, "_monotonic_s")

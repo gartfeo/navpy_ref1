@@ -44,7 +44,8 @@ class VehicleMessaging(ABC):
     ) -> None: ...
 
     @abstractmethod
-    def send_status_text(self, msg: str) -> None: ...
+    def send_status_text(self, msg: str) -> bool:
+        """Send one STATUSTEXT; False when it was dropped unsent."""
 
     def on_admission(
         self,

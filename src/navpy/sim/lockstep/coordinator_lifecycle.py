@@ -8,9 +8,12 @@ ordinal that asked for its spawn, as the launcher port answers today; a
 
 Participant stop (``lockstep_slice.md``): a stop request becomes ``stop`` for
 the target; the target's ending ``DONE`` resolves it, ``acked`` for a flushed
-end, else ``missed`` (a host fault). It is ``missed`` too after
-:data:`STOP_BUDGET_US` of sim time, or when requested during drain (both
-faults). A duplicate stop gets the same result; a stale generation an error.
+end, else ``missed``. It is ``missed`` too after :data:`STOP_BUDGET_US` of sim
+time, or when requested during drain. An unflushed end and a missed stop budget
+are product failures (``unclean_end``, ``stop_budget``): sim time decides both,
+so a rerun repeats them (todo 202). A stop during drain is the harness's own
+fault (``stop_in_drain``). A duplicate stop gets the same result; a stale
+generation an error.
 
 A scheduled fault stops and respawns a NavPy through :meth:`LifecycleBook.stop_scheduled`
 and :meth:`LifecycleBook.respawn`. An end nobody scheduled (no stop asked for it, no drain
@@ -103,9 +106,9 @@ class LifecycleBook:
         elif stop is None and not member.end_sent:
             self.faults.append(ParticipantFault("unscheduled_exit", f"ended with flushed={flushed}; "
                                                 "no stop or drain asked", tick=k, ordinal=spawn.ordinal))
-        elif not flushed:  # an unflushed scheduled end is a host fault: the run tears down
-            self.faults.append(HostFault("unclean_end", "ended without a flushed end",
-                                         tick=k, ordinal=spawn.ordinal))
+        elif not flushed:  # a scheduled end the product did not flush; sim time decides it (todo 202)
+            self.faults.append(ParticipantFault("unclean_end", "ended without a flushed end",
+                                                tick=k, ordinal=spawn.ordinal))
 
     def stop(self, request: StopRequest, requester: int, t_us: int, *, draining: bool) -> None:
         key = (request.ordinal, request.generation)
@@ -156,7 +159,7 @@ class LifecycleBook:
         for stop in self._stops.values():
             if stop.result is None and t_us >= stop.deadline_us:
                 self._resolve(stop, "missed")
-                self.faults.append(HostFault(
+                self.faults.append(ParticipantFault(  # a sim-time budget (todo 202)
                     "stop_budget", f"generation {stop.generation} missed its stop budget",
                     ordinal=stop.ordinal))
 

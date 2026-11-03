@@ -89,12 +89,13 @@ def test_a_flushed_end_the_drain_asked_for_is_no_fault():
     assert book.faults == []
 
 
-def test_an_unflushed_end_the_drain_asked_for_is_a_host_fault():
+def test_an_unflushed_end_the_drain_asked_for_is_a_product_failure():
+    """Sim time decides it, so a rerun repeats it: never a host fault to rerun (todo 202)."""
     rover = _member(ROVER)
     rover.end_sent = True
     book, record = _book(rover)
     book.retire(rover, 9, flushed=False)
-    assert [(type(f), f.kind, f.tick, f.ordinal) for f in book.faults] == [(HostFault, "unclean_end", 9, ROVER)]
+    assert [(type(f), f.kind, f.tick, f.ordinal) for f in book.faults] == [(ParticipantFault, "unclean_end", 9, ROVER)]
     assert _results(record) == [("exited", None, {"failed": True})]
 
 
@@ -137,13 +138,13 @@ def test_a_scheduled_stop_goes_to_its_target_naming_the_fault_and_nobody_gets_an
     assert [r for r in _results(record) if r[0] == "stop_result"] == []  # no asker
 
 
-def test_a_scheduled_stop_ended_unflushed_is_a_host_fault():
+def test_a_scheduled_stop_ended_unflushed_is_a_product_failure():
     rover = _member(ROVER)
     book, _record = _book(rover)
     book.stop_scheduled(rover, 180_000, "navpy_restart:uav1")
     book.retire(rover, 9, flushed=False)
     assert not book.stopped(ROVER, 1)
-    assert [f.kind for f in book.faults] == ["unclean_end"]
+    assert [(type(f), f.kind) for f in book.faults] == [(ParticipantFault, "unclean_end")]
 
 
 def test_a_scheduled_stop_has_the_stop_budget():
@@ -153,7 +154,7 @@ def test_a_scheduled_stop_has_the_stop_budget():
     book.check_budgets(180_000 + STOP_BUDGET_US - 1)
     assert book.faults == []
     book.check_budgets(180_000 + STOP_BUDGET_US)
-    assert [f.kind for f in book.faults] == ["stop_budget"]
+    assert [(type(f), f.kind) for f in book.faults] == [(ParticipantFault, "stop_budget")]
 
 
 def test_a_respawn_is_the_same_spawn_id_and_requesters_next_generation():

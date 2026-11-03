@@ -49,7 +49,7 @@ describe('RC confirm list geometry sources', () => {
     expect(MODE_COLUMN_INSET_PX + MODE_BUTTON_WIDTH_PX).toBe(92);
   });
 
-  // The column's "Other" menu holds flight commands and opens towards the list.
+  // The column's mode picker holds flight commands and opens towards the list.
   it('the flight-mode column lies over the raised list', () => {
     const { container } = render(
       <FlightModeColumn currentMode="FBWA" armed={false} sysId={7} onSetMode={() => {}} onArmDisarm={() => {}} onToggleManualControl={() => {}} listRaised />,
@@ -57,10 +57,9 @@ describe('RC confirm list geometry sources', () => {
     expect(Number(container.firstChild.style.zIndex)).toBeGreaterThan(RC_RAISED_Z_INDEX);
   });
 
-  // At 960 x 448 the "Other" button lies on the airspeed readout (the tape, z 10,
-  // is later in App's tree, tests/gcs/test_confirm_card_hosts_js.py): above 10 it
-  // would hide the only airspeed number in RC.
-  it('the flight-mode column stays at the tape\'s z-index with no raised list', () => {
+  // With no raised list the column (and its open picker) lies over the speed
+  // tape (7), which now sits below or beside it.
+  it('the flight-mode column is at 10 with no raised list, over the speed tape', () => {
     const { container } = render(
       <FlightModeColumn currentMode="FBWA" armed={false} sysId={7} onSetMode={() => {}} onArmDisarm={() => {}} onToggleManualControl={() => {}} />,
     );

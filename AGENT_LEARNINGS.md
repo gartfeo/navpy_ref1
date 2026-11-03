@@ -2111,3 +2111,83 @@
 - The SOLID guard caps modules at 300 lines and classes at 12 fields. Plan a new estimator as its own small classes (map, slip detector, locked wrapper) from the start instead of splitting after the review.
 - Scratchpad files can vanish between days (temp cleanup at the date change took edit.py, sweeps and review outputs). Keep anything needed for a hand-over in the notes folder or the repo, not only in the scratchpad.
 - A stray `cat > file` with no heredoc waits on stdin and hangs the whole Bash call until timeout. Give background commands `< /dev/null`.
+## Dev sim step 8: seed sweep (2026-11-02)
+
+- Do not edit a tracked file while a matrix runs, not even a doc. The input manifest records the
+  uncommitted diff's hash, so the cells before and after the edit differ and the matrix fails
+  (`matrix_none_dirty`). Commit first, or write in the scratchpad until the matrix ends.
+- Run a mutation script in a detached worktree of the commit, never in the worktree under test. It rewrites
+  source files, so a full pytest or a review running there at the same time may see a mutant; both had to be
+  rerun.
+- A planted-bug result needs a clean-tree control on the same seeds. `hw` 576840 failed on the clean tree too,
+  in another way (todo 229), which only the control showed.
+- A known-todo explainer must match the todo's mechanism, not its symptom words. "Wind on and a roll step"
+  hid a roll step on a UAV that docked (`stress` 30); todo 77 is a dock miss, so the roll step is explained
+  only on a UAV that also missed. Re-class saved runs after narrowing a rule to see what it uncovers.
+- A replay that matches up to a fault tick shows the run was deterministic there, not why it ended there. Name
+  such an outcome for what was observed (`not_repeated`, incomplete), not for a cause the evidence cannot prove.
+- Check every mutation string against the current code before a mutation run; a stale one stops the run at
+  its assert after the earlier mutations have already run.
+
+
+## Status texts wait; a failed hold names its bound (ready plan step 4, 2026-11-02)
+- Validate a new run-check script on the run the audit measured before trusting it on new
+  runs: mine reproduced 81 of 474 lost frames and the 134-284 ms lag exactly on 17:38.
+- BIN text recounts: ArduPilot opens the BIN at arming, so texts sent before that (ONHOLD:
+  DISARMED, sometimes the first ONHOLD: WAYPOINT) are in no BIN. Compare the send time with
+  each BIN's first MSG row before calling a text lost.
+- The wall delivery eval (`eval_gcs_navigation_demo.py --scenario delivery`) gives NAV
+  worker rows, both ATTITUDE arrival streams and three BINs (in WSL `~/navpy-eval-roots/
+  <run-dir name>-<hash>/N/logs`) in about 3 minutes, with no owner approval needed.
+- Renaming a function can break an AST guard that finds it by name
+  (`test_frozen_inventories.py`); grep tests for the old name before renaming.
+- A wait bound needs every place the caller can block: a send budget that left out the 10 ms
+  pacing sleeps, and an unbudgeted drain on the logger worker under a lock the navigation
+  thread also takes, each broke the bound I claimed (Codex rounds 4-5). Measure the elapsed
+  time of the whole loop, and list who else takes each lock held during it.
+- CacheLogWorker stops accepting before it drains its FIFO, and CacheLogger closes the status
+  sink after the worker: a warning raised during either step was rejected silently. Test a
+  failure path at shutdown as well as in steady state.
+- A mutation that removes a guard against a self-deadlock hangs pytest instead of failing it;
+  run the code under test in a daemon thread with a join timeout, and run mutation checks
+  under `timeout`.
+
+## UniRC device check and RC mode picker (2026-11-02)
+
+- A frontend change can break Python tests that read the JSX source (`tests/gcs/*_js.py`,
+  e.g. a z-index pinned in `test_confirm_card_hosts_js.py`). I ran only vitest at first
+  and missed one. Run `pytest tests/gcs` for frontend changes too, and grep `tests/` for
+  the component name before changing its layout.
+- Codex's review rejected "sticks live" from RC_CHANNELS movement: ArduPilot reports the
+  GCS's own MANUAL_CONTROL overrides in RC_CHANNELS. Before inferring a physical input
+  from telemetry, check whether the GCS itself writes that value.
+- A popup that sends a command closed on a UAV change through a passive effect, so a tap
+  could land in between. Tie an open menu to the context it opened for, in render.
+- On the UniRC the backend serves a dist copied into the device worktree; check the
+  page's script name against `dist/index.html` after a reload, since the APK has a
+  service worker.
+
+## Written pose rows leave memory; GC record (ready plan step 5, 2026-11-03)
+- The Bash tool turned `\r\n` and `\\n` inside a heredoc Python edit script into real line
+  breaks, which broke a string literal in source. For edits that contain escapes, use the
+  Edit tool, or build the characters with `chr()`.
+- `sed -i` and plain text-mode Python writes turn this repo's CRLF files into LF. Check
+  with `file` after any scripted edit and keep each file's line endings.
+- Before adding a pose-cadence stream, read the audit's solution notes
+  (`.logs/demo-20261101-audit/solutions/sol_navpy.txt`). They named three traps that apply:
+  `source_time_summary` refuses an unknown stream; pose_cadence_debug.py sits at the
+  300-line SOLID limit; a new stdlib import (`gc`) must be added to the runtime-time lint's
+  `EXTERNAL_IMPORTS`.
+- A race test where a few threads append is over before the flush loop runs once. Set
+  `sys.setswitchinterval(1e-5)` for the test, and assert that flushes really interleaved.
+- To hold a hand-demo stack for a timed run with no UI, call `launch_stack(headless=True,
+  browser=False, ...)` with delivery_demo's settings and environment (scratch driver
+  `hold_stack.py`, with `stalls.py`, under step5/ in the ready plan's side-session notes
+  folder). Each checkout gets its own registry slot, so its sysids can differ between runs. On the ground with no plan, each NavPy
+  writes about 1260 rows/s, the same as in flight.
+
+## Startup auto-connect and ESP32 sim (ready plan step 6, 2026-11-03)
+
+- The startup auto-connect copied the connect route's NavPy start but not its ESP32 start, so Launch stayed
+  disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
+  effects and check each one; a test that removes the call and fails proves the new one is needed.
