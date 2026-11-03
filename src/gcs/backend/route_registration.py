@@ -39,6 +39,7 @@ _ROUTES = (
         unavailable_message="Plan camera check route not available",
     ),
     _RouteSpec("logs", unavailable_message="Logs routes not available"),
+    _RouteSpec("map_config", unavailable_message="Map config routes not available"),
     _RouteSpec("diagnostics", unavailable_message="Diagnostics routes not available"),
 )
 

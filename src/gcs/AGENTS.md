@@ -40,10 +40,18 @@ Frontend:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:
   `frontend/src/vendor/mediamtx/` (see its `NOTICE`).
-- Cesium Ion imagery/terrain: build-time env var `VITE_CESIUM_ION_TOKEN`, set
-  in an untracked `src/gcs/frontend/.env.local`. Absent, the map stays on OSM.
-  The repository is public — never commit the token
+- Cesium Ion imagery/terrain: the backend serves the access token at runtime
+  (`GET /api/map-config`) from the `CESIUM_ION_TOKEN` env var or the file
+  `~/.gcs/cesium_ion_token` (path override `GCS_CESIUM_ION_TOKEN_FILE`), so
+  every clone and worktree on a machine gets it without a rebuild. Absent,
+  there is no 3D terrain and no satellite layer. The browser receives the
+  token, so restrict it in the Ion dashboard (assets:read, assets 1 and 3, the
+  GCS URLs). The repository is public — never commit the token
   (`tests/gcs/test_no_committed_tokens.py` enforces this).
+- Base map layers (bottom-right layers button): terrain (OpenTopoMap, the
+  default), satellite (Ion, needs the token) and street (OSM). The choice
+  changes imagery only and is kept per browser (`gcs-base-layer` in
+  localStorage); sources and credits are in `map/utils/baseLayers.js`.
 
 ## Multi-instance details
 

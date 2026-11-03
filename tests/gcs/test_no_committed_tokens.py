@@ -25,3 +25,20 @@ def test_no_access_tokens_in_tracked_text_files():
         if _TOKEN.search(path.read_bytes()):
             hits.append(name.decode())
     assert not hits, f"access token committed in: {hits}"
+
+
+_FRONTEND_SRC = REPO / "src" / "gcs" / "frontend" / "src"
+# Vite inlines every VITE_* variable it sees read; reading the whole env object
+# inlines them all, so a local .env.local token would end up in the bundle.
+_WHOLE_ENV = re.compile(r"import\.meta\.env(?!\.[A-Za-z_])")
+
+
+def test_frontend_never_builds_the_ion_token_into_the_bundle():
+    hits = []
+    for path in _FRONTEND_SRC.rglob("*"):
+        if path.suffix not in {".js", ".jsx", ".ts", ".tsx"}:
+            continue
+        text = path.read_text(encoding="utf-8")
+        if "VITE_CESIUM_ION_TOKEN" in text or _WHOLE_ENV.search(text):
+            hits.append(str(path.relative_to(REPO)))
+    assert not hits, f"build-time env read that can inline the Ion token: {hits}"

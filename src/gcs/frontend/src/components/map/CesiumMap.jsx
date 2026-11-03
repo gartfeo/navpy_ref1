@@ -115,6 +115,8 @@ function CesiumMap({
   vehicleNavLastWp,
   detectAfterWps,
   mapDefaults,
+  baseLayer,
+  onBaseLayerFailed,
   deliveryHubs,
   deliveryHubAssignments,
   placingDeliveryHub,
@@ -241,7 +243,9 @@ function CesiumMap({
   const fitRef = useRef(null);
   const flyRef = useRef(null);
   const { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady, mapStopped } = useCesiumViewer(
-    fitRef, flyRef, mapDefaults, { persistSuspendedRef, mapCameraRef },
+    fitRef, flyRef, mapDefaults, {
+      persistSuspendedRef, mapCameraRef, baseLayerId: baseLayer, onBaseLayerFailed,
+    },
   );
   useMapSwap({
     viewerRef, viewerReady, fitRef, flyRef, fitFlyingRef, resetViewRef, flyToRef, swapped,
