@@ -8,7 +8,7 @@ import usePlanSnapshot from './usePlanSnapshot';
 import usePlacementModes from './usePlacementModes';
 import usePlanDrag from './usePlanDrag';
 import useExclusionDrawing from './useExclusionDrawing';
-import { toggleSimDock } from '../utils/planningModes';
+import { toggleSimDock, withoutDraftUndo } from '../utils/planningModes';
 
 export default function usePlanningOrchestrator({
   mission, settings, handleSaveSettings, settingsVersion, plannerReady,
@@ -164,9 +164,18 @@ export default function usePlanningOrchestrator({
   });
 
   const handleMapClick = useCallback((latlon) => {
-    drawing.onMapClick(latlon);
+    if (!drawing.onMapClick(latlon)) return;
     undoRef.current = [...undoRef.current, { type: 'vertex' }];
   }, [drawing.onMapClick]);
+
+  // A shape change drops a started draft (under 3 vertices) and its undo steps.
+  const handleDrawShapeChange = useCallback((shape) => {
+    if (shape === drawing.drawShape) return;
+    if (polygon.length > 0 && polygon.length < 3) {
+      undoRef.current = withoutDraftUndo(undoRef.current);
+    }
+    drawing.setDrawShape(shape);
+  }, [drawing.setDrawShape, drawing.drawShape, polygon]);
 
   // ---- Corridor path ----
   const {
@@ -448,6 +457,7 @@ export default function usePlanningOrchestrator({
 
     // Map interaction handlers
     handleMapClick,
+    handleDrawShapeChange,
     handleVertexDrag,
     handlePolygonMove,
     handleDragStart, handleDragEnd,

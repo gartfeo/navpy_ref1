@@ -547,7 +547,16 @@
     "stopKeepOut": "Stop drawing keep-out",
     "set": "Set {{index}}",
     "stopDeliveryHub": "Stop placing default delivery hubs",
-    "placeDeliveryHub": "Place default delivery hub on map"
+    "placeDeliveryHub": "Place default delivery hub on map",
+    "drawShape": "Zone shape",
+    "shape": {
+      "polygon": "Polygon",
+      "rectangle": "Rectangle"
+    },
+    "shapeHint": {
+      "polygon": "Click to add corners, double-click to finish",
+      "rectangle": "Click two corners for one side, then click once more to set the width"
+    }
   },
   "planning": {
     "exitDirtyConfirm": "Plan has been modified but not uploaded to vehicles.\n\nClick OK to discard changes, or Cancel to go back and upload or save."

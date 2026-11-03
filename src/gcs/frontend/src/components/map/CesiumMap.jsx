@@ -4,6 +4,7 @@ import useCesiumViewer from './hooks/useCesiumViewer';
 import useMapInteraction from './hooks/useMapInteraction';
 import usePlanSync from './hooks/usePlanSync';
 import usePolygonLayer from './hooks/usePolygonLayer';
+import useDrawPreviewLayer from './hooks/useDrawPreviewLayer';
 import useZoneLayer from './hooks/useZoneLayer';
 import useTrackLayer from './hooks/useTrackLayer';
 import useLaunchZoneLayer from './hooks/useLaunchZoneLayer';
@@ -75,6 +76,7 @@ function CesiumMap({
   trackResetKey,
   phase,
   isDrawing,
+  drawShape = 'polygon',
   onMapClick,
   onVertexDrag,
   onVertexDelete,
@@ -159,6 +161,7 @@ function CesiumMap({
   const callbacksRef = useRef({});
   callbacksRef.current = {
     isDrawing,
+    drawShape,
     editable: phase === 'PLANNING',
     searchPattern,
     polygon,
@@ -255,11 +258,13 @@ function CesiumMap({
   const { planRef, trackPosRef, zonePosRef, lzPosRef, minLzPosRef, clampOuterRef, terrainBaseRef } =
     usePlanSync(cesiumRef, viewerRef, plan, analysis, terrainReady);
 
+  const drawPreviewRef = useRef([]);
   useMapInteraction(cesiumRef, viewerRef, readyRef, callbacksRef, {
-    polygonRef, setLaunchPointsRef, setCorridorPointsRef, clampOuterRef, activeSetIndex,
+    polygonRef, setLaunchPointsRef, setCorridorPointsRef, clampOuterRef, activeSetIndex, drawPreviewRef,
   });
 
   usePolygonLayer(cesiumRef, viewerRef, entitiesRef, polygonRef, polygon, phase, viewerReady);
+  useDrawPreviewLayer(cesiumRef, viewerRef, drawPreviewRef, isDrawing, polygon, viewerReady);
   useFenceLayer(cesiumRef, viewerRef, entitiesRef, fencePolygon, showFence, viewerReady, phase === 'PLANNING' && fenceEditable, fenceWarning);
   useExclusionLayer(cesiumRef, viewerRef, entitiesRef, exclusionPolygons, exclusionDraft, exclusionConflicts, viewerReady, phase === 'PLANNING');
   useZoneLayer(cesiumRef, viewerRef, entitiesRef, zonePosRef, zoneCount, showZones, searchPattern, viewerReady);

@@ -321,6 +321,16 @@ docks were detected there. `tests/gcs/test_plan_camera_check.py` keeps every
 ground-dock profile's default stack within its camera's reach.
 The zone goes to the third vehicle in the UI list.
 
+**Drawn-area plan** `scripts/delivery_demo_plan_drawn.json` (same builder, same
+`--check`): the plan above with the area the owner drew on the map on
+2026-11-03, a 1.26 × 0.77 km box along the A327, south-west of the launch
+point. The owner chose it over the same layout turned 90°, whose ground ran
+−51 to +53 m from home (SRTM tile `.terrain/dem`); under the box's tracks it
+runs −10 to +2 m. The planner aims the lines at the launch point, so they
+cross the box diagonally: 4, 2 and 3 lines (3.3, 2.8, 1.9 km). The docks are
+zone 2's waypoints 1 and 2, 169 m apart on the box's west edge, after an
+824 m line. Hubs and their indices are the rehearsed plan's.
+
 **One command** `delivery_demo.py`:
 1. Run dir, settings and SITL root, then the commit and input record,
    `input_manifest.json` (see "Checking a hand run").
@@ -421,6 +431,13 @@ did not.
 Before:
 - Decide the plan: the rehearsed `scripts\delivery_demo_plan.json`, or a plan
   of your own saved to a file and rehearsed first.
+  - `delivery_demo_plan.json`: run 2 above, 3 of 3 DOCKED (sim).
+  - `delivery_demo_plan_drawn.json` (the owner's box, see "Drawn-area plan"):
+    rehearsed once on 2026-11-03 (run `20261103-205705`, 8 CPUs, every card
+    approved, another chat's stack running beside it). The zone-2 UAV and the
+    peer it offered a dock DOCKED (sim), 0.15 and 0.10 m. UAV 1 ended
+    DOCK_FAILED `source_command_stale` (source 1.08 s old, limit 1 s) on its
+    hub approach, 613 m out, 29 s after Launch.
 - Ask the other chats to hold heavy work (test suites, evals, WSL runs) until
   the demo ends: the share does not cover WSL, and 8 CPUs are not proven
   enough. Both rehearsals ran beside other Python processes, 2-3 cores

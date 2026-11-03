@@ -725,6 +725,7 @@ export default function App() {
             trackResetKey={commands.trackResetKey}
             phase={phase}
             isDrawing={planning.drawing.isDrawing}
+            drawShape={planning.drawing.drawShape}
             onMapClick={planning.handleMapClick}
             onVertexDrag={planning.handleVertexDrag}
             onVertexDelete={planning.drawing.onVertexDelete}
@@ -798,6 +799,8 @@ export default function App() {
               isDrawing={planning.drawing.isDrawing}
               onStartDraw={planning.startDrawExclusive}
               onStopDraw={planning.drawing.stopDraw}
+              drawShape={planning.drawing.drawShape}
+              onDrawShapeChange={planning.handleDrawShapeChange}
               searchPattern={searchPattern}
               polygon={polygon}
               launchPoint={launchPoint}
