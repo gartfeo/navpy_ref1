@@ -442,8 +442,17 @@ describe('delivery demo plan file', () => {
     // 150 m line spacing, met by the box's west edge at about 62 deg.
     expect(metres).toBeGreaterThan(160);
     expect(metres).toBeLessThan(180);
-    // The west edge: both docks west of every other corner of the box.
-    const eastOfWestEdge = Math.min(...file.polygon.map((p) => p.lon).sort((x, y) => x - y).slice(2));
-    [a, b].forEach((d) => expect(d.lon).toBeLessThan(eastOfWestEdge));
+    // Both docks lie on the box's west edge, corners 2 to 3.
+    const [c2, c3] = [file.polygon[2], file.polygon[3]];
+    const xy = (p) => [(p.lon - c2.lon) * 111320 * Math.cos((c2.lat * Math.PI) / 180), (p.lat - c2.lat) * 111320];
+    const [ex, ey] = xy(c3);
+    const edge = Math.hypot(ex, ey);
+    [a, b].forEach((d) => {
+      const [px, py] = xy(d);
+      const along = (px * ex + py * ey) / edge;
+      expect(Math.abs(px * ey - py * ex) / edge).toBeLessThan(2);
+      expect(along).toBeGreaterThan(0);
+      expect(along).toBeLessThan(edge);
+    });
   });
 });
