@@ -2263,6 +2263,7 @@
 - Python edits through Bash heredocs turn "\b" into a backspace byte; check edited files for \x08.
 - Under heavy PC load (other programs at 100% CPU) the Windows emulator took over 30 s to print its ready line;
   a smoke script must still stop what it started when a start fails.
+
 ## Rehearsals (ready plan step 8, 2026-11-03)
 
 - A hand demo from a live tester: set `$env:BROWSER` to a no-op exe for the launch only, so `delivery_demo.py`'s `webbrowser.open` does not open the owner's Chrome, and use the built-in pane. The native plan file picker is out of reach there: set a File built from the plan JSON on the page's input and dispatch change. Launch needs real mouse coordinates for its hold. Cards come in pairs and last 30 s; press by DOM, not by a screenshot that lags about 5 s.
