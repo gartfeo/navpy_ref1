@@ -90,6 +90,7 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
 def _faulting_run(monkeypatch, fault):
     class Faulting:
         journal = SimpleNamespace(write=lambda _path: None, digest="d" * 64)
+        admission = SimpleNamespace(actions=[])  # the action file: nothing admitted
 
         def __init__(self, *_args, **_kwargs) -> None:
             pass
@@ -487,3 +488,69 @@ def test_write_lines_writes_each_navpys_lines_with_their_ticks(tmp_path, scenari
     for sys_id in layout.sys_ids:
         rows = [json.loads(row) for row in (tmp_path / name(sys_id)).read_text(encoding="utf-8").splitlines()]
         assert rows == [[sys_id, f"line {sys_id}.a"], [10 + sys_id, f"line {sys_id}.b"]]
+
+
+def test_the_lockstep_claim_is_this_directorys_so_gcs_stop_eval_finds_it(tmp_path, monkeypatch):
+    """Todo 55: the claim's owner is ``owner_for`` (normcased), the key ``gcs_stop --eval`` looks up."""
+    from gcs.backend import instance_registry as reg
+    from gcs.backend import instance_registry_lockstep as lockstep
+
+    monkeypatch.setenv("GCS_INSTANCE_REGISTRY", str(tmp_path / "instances.json"))
+    claimed, real_claim = [], lockstep.claim
+
+    def claim(**kwargs):
+        claimed.append(real_claim(port_check=lambda n: True, **kwargs))
+        raise AssertionError("claimed")
+
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", claim)
+    with pytest.raises(AssertionError, match="claimed"):
+        execute_lockstep_run(tmp_path / "run", SLICE, OPTIONS)
+    ((slot, identity),) = claimed
+    try:
+        entry = reg.find_for_owner(reg.owner_for(str(ROOT)), label="sitl-eval", include_lockstep=True)
+        assert entry is not None and entry["chat_index"] == slot
+    finally:
+        assert lockstep.release_if_owner(slot, identity)
+
+
+def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypatch):
+    """``--app``: the app stack starts on the claimed slot before the coordinator, its relay,
+    the refusals and a pacer reach the coordinator, and the stack stops after the run."""
+    import dataclasses
+
+    events, made = [], {}
+
+    class Stack:
+        relay = object()
+        url = "http://localhost:3040"
+
+        def stop(self):
+            events.append("app stopped")
+
+    class Coordinator:
+        def __init__(self, *args, **kwargs):
+            made.update(kwargs)
+            self.journal = lockstep_eval.RunJournal()
+            self.admission = SimpleNamespace(actions=[{"k": 3, "source": "relay", "kind": "request",
+                                                       "target": 2, "id": [0, 4], "payload": {}}])
+
+        def run(self):
+            events.append("run")
+            raise HostFault("exchange_budget", "stop here", tick=3)
+
+    fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval.lockstep, "release_if_owner", lambda *_a: events.append("released"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", lambda *_a: fleet)
+    monkeypatch.setattr(lockstep_eval, "start_app_stack",
+                        lambda run_dir, slot, owner, target, frontend: events.append(("app", slot, target)) or Stack())
+    monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Coordinator)
+    with pytest.raises(RegressionError, match="lockstep run fault"):
+        execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
+    assert events == [("app", 40, lockstep_eval.fleet_layout(SLICE).backend), "run", "app stopped",
+                      "fleet stopped", "released"]
+    assert made["relay"] is Stack.relay and made["refuse"] is lockstep_eval.refusal
+    assert isinstance(made["pace"], lockstep_eval.RealTimePacer)
+    assert (tmp_path / "run" / lockstep_eval.ACTIONS_FILE).read_text(encoding="ascii") == (
+        '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n')

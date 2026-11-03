@@ -89,7 +89,10 @@ Frontend:
   five seed-1 certified runs one at a time (two plain, host delay seeds 7 and 13, CPU
   load), passing only with every report passed, one journal digest and byte-equal
   artifacts, summary in `<dir>\matrix.json`; about 10 wall minutes; other chats' wall
-  stacks may start and stop meanwhile, todo 51) is the one
+  stacks may start and stop meanwhile, todo 51); to watch and drive a lockstep run in the
+  app, add `--app` (relay and Vite on the slot's ports, paced to 1x; it prints the page
+  URL; requests go through the coordinator and land in `lockstep_actions.jsonl`), or
+  `--pace` for 1x without the app; `gcs_stop.py --eval` stops it, and it is the one
   exception to "no `gcs_launch` for eval-only runs": `gcs_launch.lockstep_claim`
   claims an eval-band `lockstep` slot in-process with the full owner identity
   (pid, start time, run token, claim nonce); children are recorded under the

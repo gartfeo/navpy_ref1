@@ -1,9 +1,12 @@
+import { backendNowMs } from './backendClock';
+
 /**
  * The one clock of the task-confirm countdown: receipt time, the card, the
  * summary chip, the order and the alert sound all read it (todos 67, 68).
- * deterministic_dev_sim.md plans to move the countdown to sim time; that
- * swap happens here.
+ * It is the backend's clock (utils/backendClock.js), so on a lockstep run
+ * the countdown counts sim time and its auto-fire lands at the sim time it
+ * shows.
  */
 export function confirmNow() {
-  return Date.now();
+  return backendNowMs();
 }

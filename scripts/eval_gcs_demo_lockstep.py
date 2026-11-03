@@ -16,6 +16,13 @@ One run (``lockstep_slice.md``, "Run phases"):
    run-relative ``log_dir``); host facts only in ``*_host`` files.
 5. Release the slot by ownership.
 
+``app`` (step 11 of ``deterministic_dev_sim.md``): the run is paced at 1x
+and serves the GCS app on its slot's ports (``lockstep_app_stack``); the
+app's requests enter the run through the coordinator's admission, after the
+scripted operator's in each tick. Every run writes its action file
+(``lockstep_actions.jsonl``): each admitted request and cancel with its tick
+and id. ``pace`` alone paces a run without the app.
+
 The participants run with the run directory as their working directory, so
 NavPy's ``uav_<sys>_*`` files and the backend's ``gcs/`` land where the wall
 eval puts them, and :func:`~scripts.eval_gcs_demo_analysis.analyze_run`
@@ -34,14 +41,18 @@ from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+from gcs.backend import instance_registry as reg
 from gcs.backend import instance_registry_lockstep as lockstep
+from gcs.backend.lockstep.app_refusals import refusal
 from navpy.sim.lockstep.coordinator_journal import RunJournal
 from navpy.sim.lockstep.coordinator_members import Roster
+from navpy.sim.lockstep.coordinator_pacing import RealTimePacer
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import Manifest, ParticipantFault, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
 from navpy.sim.lockstep.operator_baton import OperatorBaton
+from navpy.sim.lockstep.part_wire_codec import dumps
 from navpy.sim.lockstep.participant_budget import participant_models
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.sim_profile import DEFAULT_PROFILE, Realization, load_profile, realize
@@ -57,6 +68,7 @@ from scripts.eval_gcs_demo_constants import ROOT, SRC
 from scripts.eval_gcs_demo_fleet_gates import navpy_lines_file
 from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE, OWNER_ONLY_SLICE_PROFILE
 from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points
+from scripts.lockstep_app_stack import AppStack, start_app_stack
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
 from scripts.eval_gcs_demo_mission import run_mission
@@ -78,6 +90,7 @@ from scripts.lockstep_wsl_sitl import (
 
 RUN_HOST_FILE = "lockstep_run_host.json"
 APPROVALS_FILE = "operator_approvals.json"
+ACTIONS_FILE = "lockstep_actions.jsonl"
 #: The manifest epoch: the SITL's ``--start-time``, so ``unix`` = epoch + t_k.
 EPOCH_US = SITL_START_TIME_UTC * 1_000_000
 #: The coordinator's mission sim-time budget: a backstop only. The operator's
@@ -121,6 +134,12 @@ class LockstepOptions:
     host_delay_seed: int = 0
     #: The sim profile (``sim_profile``): its realization for the seed is a run input.
     sim_profile: str = DEFAULT_PROFILE
+    #: Pace the run to 1x wall time (host side: never part of the journal).
+    pace: bool = False
+    #: Serve the GCS app on the slot's ports (paced); its requests are run inputs.
+    app: bool = False
+    #: With ``app``: also start the frontend (off: the relay only, for tools and tests).
+    frontend: bool = True
 
 
 @dataclass(frozen=True)
@@ -222,6 +241,11 @@ def write_lines(run_dir: Path, scenario: DemoScenario, operator: OperatorBaton) 
             for k, line in zip(ticks, lines)))
 
 
+def write_actions(path: Path, actions: list[dict]) -> None:
+    """The action file: one canonical JSON line per admitted request or cancel."""
+    path.write_bytes(b"".join(dumps(action) + b"\n" for action in actions))
+
+
 def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                          options: LockstepOptions) -> LockstepRun:
     require_wired(scenario)
@@ -243,8 +267,9 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
     write_lockstep_input_manifest(run_dir, scenario, plan, options, defaults, tiles, topology,
                                   realization, rng_seeds)
     slot, owner = lockstep.claim(run_token=f"seed-{options.seed}", clone=str(ROOT),
-                                 owner=f"dir:{ROOT}")
+                                 owner=reg.owner_for(str(ROOT)))
     started = time.perf_counter()
+    app: AppStack | None = None
     fleet = WslFleet(run_dir, slot, owner, FleetLaunch(
         tuple(zip(layout.sys_ids, homes)), options.seed, options.host_delay_seed, defaults, tiles,
         rng_seeds))
@@ -255,23 +280,36 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                     deadline=exchange_deadline())
     ids = RequestIds(0)
     operator = lockstep_operator(ids, scenario, run_dir, options)
-    # The backend spawns and registers before the coordinator launches the SITL.
-    coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
-                                      delay=HostDelays(options.host_delay_seed), launch=fleet.launch,
-                                      radio_loss_pct=radio_loss_pct(realization),
-                                      faults=fault_plans(realization, len(plan.sitl_ports)))
-    result = fault = None
+    result = fault = coordinator = None
     try:
+        if options.app:
+            app = start_app_stack(run_dir, slot, owner, layout.backend, frontend=options.frontend)
+            print(f"GCS app on lockstep: {app.url}", flush=True)
+        # The backend spawns and registers before the coordinator launches the SITL.
+        coordinator = LockstepCoordinator(plan, fleet.sitls, operator, roster, ids, run_dir,
+                                          delay=HostDelays(options.host_delay_seed), launch=fleet.launch,
+                                          radio_loss_pct=radio_loss_pct(realization),
+                                          faults=fault_plans(realization, len(plan.sitl_ports)),
+                                          relay=None if app is None else app.relay, refuse=refusal,
+                                          pace=RealTimePacer() if options.pace or options.app
+                                          else lambda t_us: None)
         result = coordinator.run()
     except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
         fault = error
     finally:
         try:
-            fleet.stop()  # idempotent after the coordinator's own stop
+            if app is not None:
+                app.stop()
         finally:
-            lockstep.release_if_owner(slot, owner)
+            try:
+                fleet.stop()  # idempotent after the coordinator's own stop
+            finally:
+                lockstep.release_if_owner(slot, owner)
+    if coordinator is None:  # the app could not start: nothing ran
+        raise RegressionError(f"lockstep app setup failed: {fault}") from fault
     journal: RunJournal = coordinator.journal
     journal.write(run_dir / JOURNAL_FILE)
+    write_actions(run_dir / ACTIONS_FILE, coordinator.admission.actions)
     write_lines(run_dir, scenario, operator)
     script = operator.result if isinstance(operator.result, dict) else {"approvals": [], "error": None}
     approvals = validate_approval_records(script["approvals"])
@@ -292,9 +330,9 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
 
 
 __all__ = [
-    "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
+    "ACTIONS_FILE", "APPROVALS_FILE", "JOURNAL_FILE", "LockstepOptions", "MISSION_BUDGET_S", "LockstepRun", "NAVPY_LINES_FILE",
     "PRODUCT_FAILURE_OUTCOME",
     "RUN_HOST_FILE", "WIRING", "Wiring", "execute_lockstep_run", "fleet_layout",
     "lockstep_operator", "manifest", "operator_script", "require_wired", "sim_realization",
-    "write_lines",
+    "write_actions", "write_lines",
 ]

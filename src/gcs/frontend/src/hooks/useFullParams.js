@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { backendNowMs } from '../utils/backendClock';
 import { diagnosticRequest, emitDiagnostic } from '../utils/diagnostics';
 import {
   aggregateBatchResults,
@@ -451,7 +452,7 @@ export default function useFullParams(vehicleList) {
       setWriteProgressByVehicle((prev) => ({ ...prev, ...seededWrite }));
     }
 
-    const now = Date.now() / 1000;
+    const now = backendNowMs() / 1000; // the token expires on the backend's clock
     const tokens = tokensRef.current;
     const perVehicleResults = {};
     const responses = await Promise.all(active.map(async (sid) => {

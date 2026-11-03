@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import fetchWithRetry from '../utils/fetchRetry';
 import { diagnosticRequest, emitDiagnostic } from '../utils/diagnostics';
+import { deadlineHeaders, isLockstepRun } from '../utils/simDeadline';
 
 // Hard caps so a wedged backend / dropped link can't leave a request — and the
 // UI "connecting" / "downloading" indicator that keys off it — pending forever.
@@ -207,7 +208,7 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
     try {
       const params = new URLSearchParams({ device, sys_id: sysId });
       if (name) params.set('name', name);
-      const res = await fetch(`/api/vehicles/connect?${params}`, { method: 'POST', signal: t.signal, headers: diagnostic.headers });
+      const res = await fetch(`/api/vehicles/connect?${params}`, { method: 'POST', signal: t.signal, headers: { ...diagnostic.headers, ...deadlineHeaders(CONNECT_TIMEOUT_MS) } });
       if (res.ok) {
         emitDiagnostic('vehicle_operation_finished', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'connect', outcome: 'success' });
         return await res.json();
@@ -216,7 +217,8 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
       return { error: err?.detail || `HTTP ${res.status}` };
     } catch (e) {
       if (e.name === 'AbortError') {
-        emitDiagnostic('client_timeout', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'connect', outcome: 'timeout' });
+        // On lockstep a wall abort must not decide whether a request enters the run.
+        if (!isLockstepRun()) emitDiagnostic('client_timeout', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'connect', outcome: 'timeout' });
         return { error: 'timeout' };
       }
       console.error('Connect error:', e);
@@ -269,7 +271,10 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
     const diagnostic = diagnosticRequest();
     emitDiagnostic('client_request_started', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission' });
     try {
-      const res = await fetchWithRetry(`/api/vehicles/${sysId}/mission`, { signal: t.signal, headers: diagnostic.headers });
+      const res = await fetchWithRetry(`/api/vehicles/${sysId}/mission`, {
+        signal: t.signal,
+        headers: { ...diagnostic.headers, ...deadlineHeaders(MISSION_DOWNLOAD_TIMEOUT_MS) },
+      });
       if (res.ok) {
         const data = await res.json();
         emitDiagnostic('client_request_finished', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission', outcome: 'success', total: data?.waypoints?.length || 0 });
@@ -280,7 +285,8 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
       return { error: err?.detail || `HTTP ${res.status}`, _diagnostic_request_id: diagnostic.requestId };
     } catch (e) {
       if (e.name === 'AbortError') {
-        emitDiagnostic('client_timeout', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission', outcome: 'timeout' });
+        // On lockstep a wall abort must not decide whether a request enters the run.
+        if (!isLockstepRun()) emitDiagnostic('client_timeout', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission', outcome: 'timeout' });
         return { error: 'timeout', _diagnostic_request_id: diagnostic.requestId };
       }
       console.error('Download mission error:', e);

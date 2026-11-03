@@ -34,6 +34,12 @@ and never replies, then runs synthetic ticks with ``end`` until every
 participant ended. The snapshot is taken only after every participant ended
 flushed and exited; then every SITL is stopped by ownership.
 
+The operator phase is one admission step (``coordinator_admission``): the
+scripted operator's items, then the app relay's, in one order with shared
+ids; relay responses and the backend's broadcasts go back to the relay.
+``pace`` runs after each reply with ``t_k`` (the 1x pacer, host side like
+the host delays; it never enters the journal).
+
 Port bytes take the router path for any N, the slice included
 (``coordinator_router``: the router, the queues and the packet records).
 The journal opens with the run's tick grid and topology (the SITL ports,
@@ -52,7 +58,9 @@ import logging
 from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
+from typing import Any
 
+from navpy.sim.lockstep.coordinator_admission import Admission, RelayPort
 from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
 from navpy.sim.lockstep.coordinator_faults import FaultRunner
@@ -103,7 +111,10 @@ class LockstepCoordinator:
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
                  delay: Callable[[str], None] = lambda point: None,
                  launch: Callable[[ExchangeDeadline], None] = anchor_now,
-                 radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = ()) -> None:
+                 radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = (),
+                 relay: RelayPort | None = None,
+                 refuse: Callable[[dict[str, Any]], object | None] = lambda payload: None,
+                 pace: Callable[[int], None] = lambda t_us: None) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._operator = operator
@@ -117,6 +128,8 @@ class LockstepCoordinator:
         self._ids = ids
         self._host_dir = host_dir
         self._delay = delay
+        self._pace = pace
+        self.admission = Admission(ids, relay, refuse)
         self._k = 0
         self.journal = RunJournal()
 
@@ -237,17 +250,26 @@ class LockstepCoordinator:
 
     def _inbox(self, k: int, t_us: int, output: TickOutput,
                wall_deadline: float | None = None) -> OperatorInbox:
-        return OperatorInbox(k, t_us, tuple(output.responses), tuple(output.events),
+        responses = self.admission.route(output.responses, output.events)  # the relay's go back
+        return OperatorInbox(k, t_us, responses, tuple(output.events),
                              tuple(output.log_lines), tuple(self._book.operator), wall_deadline)
 
     def _run_operator(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
         if self._operator.done:
+            self.admission.route(output.responses, output.events)
             return
         # The baton's handoffs and timer rounds all draw on what is left of D_k.
         requests = self._roster.deadline.bounded(
             OPERATOR_WAIT, lambda wall: self._operator.run_tick(self._inbox(k, t_us, output, wall)))
-        deliver_operator_requests(self._roster, requests, k)
+        deliveries, admission = self.admission.admit(k, requests, self._ready)
+        deliver_operator_requests(self._roster, deliveries, k)
+        if admission is not None:
+            record.note("admission", admission)
         self._note_operator(record)
+
+    def _ready(self, ordinal: int) -> bool:
+        member = self._roster.current(ordinal)
+        return member is not None and member.live and member.ready
 
     def _note_operator(self, record: TickRecord) -> None:
         observed = self._operator.observations()
@@ -259,6 +281,7 @@ class LockstepCoordinator:
         record.note("reply", [sha256(raw) for raw in raws])
         self.journal.add(record.data)
         self._delay("after_reply")
+        self._pace(record.data["t_us"])
 
     def _raise_faults(self, output: TickOutput) -> None:
         if output.faults:

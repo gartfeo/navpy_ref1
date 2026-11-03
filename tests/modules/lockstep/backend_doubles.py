@@ -28,7 +28,7 @@ from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSideca
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec, WallBudgets
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder
-from navpy.sim.lockstep.part_wire import Done, RequestId
+from navpy.sim.lockstep.part_wire import Done, RequestId, Tick
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
 from scripts.eval_gcs_demo_config import build_settings
@@ -130,6 +130,8 @@ class BackendRun:
     operator: OperatorBaton
     #: Every ``DONE`` the backend sent, decoded, in tick order.
     dones: list[Done] = field(default_factory=list)
+    #: Every ``TICK`` the backend was sent, in tick order.
+    ticks: list[Tick] = field(default_factory=list)
 
     def run(self) -> RunResult:
         return self.coordinator.run()
@@ -151,8 +153,9 @@ class BackendRun:
 
 
 def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
-          companions: bool = False, navpy: bool = False) -> BackendRun:
-    """``script(scenario)`` makes the operator's script (default: the setup calls)."""
+          companions: bool = False, navpy: bool = False, **coordinator_options) -> BackendRun:
+    """``script(scenario)`` makes the operator's script (default: the setup calls);
+    ``coordinator_options`` go to the coordinator (a relay, its refusals, a pacer)."""
     scenario = load_scenario(SLICE_SCENARIO)
     plan = manifest(scenario, companions=companions or navpy, navpy=navpy)
     delays = HostDelays(delay_seed)
@@ -164,9 +167,15 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
     ids = RequestIds(0)
     operator = OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
-                                      delay=delays)
+                                      delay=delays, **coordinator_options)
     run = BackendRun(coordinator, sitl, operator)
-    receive = roster.receive
+    receive, send = roster.receive, roster.send
+
+    def sent(member, tick):
+        run.ticks.append(tick)
+        return send(member, tick)
+
+    roster.send = sent
 
     def capture(member, k):
         done, raw = receive(member, k)

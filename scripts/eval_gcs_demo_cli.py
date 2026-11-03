@@ -104,6 +104,11 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
         help="lockstep only: the sim profile whose realism models the seed draws "
         "(src/navpy/sim/lockstep/sim_profiles.json; default: hw)",
     )
+    parser.add_argument("--pace", action="store_true",
+                        help="lockstep only: pace the run to 1x wall time (the digest is unchanged)")
+    parser.add_argument("--app", action="store_true",
+                        help="lockstep only: serve the GCS app on this run's slot, paced at 1x; "
+                        "the app's requests are run inputs (deterministic_dev_sim.md step 11)")
     return parser.parse_args(argv)
 
 
@@ -125,7 +130,8 @@ def run_lockstep(
     run_dir = args.run_dir or Path(tempfile.mkdtemp(prefix="navpy-gcs-demo-lockstep-"))
     print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
     options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,
-                              args.host_delay_seed, args.sim_profile or DEFAULT_PROFILE)
+                              args.host_delay_seed, args.sim_profile or DEFAULT_PROFILE,
+                              pace=args.pace, app=args.app)
     run = execute_lockstep_run(run_dir, scenario, options)
     errors = [f"lockstep outcome {run.outcome!r}, not 'ok'"] if run.outcome != "ok" else []
     if run.product_failure is not None:
@@ -175,6 +181,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise RegressionError(f"invalid --scenario: {error}") from error
     if args.sim_profile is not None and not args.lockstep:
         raise RegressionError("--sim-profile is lockstep only")
+    if (args.pace or args.app) and not args.lockstep:
+        raise RegressionError("--pace and --app are lockstep only")
     if args.lockstep and scenario.gate_profile == DELIVERY_PROFILE:
         raise RegressionError("the delivery scenario has no lockstep run")
     if args.lockstep:
