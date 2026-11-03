@@ -2171,3 +2171,9 @@
   `hold_stack.py`, with `stalls.py`, under step5/ in the ready plan's side-session notes
   folder). Each checkout gets its own registry slot, so its sysids can differ between runs. On the ground with no plan, each NavPy
   writes about 1260 rows/s, the same as in flight.
+
+## Startup auto-connect and ESP32 sim (ready plan step 6, 2026-11-03)
+
+- The startup auto-connect copied the connect route's NavPy start but not its ESP32 start, so Launch stayed
+  disabled in hand demos (todo 164). When a second path does what a route does, list the route's side
+  effects and check each one; a test that removes the call and fails proves the new one is needed.
