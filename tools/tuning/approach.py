@@ -209,9 +209,9 @@ def approach(args: argparse.Namespace) -> int:
                               args.hitl_data)
     board = Board(f"udpin:127.0.0.1:{chain.RUNNER_PORT}", run_dir / "board", files, origin=args.origin, hitl=hitl,
                   log_fetch=False)
-    failed, reason, quiesce = None, stop.EXIT, stop.Quiesce.of(group)
-    armed = stop.arm()
+    failed, reason, quiesce, handlers = None, stop.EXIT, stop.Quiesce.of(group), {}
     try:
+        stop.arm(handlers)
         specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens),
                  chain.unreal(paths, lens, scenario_run.unreal_file(run_dir), run["scenario"]["scene_hash"]),
@@ -231,7 +231,7 @@ def approach(args: argparse.Namespace) -> int:
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
         print(f"[approach] run FAILED ({reason}): {failed}", flush=True)
     finally:
-        handlers = {**stop.shield(), **armed}    # a later signal waits for the cleanup
+        stop.shield(handlers)                    # a later signal waits for the cleanup
         try:
             run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
             try:

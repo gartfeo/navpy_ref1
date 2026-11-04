@@ -56,19 +56,38 @@ def raise_aborted(signum: int, frame: object) -> None:
     raise Aborted(f"signal {signum}")
 
 
-def arm() -> dict:
-    """While a run is in progress SIGTERM and SIGHUP raise Aborted; returns the handlers to restore."""
-    return {signum: signal.signal(signum, raise_aborted) for signum in ABORT_SIGNALS}
+def _install(handler: object, signums: tuple, saved: dict) -> None:
+    """Each signal's first handler goes into saved before it is replaced, so an interruption loses none."""
+    for signum in signums:
+        saved.setdefault(signum, signal.getsignal(signum))
+        signal.signal(signum, handler)
 
 
-def shield() -> dict:
-    """Ignore Ctrl+C, SIGTERM and SIGHUP while the run's cleanup runs, so a second signal cannot cut its stops short;
-    returns the handlers to restore."""
-    return {signum: signal.signal(signum, signal.SIG_IGN) for signum in (signal.SIGINT, *ABORT_SIGNALS)}
+def arm(saved: dict) -> None:
+    """While a run is in progress SIGTERM and SIGHUP raise Aborted; called inside the run's try, so a signal even
+    during arm() is an abort."""
+    _install(raise_aborted, ABORT_SIGNALS, saved)
 
 
-def restore(handlers: dict) -> None:
-    for signum, handler in handlers.items():
+def shield(saved: dict) -> None:
+    """Ignore Ctrl+C, SIGTERM and SIGHUP while the run's cleanup runs, so a second signal cannot cut its stops short.
+    The signals are blocked meanwhile (POSIX); one that was already on its way when shield() began is retried past,
+    and once all are ignored none can raise (CPython runs no handler for an ignored signal)."""
+    signums, block = (signal.SIGINT, *ABORT_SIGNALS), getattr(signal, "pthread_sigmask", None)
+    while True:
+        try:
+            if block:
+                block(signal.SIG_BLOCK, signums)
+            _install(signal.SIG_IGN, signums, saved)
+            break
+        except (Aborted, KeyboardInterrupt):
+            continue
+    if block:
+        block(signal.SIG_UNBLOCK, signums)      # a signal held meanwhile now meets SIG_IGN
+
+
+def restore(saved: dict) -> None:
+    for signum, handler in saved.items():
         signal.signal(signum, handler)
 
 

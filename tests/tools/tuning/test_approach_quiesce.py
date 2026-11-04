@@ -525,6 +525,13 @@ def _raises(exc: BaseException):
     return fly
 
 
+def test_a_signal_as_the_run_arms_still_quiesces_and_stops(tmp_path, monkeypatch):
+    _interrupted_once(monkeypatch, stop.Aborted("signal 15"), 1)
+    code, log, run = _runner(tmp_path, monkeypatch, _raises(AssertionError("not reached")))
+    assert code == 1 and "board stop" in log and run["error"] == "Aborted: signal 15"
+    assert run["handoff"] is None                    # navpy never started: nothing to quiesce
+
+
 @pytest.mark.parametrize("exc, reason", [(RunnerError("navpy exited with code -9 during the run"), stop.CRASH),
                                          (KeyboardInterrupt(), stop.ABORT), (stop.Aborted("signal 15"), stop.ABORT)])
 def test_a_crash_or_an_abort_quiesces_before_the_boards_stop(tmp_path, monkeypatch, exc, reason):
@@ -553,15 +560,59 @@ def test_sigterm_raises_an_abort():
         stop.raise_aborted(signal.SIGTERM, None)
 
 
-def test_sigterm_and_sighup_abort_a_run_and_are_ignored_in_its_cleanup():
+@pytest.mark.parametrize("name", [n for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n)])
+def test_sigterm_and_sighup_abort_a_run_and_are_ignored_in_its_cleanup(name):
     """A hangup (the WSL session went away) would end the runner at once, with nothing stopped."""
-    assert stop.ABORT_SIGNALS == tuple(getattr(signal, n) for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n))
+    signum, handlers = getattr(signal, name), {}
     before = {s: signal.getsignal(s) for s in (signal.SIGINT, *stop.ABORT_SIGNALS)}
-    armed = stop.arm()
     try:
-        assert all(signal.getsignal(s) is stop.raise_aborted for s in stop.ABORT_SIGNALS)
-        handlers = {**stop.shield(), **armed}
+        with pytest.raises(stop.Aborted):
+            stop.arm(handlers)
+            signal.raise_signal(signum)
+        stop.shield(handlers)
+        signal.raise_signal(signum)                 # ignored: the cleanup goes on
+        signal.raise_signal(signal.SIGINT)
+    finally:
+        stop.restore(handlers)
+    assert {s: signal.getsignal(s) for s in before} == before
+
+
+def _interrupted_once(monkeypatch, exc: BaseException, after: int):
+    """signal.signal that raises exc (a signal arriving mid-swap) right after its after-th call took effect."""
+    real, calls = signal.signal, []
+
+    def interrupted(signum, handler):
+        previous = real(signum, handler)
+        calls.append(signum)
+        if len(calls) == after:
+            raise exc
+        return previous
+    monkeypatch.setattr(stop.signal, "signal", interrupted)
+
+
+@pytest.mark.parametrize("after", sorted({1, 2, len(stop.ABORT_SIGNALS) + 1}))
+def test_a_signal_while_the_cleanup_shields_still_leaves_every_signal_ignored(monkeypatch, after):
+    before = {s: signal.getsignal(s) for s in (signal.SIGINT, *stop.ABORT_SIGNALS)}
+    handlers: dict = {}
+    try:
+        stop.arm(handlers)
+        _interrupted_once(monkeypatch, stop.Aborted("signal 1"), after)
+        stop.shield(handlers)                        # does not raise: the cleanup's stops all run
         assert all(signal.getsignal(s) is signal.SIG_IGN for s in before)
     finally:
+        monkeypatch.undo()
+        stop.restore(handlers)
+    assert {s: signal.getsignal(s) for s in before} == before
+
+
+def test_a_signal_while_the_run_arms_is_an_abort_that_loses_no_handler(monkeypatch):
+    before = {s: signal.getsignal(s) for s in stop.ABORT_SIGNALS}
+    handlers: dict = {}
+    _interrupted_once(monkeypatch, stop.Aborted("signal 15"), 1)
+    try:
+        with pytest.raises(stop.Aborted):
+            stop.arm(handlers)
+    finally:
+        monkeypatch.undo()
         stop.restore(handlers)
     assert {s: signal.getsignal(s) for s in before} == before
