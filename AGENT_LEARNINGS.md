@@ -2414,3 +2414,15 @@
   measurement note (it said so) before doubting new data.
 - **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
   Fit a smooth curve and label it an approximation; ask for an up/down repeat.
+
+## Smooth UAV models by playout, todo 267 (2026-11-04)
+
+- When the owner says the map looks bad, first ask which page (port, branch) they watch. Here
+  they watched another chat's stack on :3000 with the old code while my fix ran on :3001.
+- The built-in Browser pane draws at 0-2 fps when the session is not on screen; numbers from it
+  measure the throttle. Use the owner's Chrome for frame-level checks.
+- One WebSocket (TCP) delivers in order: a jitter test with reordered messages tests a case that
+  cannot happen and fails for the wrong reason. Model holds and bursts, keep the order.
+- `long-animation-frame` entries (PerformanceObserver) split a slow page into Cesium render and
+  telemetry handler time per script; strip query strings from the output, or Claude in Chrome
+  blocks it.

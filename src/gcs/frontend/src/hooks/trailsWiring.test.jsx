@@ -33,6 +33,8 @@ class Cartesian3 {
 }
 const fakeColor = () => ({ withAlpha: (a) => ({ a }) });
 
+// Steps of 0.001 deg (85 m): sent within a millisecond, a 0.01 deg step
+// would read as a jump (uavPlayout's SITL-restart rule) and split the trail.
 function fakeStore() {
   const listeners = new Set();
   const store = {
@@ -127,54 +129,54 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
 describe('Trails panel wiring into both history layers', () => {
   it('Pause in the panel stops trail and marks; Resume records again', () => {
     const t = setup();
-    t.store.send(1, 44.00);
-    t.store.send(1, 44.01);
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001);
     const [marks, points] = [t.marks(), t.trailPoints()];
     expect(marks).toBeGreaterThan(0);
     t.panel('trailsPanel.pause');
-    t.store.send(1, 44.02);
-    t.store.send(1, 44.03);
+    t.store.send(1, 44.002);
+    t.store.send(1, 44.003);
     expect(t.marks()).toBe(marks);
     expect(t.trailPoints()).toBe(points);
     t.panel('trailsPanel.resume');
-    t.store.send(1, 44.04);
-    t.store.send(1, 44.05);
+    t.store.send(1, 44.004);
+    t.store.send(1, 44.005);
     expect(t.marks()).toBeGreaterThan(marks);
     expect(t.trailPoints()).toBeGreaterThan(points);
   });
 
   it('Clear all while paused empties both layers and stays paused', () => {
     const t = setup();
-    t.store.send(1, 44.00);
-    t.store.send(1, 44.01);
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001);
     t.panel('trailsPanel.pause');
     t.panel('trailsPanel.clearAll');
     expect(t.marks()).toBe(0);
     expect(t.trailPoints()).toBe(0);
-    t.store.send(1, 44.02);
+    t.store.send(1, 44.002);
     expect(t.marks()).toBe(0);
     expect(t.utils.getByTestId('trails-paused-badge')).toBeInTheDocument();
   });
 
   it('Restart clears and resumes even when the restart request fails', async () => {
     const t = setup();
-    t.store.send(1, 44.00);
-    t.store.send(1, 44.01);
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001);
     expect(t.trailPoints()).toBe(2);
     t.panel('trailsPanel.pause');
     await act(async () => { fireEvent.click(t.utils.getByRole('button', { name: 'restart' })); });
     expect(t.marks()).toBe(0);
     expect(t.trailPoints()).toBe(0);
     expect(t.utils.queryByTestId('trails-paused-badge')).toBeNull();
-    t.store.send(1, 44.05);
-    t.store.send(1, 44.06);
+    t.store.send(1, 44.005);
+    t.store.send(1, 44.006);
     expect(t.marks()).toBe(2);
     expect(t.trailPoints()).toBe(2);
   });
 
   it('the UAV toggle hides its closest-approach marks and Pause stops new ones', () => {
     const t = setup();
-    t.store.send(1, 44.00);
+    t.store.send(1, 44.000);
     const record = (key) => ({
       key, sys_id: 1, outcome: 'missed', lat: 40, lon: 44, alt_rel_m: 41, d3_m: 2, h_m: 1, v_m: 1,
       dock_lat: 40, dock_lon: 44, dock_alt_rel_m: 40,
@@ -195,8 +197,8 @@ describe('Trails panel wiring into both history layers', () => {
 
   it('a new plan object keeps the recorded marks', () => {
     const t = setup();
-    t.store.send(1, 44.00);
-    t.store.send(1, 44.01);
+    t.store.send(1, 44.000);
+    t.store.send(1, 44.001);
     const marks = t.marks();
     t.rerenderPlan({ altitude_m: 100, zones: [{ id: 'z1' }] });
     expect(t.marks()).toBe(marks);
