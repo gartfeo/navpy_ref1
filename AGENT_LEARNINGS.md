@@ -975,6 +975,8 @@
   one worktree, build the next commit in a side worktree, and fast-forward the gate worktree between commits.
   Repeated 2026-10-28 (bounded CPU share): review fixes made while a background `tests/gcs` run was still
   going gave two subprocess tests an ImportError from a half-applied edit. Check for running suites first.
+  Repeated 2026-11-04 (dds step 12): a baseline stress run on the work worktree failed on a constructor change
+  made mid-run. Measure baselines and gates in their own detached worktree from the start.
 - Long edit scripts sent inline through the Bash tool failed to parse ("unexpected EOF while looking for
   matching `''"), even in a quoted heredoc. Write them to files with the Write tool and run them; a small helper
   that keeps CRLF and fails on a missing or repeated match made every edit checkable.

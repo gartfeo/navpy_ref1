@@ -32,9 +32,10 @@ from __future__ import annotations
 import json
 import time
 from collections.abc import Callable
-from contextlib import ExitStack
+from contextlib import ExitStack, nullcontext
 from dataclasses import asdict, dataclass
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from gcs.backend import instance_registry as reg
 from gcs.backend import instance_registry_lockstep as lockstep
@@ -78,6 +79,9 @@ from scripts.lockstep_wsl_sitl import (
     WslFleet,
     exchange_deadline,
 )
+
+if TYPE_CHECKING:
+    from scripts.eval_gcs_demo_lockstep_replay import ReplayDriver
 
 RUN_HOST_FILE = "lockstep_run_host.json"
 APPROVALS_FILE = "operator_approvals.json"
@@ -198,8 +202,9 @@ def write_lines(run_dir: Path, scenario: DemoScenario, operator: OperatorBaton) 
             for k, line in zip(ticks, lines)))
 
 
-def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
-                         options: LockstepOptions) -> LockstepRun:
+def execute_lockstep_run(run_dir: Path, scenario: DemoScenario, options: LockstepOptions,
+                         replay: "ReplayDriver | None" = None) -> LockstepRun:
+    """``replay`` (step 12): the operator and its side come from an action file, the script off."""
     require_wired(scenario)
     realization = sim_realization(options)
     if not 0.0 < options.timeout_s < MISSION_BUDGET_S:
@@ -229,13 +234,13 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                     lockstep.RegistryChildRecorder(slot, owner),
                     HostSidecar(run_dir / PROCESSES_HOST_FILE), WALL_BUDGETS,
                     deadline=exchange_deadline())
-    ids = RequestIds(0)
-    operator = lockstep_operator(ids, scenario, run_dir, options)
+    ids = RequestIds(0) if replay is None else replay.ids
+    operator = lockstep_operator(ids, scenario, run_dir, options) if replay is None else replay.operator
     result = fault = coordinator = side = None
     app_stop = ExitStack()  # closed outside the handler: a failed app stop is raised, not scored
     try:
         try:
-            side = app_stop.enter_context(operator_side(
+            side = app_stop.enter_context(nullcontext(replay.side) if replay is not None else operator_side(
                 run_dir, slot, owner, layout.backend, ids, app=options.app, pace=options.pace,
                 frontend=options.frontend))
             # The backend spawns and registers before the coordinator launches the SITL.
@@ -244,7 +249,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
                 delay=HostDelays(options.host_delay_seed), launch=fleet.launch,
                 radio_loss_pct=radio_loss_pct(realization),
                 faults=fault_plans(realization, len(plan.sitl_ports)),
-                admission=side.admission, pace=side.pace)
+                side=side)
             result = coordinator.run()
         except Exception as error:  # noqa: BLE001 - journaled by the coordinator; re-raised below
             fault = error
@@ -259,9 +264,10 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario,
         raise RegressionError(f"lockstep app setup failed: {fault}") from fault
     journal: RunJournal = coordinator.journal
     journal.write(run_dir / JOURNAL_FILE)
-    write_actions(run_dir / ACTIONS_FILE, side.admission.actions)
+    write_actions(run_dir / ACTIONS_FILE, side.admission.actions, side.admission.returned_at)
     write_lines(run_dir, scenario, operator)
-    script = operator.result if isinstance(operator.result, dict) else {"approvals": [], "error": None}
+    script = getattr(operator, "result", None)
+    script = script if isinstance(script, dict) else {"approvals": [], "error": None}
     approvals = validate_approval_records(script["approvals"])
     (run_dir / APPROVALS_FILE).write_text(json.dumps({"approvals": approvals}, indent=2),
                                           encoding="utf-8")
