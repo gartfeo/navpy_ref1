@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { addTrailPoint, newTrail, startRun, trailPieces, trailUpdatePoints, TRAIL_SEGMENTS } from '../utils/trailAccum';
+import { addTrailPoint, newTrail, startRun, trailGrounds, trailPieceFlat, trailPieces, trailUpdatePoints, TRAIL_SEGMENTS } from '../utils/trailAccum';
 import { zoneColorsSolid } from '../../../styles';
 
 /**
@@ -14,10 +14,17 @@ import { zoneColorsSolid } from '../../../styles';
  * the UAV's colour (same palette/index as its zone) and fades from faint
  * (tail) to solid (head). `show` (layer) and `hiddenSysIds` (per UAV) only
  * hide; a change of `resetKey` clears all history.
+ *
+ * Heights are over home, drawn over the ground under each point, as the
+ * vehicle model is drawn (terrain + alt_rel): the ellipsoid (0) until
+ * `terrainReady`, then the terrain sampled at the point. A point not sampled
+ * yet takes the last known ground before it; a trail with no known ground is
+ * not drawn.
  */
 export default function useUavTrails(
   cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady,
   show = true, resetKey = 0, hiddenSysIds = null, paused = false,
+  terrainReady = false,
 ) {
   const trailDataRef = useRef({});
   const staleRef = useRef(new Set());
@@ -27,11 +34,18 @@ export default function useUavTrails(
   visRef.current = { show, hiddenSysIds };
   const pausedRef = useRef(paused);
   pausedRef.current = paused;
+  const terrainReadyRef = useRef(terrainReady);
+  terrainReadyRef.current = terrainReady;
+  // Bumped when terrain comes or goes and on reset: older samples are stale.
+  const terrainGenRef = useRef(0);
+  // Redraws one UAV's trail and samples its ground; set by the drawing effect.
+  const refreshRef = useRef(null);
 
   const visibleFor = (sid) => visRef.current.show && !visRef.current.hiddenSysIds?.has(sid);
 
   // Clear accumulated history (Clear all / mission restart).
   useEffect(() => {
+    terrainGenRef.current += 1;
     const trailData = trailDataRef.current;
     for (const sid of Object.keys(trailData)) trailData[sid] = newTrail();
     const trailMap = entitiesRef.current?.trailMap || {};
@@ -45,6 +59,17 @@ export default function useUavTrails(
     if (paused) return;
     for (const trail of Object.values(trailDataRef.current)) startRun(trail);
   }, [paused]);
+
+  // Terrain came or went: every trail moves to the new ground.
+  useEffect(() => {
+    terrainGenRef.current += 1;
+    for (const [sid, trail] of Object.entries(trailDataRef.current)) {
+      trail.lastGround = undefined;
+      trail.sampling = null;
+      for (const run of trail.runs) for (const p of run) p.ground = undefined;
+      refreshRef.current?.(Number(sid));
+    }
+  }, [terrainReady]);
 
   // Show/hide without losing history.
   useEffect(() => {
@@ -73,6 +98,65 @@ export default function useUavTrails(
       pool.segs[seg].push(e);
       return e;
     }
+
+    const groundOf = (p) => (terrainReadyRef.current ? p.ground : 0);
+
+    /**
+     * Sample the terrain under every point of a trail not sampled yet; one
+     * request at a time per trail. Points added meanwhile go in the next,
+     * sent when this one fully succeeds; after a failure the next update
+     * samples again.
+     */
+    function sampleGround(sid, trail) {
+      const generation = terrainGenRef.current;
+      if (!terrainReadyRef.current || trail.sampling === generation) return;
+      const pts = [];
+      for (const run of trail.runs) for (const p of run) if (!Number.isFinite(p.ground)) pts.push(p);
+      if (pts.length === 0) return;
+      trail.sampling = generation;
+      const cartos = pts.map((p) => Cesium.Cartographic.fromDegrees(p.lon, p.lat));
+      const apply = (sampled) => {
+        // Cleared, reset or older terrain: stale.
+        if (terrainGenRef.current !== generation || trailDataRef.current[sid] !== trail) return;
+        trail.sampling = null;
+        let complete = true;
+        pts.forEach((p, i) => {
+          // A rejected or non-finite sample stays unsampled.
+          const height = sampled?.[i]?.height;
+          if (!Number.isFinite(height)) { complete = false; return; }
+          p.ground = height;
+          trail.lastGround = height;
+        });
+        draw(sid);
+        if (complete) sampleGround(sid, trail);
+      };
+      Promise.resolve()
+        .then(() => Cesium.sampleTerrainMostDetailed(viewer.terrainProvider, cartos))
+        .then(apply, () => apply(undefined));
+    }
+
+    function draw(sid) {
+      const pool = entitiesRef.current.trailMap?.[sid];
+      const trail = trailDataRef.current[sid];
+      if (!pool || !trail) return;
+      const lastGround = terrainReadyRef.current ? trail.lastGround : 0;
+      const grounds = trailGrounds(trail.runs, groundOf, lastGround);
+      const pieces = trailPieces(trail.runs);
+      for (let seg = 0; seg < TRAIL_SEGMENTS; seg++) {
+        const segPieces = pieces[seg];
+        const segEnts = pool.segs[seg];
+        while (segEnts.length < segPieces.length) addPieceEntity(pool, seg, sid);
+        for (let k = 0; k < segEnts.length; k++) {
+          const flat = segPieces[k] ? trailPieceFlat(segPieces[k], grounds) : [];
+          segEnts[k].polyline.positions = flat.length ? Cesium.Cartesian3.fromDegreesArrayHeights(flat) : [];
+        }
+      }
+    }
+    refreshRef.current = (sid) => {
+      draw(sid);
+      const trail = trailDataRef.current[sid];
+      if (trail) sampleGround(sid, trail);
+    };
 
     function update() {
       const store = storeRef.current;
@@ -127,22 +211,9 @@ export default function useUavTrails(
             });
           }
 
-          const pieces = trailPieces(trail.runs);
-          for (let seg = 0; seg < TRAIL_SEGMENTS; seg++) {
-            const segPieces = pieces[seg];
-            const segEnts = pool.segs[seg];
-            while (segEnts.length < segPieces.length) addPieceEntity(pool, seg, sid);
-            for (let k = 0; k < segEnts.length; k++) {
-              const pts = segPieces[k];
-              if (!pts) {
-                segEnts[k].polyline.positions = [];
-                continue;
-              }
-              const flat = [];
-              for (const p of pts) flat.push(p.lon, p.lat, p.alt);
-              segEnts[k].polyline.positions = Cesium.Cartesian3.fromDegreesArrayHeights(flat);
-            }
-          }
+          ents.trailMap = trailMap;
+          draw(sid);
+          sampleGround(sid, trail);
         });
       }
 
@@ -165,6 +236,11 @@ export default function useUavTrails(
     }
 
     update();
-    return storeRef.current.subscribe(update);
+    const unsubscribe = storeRef.current.subscribe(update);
+    return () => {
+      unsubscribe();
+      refreshRef.current = null;
+      terrainGenRef.current += 1;
+    };
   }, [viewerReady]);
 }
