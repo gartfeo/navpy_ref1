@@ -24,9 +24,7 @@ export function createPoseMath(Cesium) {
   const hpr = new Cesium.HeadingPitchRoll();
 
   return {
-    /** East-north-up frame at the last `vehicleHpr` position. */
-    transform,
-    /** The vehicle's heading/pitch/roll (model axes) from the model's world pose; fills `transform`. */
+    /** The vehicle's heading/pitch/roll (model axes) from the model's world pose. */
     vehicleHpr(position, orientation) {
       Cesium.Transforms.eastNorthUpToFixedFrame(position, undefined, transform);
       Cesium.Quaternion.multiply(orientation, invModelFix, q1);

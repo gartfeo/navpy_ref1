@@ -594,7 +594,8 @@ function useObservedHeight(onHeight) {
  * the picture's room is computed from them.
  */
 export default function VehicleWindow({
-  fleet, win, layout, poseSourceRef, storeRef, ionTerrain, onSyntheticCreditsHeight, onChromeHeight,
+  fleet, win, layout, poseSourceRef, storeRef, ionTerrain, baseLayer, onBaseLayerFailed,
+  onSyntheticCreditsHeight, onChromeHeight,
 }) {
   const { t } = useTranslation();
   const { sysId, shown, source } = win;
@@ -741,11 +742,13 @@ export default function VehicleWindow({
             poseSourceRef={poseSourceRef}
             storeRef={storeRef}
             ionTerrain={ionTerrain}
+            baseLayer={baseLayer}
+            onBaseLayerFailed={onBaseLayerFailed}
             onFail={win.reportSyntheticFailure}
             onCreditsHeight={onSyntheticCreditsHeight}
             style={pictureBox(swapped)}
             expanded={swapped}
-            tagMaxWidth={layout.tagMaxWidth}
+            smallMap={layout.smallMap}
           />
         ) : <NoRoomRow />}
       </>

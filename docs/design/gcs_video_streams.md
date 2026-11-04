@@ -419,30 +419,63 @@ large vehicle view.
   StrictMode). One Scene has one camera and CesiumJS has no public
   multi-viewport API, so a second widget is Cesium's own pattern (Sandcastle
   "Multiple Synced Views"); the private `SharedContext`, `View` and
-  `Framebuffer` are not used. Content: shaded terrain in one ground colour and
-  no imagery, the way aircraft synthetic vision draws terrain; it looks
-  plainly unlike camera video and loads no imagery tiles. No imagery also
-  because Bing attributions cannot show in two views at once: Cesium caches
-  Bing metadata, and with it each attribution's `Credit`, across provider
-  instances (`BingMapsImageryProvider.js:83-90,160-169`), and a `Credit` owns
-  one DOM element that each display re-parents (`Credit.js:91-100`,
-  `CreditDisplay.js:111-124`). Options (Cesium 1.138.0 installed):
-  `baseLayer: false` (never `imageryProvider`, ignored since 1.107, and never
-  undefined, which adds Ion world imagery); `terrainProvider` is the widget's
-  own instance of the main map's terrain source, requested with vertex normals
-  for shading, never the main map's instance, so its Ion attribution is its
+  `Framebuffer` are not used. Content (owner, 2026-11-04: "similar to rc
+  control but without control use shared view"): RC control's first-person
+  view without the controls, so the main map's base layer (Terrain, Satellite
+  or Street, the layers button's pick, following it live) on the terrain,
+  unlit and without ground atmosphere as on the main map, under RC control's
+  HUD (below). Until 2026-11-04 it drew shaded terrain in one ground colour
+  and no imagery; that colour stays as the globe colour under loading or
+  failed tiles. The base layer is the widget's own instance
+  (`applyBaseLayer`, the main map's helper in `map/utils/baseLayers.js`), and
+  a failed layer is reported to the same fallback as the main map's
+  (`useBaseLayerChoice.onFailed`). Satellite is Bing through Ion, and Cesium
+  caches Bing metadata, and with it each attribution's `Credit`, across
+  provider instances (`BingMapsImageryProvider.js:83-90,160-169`), while a
+  `Credit` owns one DOM element that each display re-parents
+  (`Credit.js:91-100`, `CreditDisplay.js:111-124`). The owner chose to follow
+  Satellite too, check it live, and fall back to Terrain if it broke. Live
+  (2026-11-04, todo 275) it broke: with both views on Satellite the main map's
+  credit list kept five empty entries while Synthetic's held the Bing credits,
+  and Synthetic drew no imagery in 45 s. So Satellite is a one-view layer
+  (`oneView` in `BASE_LAYERS`) and Synthetic shows Terrain while the map is on
+  it (`secondViewLayer`). Options
+  (Cesium 1.138.0 installed):
+  `baseLayer: false` at construction (never `imageryProvider`, ignored since
+  1.107, and never undefined, which adds Ion world imagery); the base layer
+  goes in right after. `terrainProvider` is the widget's
+  own instance of the main map's terrain source (no vertex normals: nothing is
+  lit), never the main map's instance, so its Ion attribution is its
   own `Credit` (`IonResource.js:152-164`, `Credit.js:153-156`). The main map
   swaps in Ion terrain asynchronously (`useCesiumViewer.js:226-242`), so an
   open widget follows that upgrade with its own new instance and unsubscribes
   on teardown; with no Ion terrain the ground is the flat ellipsoid under the
-  horizon. Its own tile requests are counted by the load gate. Lighting from
-  one fixed `DirectionalLight` (not the sun, so shading does not change with
-  the time of day) with `globe.enableLighting`; `requestRenderMode` with
+  horizon. Its own tile requests, imagery now included, are counted by the
+  load gate. `requestRenderMode` with
   `maximumRenderTimeChange` Infinity, the main map's target frame rate as one
   shared constant, `msaaSamples` 1, `showRenderLoopErrors` false, camera
-  inputs off; sky atmosphere on (the horizon is the attitude cue), sun, moon
-  and sky box off. No entities; peers, docks and tracks stay on the main
-  map.
+  inputs off; sky atmosphere on (a horizon cue the main map does not draw),
+  sun, moon and sky box off. No entities; peers, docks and tracks stay on the
+  main map.
+- HUD (2026-11-04): one shared component, `TelemetryHud`, drawn by RC control
+  over the main map and by Synthetic inside its picture: attitude lines,
+  heading tape, speed and altitude tapes, the link, GPS and battery row and
+  the status texts. It is display only (no taps, no buttons); the sticks, the
+  flight-mode and arm column, the UAV selector and the confirm list stay with
+  RC control, and nothing RC sends changes. Where its parts go is a pure
+  layout per host (`utils/hudLayout.js`): `rcHudLayout` keeps RC control's
+  placement as it was; `pictureHudLayout` puts the tag and the status row in
+  one top row (the tag wraps before the row), the heading tape (36 px high like RC's, since its labels need that,
+  at most 300 px wide) under it, 56 px tapes from there to the credit line,
+  left out below 48 px, and while maximized keeps the row and the heading tape
+  left of the small map and the altitude tape below it, and insets the
+  attitude indicator by the small map's width on both sides, so it keeps the
+  picture's centre and its ladder and roll arc end left of the small map
+  (full width below 180 px). The HUD shows only
+  while a frame with the window UAV's pose is drawn, never under the
+  "Waiting for pose" cover. The renderers stay two: RC control keeps the main
+  map's camera (its imagery, terrain and entities), Synthetic its own widget,
+  with the nose pose math shared (`fpvPose.js`).
 - Pose: the same interpolated position and orientation the map's UAV model
   uses (copies through a narrow source ref from `CesiumMap`, wired like the
   map camera ref), through today's first-person math moved into one pure helper
@@ -477,7 +510,8 @@ large vehicle view.
   rendering. Retry is a new tap; no automatic retry.
 - Look: title "UAV n · synthetic view"; **SYNTHETIC** in the state slot (never
   LIVE, never a green dot); an accent inner frame (video never has one); a
-  fixed tag **SYNTHETIC · not camera** at the top-left of the picture. While
+  fixed tag **SYNTHETIC · not camera** at the top-left of the picture, over the
+  HUD; with imagery the tag and frame are what tell it from camera video. While
   the view holds its last pose, a row under the header reads **View held ·
   telemetry disconnected**, **View held · vehicle link lost** or **View held ·
   pose unavailable** with the seconds held.
@@ -1166,3 +1200,10 @@ section above is written that way.
    Camera without a stream is shown but unavailable; only the operator
    changes the source; no per-UAV memory; the Synthetic icon stays the
    folded map.
+10. Synthetic like RC control (owner, 2026-11-04): "the synthetic view
+   should be similar to rc control but without control use shared view";
+   asked to choose, "HUD + imagery" and, for Satellite, "Same layer, test
+   it", with Terrain as the fallback if it broke. Synthetic shows the map's
+   base layer (Terrain while the map is on Satellite, which broke live) and
+   RC control's HUD from one shared component, no map entities, none of RC's
+   controls (todo 275).
