@@ -157,7 +157,8 @@ def recorded(tmp_path_factory):
     relay = RelayDouble()
     run = build(tmp_path / "run", script=_script(relay), relay=relay, refuse=refusal)
     result = run.run()
-    write_actions(tmp_path / "actions.jsonl", run.admission.actions, result.final_tick)
+    assert run.admission.returned_at == result.final_tick  # the end line, kept even if later work faults
+    write_actions(tmp_path / "actions.jsonl", run.admission.actions, run.admission.returned_at)
     return tmp_path, run, result, load_actions(tmp_path / "actions.jsonl"), relay
 
 

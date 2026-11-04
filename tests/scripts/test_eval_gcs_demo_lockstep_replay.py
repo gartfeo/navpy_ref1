@@ -9,7 +9,7 @@ import pytest
 
 from navpy.sim.lockstep.replay import ActionFile, ActionReplay
 from scripts.eval_gcs_demo_lockstep import JOURNAL_FILE
-from scripts.eval_gcs_demo_lockstep_replay import MANIFEST_FILE, prefix, verdict
+from scripts.eval_gcs_demo_lockstep_replay import MANIFEST_FILE, main, prefix, verdict
 from scripts.eval_gcs_demo_models import RegressionError
 
 ACTION = {"id": [0, 1], "k": 2, "kind": "request", "payload": {"kind": "http"}, "source": "relay", "target": 2}
@@ -64,3 +64,11 @@ def test_verdict_at_stop_compares_the_prefix_and_needs_the_stop_record(tmp_path)
     driver = _driver([ACTION], [ACTION])
     assert verdict(tmp_path / "run", tmp_path / "stopped", driver, 2)["matched"]
     assert not verdict(tmp_path / "run", tmp_path / "cut", driver, 2)["matched"]
+
+
+def test_a_used_replay_directory_is_refused_before_anything_runs(tmp_path):
+    """Old artifacts there would be compared as if this replay wrote them."""
+    (tmp_path / "replay").mkdir()
+    (tmp_path / "replay" / JOURNAL_FILE).write_text("{}\n", encoding="utf-8")
+    with pytest.raises(RegressionError, match="not empty"):
+        main([str(tmp_path / "run"), "--run-dir", str(tmp_path / "replay")])

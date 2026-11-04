@@ -74,6 +74,8 @@ class OperatorPhase:
             OPERATOR_WAIT, lambda wall: self._operator.run_tick(self._inbox(k, t_us, output, wall)))
         deliveries, admission = self._admission.admit(k, requests, self._ready)
         deliver_operator_requests(self._roster, deliveries, k)
+        if self._operator.done:
+            self._admission.returned_at = k
         if admission is not None:
             record.note("admission", admission)
         self._note(record)

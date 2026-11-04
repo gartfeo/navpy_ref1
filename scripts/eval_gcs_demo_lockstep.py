@@ -42,7 +42,6 @@ from gcs.backend import instance_registry_lockstep as lockstep
 from navpy.sim.lockstep.coordinator_journal import RunJournal
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator
-from navpy.sim.lockstep.coordinator_stop import STOPPED
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import Manifest, ParticipantFault, WallBudgets
 from navpy.sim.lockstep.host_paths import HostPathScrubber
@@ -265,8 +264,7 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario, options: Lockste
         raise RegressionError(f"lockstep app setup failed: {fault}") from fault
     journal: RunJournal = coordinator.journal
     journal.write(run_dir / JOURNAL_FILE)
-    returned = result is not None and result.outcome != STOPPED  # the operator returned at k_F
-    write_actions(run_dir / ACTIONS_FILE, side.admission.actions, result.final_tick if returned else None)
+    write_actions(run_dir / ACTIONS_FILE, side.admission.actions, side.admission.returned_at)
     write_lines(run_dir, scenario, operator)
     script = getattr(operator, "result", None)
     script = script if isinstance(script, dict) else {"approvals": [], "error": None}

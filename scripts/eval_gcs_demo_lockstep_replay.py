@@ -163,6 +163,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = parse_args(argv)
     if args.stop_at is not None and args.stop_at < 1:
         raise RegressionError("--stop-at must be a tick, 1 or more")
+    if args.run_dir.exists() and any(args.run_dir.iterdir()):  # so all compared is this replay's
+        raise RegressionError(f"replay directory is not empty: {args.run_dir}")
     scenario = load_eval_scenario(args.scenario)
     require_recorded_scenario(args.source, scenario)
     options = source_options(args.source, args.pace)
