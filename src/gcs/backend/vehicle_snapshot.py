@@ -42,6 +42,8 @@ def snapshot(entry: VehicleEntry) -> dict:
     snap = {
         "sys_id": entry.sys_id,
         "name": entry.name,
+        # The MAVLink connection string this vehicle was connected on.
+        "device": entry.device,
         "battery": v.battery_level,
         "voltage": v.battery_voltage,
         "current": v.battery_current,
