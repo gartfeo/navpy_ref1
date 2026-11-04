@@ -1,36 +1,22 @@
-import { describe, expect, it, vi } from 'vitest';
-import { putVisionProfile } from './profileSelectorUtils.js';
+import { describe, expect, it } from 'vitest';
+import { visionProfileReply } from './profileSelectorUtils.js';
 
-const answer = (status, body) => vi.fn(async () => ({
-  ok: status >= 200 && status < 300,
-  status,
-  json: async () => body,
-}));
+const answer = (status, json) => ({ ok: status >= 200 && status < 300, status, json });
 
-describe('putVisionProfile', () => {
-  it('returns the catalog of an ok answer and sends the body as JSON', async () => {
-    const fetchFn = answer(200, { profiles: { sim: {} } });
-    await expect(putVisionProfile('/api/vision-profiles/sim', { a: 1 }, fetchFn))
+describe('visionProfileReply', () => {
+  it('returns the catalog of an ok answer', async () => {
+    await expect(visionProfileReply(answer(200, async () => ({ profiles: { sim: {} } }))))
       .resolves.toEqual({ profiles: { sim: {} } });
-    expect(fetchFn).toHaveBeenCalledWith('/api/vision-profiles/sim', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: '{"a":1}',
-    });
-  });
-
-  it('sends no body when there is none', async () => {
-    const fetchFn = answer(200, {});
-    await putVisionProfile('/api/vision-profiles/default/sim', undefined, fetchFn);
-    expect(fetchFn).toHaveBeenCalledWith('/api/vision-profiles/default/sim', { method: 'PUT' });
   });
 
   it('throws the detail of a refusal, so its body never becomes the catalog', async () => {
-    const fetchFn = answer(501, { detail: 'not supported in simulation: writes vision_profiles.json' });
-    await expect(putVisionProfile('/api/vision-profiles/sim', {}, fetchFn))
+    const refusal = answer(501, async () => ({ detail: 'not supported in simulation: writes vision_profiles.json' }));
+    await expect(visionProfileReply(refusal))
       .rejects.toThrow('not supported in simulation: writes vision_profiles.json');
   });
 
   it('throws the status when an error has no JSON detail', async () => {
-    const fetchFn = vi.fn(async () => ({ ok: false, status: 502, json: async () => { throw new Error('html'); } }));
-    await expect(putVisionProfile('/x', {}, fetchFn)).rejects.toThrow('HTTP 502');
+    const html = answer(502, async () => { throw new Error('html'); });
+    await expect(visionProfileReply(html)).rejects.toThrow('HTTP 502');
   });
 });

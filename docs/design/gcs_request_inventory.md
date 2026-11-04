@@ -13,7 +13,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 - **Demo:** `yes` if the hand demo (`delivery_demo_prep.md`, "Normal-run demo") needs it: auto-connect, plan load, upload, Launch, confirm, abort. `sent` if not needed but sent anyway during the demo, so it is still an input. `dead` if no live code path calls it (todo 242).
 - **When:** `startup` (on page load or when settings arrive), `connect` (when a vehicle appears), `user` (a click or edit), `timer` (a wall timer sends it, sends it again or decides it; see the clock audit).
 - **Needs:** `MAVLink` (talks to a vehicle), `NavPy` (starts, stops or messages a companion), `ESP32` (the launcher), `files` (reads or writes host files), `local` (backend state only).
-- **Sim today:** `eval` (the eval's operator workflow calls it on lockstep), `untested` (no refusal known in its path, but nothing calls it on lockstep; step 13 proves it or refuses it), `step 13` (wall-only today), `refused` (the lockstep coordinator answers 501, hardware-only, and journals it; step 11, `app_refusals.py`), `none` (no backend route).
+- **Sim today:** `eval` (the eval's operator workflow calls it on lockstep), `untested` (no refusal known in its path, but nothing calls it on lockstep; step 13 proves it or refuses it), `step 13` (wall-only today), `probed` (step 13's REST probe sent it through the app's relay on a lockstep run and it answered as the route intends; `.logs/dds-step13/live/app6_probe.jsonl`), `refused` (the lockstep coordinator answers 501, hardware-only, and journals it; step 11, `app_refusals.py`), `none` (no backend route).
 
 ## Requests
 | Method | Route | Sent from | When | Demo | Needs | Sim today |
@@ -21,43 +21,43 @@ These are about the requests the relay forwards into the run (the backend's rout
 | WS | /ws/telemetry | `stores/telemetryStore.js:98` | startup, timer (reconnect 2 s) | yes | local | eval (`subscribe`) |
 | WS-SEND | manual_control | `hooks/useManualControl.js:44` | user, timer (50 ms) | no | MAVLink | none (todo 240) |
 | WS-SEND | manual_control_stop | `hooks/useManualControl.js:87` | user | no | MAVLink | none (todo 240) |
-| GET | /api/settings | `hooks/useSettings.js:39,92` | startup | yes | files | untested |
-| PUT | /api/settings | `hooks/useSettings.js:70` | user | no | files, NavPy (lifecycle change restarts) | untested |
-| GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | untested |
-| GET | /api/vision-profiles | `hooks/useSettings.js:40,81`, `settings/ProfileSelector.jsx:45` | startup | yes | files | untested |
-| PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | untested |
-| PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | untested |
-| PUT | /api/vision-profiles/{profile_name}/devices/{device_name} | `settings/ProfileSelector.jsx:87` | user | no | files, NavPy (as above) | untested |
-| POST | /api/vehicles/scan | `hooks/usePlanningApi.js:232` | never: `scanVehicles` has no caller | dead | MAVLink | untested |
-| POST | /api/vehicles/discover | `hooks/usePlanningApi.js:246` via `handleScan` (`hooks/useVehicleConnection.js:632-634`) | startup, timer (auto-connect retry 3 s, 20 tries, `App.jsx:487-492`), user (Scan) | yes | MAVLink, NavPy, ESP32 (starts companions and the ESP32 sim, `routes/vehicles.py:87-93`) | untested |
+| GET | /api/settings | `hooks/useSettings.js:39,92` | startup | yes | files | probed |
+| PUT | /api/settings | `hooks/useSettings.js:70` | user | no | files, NavPy (lifecycle change restarts) | probed (the run's own `gcs_settings.json`) |
+| GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | probed (no Ion token on lockstep, todo 273) |
+| GET | /api/vision-profiles | `hooks/useSettings.js:40,81`, `settings/ProfileSelector.jsx:45` | startup | yes | files | probed |
+| PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | refused (todo 269) |
+| PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | refused (todo 269) |
+| PUT | /api/vision-profiles/{profile_name}/devices/{device_name} | `settings/ProfileSelector.jsx:87` | user | no | files, NavPy (as above) | refused (todo 269) |
+| POST | /api/vehicles/scan | `hooks/usePlanningApi.js:232` | never: `scanVehicles` has no caller | dead | MAVLink | probed |
+| POST | /api/vehicles/discover | `hooks/usePlanningApi.js:246` via `handleScan` (`hooks/useVehicleConnection.js:632-634`) | startup, timer (auto-connect retry 3 s, 20 tries, `App.jsx:487-492`), user (Scan) | yes | MAVLink, NavPy, ESP32 (starts companions and the ESP32 sim, `routes/vehicles.py:87-93`) | probed |
 | POST | /api/vehicles/connect | `hooks/usePlanningApi.js:210` | user (20 s abort) | no | MAVLink, NavPy (auto lifecycle), ESP32 (starts the ESP32 sim, `routes/vehicles.py:37-39`) | eval |
-| POST | /api/vehicles/disconnect | `hooks/usePlanningApi.js:259` | user | no | MAVLink, NavPy | untested |
+| POST | /api/vehicles/disconnect | `hooks/usePlanningApi.js:259` | user | no | MAVLink, NavPy | probed |
 | GET | /api/vehicles/{sys_id}/params | `hooks/useVehicleConnection.js:188,653`, `hooks/useAasParams.js:135` | connect, user (10 s abort) | yes | MAVLink | eval |
 | PUT | /api/vehicles/{sys_id}/params | `hooks/useAasParams.js:362`, `hooks/usePlanningApi.js:130` | user (upload writes `targ_wps`, `nav_last_wp`) | yes | MAVLink | eval |
-| GET | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:158,165` | connect (prewarm, `App.jsx:396-398`), user | sent | MAVLink (MAVFTP) | refused (todo 245; step 13 answers it) |
+| GET | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:158,165` | connect (prewarm, `App.jsx:396-398`), user | sent | MAVLink (MAVFTP) | eval (step 13; a torn file is fetched again, todo 272) |
 | PUT | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:465` | user | no | MAVLink | eval |
-| POST | /api/vehicles/{sys_id}/parameters/arm-token | `hooks/useFullParams.js:386` | user (long press) | no | local | untested |
+| POST | /api/vehicles/{sys_id}/parameters/arm-token | `hooks/useFullParams.js:386` | user (long press) | no | local | probed |
 | GET | /api/vehicles/{sys_id}/mission | `hooks/usePlanningApi.js:272`, `settings/AasTab.jsx:86,213` | connect, user (45 s abort, retries) | yes | MAVLink | eval |
-| GET | /api/vehicles/{sys_id}/fence | `hooks/usePlanningApi.js:299` | user | no | MAVLink | untested |
+| GET | /api/vehicles/{sys_id}/fence | `hooks/usePlanningApi.js:299` | user | no | MAVLink | probed |
 | POST | /api/vehicles/upload | `hooks/usePlanningApi.js:100` | user (retries) | yes | MAVLink | eval |
-| POST | /api/plan-camera-check | `hooks/usePlanningApi.js:119` | user, timer (400 ms debounce) | yes | files | untested |
+| POST | /api/plan-camera-check | `hooks/usePlanningApi.js:119` | user, timer (400 ms debounce) | yes | files | probed |
 | POST | /api/plan/analyze | `hooks/usePlanningApi.js:41` | never: drawing uses the local `localAnalyze` (`usePlanningOrchestrator.js:120-123`) | dead | none | none (404, todo 242) |
 | POST | /api/plan/generate | `hooks/usePlanningApi.js:80` | never: plans are generated in the browser (`usePlanGeneration.js`) | dead | none | none (404, todo 242) |
-| POST | /api/control/navpy-sim/start | `sidebar/MonitoringSidebar.jsx:151` | user | no | NavPy | refused (step 13) |
-| POST | /api/control/navpy-sim/stop/{sys_id} | `sidebar/MonitoringSidebar.jsx:148` | user | no | NavPy | refused (step 13) |
+| POST | /api/control/navpy-sim/start | `sidebar/MonitoringSidebar.jsx:151` | user | no | NavPy | probed (launcher port) |
+| POST | /api/control/navpy-sim/stop/{sys_id} | `sidebar/MonitoringSidebar.jsx:148` | user | no | NavPy | probed (launcher port) |
 | POST | /api/control/navpy-sim/restart-ready | `hooks/usePlanningApi.js:143` | user (after upload) | yes | NavPy | eval |
-| POST | /api/control/command | `hooks/usePlanningApi.js:157`, `hooks/useCompassCal.js:17`, `PreflightReadiness.jsx:140` | user | yes (mode, E-stop) | MAVLink | untested |
+| POST | /api/control/command | `hooks/usePlanningApi.js:157`, `hooks/useCompassCal.js:17`, `PreflightReadiness.jsx:140` | user | yes (mode, E-stop) | MAVLink | probed; calibrations and reboots refused (todo 271) |
 | POST | /api/control/launch | `hooks/usePlanningApi.js:171` | user | yes | MAVLink, ESP32 | eval |
 | POST | /api/control/launch/trigger | `hooks/usePlanningApi.js:191` | user | yes | MAVLink, ESP32 | eval |
-| POST | /api/control/launch/abort | `hooks/useVehicleCommands.js:81` | user | yes | MAVLink, ESP32 | untested |
-| POST | /api/control/restart | `hooks/usePlanningApi.js:309` | user | no | MAVLink | untested |
+| POST | /api/control/launch/abort | `hooks/useVehicleCommands.js:81` | user | yes | MAVLink, ESP32 | probed |
+| POST | /api/control/restart | `hooks/usePlanningApi.js:309` | user | no | MAVLink | probed |
 | GET | /api/control/launch/esp32-status | `hooks/useContainerLauncher.js:21`, `settings/LaunchTab.jsx:22` | connect (container mode), user | yes | ESP32 | eval |
 | GET | /api/control/launch/esp32-sim/status | `settings/LaunchTab.jsx:40` | user | no | ESP32 | eval |
 | POST | /api/control/launch/esp32-sim/start | `settings/LaunchTab.jsx:51` | user, then a 500 ms re-check | no | ESP32 | eval |
-| POST | /api/control/launch/esp32-sim/stop | `settings/LaunchTab.jsx:50` | user, then a 500 ms re-check | no | ESP32 | untested |
+| POST | /api/control/launch/esp32-sim/stop | `settings/LaunchTab.jsx:50` | user, then a 500 ms re-check | no | ESP32 | probed |
 | POST | /api/control/task_confirm | `hooks/useTaskConfirmation.js:165` | user, timer (countdown auto-fire) | yes | MAVLink, NavPy | eval |
-| POST | /api/control/task_confirm_override | `hooks/useTaskConfirmation.js:124` | user | no | MAVLink, NavPy | untested |
-| POST | /api/diagnostics/events | `utils/diagnostics.js:45` | startup, connect, user, timer (`client_timeout` after a fetch abort; `plan_rendered` after a plan regeneration) | sent | files | untested |
+| POST | /api/control/task_confirm_override | `hooks/useTaskConfirmation.js:124` | user | no | MAVLink, NavPy | probed |
+| POST | /api/diagnostics/events | `utils/diagnostics.js:45` | startup, connect, user, timer (`client_timeout` after a fetch abort; `plan_rendered` after a plan regeneration) | sent | files | probed |
 | GET | /api/diagnostics/export | `settings/ConnectionTab.jsx:35` | user | no | files (zip response) | refused (todo 241) |
 | GET | /api/logs/download/{sys_id} | `sidebar/NavpySimButton.jsx:14` | user | no | files (zip response) | refused (todo 241) |
 

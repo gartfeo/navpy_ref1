@@ -8,7 +8,7 @@ import {
   getDockDetectSize,
   isDetectorClassDimensionsConfigured,
 } from '../../utils/plannerConfig.js';
-import { buildCatalogDeviceInfos, buildDiagramDevices, putVisionProfile } from './profileSelectorUtils.js';
+import { buildCatalogDeviceInfos, buildDiagramDevices, visionProfileReply } from './profileSelectorUtils.js';
 
 import { SettingsSection, inputStyle, NumericInput } from './SettingsField.jsx';
 import DetectionRangeDiagram, { DEVICE_COLORS } from './DetectionRangeDiagram.jsx';
@@ -86,10 +86,11 @@ export default function ProfileSelector({
       let failure = null;
       for (const { profile, devName, zoom, ...fields } of Object.values(edits)) {
         try {
-          latest = await putVisionProfile(
-            `/api/vision-profiles/${encodeURIComponent(profile)}/devices/${encodeURIComponent(devName)}`,
-            { zoom, ...fields },
-          );
+          latest = await visionProfileReply(await fetch(`/api/vision-profiles/${encodeURIComponent(profile)}/devices/${encodeURIComponent(devName)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ zoom, ...fields }),
+          }));
         } catch (e) { failure = e.message; }
       }
       // Flush profile-level overrides (envelope + optimized_altitude) and the
@@ -102,7 +103,11 @@ export default function ProfileSelector({
       }
       if (Object.keys(profBody).length > 0) {
         try {
-          latest = await putVisionProfile(`/api/vision-profiles/${encodeURIComponent(profileName)}`, profBody);
+          latest = await visionProfileReply(await fetch(`/api/vision-profiles/${encodeURIComponent(profileName)}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(profBody),
+          }));
         } catch (e) { failure = e.message; }
       }
       setSaveError(failure);
@@ -566,8 +571,8 @@ export default function ProfileSelector({
             setOptimizeMsg(null);
             applyProfile(v, dev?.name ?? '', zl);
             setSaveError(null);
-            putVisionProfile(`/api/vision-profiles/default/${encodeURIComponent(v)}`)
-              .then(setCatalog).catch((e) => setSaveError(e.message));
+            fetch(`/api/vision-profiles/default/${encodeURIComponent(v)}`, { method: 'PUT' })
+              .then(visionProfileReply).then(setCatalog).catch((e) => setSaveError(e.message));
           }}
           style={{ ...inputStyle, cursor: 'pointer' }}
         >

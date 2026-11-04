@@ -32,6 +32,6 @@ def cesium_ion_token() -> str | None:
         return token
     try:
         token = cesium_ion_token_path().read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
+    except (OSError, RuntimeError):  # RuntimeError: no home, as in a lockstep run's
+        return None                   # hermetic environment (``hermetic_environment``)
     return token or None
