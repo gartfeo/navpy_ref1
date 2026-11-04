@@ -2381,8 +2381,12 @@
   wait_after): record each wait's call time, deadline and whether it ran out, and assert "no wait ran
   out" or "one wait of at most X s". Replies the fake publishes during the send then make the check
   independent of host load. Prove it with a mutation that makes the code wait its timeout.
-- A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s, and 1000 queued
-  rows took longer under load (TimeoutError). Drain first (worker.wait_until_idle), then close.
+- A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s and raised
+  TimeoutError under load, both with 1000 queued rows and with only its own close message queued.
+  Draining first still leaves that message inside the bound. A test that does not test the bound
+  patches CACHE_WORKER_JOIN_TIMEOUT_S to None. Prove it by slowing _handle past 2 s.
+- From Git Bash, PYTHONPATH="$PWD/src" is a POSIX path that the Windows venv ignores, so pytest
+  imported the main checkout's src through the editable install. Use $(cygpath -w "$PWD")\src.
 - I kept only the last 30 lines of a 29-minute loaded suite run and lost the failure details. Keep
   the whole output (or at least every E line) of a long run.
 
