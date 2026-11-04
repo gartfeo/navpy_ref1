@@ -2399,3 +2399,16 @@
   the model (start a new motion), not in the line.
 - `find /` from Git Bash runs for an hour and outlives the agent that started it; tell live testers
   not to search the whole disk, and check for leftover shells after they finish.
+
+## Elevon sweep and hitl5 design (2026-10-16)
+
+- **When the owner points to an earlier chat, read its transcript first.** The
+  owner's "archived" chats are in ~/.claude/projects/<project>/*.jsonl (the
+  customTitle field names them). I first answered from a later file and missed
+  the chat's own measurement list.
+- **Check a reading's definition before calling it inconsistent.** I flagged
+  the sweep's full-throw angles against "24 deg full throw"; that 24 deg was
+  pitch stick only, which is half throw at MIXING_GAIN 0.5. Read the stored
+  measurement note (it said so) before doubting new data.
+- **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
+  Fit a smooth curve and label it an approximation; ask for an up/down repeat.
