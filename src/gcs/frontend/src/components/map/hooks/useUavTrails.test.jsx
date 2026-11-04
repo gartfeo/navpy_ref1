@@ -31,19 +31,33 @@ function fakeStore() {
   return store;
 }
 
+/** Terrain under a point: 1300 m plus 10 m per 0.001 deg of longitude east of 44. */
+const terrainAt = (lon) => 1300 + Math.round((lon - 44) * 10000);
+
 function setup(props = {}) {
   const store = fakeStore();
   const entities = { add: vi.fn((e) => e), remove: vi.fn() };
+  // Terrain samples resolve only when the test calls settle(); `failing`
+  // makes them reject, a lon in `holes` comes back with no height.
+  const pending = [];
+  const terrain = { failing: false, holes: new Set() };
+  const sampleTerrainMostDetailed = vi.fn((provider, cartos) => new Promise((resolve, reject) => {
+    pending.push(() => (terrain.failing ? reject(new Error('no tile'))
+      : resolve(cartos.map((c) => ({ ...c, height: terrain.holes.has(c.lon) ? undefined : terrainAt(c.lon) })))));
+  }));
   const cesium = { current: {
     Color: { fromCssColorString: () => ({ withAlpha: (a) => ({ a }) }) },
     Cartesian3: { fromDegreesArrayHeights: (flat) => [...flat] },
+    Cartographic: { fromDegrees: (lon, lat) => ({ lon, lat }) },
+    sampleTerrainMostDetailed,
   } };
-  const viewer = { current: { entities } };
+  // The rendered globe answers with a coarse tile height, never a trail's ground.
+  const viewer = { current: { entities, terrainProvider: {}, scene: { globe: { getHeight: () => 999 } } } };
   const entitiesRef = { current: { trailMap: {} } };
   const storeRef = { current: store };
   const hook = renderHook(
-    ({ show, resetKey, hidden, paused }) => useUavTrails(
-      cesium, viewer, entitiesRef, storeRef, true, show, resetKey, hidden, paused,
+    ({ show, resetKey, hidden, paused, terrainReady }) => useUavTrails(
+      cesium, viewer, entitiesRef, storeRef, true, show, resetKey, hidden, paused, terrainReady,
     ),
     { initialProps: { show: true, resetKey: 0, hidden: new Set(), paused: false, ...props } },
   );
@@ -62,7 +76,30 @@ function setup(props = {}) {
     for (let i = 1; i < p.length; i++) if (p[i - 1] === a && p[i] === b) return true;
     return false;
   });
-  return { store, hook, drawn, lons, joins, entities, entitiesRef };
+  /**
+   * Drawn [lon, height] pairs for sid, by lon. A point two pieces share must
+   * be drawn at one height.
+   */
+  const heights = (sid) => {
+    const out = new Map();
+    for (const e of entitiesRef.current.trailMap[sid]?.segs.flat() || []) {
+      const p = e.polyline.positions;
+      for (let i = 0; i < p.length; i += 3) {
+        if (out.has(p[i])) expect(p[i + 2]).toBe(out.get(p[i]));
+        out.set(p[i], p[i + 2]);
+      }
+    }
+    return [...out].sort((a, b) => a[0] - b[0]);
+  };
+  /** Let started terrain requests reach the mock (they start on a microtask). */
+  const flush = () => act(async () => { await Promise.resolve(); });
+  /** Resolve every terrain sample asked for so far. */
+  const settle = async () => {
+    await flush();
+    await act(async () => { while (pending.length) pending.shift()(); });
+    await flush();
+  };
+  return { store, hook, drawn, lons, joins, entities, entitiesRef, heights, flush, settle, sampleTerrainMostDetailed, terrain };
 }
 
 describe('useUavTrails', () => {
@@ -219,5 +256,102 @@ describe('useUavTrails', () => {
     t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: false });
     t.store.notify();
     expect(t.lons(1)).toEqual([44.000, 44.001]);
+  });
+
+  it('with terrain, each point is drawn over the ground under it, as the vehicle model is', async () => {
+    // alt_rel is over home: drawn alone as an ellipsoid height it sat ~1.3 km under the terrain.
+    const t = setup({ terrainReady: true });
+    t.store.sendPath(1, [44.000, 44.001, 44.002]);
+    expect(t.heights(1)).toEqual([]); // no ground known yet: nothing under the terrain
+    await t.settle();
+    expect(t.heights(1)).toEqual([[44.000, 1400], [44.001, 1410], [44.002, 1420]]);
+  });
+
+  it('a new point takes the last known ground until its own sample comes', async () => {
+    const t = setup({ terrainReady: true });
+    t.store.sendPath(1, [44.000, 44.001]);
+    await t.settle();
+    t.store.sendPath(1, [44.002]);
+    expect(t.heights(1).at(-1)).toEqual([44.002, 1410]);
+    await t.settle();
+    expect(t.heights(1).at(-1)).toEqual([44.002, 1420]);
+  });
+
+  it('one sample at a time per trail; points added meanwhile go in the next, with no new telemetry', async () => {
+    const t = setup({ terrainReady: true });
+    t.store.sendPath(1, [44.000]);
+    await t.flush();
+    t.store.sendPath(1, [44.001]);
+    await t.flush();
+    expect(t.sampleTerrainMostDetailed).toHaveBeenCalledTimes(1);
+    await t.settle();
+    expect(t.sampleTerrainMostDetailed).toHaveBeenCalledTimes(2);
+    expect(t.sampleTerrainMostDetailed.mock.calls[1][1]).toEqual([{ lon: 44.001, lat: 40 }]);
+    await t.settle();
+    expect(t.heights(1)).toEqual([[44.000, 1400], [44.001, 1410]]);
+  });
+
+  it('a failed sample keeps the points unsampled; the next update samples them again', async () => {
+    const t = setup({ terrainReady: true });
+    t.store.sendPath(1, [44.000]);
+    await t.settle();
+    t.terrain.failing = true;
+    t.store.sendPath(1, [44.001]);
+    await t.settle();
+    expect(t.heights(1)).toEqual([[44.000, 1400], [44.001, 1400]]); // last known ground
+    expect(t.sampleTerrainMostDetailed).toHaveBeenCalledTimes(2); // no retry loop
+    t.terrain.failing = false;
+    t.store.notify();
+    await t.settle();
+    expect(t.sampleTerrainMostDetailed.mock.calls[2][1]).toEqual([{ lon: 44.001, lat: 40 }]);
+    expect(t.heights(1)).toEqual([[44.000, 1400], [44.001, 1410]]);
+  });
+
+  it('a point two fade pieces share has one height while its ground is unknown', async () => {
+    const t = setup({ terrainReady: true });
+    // 10 points in 5 fade pieces: 44.002 ends piece 1 and starts piece 2.
+    t.terrain.holes.add(44.002);
+    t.store.sendPath(1, [44.000, 44.001, 44.002, 44.003, 44.004, 44.005, 44.006, 44.007, 44.008, 44.009]);
+    await t.settle();
+    // heights() fails if the two pieces draw it at different heights.
+    expect(t.heights(1)[2]).toEqual([44.002, 1410]);
+    expect(t.sampleTerrainMostDetailed).toHaveBeenCalledTimes(1); // an incomplete batch is not chained
+  });
+
+  it('thinning keeps the point that holds the line over a ridge', async () => {
+    const t = setup({ terrainReady: true });
+    const lons = Array.from({ length: 2001 }, (_, i) => 44 + i * 0.0001);
+    // Early in the old part, which thinning eats from its start when errors tie.
+    const ridge = lons[300];
+    // Level flight over home: only the ground under one point rises (+500 m).
+    const at = (lon) => (lon === ridge ? 1800 : 1300);
+    t.sampleTerrainMostDetailed.mockImplementation((provider, cartos) =>
+      Promise.resolve(cartos.map((c) => ({ ...c, height: at(c.lon) }))));
+    t.store.sendPath(1, lons.slice(0, 1500));
+    await t.settle();
+    t.store.sendPath(1, lons.slice(1500));
+    await t.settle();
+    expect(t.heights(1)).toContainEqual([ridge, 1900]);
+  });
+
+  it('without terrain heights are over the ellipsoid; terrain arriving later lifts the whole trail', async () => {
+    const t = setup();
+    t.store.sendPath(1, [44.000, 44.001]);
+    expect(t.heights(1)).toEqual([[44.000, 100], [44.001, 100]]);
+    expect(t.sampleTerrainMostDetailed).not.toHaveBeenCalled();
+    t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: false, terrainReady: true });
+    await t.settle(); // no telemetry needed
+    expect(t.heights(1)).toEqual([[44.000, 1400], [44.001, 1410]]);
+  });
+
+  it('a sample that resolves after Clear all is dropped', async () => {
+    const t = setup({ terrainReady: true });
+    t.store.sendPath(1, [44.000, 44.001]);
+    t.hook.rerender({ show: true, resetKey: 1, hidden: new Set(), paused: false, terrainReady: true });
+    t.store.sendPath(1, [44.005, 44.006]);
+    await t.settle();
+    t.store.notify();
+    await t.settle();
+    expect(t.heights(1)).toEqual([[44.005, 1450], [44.006, 1460]]);
   });
 });

@@ -536,8 +536,9 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
 
         def run(self):
             events.append("run")
-            made["admission"].actions.append({"k": 3, "source": "relay", "kind": "request",
-                                              "target": 2, "id": [0, 4], "payload": {}})
+            made["side"].admission.actions.append({"k": 3, "source": "relay", "kind": "request",
+                                                  "target": 2, "id": [0, 4], "payload": {}})
+            made["side"].admission.returned_at = 3  # the operator returned; a later fault keeps it
             raise HostFault("exchange_budget", "stop here", tick=3)
 
     fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
@@ -548,16 +549,17 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
     monkeypatch.setattr(app_side, "start_app_stack",
                         lambda run_dir, slot, owner, target, frontend: events.append(("app", slot, target)) or Stack())
     monkeypatch.setattr(app_side, "Admission", lambda ids, relay=None, refuse=None: SimpleNamespace(
-        relay=relay, refuse=refuse, actions=[]))
+        relay=relay, refuse=refuse, actions=[], returned_at=None))
     monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Coordinator)
     with pytest.raises(RegressionError, match="lockstep run fault"):
         execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
     assert events == [("app", 40, fleet_layout(SLICE).backend), "run", "app stopped",
                       "fleet stopped", "released"]
-    assert made["admission"].relay is Stack.relay and made["admission"].refuse is app_side.refusal
-    assert isinstance(made["pace"], app_side.RealTimePacer)
+    assert made["side"].admission.relay is Stack.relay and made["side"].admission.refuse is app_side.refusal
+    assert isinstance(made["side"].pace, app_side.RealTimePacer)
     assert (tmp_path / "run" / app_side.ACTIONS_FILE).read_text(encoding="ascii") == (
-        '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n')
+        '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n'
+        '{"k":3,"kind":"end","source":"script"}\n')
 
 
 def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_path, monkeypatch):
