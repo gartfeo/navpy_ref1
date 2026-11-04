@@ -140,6 +140,21 @@ class TestTornParamPck(unittest.TestCase):
                 client.fetch(timeout=10.0)
         self.assertEqual(ftp.fetches, 1)
 
+    def test_the_timeout_checked_is_the_timeout_passed(self):
+        # Time that passes before the refetch (here: while the warning is
+        # logged) must not shrink the value handed to the client below its
+        # bound: the stub asserts as the real client does.
+        client, ftp = _client([_torn(), _pck(2.5)])
+        ftp.cost = 10.0 - SHORTEST_TIMEOUT_S - 0.1  # 0.1 s above the bound after it
+        slow_log = mock.patch(
+            "navpy.plugins.vehicle.ardupilot.parameter_snapshot.log.warning",
+            lambda *_a: setattr(ftp, "now", ftp.now + 0.2),
+        )
+        with mock.patch.object(rt, "monotonic", lambda: ftp.now), slow_log:
+            with self.assertRaises(ParamPckError):
+                client.fetch(timeout=10.0)
+        self.assertEqual(ftp.fetches, 1)
+
     def test_the_real_client_refuses_the_shortest_timeout(self):
         adapter = _real_ftp()
         with self.assertRaisesRegex(AssertionError, "idle_detection_time"):

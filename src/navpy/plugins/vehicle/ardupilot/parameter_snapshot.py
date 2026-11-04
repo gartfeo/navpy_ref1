@@ -77,24 +77,28 @@ class ParameterSnapshotClient:
     ) -> ParamPck:
         # The refetches share the caller's timeout; they do not each get it again.
         deadline = rt.monotonic() + timeout
+        budget = timeout
         for attempt in range(1, TORN_PCK_FETCHES + 1):
             data = self._ftp.fetch_param_pck(
                 with_defaults=with_defaults,
-                timeout=timeout if attempt == 1 else deadline - rt.monotonic(),
+                timeout=budget,
                 progress_callback=progress_callback,
             )
             try:
                 return parse_param_pck(data, defaults_requested=with_defaults)
             except ParamPckError as exc:
-                # A fetch needs more than the client's idle-detection time.
-                left = deadline - rt.monotonic()
-                if attempt == TORN_PCK_FETCHES or left <= self._ftp.shortest_timeout_s:
+                if attempt == TORN_PCK_FETCHES:
                     raise
                 log.warning(
                     "param.pck for sys_id=%d is torn (%s); fetching again "
                     "(%d of %d)", self._identity.target_system, exc,
                     attempt + 1, TORN_PCK_FETCHES,
                 )
+                # The value checked is the value passed: a fetch needs more
+                # than the client's idle-detection time.
+                budget = deadline - rt.monotonic()
+                if budget <= self._ftp.shortest_timeout_s:
+                    raise
         raise AssertionError("unreachable")
 
     def close(self) -> None:
