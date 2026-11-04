@@ -104,6 +104,7 @@ K.REPS_EXTRA = 2     -- extra records when the response scatter is high
 K.SPREAD_MAX = 0.35  -- median record-to-record scatter of ln G at 3-20 rad/s
 K.SIGMA_FLOOR = 0.05
 K.EXC_MIN_FRAC = 1e-3  -- frequencies with less input than this fraction are not used
+K.POLE_SEP = 0.01     -- relative: controller filters closer than this are moved apart (M.ctl_modes)
 K.FIT_RMS_MAX = 0.3   -- RMS of the fit error in ln G (about 30 % or 17 deg)
 K.LM_MAX_ITER = 30
 K.LM_STARTS = 3
@@ -260,20 +261,110 @@ K.BOUNDS = {
 }
 
 -- ---------- Frequency response estimate ----------
--- One record: running Fourier sums of rate p, output u and test signal x.
+-- One record: running Fourier sums of rate p, of output u less the controller model's
+-- part (straight lines between samples), of that model part (exact), of test signal x,
+-- and of the interval lengths weighted by the straight line's loss (fa, fh).
 function M.dft_new()
-    local d = {pr = {}, pi = {}, ur = {}, ui = {}, xr = {}, xi = {}, ec = {}, es = {}}
+    local d = {pr = {}, pi = {}, ur = {}, ui = {}, vr = {}, vi = {}, xr = {}, xi = {}, ec = {}, es = {},
+               fa = {}, fh = 0}
     for i = 1, NW do
         d.pr[i], d.pi[i], d.ur[i], d.ui[i], d.xr[i], d.xi[i] = 0, 0, 0, 0, 0, 0
+        d.vr[i], d.vi[i], d.fa[i] = 0, 0, 0
     end
     return d
 end
 
+-- The demand-driven part of the rate controller output (AC_PID: FF and P on the FLTT
+-- target, P and D on the FLTE error, D through FLTD) for a demand held between calls:
+-- u_d = k0 d + ks d' + sum r_k z_k with z_k' = d - lam_k z_k. Poles are kept apart by
+-- K.POLE_SEP so the partial fractions stay finite when two filters share a cutoff.
+function M.ctl_modes(ctl, g, sc, e2t)
+    local m = {k0 = 0, ks = 0, lam = {}, r = {}}
+    local function pole(hz)
+        if hz <= 0 then return nil end
+        local l, moved = 2 * math.pi * hz, true
+        while moved do
+            moved = false
+            for _, q in ipairs(m.lam) do
+                if abs(l - q) < K.POLE_SEP * q then l, moved = l * (1 + K.POLE_SEP), true end
+            end
+        end
+        m.lam[#m.lam + 1], m.r[#m.lam + 1] = l, 0
+        return #m.lam
+    end
+    local it, ie, id = pole(ctl.fltt), pole(ctl.flte), pole(ctl.fltd)
+    local function path(gain, has_s, ...)
+        if gain == 0 then return end
+        local idx = {}           -- the filters present (absent ones are nil)
+        for n = 1, select("#", ...) do
+            local i = select(n, ...)
+            if i then idx[#idx + 1] = i end
+        end
+        if #idx == 0 then
+            if has_s then m.ks = m.ks + gain else m.k0 = m.k0 + gain end
+            return
+        end
+        if has_s and #idx == 1 then m.k0 = m.k0 + gain * m.lam[idx[1]] end
+        local prod = 1
+        for _, j in ipairs(idx) do prod = prod * m.lam[j] end
+        for _, i in ipairs(idx) do
+            local li, den = m.lam[i], 1
+            for _, j in ipairs(idx) do
+                if j ~= i then den = den * (m.lam[j] - li) end
+            end
+            m.r[i] = m.r[i] + gain * (has_s and -li or 1) * prod / den
+        end
+    end
+    path(g.FF * sc / e2t, false, it)
+    path(sc * sc * g.P, false, it, ie)
+    path(sc * sc * g.D, true, it, ie, id)
+    return m
+end
+
+-- controller model state over the manoeuvre: dem is the demand being held now
+function M.cm_new(modes)
+    local cm = {m = modes, z = {}, g = {}, el = {}, vr = {}, vi = {}, dem = 0, dprev = 0}
+    for k, l in ipairs(modes.lam) do
+        cm.z[k], cm.vr[k], cm.vi[k] = 0, {}, {}
+        for i = 1, NW do        -- 1 / (lam + jw)
+            local w = ID_W[i]
+            local den = l * l + w * w
+            cm.vr[k][i], cm.vi[k][i] = l / den, -w / den
+        end
+    end
+    return cm
+end
+
+-- advance over an interval of h seconds with cm.dem held; keeps the interval's
+-- model output at both ends (left limits, as the output is read before a new
+-- demand) and its exact Fourier terms for M.dft_add
+function M.cm_step(cm, h)
+    local m, dem = cm.m, cm.dem
+    local ud0, ud1, dcs = m.k0 * cm.dprev, m.k0 * dem, m.k0 * dem
+    for k, l in ipairs(m.lam) do
+        local el, zs, z0 = exp(-l * h), dem / l, cm.z[k]
+        local z1 = zs + (z0 - zs) * el
+        ud0, ud1, dcs = ud0 + m.r[k] * z0, ud1 + m.r[k] * z1, dcs + m.r[k] * zs
+        cm.g[k], cm.el[k], cm.z[k] = m.r[k] * (z0 - zs), el, z1
+    end
+    cm.ud0, cm.ud1, cm.dcs, cm.imp = ud0, ud1, dcs, m.ks * (dem - cm.dprev)
+    cm.dprev = dem
+end
+
 -- Adds the interval from the previous sample to this one (time t, rate p, output u;
--- x is the test signal held over the interval). The integral of e^(-jwt) times the
--- straight line between the two samples is exact, so uneven script timing does not
--- bias the sums (a plain sum of samples would).
-function M.dft_add(d, t, p, u, x)
+-- x is the test signal held over the interval; cm is the controller model after
+-- M.cm_step for this interval, or nil). The script sees p and u only at its calls,
+-- 20 ms apart or more when calls are late, and a straight line between samples is
+-- wrong in two ways that grow with the square of the interval:
+-- - the output bends just after each call, where the new demand starts through the
+--   controller's filters. A straight line delays it: with calls up to 40 ms late,
+--   up to 4 deg of phase lead in G at 15 rad/s and a GM predicted 2 dB high. The model
+--   part of u is integrated exactly instead; only its bend between the measured
+--   samples is used, so an error in the model scales this correction only.
+-- - a smooth signal loses 2 (1 - cos wh) / (wh)^2 of its amplitude over an interval h
+--   (2.4 dB at 38 rad/s with calls up to 40 ms late); fa/fh is that loss over the record, and
+--   M.spectra_add divides it out of the straight-line sums.
+function M.dft_add(d, t, p, u, x, cm)
     local ec, es = d.ec, d.es
     if d.t0 == nil then
         for i = 1, NW do
@@ -285,9 +376,15 @@ function M.dft_add(d, t, p, u, x)
     end
     local h = t - d.t0
     if h <= 0 then return end
-    local pr, pi, ur, ui, xr, xi = d.pr, d.pi, d.ur, d.ui, d.xr, d.xi
+    local pr, pi, ur, ui, xr, xi, vr, vi, fa = d.pr, d.pi, d.ur, d.ui, d.xr, d.xi, d.vr, d.vi, d.fa
     local p0, u0 = d.p0, d.u0
     local mp, mu = (p - p0) / h, (u - u0) / h
+    local nm, ud0, dcs, imp = 0, 0, 0, 0
+    if cm then
+        nm, ud0, dcs, imp = #cm.m.lam, cm.ud0, cm.dcs, cm.imp
+        u0, mu = u0 - ud0, mu - (cm.ud1 - ud0) / h      -- straight line of u less the model
+    end
+    d.fh = d.fh + h
     for i = 1, NW do
         local w = ID_W[i]
         local c1, s1 = cos(w * t), sin(w * t)
@@ -300,6 +397,19 @@ function M.dft_add(d, t, p, u, x)
         pi[i] = pi[i] + p0 * ai + mp * bi
         ur[i] = ur[i] + u0 * ar + mu * br
         ui[i] = ui[i] + u0 * ai + mu * bi
+        -- cos(wh) from the two ends: the straight line's amplitude factor over h
+        fa[i] = fa[i] + 2 * (1 - (c1 * ec[i] + s1 * es[i])) / (w2 * h)
+        if cm then
+            -- exact model integral: dcs A, the modes' g (E0 - el E1) / (lam + jw), imp E0
+            local cr, cj = dcs * ar + imp * ec[i], dcs * ai - imp * es[i]
+            for k = 1, nm do
+                local el, g, mr, mi = cm.el[k], cm.g[k], cm.vr[k][i], cm.vi[k][i]
+                local qr, qi = ec[i] - el * c1, el * s1 - es[i]
+                cr = cr + g * (qr * mr - qi * mi)
+                cj = cj + g * (qr * mi + qi * mr)
+            end
+            vr[i], vi[i] = vr[i] + cr, vi[i] + cj
+        end
         xr[i] = xr[i] + x * ar
         xi[i] = xi[i] + x * ai
         ec[i], es[i] = c1, s1
@@ -308,18 +418,22 @@ function M.dft_add(d, t, p, u, x)
 end
 
 -- add a finished record: cross spectra with the test signal, and the record's own P/U
+-- (straight-line sums divided by their amplitude loss, see M.dft_add)
 function M.spectra_add(sp, d)
     local g = {r = {}, i = {}}
     for i = 1, NW do
         local xr, xi = d.xr[i], d.xi[i]
-        sp.pxr[i] = sp.pxr[i] + d.pr[i] * xr + d.pi[i] * xi
-        sp.pxi[i] = sp.pxi[i] + d.pi[i] * xr - d.pr[i] * xi
-        sp.uxr[i] = sp.uxr[i] + d.ur[i] * xr + d.ui[i] * xi
-        sp.uxi[i] = sp.uxi[i] + d.ui[i] * xr - d.ur[i] * xi
-        local den = d.ur[i] * d.ur[i] + d.ui[i] * d.ui[i]
+        local f = d.fh > 0 and d.fh / d.fa[i] or 1
+        local pr, pi = d.pr[i] * f, d.pi[i] * f
+        local ur, ui = d.ur[i] * f + d.vr[i], d.ui[i] * f + d.vi[i]
+        sp.pxr[i] = sp.pxr[i] + pr * xr + pi * xi
+        sp.pxi[i] = sp.pxi[i] + pi * xr - pr * xi
+        sp.uxr[i] = sp.uxr[i] + ur * xr + ui * xi
+        sp.uxi[i] = sp.uxi[i] + ui * xr - ur * xi
+        local den = ur * ur + ui * ui
         if den > 0 then
-            g.r[i] = (d.pr[i] * d.ur[i] + d.pi[i] * d.ui[i]) / den
-            g.i[i] = (d.pi[i] * d.ur[i] - d.pr[i] * d.ui[i]) / den
+            g.r[i] = (pr * ur + pi * ui) / den
+            g.i[i] = (pi * ur - pr * ui) / den
         else
             g.r[i], g.i[i] = 0, 0
         end
@@ -1166,6 +1280,8 @@ local function start_manoeuvre(s, now)
     if kind == "id" then
         man.sign = (st.reps % 2 == 0) and 1 or -1
         man.dft = M.dft_new()
+        -- the controller's response to the demands, from control take-over (demand 0)
+        man.cm = M.cm_new(M.ctl_modes(sess.ctl[ax.id], sess.base[ax.id], speed_scaler(s.asp, sess.ac), s.e2t))
         man.p0, man.u0, man.n0 = 0, 0, 0
         man.v_sum, man.e2t_sum, man.n_sum = 0, 0, 0
         man.jit_sum, man.jit_n = 0, 0
@@ -1271,6 +1387,7 @@ local function manoeuvre_tick(s, now)
     if now - man.last_ms > K.MAX_TICK_GAP_MS then return finish_manoeuvre(false, "script delayed", false) end
     local dt = (now - man.last_ms) * 0.001
     man.last_ms = now
+    if man.cm then M.cm_step(man.cm, dt) end
 
     -- controller output of the axis under test, and saturation
     local u = ax.id == 1 and s.ail or s.elev
@@ -1322,7 +1439,7 @@ local function manoeuvre_tick(s, now)
             -- the test signal held over the last interval moves the reference attitude
             if ax.id == 1 then man.ref_roll = man.ref_roll + man.exc * dt
             else man.ref_pitch = man.ref_pitch + man.exc * dt end
-            M.dft_add(man.dft, t, rate_meas - man.p0, u - man.u0, man.exc)
+            M.dft_add(man.dft, t, rate_meas - man.p0, u - man.u0, man.exc, man.cm)
             man.v_sum, man.e2t_sum, man.n_sum = man.v_sum + s.asp, man.e2t_sum + s.e2t, man.n_sum + 1
             local v = program_at(K.ID_PROGRAM, t)
             if v == nil then
@@ -1370,6 +1487,7 @@ local function manoeuvre_tick(s, now)
                     coord_rate(s.roll, s.pitch, s.asp, s.e2t, ac))
     if ax.id == 1 then rr = rr + exc else pr = pr + exc end
     vehicle:set_target_throttle_rate_rpy(man.thr, rr, pr, 0)
+    if man.cm then man.cm.dem = ax.id == 1 and rr or pr end
     log_tick(ax.id, ph_code, ax.id == 1 and rr or pr, exc, rate_meas, u, ang,
              ax.id == 1 and man.ref_roll or man.ref_pitch, s.asp)
 end
@@ -1777,6 +1895,9 @@ if FTUN_TEST_EXPORT then
     FTUN_TEST_EXPORT.spectra_add = M.spectra_add
     FTUN_TEST_EXPORT.dft_new = M.dft_new
     FTUN_TEST_EXPORT.dft_add = M.dft_add
+    FTUN_TEST_EXPORT.ctl_modes = M.ctl_modes
+    FTUN_TEST_EXPORT.cm_new = M.cm_new
+    FTUN_TEST_EXPORT.cm_step = M.cm_step
     FTUN_TEST_EXPORT.margins = M.margins
     FTUN_TEST_EXPORT.lm_new = M.lm_new
     FTUN_TEST_EXPORT.lm_step = M.lm_step

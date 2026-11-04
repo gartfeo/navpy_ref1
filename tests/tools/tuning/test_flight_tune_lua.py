@@ -291,20 +291,52 @@ def test_full_tune_prediction_agrees_with_measured_checks(full_tune):
         assert dc["MAEb"] == pytest.approx(pred["MAEb"], rel=0.5, abs=0.2)
 
 
-@pytest.mark.parametrize(("late_s", "seed"), [
-    (0.01, 7),
-    (0.04, 7),
-    # Known gap: most other jitter draws move the model past these tolerances.
-    pytest.param(0.04, 1, marks=pytest.mark.xfail(strict=True, reason="todo 268")),
+ID_W = 1.5 * (38 / 1.5) ** (np.arange(15) / 14)     # flight_tune.lua ID_W, rad/s
+
+
+def _plant_response(axis, w):
+    """Exact simulator plant, controller output to rate, at w (from _harness_rate_loop)."""
+    L, ww = _harness_rate_loop(axis, 1.0, 0.0, 0.0, fltd_hz=10.0)
+    g = L[0] / np.exp(-1j * ww * HARNESS_DT)
+    return np.interp(w, ww, g.real) + 1j * np.interp(w, ww, g.imag)
+
+
+def _model_response(row, w):
+    """The FTMD model (flight_tune.lua M.model_logresp at the test speed)."""
+    s = 1j * w
+    if row["Ax"] == 1:
+        return row["K"] * np.exp(-s * row["P3"]) / ((1 + s / row["P1"]) * (1 + s / row["P2"]))
+    return (row["K"] * (1 + s / row["P1"]) * np.exp(-s * row["P5"])
+            / ((1 + 2 * row["P3"] * s / row["P2"] + (s / row["P2"]) ** 2) * (1 + s / row["P4"])))
+
+
+@pytest.mark.parametrize(("late_s", "seed", "base_d", "rms_max"), [
+    (0.01, 7, 0, 0.1),
+    (0.01, 9, 0, 0.1),
+    (0.04, 1, 0, 0.15),
+    (0.04, 5, 0, 0.15),        # the largest RMS and lowest exact PM of seeds 1-20
+    (0.04, 7, 0, 0.15),
+    (0.04, 2, 0.005, 0.15),    # D in the flown gains: the largest phase error of seeds 1-20
 ])
-def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed):
-    # The old timer-based script needed exact timing. Here each sample is time-stamped,
-    # output and rate are read together, and the Fourier sums integrate exactly between
-    # samples, so calls that start up to late_s late (every call) still give the same
-    # model and gains that keep their margins on the exact simulator loop.
+def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed, base_d, rms_max):
+    # Every call starts up to late_s late, so samples are 20 to 20 + late_s ms apart.
+    # The Fourier sums integrate the controller's bend after each call exactly and divide
+    # out the straight line's loss (M.dft_add), so the model still matches the exact
+    # simulator plant, the predicted margins stay below the exact ones, and the gains keep
+    # their margins on the exact loop. Seeds 1-20 at 10 and 40 ms, flown D 0 and 0.005
+    # (2026-11-04): model error at most 0.05 in ln|G| and 2.5 deg up to 20 rad/s, 0.19 and
+    # 6.5 deg up to 38 rad/s; exact PM at least 56 deg, GM at least 8.6 dB; the prediction
+    # at least 11 deg and 0.5 dB below the exact margins. Before, 40 ms gave up to 9.2 deg
+    # and 22 deg of phase error and a GM prediction up to 3.4 dB above the exact one.
+    # The roll lag pole (40 rad/s) is not checked on its own: it sits at the top of the
+    # measured band, where its phase is nearly a delay's, so the fit trades it against
+    # the delay (30 to 110 rad/s over the seeds) while the response stays as above.
+    # The unweighted fit RMS grows with the record-to-record scatter at the top
+    # frequencies (0.5 to 1.0 with 60 ms gaps); the fit weights those down.
     out = run(START + f"""
 math.randomseed({seed})
 S.jitter_s = {late_s}
+S.params.RLL_RATE_D, S.params.PTCH_RATE_D = {base_d}, {base_d}
 S.params.FTUN_AXES = 3
 h.run(500)
 """)
@@ -312,14 +344,21 @@ h.run(500)
     for calm, late in zip(full_tune["rows"]["FTMD"], out["rows"]["FTMD"]):
         assert late["K"] == pytest.approx(calm["K"], rel=0.05)
         assert late["P1"] == pytest.approx(calm["P1"], rel=0.1)
-        assert late["P2"] == pytest.approx(calm["P2"], rel=0.15)
-        assert late["Rms"] < 0.1
-    for axis, prefix in (("roll", "RLL_RATE_"), ("pitch", "PTCH_RATE_")):
+        assert late["Rms"] < rms_max
+        axis = "roll" if late["Ax"] == 1 else "pitch"
+        err = _model_response(late, ID_W) / _plant_response(axis, ID_W)
+        lm, ph = np.abs(np.log(np.abs(err))), np.abs(np.degrees(np.angle(err)))
+        band = ID_W <= 20
+        assert lm[band].max() < 0.1 and ph[band].max() < 3, (axis, lm, ph)
+        assert lm.max() < 0.3 and ph.max() < 8, (axis, lm, ph)
+    pred = {r["Ax"]: r for r in out["rows"]["FTGN"] if r["Set"] == 1}
+    for ax, axis, prefix in ((1, "roll", "RLL_RATE_"), (2, "pitch", "PTCH_RATE_")):
         g = out["saved"]
         assert g[prefix + "FF"] == pytest.approx(full_tune["saved"][prefix + "FF"], rel=0.05)
         L, w = _harness_rate_loop(axis, g[prefix + "P"], g[prefix + "I"], g[prefix + "D"], fltd_hz=10.0)
         pm, gm = design._pm_gm(L, w)
         assert pm[0] >= 42 and gm[0] >= 5.5, (axis, pm[0], gm[0])
+        assert pred[ax]["PMr"] <= pm[0] and pred[ax]["GMr"] <= gm[0], (axis, pred[ax], pm[0], gm[0])
 
 
 # ---------- stops ----------
@@ -462,6 +501,114 @@ DUMPED = true
 
 
 # ---------- calculation pieces ----------
+def _ac_pid_demand_response(ctl, g, sc, e2t, s):
+    """AC_PID output per unit target at s with the rate held at 0: FF and P on the FLTT
+    target, P and D on the FLTE error, D through FLTD."""
+    lp = lambda hz: 1 if hz <= 0 else (2 * np.pi * hz) / (s + 2 * np.pi * hz)
+    T, E, D = lp(ctl["fltt"]), lp(ctl["flte"]), lp(ctl["fltd"])
+    return g["FF"] * sc / e2t * T + sc * sc * (g["P"] * T * E + g["D"] * s * T * E * D)
+
+
+CTL_CASES = {
+    "harness roll": ({"fltt": 3.18, "flte": 0, "fltd": 10}, {"FF": 0.15, "P": 0.05, "D": 0.01}),
+    "error filter, no target filter": ({"fltt": 0, "flte": 5, "fltd": 12}, {"FF": 0.3, "P": 0.1, "D": 0.004}),
+    "no filters": ({"fltt": 0, "flte": 0, "fltd": 0}, {"FF": 0.3, "P": 0.1, "D": 0.004}),
+    "target and D filter equal": ({"fltt": 10, "flte": 0, "fltd": 10}, {"FF": 0.6, "P": 0.08, "D": 0.01}),
+}
+
+
+@pytest.mark.parametrize("case", CTL_CASES)
+def test_controller_modes_match_the_ac_pid_demand_response(case):
+    # M.ctl_modes splits AC_PID's response to the demand into k0 + ks s + sum r/(s + lam);
+    # rebuilt here at the identification frequencies it must equal the filter chain
+    ctl, g = CTL_CASES[case]
+    out = run(f"""
+local m = X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}},
+                      {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}, 1.2, 1.05)
+h.dump({{k0 = m.k0, ks = m.ks, lam = m.lam, r = m.r}})
+DUMPED = true
+""", export=True)
+    m = out["extra"]
+    s = 1j * ID_W
+    got = m["k0"] + m["ks"] * s + sum(r / (s + lam) for r, lam in zip(m["r"], m["lam"]))
+    # equal cutoffs are moved apart by K.POLE_SEP (1 %), which changes the response by less
+    assert got == pytest.approx(_ac_pid_demand_response(ctl, g, 1.2, 1.05, s), rel=0.01)
+
+
+def test_output_sums_integrate_the_controller_bend_between_calls_exactly():
+    # u is exactly the controller model's response to demands held over uneven call
+    # intervals (20-60 ms), read just before each new demand. With the model the record's
+    # output sum is the exact Fourier integral of u; the straight line alone is not.
+    rng = np.random.default_rng(3)
+    hs = 0.02 + 0.04 * rng.random(80)
+    dem = rng.normal(0, 20, 81)
+    ctl, g = CTL_CASES["harness roll"]
+    lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
+    out = run(f"""
+local hs, dem = {lua_list(hs)}, {lua_list(dem)}
+local m = X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
+                      {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}, 1, 1)
+local cm, d, plain = X.cm_new(m), X.dft_new(), X.dft_new()
+X.dft_add(d, 0, 0, 0, 0, cm)
+X.dft_add(plain, 0, 0, 0, 0)
+cm.dem = dem[1]
+local t = 0
+for k = 1, #hs do
+    t = t + hs[k]
+    X.cm_step(cm, hs[k])
+    X.dft_add(d, t, 0, cm.ud1, 0, cm)
+    X.dft_add(plain, t, 0, cm.ud1, 0)
+    cm.dem = dem[k + 1]
+end
+h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui, k0 = m.k0, lam = m.lam, r = m.r}})
+DUMPED = true
+""", export=True)
+    e = out["extra"]
+    # independent: u(t) from the modes' exponentials on a fine grid, trapezoid integral
+    k0, lam, r = e["k0"], np.array(e["lam"]), np.array(e["r"])
+    z = np.zeros(len(lam))
+    exact = np.zeros(len(ID_W), complex)
+    t0 = 0.0
+    for h, d in zip(hs, dem[:-1]):
+        tau = np.linspace(0, h, 2001)
+        zt = d / lam + (z - d / lam) * np.exp(-np.outer(tau, lam))
+        u = k0 * d + zt @ r
+        f = u[:, None] * np.exp(-1j * np.outer(t0 + tau, ID_W))
+        exact += np.trapezoid(f, tau, axis=0)
+        z, t0 = zt[-1], t0 + h
+    with_model = np.array(e["ur"]) + 1j * np.array(e["ui"]) + np.array(e["vr"]) + 1j * np.array(e["vi"])
+    plain = np.array(e["lr"]) + 1j * np.array(e["li"])
+    scale = np.abs(exact).max()
+    assert np.abs(np.array(e["ur"]) + 1j * np.array(e["ui"])).max() < 1e-9 * scale   # nothing left to interpolate
+    assert np.abs(with_model - exact).max() < 1e-4 * scale
+    assert np.abs(plain - exact).max() > 0.02 * scale                                # the bend matters
+
+
+def test_record_divides_out_the_straight_line_loss_of_a_smooth_signal():
+    # p = cos(w t) at the top identification frequency, sampled 20-60 ms apart: straight
+    # lines lose about 2 (1 - cos wh) / (wh)^2 of it; fh / fa restores the integral
+    rng = np.random.default_rng(5)
+    hs = 0.02 + 0.04 * rng.random(100)
+    t = np.concatenate([[0], np.cumsum(hs)])
+    w = ID_W[-1]
+    p = np.cos(w * t + 0.3)
+    lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
+    out = run(f"""
+local t, p = {lua_list(t)}, {lua_list(p)}
+local d = X.dft_new()
+for k = 1, #t do X.dft_add(d, t[k], p[k], 0, 0) end
+h.dump({{pr = d.pr[15], pi = d.pi[15], fa = d.fa[15], fh = d.fh}})
+DUMPED = true
+""", export=True)
+    e = out["extra"]
+    tt = np.linspace(0, t[-1], 400001)
+    exact = np.trapezoid(np.cos(w * tt + 0.3) * np.exp(-1j * w * tt), tt)
+    lin = e["pr"] + 1j * e["pi"]
+    assert e["fh"] == pytest.approx(t[-1])
+    assert abs(lin - exact) > 0.15 * abs(exact)
+    assert abs(lin * e["fh"] / e["fa"] - exact) < 0.05 * abs(exact)
+
+
 def test_margins_of_delayed_integrator_match_theory():
     # L = K e^(-s tau) / s: PM = 90 - K tau (deg); GM at w = pi / (2 tau)
     out = run("""
