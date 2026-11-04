@@ -594,3 +594,54 @@ def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_
         execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
     assert type(raised.value) is RuntimeError  # not scored as a RegressionError
     assert events == ["run", "app stop failed", "fleet stopped", "released"]
+
+
+def test_an_app_session_script_only_waits_then_stops_the_companions(tmp_path, monkeypatch):
+    """Step 13: with ``app_session_s`` the app drives the run; the script runs no mission."""
+    calls = []
+    clock = SimpleNamespace(sleep=lambda seconds: calls.append(("sleep", seconds)))
+    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: SimpleNamespace(clock=clock))
+    monkeypatch.setattr(lockstep_eval, "run_mission", lambda *a: pytest.fail("ran the scripted mission"))
+    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: calls.append(("stop",)))
+    operator = SimpleNamespace(wait_ready=lambda ordinal: calls.append(("ready", ordinal)))
+    options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=900.0)
+    outcome = lockstep_eval.operator_script(SLICE, tmp_path, options)(operator)
+    assert outcome == {"approvals": [], "error": None}
+    assert calls == [("ready", fleet_layout(SLICE).backend), ("sleep", 900.0), ("stop",)]
+
+
+def test_the_app_session_is_a_recorded_run_option_the_replay_reads_back(tmp_path, monkeypatch, no_claim):
+    import json
+
+    from scripts.eval_gcs_demo_lockstep_replay import source_options
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda _parameters: "X 1\n")
+    for name, session in (("scripted", None), ("app", 900.0)):
+        options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=session)
+        with pytest.raises(AssertionError, match="must not claim"):
+            execute_lockstep_run(tmp_path / name, SLICE, options)
+        run = json.loads((tmp_path / name / "input_manifest.json").read_text(encoding="utf-8"))["run_options"]
+        assert run.get("app_session_s") == session and ("app_session_s" in run) is (session is not None)
+        assert source_options(tmp_path / name, pace=False).app_session_s == session
+    with pytest.raises(RegressionError, match="--app-session-s must be within"):
+        execute_lockstep_run(tmp_path / "long", SLICE, LockstepOptions(
+            seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=lockstep_eval.MISSION_BUDGET_S))
+
+
+def test_cli_passes_the_app_session_and_refuses_it_without_the_app(tmp_path, monkeypatch):
+    seen = []
+
+    def run(_run_dir, _scenario, options):
+        seen.append((options.app, options.app_session_s))
+        return lockstep_eval.LockstepRun("d" * 64, "ok", [], None)
+
+    monkeypatch.setattr(cli, "execute_lockstep_run", run)
+    monkeypatch.setattr(cli, "analyze_run", lambda *a, **k: pytest.fail("stop after the run"))
+    base = ["--lockstep", "--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path / "a")]
+    with pytest.raises(RegressionError, match="--app-session-s needs --app"):
+        cli.main([*base, "--app-session-s", "600"])
+    try:
+        cli.main([*base, "--app", "--app-session-s", "600"])
+    except BaseException:  # noqa: BLE001 - the analysis stub ends the run
+        pass
+    assert seen == [(True, 600.0)]
