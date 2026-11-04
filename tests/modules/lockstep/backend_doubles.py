@@ -24,6 +24,7 @@ from pathlib import Path
 
 from navpy.sim.lockstep.coordinator_admission import Admission
 from navpy.sim.lockstep.coordinator_members import Roster
+from navpy.sim.lockstep.coordinator_operator import OperatorSide
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator, RunResult
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec, WallBudgets
@@ -156,9 +157,11 @@ class BackendRun:
 
 def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
           companions: bool = False, navpy: bool = False, relay=None,
-          refuse=lambda payload: None) -> BackendRun:
+          refuse=lambda payload: None, operator=None, ids: RequestIds | None = None,
+          stop_at: int | None = None) -> BackendRun:
     """``script(scenario)`` makes the operator's script (default: the setup calls);
-    ``relay`` and its refusals go to the coordinator's admission."""
+    ``relay`` and its refusals go to the coordinator's admission. A replay passes its
+    own ``operator`` and the ``ids`` it shares, and may stop at tick ``stop_at``."""
     scenario = load_scenario(SLICE_SCENARIO)
     plan = manifest(scenario, companions=companions or navpy, navpy=navpy)
     delays = HostDelays(delay_seed)
@@ -167,11 +170,11 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
     roster = Roster(plan, LocalSpawner(run_dir / "host", PYTHON_PATH), AllowAll(),
                     HostSidecar(run_dir / PROCESSES_HOST_FILE),
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
-    ids = RequestIds(0)
-    operator = OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
+    ids = ids or RequestIds(0)
+    operator = operator or OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
     admission = Admission(ids, relay, refuse)
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
-                                      delay=delays, admission=admission)
+                                      delay=delays, side=OperatorSide(admission, stop_at=stop_at))
     run = BackendRun(coordinator, sitl, operator, admission)
     receive, send = roster.receive, roster.send
 

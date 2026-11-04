@@ -14,6 +14,7 @@ member is a coordinator fault: the operator addressed nobody.
 from __future__ import annotations
 
 from collections.abc import Callable, Iterable
+from dataclasses import dataclass
 
 from navpy.sim.lockstep.coordinator_admission import Admission
 from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
@@ -31,18 +32,38 @@ from navpy.sim.lockstep.coordinator_types import (
 from navpy.sim.lockstep.part_wire import Request
 
 
+def _no_pace(t_us: int) -> None:
+    return None
+
+
+@dataclass(frozen=True)
+class OperatorSide:
+    """The coordinator's operator side: the admission (None: the script's
+    alone), the pacer and, for a replay, the tick N it stops after
+    (``coordinator_stop``)."""
+
+    admission: Admission | None = None
+    pace: Callable[[int], None] = _no_pace
+    stop_at: int | None = None
+
+
 class OperatorPhase:
     def __init__(self, operator: OperatorHost, roster: Roster, book: LifecycleBook,
-                 admission: Admission, pace: Callable[[int], None]) -> None:
+                 admission: Admission, side: OperatorSide) -> None:
         self._operator = operator
         self._roster = roster
         self._book = book
         self._admission = admission
-        self.pace = pace
+        self.pace = side.pace
+        self._stop_at = side.stop_at
 
     @property
     def done(self) -> bool:
         return self._operator.done
+
+    def stops(self, k: int) -> bool:
+        """The run ends after tick k's reply (a replay's stop at tick N)."""
+        return k == self._stop_at
 
     def run(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
         if self._operator.done:
@@ -53,6 +74,8 @@ class OperatorPhase:
             OPERATOR_WAIT, lambda wall: self._operator.run_tick(self._inbox(k, t_us, output, wall)))
         deliveries, admission = self._admission.admit(k, requests, self._ready)
         deliver_operator_requests(self._roster, deliveries, k)
+        if self._operator.done:
+            self._admission.returned_at = k
         if admission is not None:
             record.note("admission", admission)
         self._note(record)
@@ -91,4 +114,4 @@ def deliver_operator_requests(
             member.inputs.requests.append(Request(item.id, item.payload))
 
 
-__all__ = ["OperatorPhase", "deliver_operator_requests"]
+__all__ = ["OperatorPhase", "OperatorSide", "deliver_operator_requests"]

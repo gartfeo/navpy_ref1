@@ -68,8 +68,9 @@ from navpy.sim.lockstep.coordinator_journal import RunJournal, TickRecord, sha25
 from navpy.sim.lockstep.coordinator_latches import SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import OPERATOR, LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Roster
-from navpy.sim.lockstep.coordinator_operator import OperatorPhase
+from navpy.sim.lockstep.coordinator_operator import OperatorPhase, OperatorSide
 from navpy.sim.lockstep.coordinator_router import RoutedPorts
+from navpy.sim.lockstep.coordinator_stop import STOPPED, stop_record
 from navpy.sim.lockstep.coordinator_types import (
     DRAIN_BUDGET_US,
     FINALIZATION_BUDGET_US,
@@ -109,13 +110,12 @@ class LockstepCoordinator:
                  delay: Callable[[str], None] = lambda point: None,
                  launch: Callable[[ExchangeDeadline], None] = anchor_now,
                  radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = (),
-                 admission: Admission | None = None,
-                 pace: Callable[[int], None] = lambda t_us: None) -> None:
+                 side: OperatorSide = OperatorSide()) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
-        self._operator = OperatorPhase(operator, roster, self._book, admission or Admission(ids), pace)
+        self._operator = OperatorPhase(operator, roster, self._book, side.admission or Admission(ids), side)
         ports = RoutedPorts(manifest, roster, radio_loss_pct=radio_loss_pct)
         self._exchange = TickExchange(roster, self._book, manifest.companion_roles, ports,
                                       FaultRunner(faults, roster, self._book, ports.radio.cuts,
@@ -134,6 +134,10 @@ class LockstepCoordinator:
                 self._roster.spawn(role, ordinal, self._ids.next(), OPERATOR)
             self._fleet.launch()
             k_t, k_f, t_f, outcome = self._mission()
+            if outcome == STOPPED:  # no finalization, drain or park: stop by ownership
+                self._roster.stop_all()
+                self._fleet.stop()
+                return RunResult(outcome, k_t, k_f, k_f)
             self._check_companions_stopped(k_f)
             parked = self._park(k_f)
             self._drain(k_f, t_f)
@@ -211,11 +215,15 @@ class LockstepCoordinator:
                     record.note("latched", [index + 1 for index in latched])
                 ports.inbound(k, record, {})  # no participant runs: bytes for one are discarded
                 self._reply(k, record, frames)
+                if self._operator.stops(k):
+                    return self._stopped(k, t_us, phase, frames)
                 continue
             output = self._exchange.run(k, t_us, record, draining=False)
             self._operator.run(k, t_us, output, record)
             self._reply(k, record, frames)
             self._raise_faults(output)
+            if self._operator.stops(k):  # before the tick's phase checks: the replay ends at N
+                return self._stopped(k, t_us, phase, frames)
             if phase == "mission":
                 self._snaps.observe(k, output.snaps)
                 if self._snaps.complete:  # checked first: completion wins a shared tick
@@ -230,6 +238,10 @@ class LockstepCoordinator:
                 return k_t, k, t_us, outcome
             if phase == "finalization" and t_us - t_kt > FINALIZATION_BUDGET_US:
                 raise CoordinatorFault("finalization_budget", "finalization passed its budget", tick=k)
+
+    def _stopped(self, k: int, t_us: int, phase: str, frames: list[Frame]) -> tuple[int, int, int, str]:
+        self.journal.add(stop_record(k, phase, frames, self._roster))
+        return k, k, t_us, STOPPED
 
     def _check_companions_stopped(self, k_f: int) -> None:
         """Before drain, each companion has retired through an acked participant stop."""

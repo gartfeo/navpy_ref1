@@ -117,6 +117,8 @@ class Admission:
         #: Delivered relay requests still waiting for their response.
         self._waiting: dict[RequestId, int] = {}
         self.actions: list[dict[str, Any]] = []
+        #: The tick the operator returned at (the action file's ``end``), fault or not.
+        self.returned_at: int | None = None
         #: The coordinator's answers to the script, for its next inbox.
         self._script_answers: list[tuple[int, Response]] = []
 
