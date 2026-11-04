@@ -26,6 +26,9 @@
  *   `jump`, where the trail opens a new run.
  * - A main-thread or tab stall that leaves the clock over STALL_MS behind:
  *   the clock moves forward to the usual delay behind the newest fix.
+ * - First connect: the model starts at the snapshot position; the first
+ *   path may hold fixes behind it, so the clock starts on that path's newest
+ *   fix (the model steps forward once, never back).
  * - A message older than the last one: its fixes are dropped (one WebSocket
  *   keeps the order, so this guards only against a clock reset).
  * A real reversal by the aircraft is drawn as flown: the fixes reverse.
@@ -116,7 +119,8 @@ function stepMetres(a, b) {
  * model only (`trail: false`).
  */
 function snapshotFixes(pb, v) {
-  const alt = (p) => p.alt_rel ?? p.alt ?? 0;
+  // No altitude is no fix: a 0 fill would drop the UAV to the ground.
+  const alt = (p) => p.alt_rel ?? p.alt;
   const ok = (p) => p && finite(p.lat) && finite(p.lon) && finite(alt(p));
   let out;
   if (!Array.isArray(v.path)) out = ok(v) ? [{ lat: v.lat, lon: v.lon, alt: alt(v), trail: true }] : [];
@@ -175,6 +179,14 @@ export function ingestVehicle(ents, v, fresh, tsMs, now = Date.now()) {
   while (pb.arrivals.length > 2 && now - pb.arrivals[1].now >= RATE_WINDOW_MS) pb.arrivals.shift();
 
   const fresh_ = snapshotFixes(pb, v);
+  // The first fixes after a first-connect snapshot may lie behind it (the
+  // backend sends the position before the path buffered up to it): drop the
+  // snapshot and start the clock on the newest of them, which is past it.
+  const restart = fresh_.some((f) => f.trail) && pb.fixes.length > 0 && pb.fixes.every((f) => !f.trail);
+  if (restart) {
+    pb.fixes = [];
+    pb.clock = null;
+  }
   pb.lastPath = v.path;
   pb.lastTs = tsMs;
   const span = prevTs === null ? pb.interval
@@ -198,7 +210,7 @@ export function ingestVehicle(ents, v, fresh, tsMs, now = Date.now()) {
     pb.oris.push({ t: tsMs, heading: v.heading, roll: v.roll, pitch: v.pitch });
   }
   if (pb.clock === null && pb.fixes.length) {
-    pb.clock = Math.max(pb.fixes[0].t, newestT(pb) - delayMs(pb));
+    pb.clock = restart ? newestT(pb) : Math.max(pb.fixes[0].t, newestT(pb) - delayMs(pb));
     pb.clockNow = now;
   }
   if (fresh_.length && pb.clock !== null) {
@@ -209,8 +221,15 @@ export function ingestVehicle(ents, v, fresh, tsMs, now = Date.now()) {
   return pb;
 }
 
+/**
+ * The newest buffered time, of a fix or an attitude: attitudes go on when
+ * position fixes stop, and the clock follows them (the model holds its last
+ * position and keeps turning).
+ */
 function newestT(pb) {
-  return pb.fixes.length ? pb.fixes[pb.fixes.length - 1].t : -Infinity;
+  const f = pb.fixes.length ? pb.fixes[pb.fixes.length - 1].t : -Infinity;
+  const o = pb.oris.length ? pb.oris[pb.oris.length - 1].t : -Infinity;
+  return Math.max(f, o);
 }
 
 function delayMs(pb) {

@@ -187,6 +187,40 @@ describe('UAV playout (todo 267)', () => {
     expect(positionSample(pb, playClock(pb, 0)).lon).toBe(0.001);
   });
 
+  it('never moves back when the first path holds fixes behind the first-connect snapshot', () => {
+    // send_initial_state sends the current position, then the next broadcast
+    // carries the fixes buffered before it: 30 m and 40 m lie behind or on it.
+    const m = (x) => ({ lat: 0, lon: x / M_PER_DEG, alt_rel: 100 });
+    const ents = {};
+    ingestVehicle(ents, { sys_id: 1, ...m(40), path: [] }, true, 1000, 0);
+    const pb = playoutsOf(ents)[1];
+    const xs = [positionSample(pb, playClock(pb, 0)).lon * M_PER_DEG];
+    ingestVehicle(ents, { sys_id: 1, ...m(60), path: [m(30), m(40), m(50), m(60)] }, true, 1200, 200);
+    for (let now = 200; now < 1500; now += FRAME_MS) xs.push(positionSample(pb, playClock(pb, now)).lon * M_PER_DEG);
+    ingestVehicle(ents, { sys_id: 1, ...m(110), path: [m(70), m(80), m(90), m(100), m(110)] }, true, 1400, 1500);
+    for (let now = 1500; now < 5000; now += FRAME_MS) xs.push(positionSample(pb, playClock(pb, now)).lon * M_PER_DEG);
+    expect(Math.min(...steps(xs.map((x) => ({ x }))))).toBeGreaterThanOrEqual(0);
+    expect(xs.at(-1)).toBeCloseTo(110, 6);
+    expect(pb.fixes.some((f) => f.trail === false)).toBe(false);
+  });
+
+  it('keeps turning when position fixes stop but attitudes go on', () => {
+    const ents = {};
+    const p = { sys_id: 1, lat: 0, lon: 0, alt_rel: 100, roll: 0, pitch: 0 };
+    ingestVehicle(ents, { ...p, heading: 0, path: [{ lat: 0, lon: 0, alt_rel: 100 }] }, true, 1000, 0);
+    const pb = ingestVehicle(ents, { ...p, heading: 90, path: [] }, true, 1200, 200);
+    expect(attitudeSample(pb, playClock(pb, 2000)).heading).toBeCloseTo(90, 6);
+    expect(positionSample(pb, playClock(pb, 2000)).lon).toBe(0);
+  });
+
+  it('skips a fix without altitude, never drawing it at 0', () => {
+    const ents = {};
+    ingestVehicle(ents, { sys_id: 1, lat: 0, lon: 0, alt_rel: 100 }, true, 1000, 0);
+    const pb = ingestVehicle(ents, { sys_id: 1, lat: 0, lon: 0.0001, alt_rel: null, alt: null }, true, 1200, 200);
+    expect(pb.fixes.map((f) => f.alt)).toEqual([100]);
+    expect(positionSample(pb, playClock(pb, 2000)).alt).toBe(100);
+  });
+
   it('restarts at the first fresh sample after a gap, not gliding across it', () => {
     const msgs = flight({ count: 40 });
     const ents = {};
