@@ -20,7 +20,7 @@
   "search_pattern": "distributed",
   "uav_count": 3,
   "partition_angle_deg": 90.0,
-  "route_offset_m": 150.0,
+  "route_offset_m": 90.0,
   "set_launch_points": [
     {
       "lat": 40.3118106,
@@ -62,5 +62,13 @@
       "name": "home-east",
       "type": "building"
     }
+  ],
+  "set_corridors": [
+    [
+      {
+        "lat": 40.30746182521555,
+        "lon": 44.457416679241305
+      }
+    ]
   ]
 }

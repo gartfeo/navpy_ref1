@@ -327,9 +327,12 @@ The zone goes to the third vehicle in the UI list.
 point. The owner chose it over the same layout turned 90°, whose ground ran
 −51 to +53 m from home (SRTM tile `.terrain/dem`); under the box's tracks it
 runs −10 to +2 m. The planner aims the lines at the launch point, so they
-cross the box diagonally: 4, 2 and 3 lines (3.3, 2.8, 1.9 km). The docks are
-zone 2's waypoints 1 and 2, 169 m apart on the box's west edge, after an
-824 m line. Hubs and their indices are the rehearsed plan's.
+cross the box diagonally. The docks are zone 2's waypoints 1 and 2 on the
+box's west edge. Hubs and their indices are the rehearsed plan's. Since
+2026-11-04 the file is the owner's own save: lines 90 m apart instead of
+150 m, and one corridor point (40.307462, 44.457417). The line counts and
+dock spacing measured with 150 m (4, 2 and 3 lines; docks 169 m apart) are
+not re-measured.
 
 **One command** `delivery_demo.py`:
 1. Run dir, settings and SITL root, then the commit and input record,
@@ -442,7 +445,7 @@ Before:
     their own save, `C:\Users\GARTF\Downloads\plan.json`. It is the drawn
     file with `route_offset_m` 90 instead of 150 and one corridor point
     (40.307462, 44.457417); area, docks and hubs are the same. The committed
-    drawn file does not hold it yet.
+    drawn file holds it since 2026-11-04.
 - Rehearsals on main `bcbabd9b` (trail fix and map layer picker), sim only,
   8 CPUs, investor settings, SITL speedup 10 (evidence:
   `.logs/rehearse_both` of the rehearse-both-plans worktree):

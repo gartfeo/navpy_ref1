@@ -9,7 +9,8 @@ fixture's d1 and d2. See docs/design/delivery_demo_prep.md, "Normal-run demo".
 A second plan file keeps all of that but flies the area the owner drew on the
 map on 2026-11-03: a 1.26 x 0.77 km box along the A327 road, south-west of the
 launch point. The planner aims its lines at the launch point, so they cross the
-box diagonally; the docks fall on its west edge.
+box diagonally; the docks fall on its west edge. It is the owner's own save of
+2026-11-04, flown 3 of 3 DOCKED (sim): lines 90 m apart and one corridor point.
 
     python scripts/delivery_demo_plan.py           # rewrite both plan files
     python scripts/delivery_demo_plan.py --check   # fail if either is stale
@@ -39,6 +40,9 @@ DRAWN_AREA = (
     {"lat": 40.310307, "lon": 44.45409}, {"lat": 40.303663, "lon": 44.456537},
     {"lat": 40.300652, "lon": 44.442203}, {"lat": 40.307263, "lon": 44.4398},
 )
+#: The drawn plan's line spacing and corridor, as in the owner's save.
+DRAWN_LINE_SPACING_M = 90.0
+DRAWN_CORRIDOR = ({"lat": 40.30746182521555, "lon": 44.457416679241305},)
 #: Line spacing: the distance between the two dock waypoints, the fixture's
 #: d1-d2 distance. Both stay in the ZR10's zoom-1 frame on the way to the first.
 LINE_SPACING_M = 150.0
@@ -96,8 +100,13 @@ def _hub_index(hubs: list, hub: Mapping[str, JsonValue]) -> int:
 
 
 def drawn_plan_file(fixture: Mapping[str, JsonValue]) -> dict[str, JsonValue]:
-    """plan_file over DRAWN_AREA; everything else, hubs included, is the same."""
-    return {**plan_file(fixture), "polygon": [dict(corner) for corner in DRAWN_AREA]}
+    """plan_file over DRAWN_AREA with the drawn spacing and corridor; hubs and docks are the same."""
+    return {
+        **plan_file(fixture),
+        "polygon": [dict(corner) for corner in DRAWN_AREA],
+        "route_offset_m": DRAWN_LINE_SPACING_M,
+        "set_corridors": [[dict(point) for point in DRAWN_CORRIDOR]],
+    }
 
 
 def render(fixture: Mapping[str, JsonValue]) -> str:
