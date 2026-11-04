@@ -1216,6 +1216,9 @@
 - App.jsx hands hooks new vehicleList arrays and param getters on telemetry and param updates, so an effect keyed on
   a memo built from them refired the backend check about once a second. Unit tests missed it; the live test caught it.
   Key such effects on the request content (a JSON key) and test a rerender with equal but new inputs.
+  Same cause, todo 273: a "fetch once per new sys_id" effect marked the id only when the answer came back, so each
+  update during the pending fetch sent another. Claim the id when the fetch starts. To count requests live, patch
+  fetch in a same-origin iframe and record stacks: the network log's "dropped unread" total (1209) is all requests.
 - When `codex exec` cannot start its shell ("helper_unknown_error: setup refresh had errors"), inline the full patch
   (tracked diff plus `git diff --no-index /dev/null <new file>`) in the prompt; it then reviews statically.
 
