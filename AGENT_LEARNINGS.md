@@ -2373,3 +2373,15 @@
   rises with distance (0.16 m over 1.5 km). Compare heights with the sample's own height.
 - Smoothing that restarts a fixed multiple of the sample interval towards each new sample settles
   that many intervals behind at constant speed; check the steady-state lag before tuning windows.
+
+## Real-clock "ends at once" bounds under -n 8 (2026-11-04)
+
+- `assert time.monotonic() - started < 0.5` around a call that runs one 0.25 s wait leaves 0.25 s for
+  load; at -n 8 it failed at 0.56 s. Spy on the wait primitive instead (here MessageStore/MissionInbox
+  wait_after): record each wait's call time, deadline and whether it ran out, and assert "no wait ran
+  out" or "one wait of at most X s". Replies the fake publishes during the send then make the check
+  independent of host load. Prove it with a mutation that makes the code wait its timeout.
+- A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s, and 1000 queued
+  rows took longer under load (TimeoutError). Drain first (worker.wait_until_idle), then close.
+- I kept only the last 30 lines of a 29-minute loaded suite run and lost the failure details. Keep
+  the whole output (or at least every E line) of a long run.

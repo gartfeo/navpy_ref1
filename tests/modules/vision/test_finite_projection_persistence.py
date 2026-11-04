@@ -48,6 +48,9 @@ def test_production_logger_persists_exact_sequences_after_close(monkeypatch, tmp
     try:
         for _ in range(1000):
             sink(records[0])
+        # Close's worker join is bounded (2 s) for a stuck handler; under host load
+        # 1000 queued rows can take longer than that to write, so drain them first.
+        logger._worker.wait_until_idle()
     finally:
         close_logger(logger, 202)
     rows = [json.loads(line.split('SIM_PROJECTION_EVIDENCE ', 1)[1])
