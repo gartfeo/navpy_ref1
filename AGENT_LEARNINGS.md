@@ -2450,3 +2450,19 @@
   is empty before the commit; caught here before the push and amended.
 - Sessions that move GCS frontend code must run tests/gcs too: its source-string tests (for
   example test_confirm_card_hosts_js) are not in npm test or the default pytest suite.
+
+## AIRSPEED decode on the bus (HITL step 19, 2026-11-04)
+
+- **An unknown packet has source system 0.** pymavlink returns `MAVLink_unknown`
+  before it sets the header, so `get_srcSystem()` is 0 and the bus fallback
+  (`receivers_for`) fans it out to every receiver. Read the id and source from
+  the original bytes, and route a decoded packet by exact source
+  (`receivers_of`); Codex caught the fallback in round 1.
+- **Run the guards before the review.** The SOLID field limit and the reviewed
+  import list (`tests/guards/runtime_time_lint.py`) both failed on a new import
+  and one new reader field; run `tests/guards` with the first targeted tests.
+- **Python in a Bash heredoc reads repo files as cp1252.** Open docs with
+  `encoding="utf-8"`; my first Built-record insert crashed on a byte the doc
+  holds, after the code commit had already gone in alone.
+- **`python -I` drops PYTHONPATH.** A scratch script run isolated must put
+  `src` on `sys.path` itself (pass the path as an argument).
