@@ -15,6 +15,21 @@
 
 local H = {}
 local S
+
+-- Lua 5.3's math.random is the C library's generator, so one seed gives other
+-- jitter on Linux (WSL) than on Windows. The tests seed it with math.randomseed;
+-- this generator (Park-Miller, 31 bits) draws the same numbers everywhere.
+local rng_state = 1
+function math.randomseed(seed)
+    rng_state = math.floor(seed) % 2147483646 + 1
+end
+function math.random(m, n)
+    rng_state = rng_state * 48271 % 2147483647
+    local u = (rng_state - 1) / 2147483646
+    if m == nil then return u end
+    if n == nil then m, n = 1, m end
+    return m + math.floor(u * (n - m + 1))
+end
 local DT = 0.005
 local VM_I_COUNT = 10000
 local HOOK_STEP = 100

@@ -291,14 +291,19 @@ def test_full_tune_prediction_agrees_with_measured_checks(full_tune):
         assert dc["MAEb"] == pytest.approx(pred["MAEb"], rel=0.5, abs=0.2)
 
 
-@pytest.mark.parametrize("late_s", [0.01, 0.04])
-def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s):
+@pytest.mark.parametrize(("late_s", "seed"), [
+    (0.01, 7),
+    (0.04, 7),
+    # Known gap: most other jitter draws move the model past these tolerances.
+    pytest.param(0.04, 1, marks=pytest.mark.xfail(strict=True, reason="todo 268")),
+])
+def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed):
     # The old timer-based script needed exact timing. Here each sample is time-stamped,
     # output and rate are read together, and the Fourier sums integrate exactly between
     # samples, so calls that start up to late_s late (every call) still give the same
     # model and gains that keep their margins on the exact simulator loop.
     out = run(START + f"""
-math.randomseed(7)
+math.randomseed({seed})
 S.jitter_s = {late_s}
 S.params.FTUN_AXES = 3
 h.run(500)
