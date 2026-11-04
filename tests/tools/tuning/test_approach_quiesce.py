@@ -217,6 +217,39 @@ def test_navpys_failed_barrier_or_gimbal_stop_is_a_problem():
     assert stop.outcome([{**DOCKED, "gimbal_stop": "no_gimbal"}], stop.ENDED_BY_TERMINAL)["problems"] == []
 
 
+class ObservedBoard:
+    """Each heartbeat wait advances the clock by one poll and may let navpy print part of its output."""
+
+    def __init__(self, clock: list, out: Path, writes: dict) -> None:
+        self.clock, self.out, self.writes, self.waits = clock, out, writes, 0
+
+    def wait_message(self, kind, timeout):
+        self.waits += 1
+        with self.out.open("a", encoding="utf-8") as out:
+            out.write(self.writes.get(self.waits, ""))
+        self.clock[0] += timeout
+
+
+RECORD_LINE = "NAVPY_TERMINAL_V1 " + json.dumps(DOCKED)
+
+
+@pytest.mark.parametrize("writes, ended_by", [
+    ({2: RECORD_LINE + "\n"}, stop.ENDED_BY_TERMINAL),                      # read before the deadline
+    ({3: RECORD_LINE + "\n"}, stop.ENDED_BY_DEADLINE),                      # printed during the last wait
+    ({2: RECORD_LINE[:30], 3: RECORD_LINE[30:] + "\n"}, stop.ENDED_BY_DEADLINE),   # ended only after the deadline
+    ({1: RECORD_LINE[:30], 2: RECORD_LINE[30:] + "\n"}, stop.ENDED_BY_TERMINAL),   # split across two reads
+    ({2: "NAVPY_TERMINAL_V1 {not json\n"}, stop.ENDED_BY_DEADLINE),         # a marker is not a record
+])
+def test_only_a_complete_record_read_before_the_deadline_ends_the_observation(tmp_path, monkeypatch, writes, ended_by):
+    clock = [100.0]
+    monkeypatch.setattr(stop.time, "monotonic", lambda: clock[0])
+    out = tmp_path / "navpy.out"
+    out.write_text("", encoding="utf-8")
+    board = ObservedBoard(clock, out, writes)
+    group = type("Group", (), {"check": lambda self: None})()
+    assert stop.observe(board, group, out, 3 * stop.TERMINAL_POLL_S - 0.5) == ended_by
+
+
 def test_navpys_records_are_read_from_its_output(tmp_path, capsys):
     print_terminal_record(STOPPED)
     out = tmp_path / "navpy.out"
@@ -284,6 +317,54 @@ def test_navpys_cleanup_quiesces_first(stopped, trigger):
     assert events[-1] == ("vision stops", True) and events[3][1]["trigger"] == trigger
 
 
+@pytest.mark.parametrize("fails", ["stopped before start", "navigation start", "controller"])
+def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(monkeypatch, fails):
+    """The quiesce is owned after each writer: wherever the start ends, the fences close before anything stops."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from navpy.app import runtime_composition as composition
+    from navpy.app.runtime_stop import StoppedBeforeStart
+
+    events: list = []
+    handoff, barrier = scripted(events)
+    barrier.release.set()
+
+    def stops(name):
+        return lambda *_: events.append((f"{name} stops", handoff.fence.closed))
+
+    def start():
+        if fails == "navigation start":
+            raise RuntimeError("navigation failed to start")
+
+    def controller(*_args, **_kw):
+        if fails == "controller":
+            raise RuntimeError("controller failed")
+        return SimpleNamespace(stop=stops("controller"), set_network=MagicMock())
+
+    vision = SimpleNamespace(stop=stops("vision"), geo_ref=object(), coordination=object(), approach_kind=object(),
+                             dock_contact=None, profile=object(), is_quiescent=True)
+    foundation = SimpleNamespace(vehicle=MagicMock(), vision_args=object(), logger=MagicMock(), zc_util=None,
+                                 navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
+                                 vehicle_close_gate=SimpleNamespace(stop_vision=lambda stop, _q: stop()),
+                                 terminal_handoff=handoff, camera_frames=None)
+    for name, value in [("VisionController", lambda *_a, **_k: vision), ("MissionPlanner", lambda *_a: object()),
+                        ("MissionPlannerArgs", lambda _a: object()), ("NavArgs", lambda *_a: object()),
+                        ("Navigation", lambda *_a, **_k: SimpleNamespace(start=start, stop=stops("navigation"))),
+                        ("NavController", controller)]:
+        monkeypatch.setattr(composition, name, value)
+    resources = RuntimeResourceStack()
+    with pytest.raises((StoppedBeforeStart, RuntimeError)):
+        composition._build_session(object(), foundation, resources,
+                                   {"stop_requested": lambda: fails == "stopped before start"})
+    resources.close()
+    stopped = [e for e in events if e[0].endswith(" stops")]
+    assert stopped and all(closed for _, closed in stopped)
+    records = [e[1] for e in events if e[0] == "record"]
+    assert len(records) == 1 and events.index(("record", records[0])) < events.index(stopped[0])
+    assert records[0]["trigger"] == ("stop" if fails == "stopped before start" else "shutdown")
+
+
 def test_without_router_control_nothing_is_owned():
     owned: list = []
     own_quiesce(lambda label, action: owned.append(label), None, lambda: True)
@@ -332,7 +413,8 @@ def _runner(tmp_path, monkeypatch, fly):
             log.append("board start")
 
         def stop(self):
-            log.append("board stop")
+            ignored = all(signal.getsignal(s) is signal.SIG_IGN for s in (signal.SIGINT, signal.SIGTERM))
+            log.append("board stop" if ignored else "board stop, signals not ignored")
 
         def report(self):
             return {"link_health": {"ok": True}}
@@ -371,9 +453,10 @@ def _raises(exc: BaseException):
 @pytest.mark.parametrize("exc, reason", [(RunnerError("navpy exited with code -9 during the run"), stop.CRASH),
                                          (KeyboardInterrupt(), stop.ABORT), (stop.Aborted("signal 15"), stop.ABORT)])
 def test_a_crash_or_an_abort_quiesces_before_the_boards_stop(tmp_path, monkeypatch, exc, reason):
-    before = signal.getsignal(signal.SIGTERM)
+    before = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
     code, log, run = _runner(tmp_path, monkeypatch, _raises(exc))
-    assert code == 1 and signal.getsignal(signal.SIGTERM) is before
+    assert code == 1 and (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)) == before
+    assert "board stop" in log                       # a second signal during the cleanup is ignored
     assert log.index(f"quiesce {reason}") < log.index("board stop")
     assert (run["quiesce"]["reason"], run["quiesce"]["repeats"]) == (reason, []) and run["outcome"]["outcome"] is None
 

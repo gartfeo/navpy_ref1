@@ -283,10 +283,13 @@ class _Group:
     """The runner's process group, recording what it would start."""
 
     def __init__(self, run_dir, spawners, port_free) -> None:
-        self.run_dir, self.started = Path(run_dir), []
+        self.run_dir, self.started, self.owned = Path(run_dir), [], []
 
     def refusals(self, specs):
         return []
+
+    def output_path(self, role):
+        return self.run_dir / f"{role}.out"
 
     def start(self, spec) -> None:
         self.started.append(spec)
@@ -327,7 +330,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
         groups.append(_Group(*args))
         return groups[-1]
 
-    def fly(args, board, group, run):
+    def fly(board, group, run, quiesce):
         lane = build_lane(HOME, LaneSpec.of(run["scenario"]["lane"]))
         seen["lane"] = [tuple(item) for item in lane_items(lane)]
         seen["limits"] = dict(run["scenario"]["limits"])

@@ -192,7 +192,13 @@ def _build_session(
             lambda: vision.is_quiescent,
         ),
     )
-    planner = MissionPlanner(foundation.logger, MissionPlannerArgs(args))
+    # HITL: owned after each writer, so a stop or failure at any point of the start closes the fences before any
+    # component stops; the first close quiesces, the later ones only wait for the record (idempotent).
+    def quiesce() -> None:
+        own_quiesce(resources.own_quiescence, foundation.terminal_handoff, hooks.get("stop_requested"))
+
+    quiesce()
+    planner =MissionPlanner(foundation.logger, MissionPlannerArgs(args))
     navigation = Navigation(
         foundation.vehicle,
         vision.geo_ref,
@@ -207,6 +213,7 @@ def _build_session(
         ),
     )
     resources.own_quiescence("navigation", navigation.stop)
+    quiesce()
     # Values read after the stop are defaults: never start on them.
     raise_if_stopped(hooks.get("stop_requested"))
     navigation.start()
@@ -223,8 +230,7 @@ def _build_session(
         dock_contact=vision.dock_contact,
     )
     resources.own_quiescence("controller", controller.stop)
-    # HITL: closes first, so the fences close before the controller, navigation, vision and vehicle stop.
-    own_quiesce(resources.own_quiescence, foundation.terminal_handoff, hooks.get("stop_requested"))
+    quiesce()
     controller.set_network(foundation.network)
     scheduler_rate_hz = resolve_ardupilot_scheduler_rate_hz(
         foundation.vehicle,

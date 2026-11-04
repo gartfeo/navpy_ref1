@@ -15,6 +15,7 @@ stop or a crash never yields DOCKED.
 """
 from __future__ import annotations
 
+import signal
 import time
 from collections import Counter
 from pathlib import Path
@@ -23,7 +24,7 @@ from typing import Optional
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
 from navpy.app.router_barrier import RouterBarrier
-from navpy.app.terminal_handoff import NAVPY_TERMINAL_MARKER, TRIGGER_TERMINAL, parse_terminal_record
+from navpy.app.terminal_handoff import TRIGGER_TERMINAL, parse_terminal_record
 from tools.tuning import approach_chain as chain
 from tools.tuning.approach_procs import ProcessGroup
 from tools.tuning.board import DEFAULT_BAUD
@@ -49,6 +50,17 @@ class Aborted(BaseException):
 def raise_aborted(signum: int, frame: object) -> None:
     """The runner's SIGTERM handler while a run is in progress."""
     raise Aborted(f"signal {signum}")
+
+
+def shield() -> dict:
+    """Ignore Ctrl+C and SIGTERM while the run's cleanup runs, so a second signal cannot cut its stops short; returns
+    the handlers to restore."""
+    return {signum: signal.signal(signum, signal.SIG_IGN) for signum in (signal.SIGINT, signal.SIGTERM)}
+
+
+def restore(handlers: dict) -> None:
+    for signum, handler in handlers.items():
+        signal.signal(signum, handler)
 
 
 def _handed_off(group: ProcessGroup, role: str, result: dict, clean: Optional[str]) -> dict:
@@ -96,14 +108,16 @@ class Quiesce:
 
 
 def observe(board: Vehicle, group: ProcessGroup, navpy_out: Path, seconds: float) -> str:
-    """Drain the link (the floor's hook sees every position) until navpy's terminal record or the deadline."""
-    deadline, tail = time.monotonic() + seconds, ""
+    """Drain the link (the floor's hook sees every position) until the deadline, or until navpy's complete terminal
+    record is read before it: a record read after the deadline, or a line not yet ended, never ends the observation."""
+    deadline, partial = time.monotonic() + seconds, ""
     with open(navpy_out, encoding="utf-8", errors="replace") as out:
         while time.monotonic() < deadline:
             board.wait_message("HEARTBEAT", TERMINAL_POLL_S)
             group.check()
-            tail = tail[-len(NAVPY_TERMINAL_MARKER):] + out.read()     # a marker split across two reads
-            if NAVPY_TERMINAL_MARKER in tail:
+            lines = (partial + out.read()).split("\n")
+            partial = lines.pop()
+            if any(parse_terminal_record(line) for line in lines) and time.monotonic() < deadline:
                 return ENDED_BY_TERMINAL
     return ENDED_BY_DEADLINE
 

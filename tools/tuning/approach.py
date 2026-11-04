@@ -17,8 +17,8 @@ aircraft reaches the board); it waits for navpy's terminal record or the scenari
 stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a breach of the scenario's
 floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM) runs the same idempotent quiesce
 (approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on every exit; scoring then
-checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest (tools/hitl/run_manifest.py) and
-the orphan check follow. Exit 0 only when the flight, the handoff, every stop, the scene, the link health, the
+checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest
+(tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only when the flight, the handoff, every stop, the scene, the link health, the
 orphan check and the observation audit (0 forbidden navpy writes, 0 after the drain ack) all passed.
 ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
@@ -231,25 +231,29 @@ def approach(args: argparse.Namespace) -> int:
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
         print(f"[approach] run FAILED ({reason}): {failed}", flush=True)
     finally:
-        signal.signal(signal.SIGTERM, previous_sigterm)
-        run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
+        handlers = {**stop.shield(), signal.SIGTERM: previous_sigterm}    # a later signal waits for the cleanup
         try:
-            board.stop()
-        except Exception as exc:      # noqa: BLE001 - recorded; the owned processes must still stop
-            run["board_stop_error"] = f"{type(exc).__name__}: {exc}"
-            failed = failed or run["board_stop_error"]
-        group.mark_stopped("bridge", board.record.get("hitl", {}).get("bridge_exit"))
-        group.stop_all()
-        run["producers"], run["orphans"] = group.producers(), group.orphans()
-        records = stop.navpy_records(group.output_path("navpy"))
-        run["quiesce"] = quiesce.describe()
-        run["outcome"] = stop.outcome(records, run.get("flight", {}).get("ended_by"))
-        run["observation"] = stop.audit(run_dir / "router_writes.csv", quiesce.record, records)
-        run["scene"] = scenario_run.verify(scenario_dir, run_dir / "unreal.log")
-        _copy_logs(run_dir, board)
-        run["board"] = board.report()
-        run["manifest"] = str(_manifest(run_dir, run_id, record_path, group))
-        (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", encoding="utf-8")
+            run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
+            try:
+                board.stop()
+            except Exception as exc:      # noqa: BLE001 - recorded; the owned processes must still stop
+                run["board_stop_error"] = f"{type(exc).__name__}: {exc}"
+                failed = failed or run["board_stop_error"]
+            group.mark_stopped("bridge", board.record.get("hitl", {}).get("bridge_exit"))
+            group.stop_all()
+            run["producers"], run["orphans"] = group.producers(), group.orphans()
+            records = stop.navpy_records(group.output_path("navpy"))
+            run["quiesce"] = quiesce.describe()
+            run["outcome"] = stop.outcome(records, run.get("flight", {}).get("ended_by"))
+            run["observation"] = stop.audit(run_dir / "router_writes.csv", quiesce.record, records)
+            run["scene"] = scenario_run.verify(scenario_dir, run_dir / "unreal.log")
+            _copy_logs(run_dir, board)
+            run["board"] = board.report()
+            run["manifest"] = str(_manifest(run_dir, run_id, record_path, group))
+            (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n",
+                                                       encoding="utf-8")
+        finally:
+            stop.restore(handlers)
     health = run["board"].get("link_health") or {}
     ended = all(item.get("ended_after_stop") for item in run["producers"].values())
     scene = scenario_run.reproduced(run["scene"], run["scenario"])
