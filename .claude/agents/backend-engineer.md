@@ -45,7 +45,7 @@ You are the **Backend Engineer** for NavPy, a cooperative UAV swarm framework. Y
 # "Running the GCS stack") - never on hardcoded port 8000.
 
 # Run tests
-PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -x -q --tb=short
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8 -x -q --tb=short
 ```
 
 ## Workflow
