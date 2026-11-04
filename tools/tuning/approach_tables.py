@@ -22,6 +22,7 @@ class Proc:
     ppid: int
     argv: tuple[str, ...]
     pgid: Optional[int] = None          # WSL only
+    name: str = ""                       # Windows only: the image name (a command line may omit it)
 
 
 @dataclass(frozen=True)
@@ -99,18 +100,19 @@ def parse_netstat(text: str) -> list[Sock]:
 
 
 def parse_windows_procs(text: str) -> list[Proc]:
-    """PowerShell's ConvertTo-Json of Win32_Process ProcessId, ParentProcessId, CommandLine (an object or a list)."""
+    """PowerShell's ConvertTo-Json of Win32_Process ProcessId, ParentProcessId, Name, CommandLine (an object or a
+    list)."""
     rows = json.loads(text) if text.strip() else []
     rows = [rows] if isinstance(rows, dict) else rows
     return [Proc(WINDOWS, int(row["ProcessId"]), int(row["ParentProcessId"]),
-                 tuple(_split_windows(row.get("CommandLine") or ""))) for row in rows]
+                 tuple(_split_windows(row.get("CommandLine") or "")), name=row.get("Name") or "") for row in rows]
 
 
 def _split_windows(line: str) -> list[str]:
     return [part.strip('"') for part in re.findall(r'"[^"]*"|\S+', line)]
 
 
-WINDOWS_PROCS = ("Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | "
+WINDOWS_PROCS = ("Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,CommandLine | "
                  "ConvertTo-Json -Compress")
 
 

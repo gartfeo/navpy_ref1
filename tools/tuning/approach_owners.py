@@ -120,8 +120,10 @@ class Owners:
     def is_relay(self, sock: Sock) -> bool:
         """A Windows listener that is only WSL's localhost mirror: the WSL table shows the real holder."""
         proc = self.procs.get((WINDOWS, sock.pid)) if sock.host == WINDOWS and sock.pid is not None else None
-        return proc is not None and bool(proc.argv) and proc.argv[0].replace("/", "\\").rsplit("\\", 1)[-1].lower() \
-            == WSL_RELAY
+        if proc is None:
+            return False
+        image = proc.name or (proc.argv[0].replace("/", "\\").rsplit("\\", 1)[-1] if proc.argv else "")
+        return image.lower() == WSL_RELAY      # its command line holds only its arguments
 
 
 def group_owners(group) -> tuple[dict[int, str], dict[int, str]]:

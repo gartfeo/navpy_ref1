@@ -68,12 +68,14 @@ def chain_tables() -> list[Tables]:
         Proc(WINDOWS, 5001, 5000, ("C:\\Python311\\python.exe", *EMU_ARGS)),       # the emulator itself
         Proc(WINDOWS, 6000, 4000, ("UnrealEditor.exe", "A.uproject", "-game")),
         Proc(WINDOWS, 9000, 4, ("C:\\Program Files\\WSL\\wslrelay.exe", "--mode", "1")),
+        Proc(WINDOWS, 9001, 4, ("--mode", "2", "--vm-id", "{0ca2}"), name="wslrelay.exe"),  # as Win32_Process shows it
     )
     windows_socks = (
         Sock(WINDOWS, "udp", 37260, "bound", 5001), Sock(WINDOWS, "udp", 17113, "bound", 5001),
         Sock(WINDOWS, "udp", 17110, "bound", 6000), Sock(WINDOWS, "udp", 17212, "bound", 6000),
         Sock(WINDOWS, "tcp", 51000, "established", 6000, 18110),     # Unreal's frames to the publisher
         Sock(WINDOWS, "tcp", 8160, "listen", 9000), Sock(WINDOWS, "tcp", 18110, "listen", 9000),   # WSL mirrors
+        Sock(WINDOWS, "tcp", 8168, "listen", 9001), Sock(WINDOWS, "tcp", 18554, "listen", 9001),
     )
     return [Tables(wsl_procs, wsl_socks), Tables(windows_procs, windows_socks)]
 
@@ -149,10 +151,10 @@ def test_netstat_rows_give_port_state_and_pid():
 
 
 def test_the_windows_process_list_is_one_object_or_a_list_and_a_missing_command_line_is_empty():
-    one = parse_windows_procs(json.dumps({"ProcessId": 4, "ParentProcessId": 0, "CommandLine": None}))
-    many = parse_windows_procs(json.dumps([{"ProcessId": 5001, "ParentProcessId": 5000,
-                                            "CommandLine": '"C:\\Program Files\\Py\\python.exe" -s -m tools.hitl.zr10_emulator'}]))
-    assert one == [Proc(WINDOWS, 4, 0, ())]
+    one = parse_windows_procs(json.dumps({"ProcessId": 4, "ParentProcessId": 0, "Name": "System", "CommandLine": None}))
+    line = '"C:\\Program Files\\Py\\python.exe" -s -m tools.hitl.zr10_emulator'
+    many = parse_windows_procs(json.dumps([{"ProcessId": 5001, "ParentProcessId": 5000, "CommandLine": line}]))
+    assert one == [Proc(WINDOWS, 4, 0, (), name="System")]
     assert many[0].argv == ("C:\\Program Files\\Py\\python.exe", "-s", "-m", "tools.hitl.zr10_emulator")
 
 
@@ -211,7 +213,7 @@ def test_a_role_of_the_runner_on_another_roles_footprint_is_a_second_owner():
 COPIES = {
     "bridge": (WSL, Proc(WSL, 301, 300, ("python", "-m", "tools.tuning.hitl_bridge"), 300)),
     "publisher": (WSL, Proc(WSL, 502, 500, ("python3", "-m", "aas_hitl.video.gstreamer_encoder"), 500)),
-    "emulator": (WINDOWS, Proc(WINDOWS, 5002, 5001, ("C:\Python311\python.exe", *EMU_ARGS))),
+    "emulator": (WINDOWS, Proc(WINDOWS, 5002, 5001, ("C:\\Python311\\python.exe", *EMU_ARGS))),
 }
 
 
