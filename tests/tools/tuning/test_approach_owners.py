@@ -208,6 +208,21 @@ def test_a_role_of_the_runner_on_another_roles_footprint_is_a_second_owner():
     assert result["roles"]["emulator"]["owners"] == ["emulator", "navpy"] and not result["ok"]
 
 
+COPIES = {
+    "bridge": (WSL, Proc(WSL, 301, 300, ("python", "-m", "tools.tuning.hitl_bridge"), 300)),
+    "publisher": (WSL, Proc(WSL, 502, 500, ("python3", "-m", "aas_hitl.video.gstreamer_encoder"), 500)),
+    "emulator": (WINDOWS, Proc(WINDOWS, 5002, 5001, ("C:\Python311\python.exe", *EMU_ARGS))),
+}
+
+
+@pytest.mark.parametrize("role", sorted(COPIES))
+def test_a_second_copy_inside_the_roles_own_tree_is_a_second_owner(role):
+    host, proc = COPIES[role]
+    result = census(add(chain_tables(), host, (proc,)))
+    assert result["roles"][role]["owners"] == [role] and not result["ok"]
+    assert result["problems"][0].endswith(f"2 copies on {host}")
+
+
 def test_a_role_with_no_owner_fails():
     tables = chain_tables()
     tables[0] = replace(tables[0], socks=tuple(s for s in tables[0].socks if s.local_port not in (18110, 18554)),

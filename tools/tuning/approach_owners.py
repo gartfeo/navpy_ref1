@@ -92,11 +92,13 @@ class Owners:
         self.roots = {WSL: dict(wsl_roots), WINDOWS: dict(windows_pids)}
         self.own_pid = own_pid
         self.procs = {(p.host, p.pid): p for p in procs}
+        self.launchers: set[int] = set()     # Windows venv launchers: not a second instance of their child's program
         for proc in list(self.procs.values()):
             parent = self.procs.get((WINDOWS, proc.ppid)) if proc.host == WINDOWS else None
             role = self.roots[WINDOWS].get(proc.pid)
             if parent is not None and role is not None and parent.argv[1:] == proc.argv[1:] and proc.argv[1:]:
                 self.roots[WINDOWS].setdefault(parent.pid, role)
+                self.launchers.add(parent.pid)
 
     def of(self, host: str, pid: Optional[int]) -> str:
         roots, seen, current = self.roots[host], set(), pid
@@ -156,23 +158,28 @@ def claims(tables: Iterable[Tables], owners: Owners) -> dict[str, list[dict]]:
                 continue
             for role in program_roles(proc.argv):
                 found[role].append({"owner": owners.of(proc.host, proc.pid), "host": proc.host, "pid": proc.pid,
-                                    "what": " ".join(proc.argv)[:200]})
+                                    "what": " ".join(proc.argv)[:200],
+                                    "instance": not (proc.host == WINDOWS and proc.pid in owners.launchers)})
     return found
 
 
 def verdict(found: Mapping[str, list[dict]], running: bool) -> dict:
-    """Before the run (``running`` False) no role may have an owner; during it each has exactly its runner role."""
+    """Before the run (``running`` False) no role may have an owner; during it each has exactly its runner role,
+    running its program at most once per host (two copies inside the role's own tree are still two owners)."""
     roles, problems = {}, []
     for role, items in found.items():
         holders = sorted({item["owner"] for item in items})
-        ok = holders == [ROLE_OWNER[role]] if running else not holders
+        hosts = [item["host"] for item in items if item.get("instance")]
+        copies = sorted({host for host in hosts if hosts.count(host) > 1})
+        ok = (holders == [ROLE_OWNER[role]] and not copies) if running else not holders
         roles[role] = {"owners": holders, "claims": items, "ok": ok}
         if not ok:
             want = f"exactly 1 owner ({ROLE_OWNER[role]})" if running else "no owner before the run"
             foreign = [f"{item['host']} pid {item['pid']}: {item['what']}" for item in items
                        if item["owner"] != ROLE_OWNER[role] or not running]
             problems.append(f"{role}: {want}, found {holders or 'none'}" + (f" ({'; '.join(foreign)})" if foreign
-                                                                             else ""))
+                                                                             else "")
+                            + "".join(f"; {hosts.count(host)} copies on {host}" for host in copies))
     return {"ok": not problems, "roles": roles, "problems": problems}
 
 
