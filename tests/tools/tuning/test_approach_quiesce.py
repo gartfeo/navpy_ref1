@@ -20,7 +20,8 @@ from navpy.app.terminal_handoff import (TRIGGER_SHUTDOWN, TRIGGER_STOP, LinkFenc
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
 from tests.modules.navigation.test_terminal_handoff import IDENTITY, RecordingGimbal, ScriptedBarrier
 from tests.tools.tuning import test_approach_runner as runner_rig
-from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, GatedBoard, UdpClient, heartbeat, wait_until)
+from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, GatedBoard, UdpClient, heartbeat, receivers_current,
+                                                wait_until)
 from tools.tuning import approach, approach_quiesce as stop
 from tools.tuning.approach_procs import Owned, ProcSpec, RunnerError
 from tools.tuning.mav_router_core import MavRouter
@@ -46,6 +47,7 @@ def boundary(tmp_path):
                        announce=lambda line: None, control_port=0, write_log=log).start()
     ports = {name: c.sock.getsockname() for name, c in router.clients.items()}
     navpy.peer, runner.peer = ports["navpy"], ports["runner"]
+    wait_until(lambda: receivers_current(router))
     rig = {"board": board, "navpy": navpy, "runner": runner, "router": router, "log": log_path}
     yield rig
     board.gate.set()

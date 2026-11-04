@@ -180,7 +180,7 @@ class MavRouter:
         """Fail closed: a datagram read across a transition (reboot, barrier, reopen) is dropped with all waiting behind
         it, so nothing from before it reaches the board after it; a partial packet (datagrams are whole) is dropped."""
         with self._lock:
-            accepting = (self._link_state(), client.epoch)
+            accepting = client.taken = (self._link_state(), client.epoch)
         while not self._closed.is_set():
             try:
                 data, (_, sender_port) = client.sock.recvfrom(MAX_DATAGRAM)
@@ -197,7 +197,7 @@ class MavRouter:
                     self.stats[f"foreign_{client.name}"] += bool(data)
                     continue
             if changed:
-                stale = bool(data) + client.drain()
+                stale = bool(data) + client.drain(taking=accepting)
                 with self._lock:
                     self.stats[f"dropped_stale_{client.name}"] += stale
                 continue
