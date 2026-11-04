@@ -108,7 +108,7 @@ def _script(relay: RelayDouble):
             wait(7)
             relay.cancel(7)
             # A request the run does not support: refused, never dispatched.
-            relay.request(8, "GET", "/api/vehicles/1/parameters")
+            relay.request(8, "GET", "/api/diagnostics/export")
             wait(8)
             sleep(operator.baton, 0.5)
             return {"scripted": scripted, "ticks": ticks}

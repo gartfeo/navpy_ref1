@@ -10,7 +10,10 @@ answer in the same tick. The mission is stored: ``MISSION_CLEAR_ALL``
 empties it, an upload (count, then one request per item, then the ack)
 replaces it, and a download serves it as uploaded. ``answer_limits``
 withholds replies: a message kind is answered at most that many times.
-``TERRAIN_CHECK`` is never answered, as by an autopilot with
+It serves MAVFTP as ``GCS_FTP.cpp`` does for one file, ``@PARAM/param.pck``
+(the parameters as floats, no defaults): open, burst reads of at most
+``FTP_BURST_PACKETS`` replies per tick until the end of the file, and
+session ends. ``TERRAIN_CHECK`` is never answered, as by an autopilot with
 ``TERRAIN_ENABLE 0`` (the lockstep defaults keep terrain on since step 9h). :func:`navpy_parameters` adds what a NavPy companion
 reads at boot: the firmware's ``SYSID_THISMAV``, its final-approach airframe
 limits and the AAS table that the SITL's ``aas_params.lua`` adds. With ``forward``, it routes as ArduPilot
@@ -26,6 +29,7 @@ double sends it to every other port (a fleet's serial1 is the only other).
 from __future__ import annotations
 
 import re
+import struct
 from pathlib import Path
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
@@ -33,6 +37,13 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink
 from navpy.sim.lockstep.mavlink_wire import ByteSink, StreamDecoder, encoder
 
 SYS_ID = 1
+#: The firmware's FTP read file and its replies per tick (a burst spans ticks).
+PARAM_FILE = "@PARAM/param.pck"
+FTP_BURST_PACKETS = 8
+_FTP_HEADER = struct.Struct("<HBBBBBBI")  # seq, session, opcode, size, req_opcode, burst_complete, pad, offset
+_FTP_DATA = 239
+_OP_TERMINATE, _OP_RESET, _OP_OPEN_RO, _OP_BURST_READ, _OP_ACK, _OP_NACK = 1, 2, 4, 15, 128, 129
+_ERR_FAIL, _ERR_EOF, _ERR_NOT_FOUND = 1, 6, 10
 GIMBAL_COMPONENT = mavlink.MAV_COMP_ID_GIMBAL
 PLANE_MANUAL = 0
 HEARTBEAT_PERIOD_US = 1_000_000
@@ -106,6 +117,11 @@ class ReferenceAutopilot:
         self._upload: list[tuple] | None = None
         self._answers_left = dict(answer_limits or {})
         self._upload_count = 0
+        #: The open MAVFTP read: (session, file bytes), and bursts left to send.
+        self._ftp_file: tuple[int, bytes] | None = None
+        self._ftp_bursts: list[tuple[_Port, tuple[int, int], int, int, int]] = []
+        #: MAVFTP requests by opcode, in arrival order.
+        self.ftp_requests: list[int] = []
         #: (port, message type, source system, source component), in arrival order.
         self.received: list[tuple[int, str, int, int]] = []
         #: A lost link: while set, nothing is answered and no heartbeat is sent.
@@ -125,6 +141,8 @@ class ReferenceAutopilot:
                             other.sink.write(message.get_msgbuf())
                 if not self.silent:
                     self._answer(port, message)
+        if not self.silent:
+            self._send_bursts()
         if self.silent:
             self._next_heartbeat_us = max(self._next_heartbeat_us, now_us)
         elif now_us >= self._next_heartbeat_us:
@@ -168,6 +186,8 @@ class ReferenceAutopilot:
                     f"BURST_{index:04d}".encode(), float(index), mavlink.MAV_PARAM_TYPE_REAL32,
                     self._param_burst, index,
                 )
+        elif kind == "FILE_TRANSFER_PROTOCOL":
+            self._ftp(port, source, bytes(message.payload))
         elif kind == "MISSION_REQUEST_LIST":
             reply.mission_count_send(*source, len(self.mission), 0)
         elif kind == "MISSION_REQUEST_INT" and message.seq < len(self.mission):
@@ -193,6 +213,63 @@ class ReferenceAutopilot:
                 self.mission, self._upload = self._upload, None
                 reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, 0)
 
+    # -- MAVFTP ------------------------------------------------------------------
+    def param_pck(self) -> bytes:
+        """``@PARAM/param.pck``: every parameter as a float, names in full."""
+        names = sorted(self.parameters)
+        records = b"".join(
+            bytes([4, (len(name) - 1) << 4]) + name.encode() + struct.pack("<f", self.parameters[name])
+            for name in names)
+        return struct.pack("<HHH", 0x671B, len(names), len(names)) + records
+
+    def _ftp(self, port: _Port, source: tuple[int, int], payload: bytes) -> None:
+        seq, session, opcode, size, _req, _burst, _pad, offset = _FTP_HEADER.unpack_from(payload)
+        self.ftp_requests.append(opcode)
+        data = payload[12:12 + size]
+
+        def reply(code: int, body: bytes = b"", at: int = 0) -> None:
+            self._ftp_send(port, source, seq + 1, session, code, opcode, body, at, 0)
+
+        if opcode in (_OP_TERMINATE, _OP_RESET):
+            if self._ftp_file is not None and (opcode == _OP_RESET or self._ftp_file[0] == session):
+                self._ftp_file, self._ftp_bursts = None, []
+            reply(_OP_ACK)
+        elif opcode == _OP_OPEN_RO:
+            if self._ftp_file is not None:
+                reply(_OP_NACK, bytes([_ERR_FAIL]))
+            elif data.split(b"\0")[0].decode().split("?")[0] != PARAM_FILE:
+                reply(_OP_NACK, bytes([_ERR_NOT_FOUND]))
+            else:
+                self._ftp_file = (session, self.param_pck())
+                reply(_OP_ACK, struct.pack("<I", len(self._ftp_file[1])))
+        elif opcode == _OP_BURST_READ and self._ftp_file is not None and self._ftp_file[0] == session:
+            self._ftp_bursts.append((port, source, seq + 1, session, offset))
+        else:
+            reply(_OP_NACK, bytes([_ERR_FAIL]))
+
+    def _send_bursts(self) -> None:
+        """Up to ``FTP_BURST_PACKETS`` burst replies this tick; the rest next tick."""
+        budget = FTP_BURST_PACKETS
+        while self._ftp_bursts and budget and self._ftp_file is not None:
+            port, source, seq, session, offset = self._ftp_bursts[0]
+            chunk = self._ftp_file[1][offset:offset + _FTP_DATA]
+            if not chunk:
+                self._ftp_send(port, source, seq, session, _OP_NACK, _OP_BURST_READ,
+                               bytes([_ERR_EOF]), offset, 1)
+                self._ftp_bursts.pop(0)
+            else:
+                self._ftp_send(port, source, seq, session, _OP_ACK, _OP_BURST_READ,
+                               chunk, offset, 0)
+                self._ftp_bursts[0] = (port, source, seq + 1, session, offset + len(chunk))
+            budget -= 1
+
+    @staticmethod
+    def _ftp_send(port: _Port, source: tuple[int, int], seq: int, session: int, opcode: int,
+                  req_opcode: int, body: bytes, offset: int, burst_complete: int) -> None:
+        header = _FTP_HEADER.pack(seq % 65536, session, opcode, len(body), req_opcode,
+                                  burst_complete, 0, offset)
+        port.autopilot.file_transfer_protocol_send(0, *source, (header + body).ljust(251, b"\0"))
+
     def _param_value(self, reply: mavlink.MAVLink, name: str) -> None:
         names = sorted(self.parameters)
         reply.param_value_send(
@@ -201,4 +278,4 @@ class ReferenceAutopilot:
         )
 
 
-__all__ = ["AIRFRAME_PARAMETERS", "MISSION", "PARAMETERS", "ReferenceAutopilot", "SYS_ID", "aas_lua_parameters", "navpy_parameters"]
+__all__ = ["AIRFRAME_PARAMETERS", "FTP_BURST_PACKETS", "MISSION", "PARAM_FILE", "PARAMETERS", "ReferenceAutopilot", "SYS_ID", "aas_lua_parameters", "navpy_parameters"]

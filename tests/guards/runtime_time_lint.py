@@ -33,10 +33,6 @@ EXEMPT = {
         "the lockstep runtime and its host-side harness: they implement the "
         "primitives on host threads and talk to the WSL relay"
     ),
-    "src/navpy/plugins/vehicle/ardupilot/_mavftp/": (
-        "vendored pymavlink MAVFTP: serial-step refuses FTP, and lockstep reads "
-        "command bounds by parameter name"
-    ),
     "src/navpy/plugins/gimbal/siyi/siyi_sdk.py": (
         "vendored SIYI SDK, pinned by hash: it drives the real gimbal over UDP "
         "and never runs in the simulated stack"

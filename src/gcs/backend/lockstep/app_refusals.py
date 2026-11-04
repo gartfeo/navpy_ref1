@@ -3,12 +3,11 @@
 The coordinator's admission asks :func:`refusal` for each relay request; a
 refused one never enters the run and is answered ``501``, journaled like
 any answer. The table is the step-10 inventory's rows that simulation does
-not support yet (``gcs_request_inventory.md``, "Sim today"):
-
-- ``GET /api/vehicles/{sys_id}/parameters``: the full-parameter read runs
-  MAVFTP on wall timers, and serial-step never answers MAVFTP (todo 245);
-- the two zip downloads, stamped with wall time (todo 241);
-- the app's NavPy-sim start and stop, wall-only until step 13.
+not support (``gcs_request_inventory.md``, "Sim today"): the two zip
+downloads, stamped with wall time (todo 241), and the vision-profile edits,
+which write ``vision_profiles.json`` in the source tree, outside the run
+(todo 264). Since step 13 the full-parameter read (MAVFTP) and the app's
+NavPy-sim start and stop run in the sim.
 
 Anything that is not an HTTP request with a method and a target is refused
 too: the relay sends nothing else.
@@ -24,11 +23,9 @@ from urllib.parse import unquote, urlsplit
 #: ``(method, path pattern, reason)``; the pattern matches the decoded path without its query.
 REFUSED: tuple[tuple[str, re.Pattern[str], str], ...] = tuple(
     (method, re.compile(pattern), reason) for method, pattern, reason in (
-        ("GET", r"/api/vehicles/[^/]+/parameters", "the full-parameter read uses MAVFTP (todo 245)"),
         ("GET", r"/api/diagnostics/export", "a zip download (todo 241)"),
         ("GET", r"/api/logs/download/[^/]+", "a zip download (todo 241)"),
-        ("POST", r"/api/control/navpy-sim/start", "NavPy-sim start is wall-only (step 13)"),
-        ("POST", r"/api/control/navpy-sim/stop/[^/]+", "NavPy-sim stop is wall-only (step 13)"),
+        ("PUT", r"/api/vision-profiles/.+", "writes vision_profiles.json in the source tree (todo 264)"),
     ))
 NOT_HTTP = "only HTTP requests enter the run"
 NOT_ASCII = "a request target is ASCII (percent-encoded)"
@@ -37,7 +34,7 @@ STATUS = 501
 
 def answer(reason: str) -> dict[str, Any]:
     return {"status": STATUS, "body": json.dumps(
-        {"detail": f"hardware-only, not supported in simulation: {reason}"})}
+        {"detail": f"not supported in simulation: {reason}"})}
 
 
 def refusal(payload: dict[str, Any]) -> dict[str, Any] | None:

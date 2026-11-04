@@ -21,6 +21,7 @@ from scripts.eval_gcs_demo_lifecycle import (
     connect_vehicles,
     start_companions,
     stop_companions,
+    wait_for_companions,
 )
 from scripts.lockstep_fleet_actor import stack_context as fleet_context
 from scripts.lockstep_slice_actor import BACKEND, NAVPY, NAVPY_ROLE, SLICE
@@ -198,11 +199,41 @@ def test_a_full_lifespan_with_a_companion_started_and_stopped_through_the_launch
     assert (status["pid"], status["ordinal"], status["generation"]) == (generation_pid(NAVPY, 1), NAVPY, 1)
     assert status["connection"] == "lockstep:serial0.1" and status["running"] is True
     assert seen["after"] == {"instances": []}
+
+
+def test_the_apps_single_start_and_stop_run_through_the_launcher_port(tmp_path):
+    """Step 13: the Monitoring panel's Run and Stop (``/navpy-sim/start`` and
+    ``/navpy-sim/stop/{sys_id}``) spawn and stop the companion as lockstep
+    participants; a second start after the stop is the next generation."""
+    seen = {}
+
+    def script(operator: OperatorBaton, scenario) -> None:
+        _connected(operator, scenario)
+        context = fleet_context(operator, scenario, SLICE)
+        for round_ in ("first", "second"):
+            seen[f"{round_}_start"] = context.api.post_json(
+                "/api/control/navpy-sim/start", {"sys_id": SYS_ID, "connection": "ignored"})
+            wait_for_companions(context, 10.0)
+            seen[f"{round_}_status"] = context.api.get_json("/api/control/navpy-sim/status")
+            seen[f"{round_}_stop"] = context.api.post_json(f"/api/control/navpy-sim/stop/{SYS_ID}")
+        seen["stop_again"] = context.api.post_json(f"/api/control/navpy-sim/stop/{SYS_ID}",
+                                                   expected=(404,))
+        seen["after"] = context.api.get_json("/api/control/navpy-sim/status")
+
+    run = _run(tmp_path, script, companions=True)
+    for generation, round_ in enumerate(("first", "second"), start=1):
+        status, body = seen[f"{round_}_start"]
+        assert status == 200 and body["pid"] == generation_pid(NAVPY, generation)
+        [instance] = seen[f"{round_}_status"]["instances"]
+        assert (instance["generation"], instance["running"]) == (generation, True)
+        assert seen[f"{round_}_stop"] == (200, {"status": "stopped", "sys_id": SYS_ID})
+    assert seen["stop_again"][0] == 404  # nothing left to stop
+    assert seen["after"] == {"instances": []}
+    _ended_flushed(run)
     spawns = [s for done in run.dones for s in done.spawn_requests]
     stops = [s for done in run.dones for s in done.stop_requests]
-    assert [(s.role, s.ordinal) for s in spawns] == [(NAVPY_ROLE, NAVPY)]
-    assert [(s.ordinal, s.generation) for s in stops] == [(NAVPY, 1)]
-    _ended_flushed(run)
+    assert [(s.role, s.ordinal) for s in spawns] == [(NAVPY_ROLE, NAVPY)] * 2
+    assert [(s.ordinal, s.generation) for s in stops] == [(NAVPY, 1), (NAVPY, 2)]
 
 
 def test_the_esp32_simulator_runs_in_process_through_its_port(tmp_path):

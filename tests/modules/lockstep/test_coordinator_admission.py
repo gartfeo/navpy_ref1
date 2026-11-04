@@ -123,7 +123,7 @@ def test_relay_items_wait_until_their_target_is_ready():
 
 def test_a_refused_request_is_answered_journaled_and_never_delivered():
     admission, relay, _ids = _admission(refuse=app_refusals.refusal)
-    relay.inbox.submit(RelayRequest(1, _http("/api/vehicles/2/parameters?refresh=1")))
+    relay.inbox.submit(RelayRequest(1, _http("/api/logs/download/2?full=1")))
     relay.inbox.submit(RelayCancel(1))
     deliveries, note = admission.admit(1, [], lambda ordinal: True)
     assert deliveries == []
@@ -140,21 +140,28 @@ def test_no_relay_traffic_adds_no_journal_note():
 
 
 @pytest.mark.parametrize(("method", "target", "refused"), [
-    ("GET", "/api/vehicles/1/parameters", True),
-    ("GET", "/api/vehicles/1/parameters?force=1", True),
+    # Step 13: the full-parameter read (MAVFTP) and NavPy-sim start and stop run in the sim.
+    ("GET", "/api/vehicles/1/parameters", False),
+    ("GET", "/api/vehicles/1/parameters?refresh=true", False),
     ("PUT", "/api/vehicles/1/parameters", False),
     ("POST", "/api/vehicles/1/parameters/arm-token", False),
     ("GET", "/api/vehicles/1/params", False),
     ("GET", "/api/diagnostics/export", True),
     ("GET", "/api/logs/download/3", True),
-    ("POST", "/api/control/navpy-sim/start", True),
-    ("POST", "/api/control/navpy-sim/stop/2", True),
+    ("GET", "/api/logs/download/3?x=1", True),
+    ("POST", "/api/control/navpy-sim/start", False),
+    ("POST", "/api/control/navpy-sim/stop/2", False),
     ("POST", "/api/control/navpy-sim/restart-ready", False),
     ("GET", "/api/settings", False),
+    ("GET", "/api/vision-profiles", False),
+    # The profile edits write the source tree's vision_profiles.json (todo 264).
+    ("PUT", "/api/vision-profiles/default/sim", True),
+    ("PUT", "/api/vision-profiles/sim", True),
+    ("PUT", "/api/vision-profiles/sim/devices/zr10", True),
     # Decoded once, as the backend decodes it.
-    ("GET", "/api/vehicles/1/%70arameters", True),
-    ("GET", "/api/vehicles/1/%2570arameters", False),  # the backend sees "%70arameters": no route
-    ("HEAD", "/api/vehicles/1/parameters", True),  # Starlette serves HEAD from the GET route
+    ("GET", "/api/%64iagnostics/export", True),
+    ("GET", "/api/%2564iagnostics/export", False),  # the backend sees "%64iagnostics": no route
+    ("HEAD", "/api/diagnostics/export", True),  # Starlette serves HEAD from the GET route
     ("GET", "/api/vehicles/1/pärameters", True),  # not ASCII: never sent
 ])
 def test_app_refusals(method, target, refused):
