@@ -22,7 +22,7 @@ const { fake } = vi.hoisted(() => {
     };
   };
   class Vec { constructor(x = 0, y = 0, z = 0) { Object.assign(this, { x, y, z }); } }
-  const fake = { widgets: [], terrainCalls: [], createThrows: false, event };
+  const fake = { widgets: [], terrainCalls: [], baseLayers: [], hudProps: [], createThrows: false, event };
   class CesiumWidget {
     constructor(container, options) {
       if (fake.createThrows) throw new Error('no WebGL');
@@ -57,10 +57,8 @@ const { fake } = vi.hoisted(() => {
   }
   fake.Cesium = {
     CesiumWidget,
-    Cartesian3: Object.assign(Vec, { normalize: (v) => v }),
+    Cartesian3: Vec,
     Color: { fromCssColorString: (s) => ({ css: s }) },
-    DirectionalLight: class { constructor(o) { this.direction = o.direction; } },
-    Matrix4: { multiplyByPointAsVector: (_m, v, out) => Object.assign(out, v) },
     CesiumTerrainProvider: {
       fromIonAssetId: (id, opts) => {
         const terrain = { id, opts };
@@ -77,6 +75,18 @@ vi.mock('./map/utils/observeHeight', () => ({
     fake.observed = el;
     onHeight(24);
     return () => { fake.observed = null; };
+  },
+}));
+vi.mock('./map/utils/baseLayers', () => ({
+  applyBaseLayer: (_Cesium, widget, id, onFailed) => {
+    fake.baseLayers.push({ widget, id, onFailed });
+  },
+}));
+// The shared HUD, recorded: its own rendering is TelemetryHud.test.jsx's.
+vi.mock('./TelemetryHud', () => ({
+  default: (props) => {
+    fake.hudProps.push(props);
+    return <div data-testid="hud" data-sysid={props.sysId} />;
   },
 }));
 vi.mock('./map/utils/fpvPose', () => ({
@@ -100,7 +110,7 @@ function makeStore(vehicles = { 1: linked, 2: linked }) {
 
 const pose = { position: { x: 1, y: 2, z: 3 }, orientation: { w: 1 } };
 
-function setup({ sysId = 1, ionTerrain = false, poseFn, fresh = true, expanded = false } = {}) {
+function setup({ sysId = 1, ionTerrain = false, poseFn, fresh = true, expanded = false, ...extra } = {}) {
   const store = makeStore();
   store.fresh = fresh;
   const storeRef = { current: store };
@@ -117,6 +127,8 @@ function setup({ sysId = 1, ionTerrain = false, poseFn, fresh = true, expanded =
       onFail={onFail}
       onCreditsHeight={onCreditsHeight}
       expanded={expanded}
+      baseLayer="terrain"
+      {...extra}
       {...props}
     />
   );
@@ -134,12 +146,14 @@ const frame = (widget) => act(() => { widget.scene.preRender.raise(); widget.sce
 beforeEach(() => {
   fake.widgets.length = 0;
   fake.terrainCalls.length = 0;
+  fake.baseLayers.length = 0;
+  fake.hudProps.length = 0;
   fake.createThrows = false;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
 describe('SyntheticView', () => {
-  it('one widget: no imagery, no sky box, render on request, inputs off; destroyed on unmount', async () => {
+  it('one widget: no default imagery, no sky box, render on request, inputs off, unlit as the map; destroyed on unmount', async () => {
     const { unmount } = setup();
     await widgetReady();
     await act(async () => {});
@@ -147,9 +161,42 @@ describe('SyntheticView', () => {
     const [w] = fake.widgets;
     expect(w.options).toMatchObject({ baseLayer: false, skyBox: false, requestRenderMode: true, msaaSamples: 1, showRenderLoopErrors: false });
     expect(w.scene.screenSpaceCameraController.enableInputs).toBe(false);
-    expect(w.scene.globe.enableLighting).toBe(true);
+    expect(w.scene.globe.enableLighting).toBe(false);
+    expect(w.scene.globe.showGroundAtmosphere).toBe(false);
     unmount();
     expect(w.destroyed).toBe(true);
+  });
+
+  it("the main map's base layer, its own instance, following the operator's pick; a failure is reported for that layer", async () => {
+    const onBaseLayerFailed = vi.fn();
+    const { rerenderWith } = setup({ baseLayer: 'satellite', onBaseLayerFailed });
+    await widgetReady();
+    await act(async () => {});
+    const [w] = fake.widgets;
+    expect(fake.baseLayers.map((l) => [l.widget, l.id])).toEqual([[w, 'satellite']]);
+    rerenderWith({ baseLayer: 'street' });
+    expect(fake.baseLayers.map((l) => l.id)).toEqual(['satellite', 'street']);
+    const err = new Error('refused');
+    fake.baseLayers[1].onFailed(err);
+    expect(onBaseLayerFailed).toHaveBeenCalledWith('street', err);
+  });
+
+  it("RC control's HUD for the window's UAV once a frame is drawn, never while waiting; no controls", async () => {
+    const { container, queryByTestId, getByTestId, rerenderWith, store } = setup();
+    await widgetReady();
+    await act(async () => {});
+    expect(queryByTestId('hud')).toBeNull();
+    frame(fake.widgets[0]);
+    expect(getByTestId('hud').dataset.sysid).toBe('1');
+    expect(getByTestId('synthetic-hud').style.pointerEvents).toBe('none');
+    const props = fake.hudProps.at(-1);
+    expect(props.layout).toEqual(expect.objectContaining({ heading: expect.any(Object), status: expect.any(Object) }));
+    // Display only: no sticks, mode buttons, arming or UAV selector in Synthetic.
+    expect(container.querySelectorAll('button, input, select, [role="slider"]')).toHaveLength(0);
+    // Another UAV: the HUD goes while its pose is awaited.
+    store.vehicles = { 1: linked, 2: { ...linked, link_ok: false } };
+    rerenderWith({ sysId: 2, label: 'UAV 2' });
+    expect(queryByTestId('hud')).toBeNull();
   });
 
   // StrictMode's mount-unmount-mount relies on this guard. (Rendering under
@@ -254,14 +301,14 @@ describe('SyntheticView', () => {
     expect(w.scene.requestRender).toHaveBeenCalledTimes(before + 1);
   });
 
-  it('its own Ion terrain instance with vertex normals, once the main map has Ion terrain', async () => {
+  it('its own Ion terrain instance, as the main map requests it, once the main map has Ion terrain', async () => {
     const { rerenderWith } = setup();
     await widgetReady();
     await act(async () => {});
     expect(fake.terrainCalls).toHaveLength(0);
     rerenderWith({ ionTerrain: true });
     await waitFor(() => expect(fake.widgets[0].terrainProvider).toBe(fake.terrainCalls[0]));
-    expect(fake.terrainCalls[0]).toEqual({ id: 1, opts: { requestVertexNormals: true } });
+    expect(fake.terrainCalls[0]).toEqual({ id: 1, opts: undefined });
   });
 
   it.each([
@@ -283,13 +330,12 @@ describe('SyntheticView', () => {
     expect(onFail).toHaveBeenCalledTimes(1);
   });
 
-  it('the SYNTHETIC tag wraps at the width it is given (maximized: left of the small map), none by default', async () => {
-    const { getByText, rerenderWith } = setup();
+  // Its width beside the HUD and the small map: utils/hudLayout.test.js.
+  it('the SYNTHETIC tag has no wrap width before the picture is measured', async () => {
+    const { getByText } = setup({ smallMap: { width: 200, height: 113 } });
     await widgetReady();
     await act(async () => {});
     expect(getByText('vehicleWindow.syntheticTag').style.maxWidth).toBe('');
-    rerenderWith({ tagMaxWidth: 140 });
-    expect(getByText('vehicleWindow.syntheticTag').style.maxWidth).toBe('140px');
   });
 
   it('unmount destroys the widget, releases its WebGL context, removes listeners and clears the credits offset', async () => {

@@ -40,13 +40,13 @@ vi.mock('../vendor/mediamtx/reader', () => ({ default: FakeReader }));
 vi.mock('./SyntheticView', async () => {
   const { useEffect } = await import('react');
   return {
-    default: function SyntheticStub({ sysId, onFail, tagMaxWidth }) {
+    default: function SyntheticStub({ sysId, onFail, smallMap }) {
       synthetic.onFail = onFail;
       useEffect(() => {
         synthetic.mounts += 1;
         return () => { synthetic.unmounts += 1; };
       }, []);
-      return <div data-testid="synthetic-widget" data-tag-max-width={tagMaxWidth ?? 'none'}>{sysId}</div>;
+      return <div data-testid="synthetic-widget" data-small-map={smallMap ? `${smallMap.width}x${smallMap.height}` : 'none'}>{sysId}</div>;
     },
   };
 });
@@ -767,15 +767,18 @@ describe('size', () => {
   });
 
   it('swapped: the top-left tags of the picture wrap left of the small map; normal size: no limit', () => {
-    const expected = vehicleWindowLayout({
+    const swappedLayout = vehicleWindowLayout({
       paneWidth: 1600, paneHeight: 900, topControlsBottom: 44, swapped: true, mapCreditsPx: 0,
-    }).tagMaxWidth;
+    });
+    const expected = swappedLayout.tagMaxWidth;
     expect(expected).toBeGreaterThan(0);
-    // SYNTHETIC · not camera (a map-icon pick).
+    // SYNTHETIC · not camera (a map-icon pick): Synthetic gets the small map's box and
+    // wraps its tag beside the HUD's status row (utils/hudLayout.test.js).
     const synth = renderPicked(TWO, 3);
-    expect(synth.getByTestId('synthetic-widget').dataset.tagMaxWidth).toBe('none');
+    expect(synth.getByTestId('synthetic-widget').dataset.smallMap).toBe('none');
     fireEvent.click(button(synth, 'maximize'));
-    expect(Number(synth.getByTestId('synthetic-widget').dataset.tagMaxWidth)).toBe(expected);
+    const { width, height } = swappedLayout.smallMap;
+    expect(synth.getByTestId('synthetic-widget').dataset.smallMap).toBe(`${width}x${height}`);
     synth.unmount();
 
     // The camera's tag.

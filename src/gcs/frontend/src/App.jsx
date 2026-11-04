@@ -57,6 +57,8 @@ import useSidePanel from './hooks/useSidePanel';
 import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { isPending } from './hooks/taskConfirmationState';
 import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
+import { rcHudLayout } from './utils/hudLayout';
+import { DEFAULT_BASE_LAYER, isBaseLayerAvailable, secondViewLayer } from './components/map/utils/baseLayers';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
@@ -871,6 +873,9 @@ export default function App() {
               poseSourceRef={poseSourceRef}
               storeRef={storeRef}
               ionTerrain={ionTerrain}
+              baseLayer={secondViewLayer(isBaseLayerAvailable(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)
+                ? baseLayerChoice.baseLayer : DEFAULT_BASE_LAYER)}
+              onBaseLayerFailed={baseLayerChoice.onFailed}
               onSyntheticCreditsHeight={setWindowCreditsPx}
               onChromeHeight={setWindowChromePx}
             />
@@ -924,15 +929,17 @@ export default function App() {
               <TelemetryHud
                 key={mc.manualControlTarget}
                 sysId={mc.manualControlTarget}
-                tapeBox={hudTapeBox({ paneHeight: mapPane.height, top: RC_FPV_TAG_TOP_PX, bottom: RC_TAPE_BOTTOM_PX })}
-                speedBox={speedTapeBox({
-                  paneHeight: mapPane.height,
-                  columnBottom: rcColumnPx == null ? null : MODE_COLUMN_INSET_PX + rcColumnPx,
-                  top: RC_FPV_TAG_TOP_PX,
-                  bottom: RC_TAPE_BOTTOM_PX,
-                  gap: RC_CONFIRM_GAP_PX,
-                  edgeLeft: MODE_COLUMN_INSET_PX,
-                  besideLeft: RC_HELD_LEFT_PX,
+                layout={rcHudLayout({
+                  tapeBox: hudTapeBox({ paneHeight: mapPane.height, top: RC_FPV_TAG_TOP_PX, bottom: RC_TAPE_BOTTOM_PX }),
+                  speedBox: speedTapeBox({
+                    paneHeight: mapPane.height,
+                    columnBottom: rcColumnPx == null ? null : MODE_COLUMN_INSET_PX + rcColumnPx,
+                    top: RC_FPV_TAG_TOP_PX,
+                    bottom: RC_TAPE_BOTTOM_PX,
+                    gap: RC_CONFIRM_GAP_PX,
+                    edgeLeft: MODE_COLUMN_INSET_PX,
+                    besideLeft: RC_HELD_LEFT_PX,
+                  }),
                 })}
               />
           )}
