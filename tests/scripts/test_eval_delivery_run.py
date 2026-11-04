@@ -168,7 +168,17 @@ def test_runtime_refuses_a_fractional_zoom(monkeypatch):
         fixture.require_fixture_runtime(fixture.load_fixture(fixture.FIXTURE_PATH), scenario)
 
 
-@pytest.mark.wsl
+@pytest.fixture
+def no_sitl_root(monkeypatch):
+    """The run's WSL root is host setup; these tests check what reaches the launch."""
+    from scripts import eval_gcs_demo_runtime as runtime
+    from scripts.eval_gcs_demo_sitl_root import SitlRoot
+
+    root = SitlRoot("/home/u/navpy-eval-roots/test")
+    monkeypatch.setattr(runtime, "prepare_sitl_root", lambda _run_dir: (root, {}, root.root))
+
+
+@pytest.mark.usefixtures("no_sitl_root")
 def test_live_run_puts_the_dock_file_in_every_process_env(monkeypatch, tmp_path):
     from scripts import eval_gcs_demo_runtime as runtime
     from scripts.eval_gcs_demo_runtime import FLEET_DOCKS_ENV
@@ -190,7 +200,7 @@ def test_live_run_puts_the_dock_file_in_every_process_env(monkeypatch, tmp_path)
 
 
 @pytest.mark.parametrize(("radius", "expected"), ((None, None), (0.0, "0.0"), (0.25, "0.25")))
-@pytest.mark.wsl
+@pytest.mark.usefixtures("no_sitl_root")
 def test_live_run_passes_the_net_radius_override_and_records_it(
     monkeypatch, tmp_path, radius, expected,
 ):
@@ -231,7 +241,7 @@ def test_live_run_refuses_an_invalid_net_radius_before_launch(monkeypatch, tmp_p
         )
 
 
-@pytest.mark.wsl
+@pytest.mark.usefixtures("no_sitl_root")
 def test_a_wall_run_holds_a_cpu_share_for_its_timeout_plus_the_setup_margin(monkeypatch, tmp_path):
     from scripts import eval_gcs_demo_runtime as runtime
 

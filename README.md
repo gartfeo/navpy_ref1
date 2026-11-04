@@ -93,5 +93,6 @@ PYTHONPATH="$PWD/src" python -m pytest tests --testmon   # affected tests only (
 PYTHONPATH="$PWD/src" python -m pytest tests -n 8        # whole default suite (pytest-xdist); CI runs it on every PR
 ```
 
-The repository targets Python 3.9+ (`requires-python` in `pyproject.toml`) and
+The repository targets Python 3.9+ (`requires-python` in `pyproject.toml`);
+development needs 3.11+, the floor of pytest-testmon (`--testmon`). It
 follows standard PEP 8 style.

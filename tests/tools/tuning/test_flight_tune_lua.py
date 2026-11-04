@@ -101,10 +101,19 @@ AP_MAXVARS = 100     # ArduPilot libraries/AP_Scripting/lua/src/lparser.c (stock
 AP_MAXUPVAL = 127    # lfunc.h
 
 
+def _luac_argv() -> list[str] | None:
+    """luac5.3 for a lua5.3 (WSL or Linux), else the luac beside a native lua."""
+    *prefix, lua = LUA_ARGV
+    if lua.endswith("lua5.3"):
+        return prefix + [lua[: -len("lua5.3")] + "luac5.3"]
+    beside = Path(lua).with_name("luac" + Path(lua).suffix)
+    return prefix + [str(beside)] if beside.is_file() else None
+
+
 def _luac_listing() -> str:
-    luac = [a.replace("lua5.3", "luac5.3") if a.endswith("lua5.3") else a for a in LUA_ARGV]
-    if luac == LUA_ARGV:
-        pytest.skip("luac5.3 not found next to lua5.3")
+    luac = _luac_argv()
+    if luac is None:
+        pytest.skip("luac not found next to lua")
     proc = subprocess.run(luac + ["-l", "-l", "-p", _lua_path(SCRIPT)], capture_output=True, text=True,
                           env=dict(os.environ, MSYS_NO_PATHCONV="1"))
     assert proc.returncode == 0, proc.stderr
