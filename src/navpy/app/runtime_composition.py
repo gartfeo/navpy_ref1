@@ -211,6 +211,7 @@ def _build_session(
         foundation.logger,
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
+        law_airspeed=vision.law_airspeed,
         on_terminal=with_dock_evidence_cut(
             vision.dock_contact,
             terminal_observer(foundation.terminal_handoff),

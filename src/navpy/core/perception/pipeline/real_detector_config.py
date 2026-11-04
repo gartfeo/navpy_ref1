@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -108,10 +109,16 @@ class DetectorPipelineConfig:
     # HITL step 18: calibrated zoom steps and their settle evidence, built with
     # integration timing from the profile's reading table; never alone.
     fixed_zoom: "FixedStepZoom | None" = None
+    # HITL step 20: the law's only airspeed reader with integration timing (the eligible pitot source,
+    # app/approach/law_airspeed.py); None outside HITL, where the vehicle's airspeed is read.
+    law_airspeed: "Callable[[], float | None] | None" = None
 
     def __post_init__(self) -> None:
         if self.fixed_zoom is not None and self.integration_timing is None:
             raise ValueError("fixed zoom needs integration timing")
+        if (self.integration_timing is None) != (self.law_airspeed is None):
+            # Never VFR_HUD on integration timing; never the eligible source outside it.
+            raise ValueError("integration timing and the eligible airspeed reader go together")
 
 
 @dataclass(frozen=True)

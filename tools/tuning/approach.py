@@ -20,7 +20,9 @@ same idempotent quiesce (approach_quiesce.py) before the board's stop, with no R
 every exit; scoring then checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the
 manifest (tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only
 when the flight, the handoff, every stop, the scene, the link health, the orphan check, the observation audit (0
-forbidden navpy writes, 0 after the drain ack), and one owner per role in each census and in the logs all passed.
+forbidden navpy writes, 0 after the drain ack), one owner per role in each census and in the logs, and navpy's
+airspeed source (admitted, never revoked; its pins and firmware checked before takeoff: approach_airspeed.py) all
+passed.
 ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
@@ -43,6 +45,7 @@ from tools.hitl.model_input import read_model_input
 from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
+from tools.tuning import approach_airspeed as airspeed
 from tools.tuning import approach_owners as owners, approach_quiesce as stop
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
@@ -134,6 +137,8 @@ def _adopting_popen(group: ProcessGroup) -> Callable[..., subprocess.Popen]:
 def _fly(board: Board, group: ProcessGroup, run: dict, quiesce: stop.Quiesce) -> None:
     from tools.tuning.sitl_driver import takeoff        # sitl_driver imports this module
     limits = run["scenario"]["limits"]
+    # Step 20: the simulated pitot profile and the firmware mapping, before arming (raises on a mismatch).
+    run["airspeed_pins"] = airspeed.pin_board(board, run["mode"], run["sitl_binary"])
     takeoff(board)
     flight = run["flight"] = {}
     with HeightFloor(board, limits["min_height_m"], flight, before_recovery=lambda: quiesce.run(stop.FLOOR)):
@@ -253,6 +258,7 @@ def approach(args: argparse.Namespace) -> int:
             records = stop.navpy_records(group.output_path("navpy"))
             run["quiesce"] = quiesce.describe()
             run["outcome"] = stop.outcome(records, run.get("flight", {}).get("ended_by"))
+            run["airspeed"] = airspeed.outcome(group.output_path("navpy"))
             run["observation"] = stop.audit(run_dir / "router_writes.csv", quiesce.record, records)
             run["scene"] = scenario_run.verify(scenario_dir, run_dir / "unreal.log")
             run["sources"] = owners.sources(run_dir / "unreal.log", run_dir / "emulator.jsonl")
@@ -269,8 +275,10 @@ def approach(args: argparse.Namespace) -> int:
     print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
           f"scene reproduced {scene}, link health {health.get('ok')}, outcome {run['outcome']['outcome']}, "
           f"observation {run['observation']}, one owner each {owned}; folder {run_dir}"
-          + "".join(f"; {problem}" for problem in run["admission_problems"] + owner_problems), flush=True)
-    clean = run["observation"]["ok"] and not run["outcome"]["problems"] and owned
+          + "".join(f"; {problem}" for problem in run["admission_problems"] + owner_problems
+                    + run["airspeed"]["problems"]), flush=True)
+    clean = (run["observation"]["ok"] and not run["outcome"]["problems"] and not run["airspeed"]["problems"]
+             and owned)
     return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") and clean else 1
 
 
