@@ -2494,5 +2494,14 @@
   Run the live script as a background task of this chat so its WSL session stays open.
 - **Two test failures are not this branch's.** `test_reviewed_modules_host_members_...`
   in `test_runtime_time_lint.py` and `test_valid_airspeed_reaches_only_its_own_system_unchanged`
-  (about 1 in 3 runs) also fail on `main` with the shared venv; check `main` before blaming
-  the change.
+  (about 1 in 3 runs; `test_corrupt_airspeed_reaches_no_receiver` the same way) also fail
+  on `main` with the shared venv, and `test_board_detector.py` fails under its OpenCV 5.0.0;
+  check `main` before blaming the change.
+- **Run the full suite before the review, not only the step's tests.** Adding a field that
+  composition reads (`vision.law_airspeed`) broke `SimpleNamespace` fakes in
+  `test_approach_quiesce.py` and `test_vehicle_logger_runtime_solid_regressions.py`, and
+  `approach.py` crossed the 300-line guard; the targeted runs missed all three.
+- **A guard's check and its write are one step, under the writer's own lock first.** Codex
+  found a revoke could fall between check and send (fixed by sending inside the source's
+  lock), then that the send could wait on the link's send lock after the check (`goto` holds
+  it across `set_mode`): take the re-entrant send lock first, then read the clock and check.
