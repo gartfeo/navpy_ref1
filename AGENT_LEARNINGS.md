@@ -2361,3 +2361,15 @@
 - Async terrain samples per trail point: one request in flight per trail, chain only after a fully
   successful batch (else a point with no data loops), and redraw from the sample, not the next
   telemetry message.
+
+## UAV model lag, todo 261 (2026-11-04)
+
+- While a live tester ran in the worktree, I drafted the next revision in the scratchpad and tested it
+  there: a junction to the frontend's node_modules plus `vitest run --root <dir>` runs a pure helper
+  test without touching the worktree. Remove the junction with `rmdir`, never a recursive delete.
+- The newest folder under Codex's bin held only rg.exe, so the review silently did not run (exit 127
+  in its log). Pick the newest folder that contains codex.exe and check the log, not just exit 0.
+- A test track built by adding metres to an ECEF point is a straight line, so its ellipsoid height
+  rises with distance (0.16 m over 1.5 km). Compare heights with the sample's own height.
+- Smoothing that restarts a fixed multiple of the sample interval towards each new sample settles
+  that many intervals behind at constant speed; check the steady-state lag before tuning windows.

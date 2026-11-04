@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
-import { lerpPosition, slerpOrientation, advanceAnim } from '../utils/lerpAnim';
+import { positionAt, orientationAt, advanceAnim, setGround } from '../utils/lerpAnim';
 import { poseFinite } from '../../../utils/fpvView';
 import { uavModelOrientation } from '../utils/uavOrientation';
 
@@ -9,8 +9,11 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * 3D UAV vehicle models with smooth interpolated motion.
  *
  * Each entity uses CallbackProperty for position/orientation so Cesium
- * evaluates a lerp/slerp every render frame (~60 fps), producing smooth
- * movement between 5 Hz telemetry updates.
+ * evaluates the motion every render frame (~60 fps), producing smooth
+ * movement between 5 Hz telemetry updates (dead reckoning, see lerpAnim).
+ * Only a new snapshot of a UAV is a new sample (a store update for another
+ * UAV must not restart its motion); a new ground height under it only moves
+ * its ground (setGround), never its speed.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -24,6 +27,8 @@ import { uavModelOrientation } from '../utils/uavOrientation';
 export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady) {
   const terrainCacheRef = useRef({});
   const animRef = useRef({});
+  // sys_id -> { v, terrainH } of the last sample, so a repeat is not re-advanced.
+  const sampleRef = useRef({});
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -37,6 +42,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
       const seen = new Set();
       const cache = terrainCacheRef.current;
       const anim = animRef.current;
+      const samples = sampleRef.current;
       const now = Date.now();
 
       if (vehicleList && vehicleList.length > 0) {
@@ -64,8 +70,15 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             // Target orientation
             const poiOri = uavModelOrientation(Cesium, poiPos, v.heading, v.roll, v.pitch);
 
-            // Advance animation: seamless transition from current interpolated state
-            anim[sid] = advanceAnim(anim[sid], poiPos, poiOri, Cesium);
+            // Advance the animation from where the model is drawn now; the
+            // sample is over home, the ground is added by the animation.
+            const last = samples[sid];
+            if (!last || last.v !== v) {
+              const samplePos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, altRel);
+              anim[sid] = advanceAnim(anim[sid], samplePos, poiOri, Cesium, now);
+            }
+            if (!last || last.terrainH !== terrainH) anim[sid] = setGround(anim[sid], terrainH, now);
+            samples[sid] = { v, terrainH };
 
             if (existing[sid]) {
               existing[sid].label.text = v.name || `UAV ${sid}`;
@@ -77,11 +90,11 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
               const e = viewer.entities.add({
                 position: new Cesium.CallbackProperty(() => {
                   const a = anim[sid];
-                  return a ? lerpPosition(a, Cesium, scratchPos) : scratchPos;
+                  return a ? positionAt(a, Cesium, scratchPos) : scratchPos;
                 }, false),
                 orientation: new Cesium.CallbackProperty(() => {
                   const a = anim[sid];
-                  return a ? slerpOrientation(a, Cesium, scratchOri) : scratchOri;
+                  return a ? orientationAt(a, Cesium, scratchOri) : scratchOri;
                 }, false),
                 model: {
                   uri: '/Peron15.glb',
@@ -120,6 +133,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
           delete existing[sid];
           delete cache[sid];
           delete anim[sid];
+          delete samples[sid];
         }
       }
 
