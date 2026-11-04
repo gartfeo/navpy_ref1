@@ -13,7 +13,10 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * movement between 5 Hz telemetry updates (dead reckoning, see lerpAnim).
  * Only a new snapshot of a UAV is a new sample (a store update for another
  * UAV must not restart its motion); a new ground height under it only moves
- * its ground (setGround), never its speed.
+ * its ground (setGround), never its speed. The first sample after the UAV's
+ * telemetry was not fresh (a link gap) starts a new motion at that sample,
+ * as the trail starts a new run there (useUavTrails): the model does not
+ * glide across the gap.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -29,6 +32,8 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
   const animRef = useRef({});
   // sys_id -> { v, terrainH } of the last sample, so a repeat is not re-advanced.
   const sampleRef = useRef({});
+  // sys_ids whose telemetry was not fresh since their last sample.
+  const staleRef = useRef(new Set());
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -43,11 +48,15 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
       const cache = terrainCacheRef.current;
       const anim = animRef.current;
       const samples = sampleRef.current;
+      const stale = staleRef.current;
+      const store = storeRef.current;
       const now = Date.now();
 
       if (vehicleList && vehicleList.length > 0) {
         vehicleList.forEach((v, i) => {
           const sid = v.sys_id;
+          const fresh = store.isTelemetryFresh ? store.isTelemetryFresh(sid) : true;
+          if (!fresh) stale.add(sid);
           if (!poseFinite(v)) {
             // Keep the existing model at its last valid pose.
             if (existing[sid]) seen.add(sid);
@@ -73,11 +82,13 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             // Advance the animation from where the model is drawn now; the
             // sample is over home, the ground is added by the animation.
             const last = samples[sid];
-            if (!last || last.v !== v) {
+            const restart = fresh && stale.has(sid);
+            if (!last || last.v !== v || restart) {
               const samplePos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, altRel);
-              anim[sid] = advanceAnim(anim[sid], samplePos, poiOri, Cesium, now);
+              anim[sid] = advanceAnim(restart ? undefined : anim[sid], samplePos, poiOri, Cesium, now);
+              if (restart) stale.delete(sid);
             }
-            if (!last || last.terrainH !== terrainH) anim[sid] = setGround(anim[sid], terrainH, now);
+            if (!last || last.terrainH !== terrainH || restart) anim[sid] = setGround(anim[sid], terrainH, now);
             samples[sid] = { v, terrainH };
 
             if (existing[sid]) {
@@ -134,6 +145,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
           delete cache[sid];
           delete anim[sid];
           delete samples[sid];
+          stale.delete(Number(sid));
         }
       }
 
