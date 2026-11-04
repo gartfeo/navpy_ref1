@@ -1626,6 +1626,9 @@
   still served by the old worker. Test the upgrade path before claiming "next load".
 - The full tests/gcs run failed two event-loop stall tests while a Codex review ran beside it;
   alone they passed. Run the full suite with nothing heavy alongside.
+  But `test_auto_heal_does_not_block_the_event_loop` failed alone every time (2026-11-04): its
+  clock started before `patch()`, which imports the target module (0.6 s cold), so it passed
+  only after another test on the worker had imported it. Start a timing clock after the patches.
 - At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
   there by layout. Size criteria must name the layout's map box per size.
 
