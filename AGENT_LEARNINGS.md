@@ -2312,6 +2312,18 @@
 - **Read the storage property inside try.** `localStorage` itself can throw
   (blocked site data); a default argument reads it before the try block.
 
+## HITL step 15 fault injector (2026-11-04)
+
+- **A new run-file role breaks the runner, not the tests.** A file added to the runner's manifest list without a
+  `run_manifest.FILE_PRODUCERS` entry raised KeyError only at the end of a live run, so approach_run.json was
+  never written. Add the role (and its end marker) together with the file, and make it optional when only some
+  runs have it, since `verify` requires every role.
+- **Encoded capture sequences start at 1.** A scorer that took `sequence >= after_frames` as "after the fault"
+  counted the last passed frame as leaked. Decide pass or fault from the fault log, not from the number.
+- **A new VisionArgs field needs every Mock fixture.** Tests build VisionArgs as `Mock()` with fields set by hand,
+  and a missing one is a truthy Mock. Only the full suite (tests/modules/vision) showed 18 failures; the touched
+  groups did not. Grep for `integration_log=` or `.integration_log =` in tests when adding a field.
+
 ## Rehearsing both demo plans (2026-11-04)
 
 - Lost one launch to a missing `node_modules` in a fresh worktree, although lines 723 and 1209 say so: run `npm ci` in `src/gcs/frontend` before `delivery_demo.py`.

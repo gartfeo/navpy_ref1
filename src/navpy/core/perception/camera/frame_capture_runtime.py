@@ -12,6 +12,7 @@ from navpy.app.perception.frame_capture_factory import open_capture_backend
 from navpy.core.perception.camera.frame_capture_logging import SafeCaptureLogger
 from navpy.core.ports.frame_capture_ports import (
     BoardClock,
+    CaptureBackendWrapper,
     CaptureLogger,
     CaptureStamp,
 )
@@ -39,9 +40,13 @@ class FrameCaptureRuntime:
         logger: CaptureLogger,
         publications: FramePublicationStore,
         board_clock: BoardClock | None = None,
+        capture_wrapper: CaptureBackendWrapper | None = None,
     ) -> None:
+        if source is None and capture_wrapper is not None:
+            raise ValueError("a capture wrapper needs a capture source, not push mode")
         self._source = source
         self._board_clock = board_clock
+        self._capture_wrapper = capture_wrapper
         self._logger = SafeCaptureLogger(logger)
         self._state = FrameCaptureState(publications)
         self._worker_failures = WorkerFailureLatch()
@@ -70,7 +75,9 @@ class FrameCaptureRuntime:
             self._logger.info("FrameProvider: push mode (no capture thread)")
             return
         try:
-            backend = open_capture_backend(self._source, self._logger, self._board_clock)
+            backend = open_capture_backend(
+                self._source, self._logger, self._board_clock, self._capture_wrapper
+            )
             session = None if backend is None else create_capture_session(backend, self._logger)
         except BaseException:
             self._finish_failed_start()
@@ -160,10 +167,13 @@ def build_frame_provider_parts(
     logger: CaptureLogger,
     board_clock: BoardClock | None = None,
     publication_observer: Callable[[CaptureStamp | None], None] | None = None,
+    capture_wrapper: CaptureBackendWrapper | None = None,
 ) -> FrameProviderParts:
     publications = FramePublicationStore(observer=publication_observer)
     return FrameProviderParts(
-        capture=FrameCaptureRuntime(source, logger, publications, board_clock),
+        capture=FrameCaptureRuntime(
+            source, logger, publications, board_clock, capture_wrapper
+        ),
         publications=publications,
     )
 

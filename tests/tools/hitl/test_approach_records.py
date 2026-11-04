@@ -17,6 +17,7 @@ from tests.tools.hitl import media_fakes
 from tools.hitl import approach_records as ar
 from tools.hitl import model_input as mi
 from tools.hitl.json_checks import RecordError, sha256_file
+from tools.hitl.source_identity import source_identity
 
 CREATED = datetime(2026, 10, 19, 8, 30, 5, tzinfo=timezone(timedelta(hours=2)))
 SOURCES = {"navpy": {"git_head": "a" * 40, "uncommitted_diff_sha256": "b" * 64, "untracked_sha256": "c" * 64}}
@@ -164,9 +165,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 4"),
-    (("schema_version",), 4.0, "must be 4"),
-    (("schema_version",), 3, "must be 4"),
+    (("schema_version",), True, "must be 5"),
+    (("schema_version",), 5.0, "must be 5"),
+    (("schema_version",), 4, "must be 5"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),
@@ -327,17 +328,17 @@ def test_source_identity_follows_commit_diff_and_untracked_files(tmp_path):
 
     def git(*args):
         return git_in(repo, *args)
-    clean = ar.source_identity(repo)
+    clean = source_identity(repo)
     assert clean["git_head"] == git("rev-parse", "HEAD")
     (repo / "a.txt").write_text("two\n", encoding="utf-8")
-    edited_source = ar.source_identity(repo)
+    edited_source = source_identity(repo)
     assert edited_source["uncommitted_diff_sha256"] != clean["uncommitted_diff_sha256"]
     (repo / "b.txt").write_text("new\n", encoding="utf-8")
-    added = ar.source_identity(repo)
+    added = source_identity(repo)
     assert added["untracked_sha256"] != edited_source["untracked_sha256"]
     assert sha256_file(repo / "b.txt") != added["untracked_sha256"]
     with pytest.raises(RecordError, match="not a git repository"):
-        ar.source_identity(tmp_path)
+        source_identity(tmp_path)
 
 
 

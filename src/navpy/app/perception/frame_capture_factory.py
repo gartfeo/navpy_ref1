@@ -20,6 +20,7 @@ from navpy.plugins.camera.opencv.frame_capture_opencv import (
 )
 from navpy.core.ports.frame_capture_ports import (
     BoardClock,
+    CaptureBackendWrapper,
     CaptureLogger,
     FrameCaptureBackend,
 )
@@ -56,12 +57,45 @@ def _read_dimensions(
         raise
 
 
+def _wrapped(
+    backend: FrameCaptureBackend | None,
+    wrap: CaptureBackendWrapper,
+    logger: CaptureLogger,
+) -> FrameCaptureBackend | None:
+    if backend is None:
+        return None
+    try:
+        wrapped = wrap(backend, logger)
+    except BaseException as wrap_error:
+        try:
+            backend.close()
+        except BaseException as cleanup_error:
+            raise BaseExceptionGroup(
+                "capture wrapper and cleanup failed",
+                [wrap_error, cleanup_error],
+            ) from None
+        raise
+    logger.warning(f"FrameProvider: capture wrapped by {type(wrapped).__name__}")
+    return wrapped
+
+
 def open_capture_backend(
     source: int | str,
     logger: CaptureLogger,
     board_clock: BoardClock | None = None,
+    wrap: CaptureBackendWrapper | None = None,
 ) -> FrameCaptureBackend | None:
-    """Open the backend for ``source``; ``board_clock`` stamps npyc:// frames."""
+    """Open the backend for ``source``; ``board_clock`` stamps npyc:// frames.
+
+    ``wrap`` (HITL commissioning only) wraps the decoded encoded stream and nothing else.
+    """
+    if wrap is not None:
+        if not is_gstreamer_source(source):
+            raise ValueError(
+                "a capture wrapper wraps only the decoded encoded stream "
+                f"(gstreamer+rtsp://), not {source!r}"
+            )
+        return _wrapped(GstreamerFrameCapture.open(str(source), logger), wrap, logger)
     if is_npyc_source(source):
         return NpycFrameCapture.open(str(source), logger, board_clock)
     if is_gstreamer_source(source):

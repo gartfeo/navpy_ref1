@@ -157,8 +157,14 @@ def publisher(paths: ChainPaths, profile: Path, lens_table: Path) -> ProcSpec:
                     cwd=str(paths.aas_hitl), kind="publisher")
 
 
-def navpy(paths: ChainPaths, record: Path, lane_first_seq: int) -> ProcSpec:
-    return ProcSpec("navpy", CONSUMER_NICE + tool(paths, "navpy.main", "-c", f"udpin:127.0.0.1:{NAVPY_PORT}",
+FAULT_LOG = "media_fault.jsonl"     # the commissioning injector's log in the run folder (media_fault_injector.py)
+
+
+def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: bool = False) -> ProcSpec:
+    """navpy itself, or with commissioning navpy through the fault injector, which reads the fault from the record."""
+    entry = (("tools.hitl.media_fault_injector", "--fault-log", str(paths.run_dir / FAULT_LOG), "--")
+             if commissioning else ("navpy.main",))
+    return ProcSpec("navpy", CONSUMER_NICE + tool(paths, *entry, "-c", f"udpin:127.0.0.1:{NAVPY_PORT}",
                                   "-ss", str(SITL_SYSTEM_ID), "--detector-type", "real", "--detector-backend",
                                   "charuco", "--vision-profile", VISION_PROFILE, "--pitch-controller", "vision-nav-pn",
                                   "-mwp", str(lane_first_seq), "-tac", "--router-control",

@@ -16,6 +16,7 @@ from typing import Any
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from navpy.core.perception.pipeline.integration_log import EVENT_LOG_END
+from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
 
 
 def load_integration_timing(path: str | Path) -> IntegrationTimingConfig:
@@ -66,18 +67,25 @@ class JsonlTimingLog:
 class IntegrationTimingInput:
     config: IntegrationTimingConfig
     log: JsonlTimingLog
+    # A commissioning launcher's capture wrapper (tools/hitl/media_fault_injector.py): only with integration timing,
+    # whose config admits only pc-sitl, so never in flight or Qualification.
+    capture_wrapper: CaptureBackendWrapper | None = None
 
 
-def open_integration_input(timing_path: str, log_path: str, detector_type: str) -> IntegrationTimingInput | None:
-    """Both files or neither, real detector only; the log is opened last, so a refused record leaves no file."""
+def open_integration_input(timing_path: str, log_path: str, detector_type: str,
+                           capture_wrapper: CaptureBackendWrapper | None = None) -> IntegrationTimingInput | None:
+    """Both files or neither, real detector only; the log is opened last, so a refused record leaves no file.
+    A capture wrapper needs both."""
     if not timing_path and not log_path:
+        if capture_wrapper is not None:
+            raise ValueError("a capture wrapper needs --integration-timing and --integration-log (a pc-sitl run)")
         return None
     if not timing_path or not log_path:
         raise ValueError("--integration-timing and --integration-log go together")
     if detector_type != "real":
         raise ValueError("integration timing needs --detector-type=real")
     config = load_integration_timing(timing_path)
-    return IntegrationTimingInput(config, JsonlTimingLog(log_path, config.run_id))
+    return IntegrationTimingInput(config, JsonlTimingLog(log_path, config.run_id), capture_wrapper)
 
 
 __all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input"]

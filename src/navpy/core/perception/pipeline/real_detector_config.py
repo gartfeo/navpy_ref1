@@ -12,6 +12,7 @@ from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
 from navpy.core.perception.pipeline.integration_log import TimingLog
+from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
 from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
     CharucoDetectionSettings,
@@ -100,6 +101,9 @@ class DetectorPipelineConfig:
     integration_timing: "IntegrationTimingConfig | None" = None
     # Receives one record per association on integration timing.
     integration_timing_log: "TimingLog | None" = None
+    # HITL commissioning only (stage 1 step 15): wraps the decoded capture;
+    # supplied with integration timing by a launcher, never by a profile.
+    capture_wrapper: "CaptureBackendWrapper | None" = None
 
 
 @dataclass(frozen=True)

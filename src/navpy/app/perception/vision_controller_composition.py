@@ -85,6 +85,7 @@ def build_vision_controller(
                 vision_args.integration_timing,
                 vision_args.integration_log,
                 vision_args.detector_type,
+                vision_args.capture_wrapper,
             )
 
             factory = RealDetectorFactory(
@@ -101,6 +102,7 @@ def build_vision_controller(
                 vision_args.integration_timing,
                 vision_args.integration_log,
                 vision_args.detector_type,
+                vision_args.capture_wrapper,
             )
             from navpy.app.perception.sim_detector_factory import (
                 SimDetectorFactory,

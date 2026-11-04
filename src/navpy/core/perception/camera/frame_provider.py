@@ -9,6 +9,7 @@ import numpy as np
 
 from navpy.core.ports.frame_capture_ports import (
     BoardClock,
+    CaptureBackendWrapper,
     CaptureLogger,
     CaptureStamp,
 )
@@ -35,12 +36,14 @@ class FrameProvider:
         logger: CaptureLogger,
         board_clock: BoardClock | None = None,
         publication_observer: Callable[[CaptureStamp | None], None] | None = None,
+        capture_wrapper: CaptureBackendWrapper | None = None,
     ) -> None:
         self._parts: FrameProviderParts = build_frame_provider_parts(
             source,
             logger,
             board_clock,
             publication_observer,
+            capture_wrapper,
         )
 
     def start(self) -> None:

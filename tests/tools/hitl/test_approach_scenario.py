@@ -19,6 +19,7 @@ from tools.hitl import scenario_scene_check as scene_check
 from tools.hitl import scenario_scoring as scoring
 from tools.hitl import scenario_service as service
 from tools.hitl.json_checks import RecordError
+from tools.hitl.media_fault_spec import NO_FAULT
 from tools.tuning import approach
 from tools.tuning.approach_lane import LaneSpec, build_lane, lane_items
 from tools.tuning.dock_pass import Point
@@ -333,7 +334,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
 
     def record(args, run_id, repo, scenario):
         seen["record_scenario"] = scenario
-        return {"run": {"run_id": run_id}}
+        return {"run": {"run_id": run_id}, "commissioning": NO_FAULT.record()}
 
     monkeypatch.setattr(approach, "ProcessGroup", group)
     monkeypatch.setattr(approach, "Board", _Board)

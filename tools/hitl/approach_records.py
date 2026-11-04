@@ -4,8 +4,8 @@ One JSON manifest per run, approach_record.json, in the run's folder under the p
 (tools/tuning/private_data.py), never in a repository checkout. It names what the run used: the run's identity and
 mode, the source, Layer 1's model input (model_input.py, embedded whole), the bridge as the run starts it, the
 law, the media runtime it moves video with (check_media_runtime.py, a passing result embedded whole) and what the
-mode substitutes for the real aircraft chain, and the scenario's public half (scenario_public.py, no dock pose). Two
-runs can then be shown to share their inputs, and a changed input starts a new series.
+mode substitutes for the real aircraft chain, the scenario's public half (scenario_public.py, no dock pose) and the
+commissioning fault (media_fault_spec.py, which refuses its admission). A changed input starts a new series.
 
 A record is refused (RecordError, every problem listed) when a field is missing, unknown or malformed, when
 its model input is refused, or when the run disagrees with it: a plant version the model was not validated
@@ -17,9 +17,7 @@ that claims another authority. new_record also refuses a model folder that diffe
 """
 from __future__ import annotations
 
-import hashlib
 import json
-import subprocess
 from collections.abc import Mapping
 from dataclasses import dataclass, fields
 from datetime import datetime, timezone
@@ -31,13 +29,14 @@ from navpy.core.perception.camera.integration_timing import (AUTHORITY_INTEGRATI
                                                             IntegrationTimingLimits)
 from tools.hitl import check_media_runtime as media, json_checks as jc, media_profiles, media_roundtrip, scenario_public
 from tools.hitl.json_checks import RecordError
+from tools.hitl.media_fault_spec import NO_FAULT, RECORD_SPEC as FAULT_SPEC, FaultSpec, record_problems
 from tools.hitl.model_input import (BRIDGE_SENSOR_MAP, MODEL_INPUT_SPEC, PLANTS, check_model_files,
                                     model_input_problems)
 from tools.tuning.hitl_bridge.board_clock import step_rate_hz
 from tools.tuning.private_data import private_dir
 
 RECORD_FILE = "approach_record.json"
-SCHEMA_VERSION = 4               # 4: the scenario (step 14)
+SCHEMA_VERSION = 5               # 4: the scenario (step 14); 5: the commissioning fault (step 15)
 REPO_ROOT = Path(__file__).resolve().parents[2]
 NAVPY_SOURCE = Path("src", "navpy")     # the package folder every navpy checkout holds at its top
 
@@ -108,6 +107,7 @@ RECORD_SPEC: Mapping[str, jc.Check] = {
     "substitutions": jc.map_of(jc.text),
     "integration_timing": jc.obj(INTEGRATION_TIMING_SPEC),
     "scenario": jc.obj(scenario_public.PUBLIC_SPEC),
+    "commissioning": jc.obj(FAULT_SPEC),        # the runner's --commission-fault: "none" in every ordinary run
 }
 
 
@@ -151,7 +151,7 @@ def _run_problems(record: Mapping[str, Any]) -> list[str]:
             problems.append(f"record.substitutions.{name} is missing for mode {mode}")
         elif substitutions[name] != text:
             problems.append(f"record.substitutions.{name} {substitutions[name]!r} is not mode {mode}'s {text!r}")
-    problems += _integration_timing_problems(record)
+    problems += _integration_timing_problems(record) + record_problems(record)
     return problems + _media_runtime_problems(record["media_runtime"], MODE_MEDIA_HOST[mode])
 
 
@@ -209,30 +209,11 @@ def validate_record(data: Any) -> None:
     jc.require(data, RECORD_SPEC, "record", _run_problems)
 
 
-def _git(repo: Path, *args: str) -> bytes:
-    result = subprocess.run(["git", "-C", str(repo), *args], capture_output=True, timeout=60, check=False)
-    if result.returncode != 0:
-        raise RecordError([f"git {' '.join(args)} failed in {repo}: {result.stderr.decode(errors='replace')}"])
-    return result.stdout
-
-
-def source_identity(repo: Path = REPO_ROOT) -> dict[str, str]:
-    """The checkout's commit, uncommitted diff and untracked files, in the demo eval's input-manifest fields
-    (scripts/eval_gcs_demo_inputs.py)."""
-    untracked = hashlib.sha256()
-    listing = _git(repo, "ls-files", "--others", "--exclude-standard", "-z").decode("utf-8")
-    for name in sorted(n for n in listing.split("\0") if n):
-        path = Path(repo) / name
-        untracked.update(f"{name}\0{jc.sha256_file(path) if path.is_file() else 'absent'}\n".encode("utf-8"))
-    return {"git_head": _git(repo, "rev-parse", "HEAD").decode("ascii").strip(),
-            "uncommitted_diff_sha256": hashlib.sha256(_git(repo, "diff", "HEAD", "--binary")).hexdigest(),
-            "untracked_sha256": untracked.hexdigest()}
-
-
 def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mapping[str, Any], model_dir: Path,
                bridge: BridgeRun, law: str, sources: Mapping[str, Mapping[str, str]], scenario: Mapping[str, Any],
                media_runtime: Mapping[str, Any], integration_timing: IntegrationTimingConfig,
-               extra_substitutions: Optional[Mapping[str, str]] = None) -> dict[str, Any]:
+               extra_substitutions: Optional[Mapping[str, str]] = None,
+               commissioning: FaultSpec = NO_FAULT) -> dict[str, Any]:
     """The validated record of a run about to start; the model folder must match the model input, and
     media_runtime is the video host's check_media_runtime.py result; integration_timing must be this run's."""
     if created.tzinfo is None:
@@ -252,7 +233,7 @@ def new_record(*, run_id: str, mode: str, created: datetime, model_input: Mappin
         "media_runtime": json.loads(json.dumps(media_runtime)),
         "substitutions": {**MODE_SUBSTITUTIONS.get(mode, {}), **(extra_substitutions or {})},
         "integration_timing": integration_timing.record(),
-        "scenario": json.loads(json.dumps(scenario)),
+        "scenario": json.loads(json.dumps(scenario)), "commissioning": commissioning.record(),
     }
     validate_record(record)
     check_model_files(record["model_input"], model_dir)

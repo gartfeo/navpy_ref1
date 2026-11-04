@@ -32,7 +32,11 @@ FILE_PRODUCERS = {
     "publisher_frames": "publisher",
     "unreal_log": "unreal",
     "emulator_log": "emulator",
+    "media_fault_log": "navpy",          # media_fault_injector.py runs inside navpy's process
 }
+# Roles only some runs have: a commissioning run's fault log (step 15), which the timing check never reads, since it
+# refuses a commissioning run outright.
+OPTIONAL_ROLES = frozenset({"media_fault_log"})
 
 
 def _lines(data: bytes) -> list[str]:
@@ -60,6 +64,11 @@ def _emulator_ended(data: bytes) -> bool:
     return bool(last and last.get("event") == "summary")
 
 
+def _fault_log_ended(data: bytes) -> bool:
+    last = _last_json(data)
+    return bool(last and last.get("event") == "close")
+
+
 def _publisher_ended(data: bytes) -> bool:
     try:
         status = json.loads(data)
@@ -85,6 +94,7 @@ END_MARKERS = {
     "publisher_frames": _frames_whole,
     "unreal_log": _unreal_ended,
     "emulator_log": _emulator_ended,
+    "media_fault_log": _fault_log_ended,
 }
 
 
@@ -138,10 +148,10 @@ def verify(manifest: Mapping[str, Any], run_id: str, inputs: Sequence[tuple[str,
             failures.append(f"{role} {path} comes from {match[0].get('producer')}, not {FILE_PRODUCERS[role]}")
         if not END_MARKERS[role](data) or match[0].get("ended") is not True:
             failures.append(f"{role} {path} does not end cleanly (cut off)")
-    for role in FILE_PRODUCERS:
+    for role in FILE_PRODUCERS.keys() - OPTIONAL_ROLES:
         if not any(given == role for given, _ in inputs):
             failures.append(f"no {role} input was checked")
     return failures
 
 
-__all__ = ["END_MARKERS", "FILE_PRODUCERS", "SCHEMA", "build", "file_entry", "verify"]
+__all__ = ["END_MARKERS", "FILE_PRODUCERS", "OPTIONAL_ROLES", "SCHEMA", "build", "file_entry", "verify"]

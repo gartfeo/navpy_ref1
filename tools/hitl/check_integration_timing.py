@@ -23,7 +23,7 @@ from pathlib import Path
 from typing import Any
 
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
-from tools.hitl import approach_records, run_manifest
+from tools.hitl import approach_records, media_fault_spec, run_manifest
 from tools.hitl.timing_check import OBSERVATION_S, SKEW_BUDGET_S, check
 from tools.hitl.timing_fit import FIT_SCHEMA, MIN_PAIRS, fit
 from tools.hitl.timing_inputs import (
@@ -51,7 +51,11 @@ def _read_lines(path: Path) -> list[str]:
 
 
 def load(args: argparse.Namespace) -> Joined:
-    config = _config(approach_records.read_record(Path(args.run_record)))
+    record = approach_records.read_record(Path(args.run_record))
+    refused = media_fault_spec.admission_problems(record)      # a commissioning run never fits nor checks timing
+    if refused:
+        raise TimingInputError(f"{args.run_record}: " + "; ".join(refused))
+    config = _config(record)
     log = read_navpy_log(_read_lines(Path(args.navpy)), args.navpy)
     publisher = read_publisher_frames(Path(path) for path in args.publisher)
     slots = read_unreal_slots(_read_lines(Path(args.unreal)), args.unreal)

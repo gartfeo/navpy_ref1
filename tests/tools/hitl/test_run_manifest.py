@@ -92,3 +92,15 @@ def test_every_role_must_be_checked(tmp_path):
     files = _files(tmp_path)
     inputs = [(role, path) for role, path in files.items() if role != "unreal_log"]
     assert rm.verify(_manifest(files), RUN, inputs, {RUN}) == ["no unreal_log input was checked"]
+
+
+def test_a_commissioning_fault_log_is_navpys_ended_by_its_close_and_never_required(tmp_path):
+    files = _files(tmp_path)
+    log = tmp_path / "run" / "media_fault.jsonl"
+    log.write_text('{"event":"open"}\n{"event":"frame"}\n', encoding="utf-8")
+    entry = rm.file_entry(log, "media_fault_log")
+    assert entry["producer"] == "navpy" and entry["ended"] is False
+    log.write_text('{"event":"open"}\n{"event":"close"}\n', encoding="utf-8")
+    with_log = {**files, "media_fault_log": log}
+    assert rm.verify(_manifest(with_log), RUN, list(with_log.items()), {RUN}) == []
+    assert rm.verify(_manifest(files), RUN, list(files.items()), {RUN}) == []

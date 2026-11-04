@@ -168,6 +168,9 @@ class RealDetectorFactory:
                     integration_timing_log=(
                         None if integration is None else integration.log
                     ),
+                    capture_wrapper=(
+                        None if integration is None else integration.capture_wrapper
+                    ),
                 ),
                 debug=DetectorDebugConfig(
                     show=self._debug_show,
