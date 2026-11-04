@@ -13,10 +13,10 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * movement between 5 Hz telemetry updates (dead reckoning, see lerpAnim).
  * Only a new snapshot of a UAV is a new sample (a store update for another
  * UAV must not restart its motion); a new ground height under it only moves
- * its ground (setGround), never its speed. The first sample after the UAV's
- * telemetry was not fresh (a link gap) starts a new motion at that sample,
- * as the trail starts a new run there (useUavTrails): the model does not
- * glide across the gap.
+ * its ground (setGround), never its speed. The first sample after a gap (the
+ * UAV's telemetry was not fresh, or it had no position) starts a new motion
+ * at that sample, as the trail starts a new run there (useUavTrails): the
+ * model does not glide across the gap.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -32,7 +32,7 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
   const animRef = useRef({});
   // sys_id -> { v, terrainH } of the last sample, so a repeat is not re-advanced.
   const sampleRef = useRef({});
-  // sys_ids whose telemetry was not fresh since their last sample.
+  // sys_ids in a gap since their last sample.
   const staleRef = useRef(new Set());
 
   useEffect(() => {
@@ -56,7 +56,8 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
         vehicleList.forEach((v, i) => {
           const sid = v.sys_id;
           const fresh = store.isTelemetryFresh ? store.isTelemetryFresh(sid) : true;
-          if (!fresh) stale.add(sid);
+          // The trail's gap rule (useUavTrails): not fresh, or no position.
+          if (!fresh || v.lat == null || v.lon == null) stale.add(sid);
           if (!poseFinite(v)) {
             // Keep the existing model at its last valid pose.
             if (existing[sid]) seen.add(sid);

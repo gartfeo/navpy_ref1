@@ -50,6 +50,16 @@ describe('useUavMarkers', () => {
     expect(t.offFrom(1, 0.01)).toBeLessThan(0.01);
   });
 
+  it('a snapshot without a position is a gap too, as for the trail', () => {
+    const t = setup();
+    for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
+    t.store.vehicles.set(1, { sys_id: 1, lat: null, lon: null, alt_rel: 100, heading: 90, roll: 0, pitch: 0 });
+    t.store.notify();
+    vi.advanceTimersByTime(5000);
+    t.store.send(1, 0.01);
+    expect(t.offFrom(1, 0.01)).toBeLessThan(0.01);
+  });
+
   it('without a gap a far sample is still eased into', () => {
     const t = setup();
     for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
