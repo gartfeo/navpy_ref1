@@ -49,7 +49,7 @@ Break work into discrete tasks, assign to specialist agents, track progress, res
 Before declaring done:
 - The Definition of Done in the root `AGENTS.md` holds
 - Code reviewer has approved
-- Tests pass: `PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -x -q --tb=short`
+- Tests pass: `PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8 -x -q --tb=short`
 
 ## Boundaries
 

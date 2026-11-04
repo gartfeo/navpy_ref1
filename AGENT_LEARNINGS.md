@@ -1395,7 +1395,7 @@
   memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
 - Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
   anything longer than a line.
-- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+- Before removing a temp worktree, put what matters from its .logs into git, kept small, then delete the rest (2026-11-04: logs are no longer kept outside git).
 
 ## Todo 105: bounded mission transfers (2026-10-23)
 
@@ -2356,6 +2356,8 @@
 
 - Editing frontend files while a live tester runs hot-reloads them into its app, so the run mixes
   versions. Finish edits (and mutation scripts) before starting a live run, or run it again.
+  Repeated twice in todo 264 (fixing review findings during live runs): while a live tester runs, put
+  review fixes on hold or draft them in the scratchpad (see todo 261 below), then edit after it ends.
 - I stripped CRLF with msys sed twice more despite the entry above. For any repo file, edit with the
   Edit tool or Python with newline=""; check with `file` before the diff.
 - A test helper that keyed drawn points by lon in a Map hid two heights for one shared point. Make
@@ -2363,3 +2365,52 @@
 - Async terrain samples per trail point: one request in flight per trail, chain only after a fully
   successful batch (else a point with no data loops), and redraw from the sample, not the next
   telemetry message.
+
+## UAV model lag, todo 261 (2026-11-04)
+
+- While a live tester ran in the worktree, I drafted the next revision in the scratchpad and tested it
+  there: a junction to the frontend's node_modules plus `vitest run --root <dir>` runs a pure helper
+  test without touching the worktree. Remove the junction with `rmdir`, never a recursive delete.
+- The newest folder under Codex's bin held only rg.exe, so the review silently did not run (exit 127
+  in its log). Pick the newest folder that contains codex.exe and check the log, not just exit 0.
+- A test track built by adding metres to an ECEF point is a straight line, so its ellipsoid height
+  rises with distance (0.16 m over 1.5 km). Compare heights with the sample's own height.
+- Smoothing that restarts a fixed multiple of the sample interval towards each new sample settles
+  that many intervals behind at constant speed; check the steady-state lag before tuning windows.
+
+## Slow full suite (2026-11-04)
+
+- **The suite ran in one process.** 11,146 tests took 19.5 min serial and
+  6 min on pytest-xdist `-n 8`. On an older main (7,714 tests) 60 tests used
+  58% of the serial 16 min (repo-scanning guards, lockstep fleet runs);
+  `-n 8` took 3.4 min, `-n 12` and `-n auto` (20) were slower, and 20 workers
+  ran out of memory (cv2 OutOfMemoryError) while other chats ran suites.
+- **Do not put `-n` in addopts.** Workers add about 8 s to a one-file run.
+- **pytest output hides `-X importtime`.** Add `-s`, or capture eats stderr.
+- **Wall-clock budgets fail under parallel load.** A 0.5 s budget in
+  test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
+  run under load failed two such checks too. Rerun alone before calling it a
+  regression.
+## Live trail segment, todo 264 (2026-11-04)
+
+- The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
+  is drawn only when something requests a render. Motion that goes on after telemetry stops (a model
+  easing back) is never shown unless a `scene.preUpdate` listener requests renders; preUpdate fires
+  every frame, before Cesium decides to render. Codex took three rounds to make me act on this.
+- A model that glides across a gap makes any line drawn to it bridge the gap: fix the gap rule in
+  the model (start a new motion), not in the line.
+- `find /` from Git Bash runs for an hour and outlives the agent that started it; tell live testers
+  not to search the whole disk, and check for leftover shells after they finish.
+
+## Elevon sweep and hitl5 design (2026-10-16)
+
+- **When the owner points to an earlier chat, read its transcript first.** The
+  owner's "archived" chats are in ~/.claude/projects/<project>/*.jsonl (the
+  customTitle field names them). I first answered from a later file and missed
+  the chat's own measurement list.
+- **Check a reading's definition before calling it inconsistent.** I flagged
+  the sweep's full-throw angles against "24 deg full throw"; that 24 deg was
+  pitch stick only, which is half throw at MIXING_GAIN 0.5. Read the stored
+  measurement note (it said so) before doubting new data.
+- **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
+  Fit a smooth curve and label it an approximation; ask for an up/down repeat.
