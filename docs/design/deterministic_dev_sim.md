@@ -163,6 +163,12 @@ The demo and daily development use the same lockstep run, watched and driven fro
   - The replay gives each item back at its tick on its side: the script's from a stand-in operator, which draws ids from the shared counter as the script did; the relay's after them, in their order. An item whose tick passed untaken, or an id the counter already passed, is a `replay_diverged` fault.
   - Same digest means the replay digest: the journal's chain without the script's `operator` notes (what its ports saw), the one record part a script-off replay cannot have. `replay_report.json` holds both replay digests, the first differing record, and whether the admitted actions and the inputs equal the run's; exit 0 only when all match.
   - `--stop-at N` ends the run after tick N's reply. The journal ends with a stop record (per SITL: clock, quiet helpers, port buffers; per member: role, generation, live, ready), and `lockstep_snapshot.json` adds the app's telemetry state and the open requests. `--pace` changes no digest.
+- **As built (step 13).**
+  - Firmware `67de804624` (branch `feat/navpy-serial-step-ftp`) runs helper threads only while the main loop waits at a frozen clock, and a new helper starts parked until the next clock step (`lockstep_contracts.md`, clock gate). So the FTP worker serves MAVFTP at fixed sim times, and the full-parameter read (`GET .../parameters`) works on lockstep (todo 245). The backend's MAVFTP client and its inbox run on `runtime_time`; the lint no longer exempts `_mavftp`.
+  - Scripted lockstep runs read each vehicle's full parameter table after connect, as the app's prewarm does, so every matrix cell runs MAVFTP.
+  - The coordinator no longer refuses the full-parameter read or the app's NavPy-sim start and stop (they go through the launcher port). It refuses the vision-profile edits, which write the source tree's `vision_profiles.json` (todo 264), and still the two zip downloads. The answer reads `not supported in simulation: <reason>`.
+  - The ESP32 HTTP simulator needed no change: it runs in-process, so its status shows no port.
+  - `--app-session-s N` (with `--app`): the app drives the run (connect, upload, launch, approvals). The script waits until every UAV reached its SNAP end, or N sim seconds, then stops the companions. The value is a run option, so the replay reads it back. An app session is scored on its run only (outcome, faults, operator), not by the scripted mission's gates.
 
 ## 6. Steps
 Each step is small and has its proof. Every step keeps the digest with all models off (`dd58131e…`, or a documented re-baseline; `d54e57b2…` since step 12's base, row 12).
@@ -203,5 +209,4 @@ A bug seen on hardware or in the old wall sim must first be reproduced in lockst
 ## Known gaps
 - Races between bytecodes with no primitive between them (section 1).
 - Delays are whole ticks (about 20 ms). `SCHED_LOOP_RATE 100` would give 10 ms ticks at about twice the cost (`lockstep_fleet.md:283`).
-- MAVFTP and the ESP32 HTTP simulator are wall-only until step 13.
 - Detector compute time on the Orin Nano is not measured; the freeze and budget models stand in for it until HITL measures it.
