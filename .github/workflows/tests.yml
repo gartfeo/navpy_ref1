@@ -9,8 +9,8 @@ on:
     branches: [main]
 
 # A new push to a PR cancels its older run. Each push to main gets its own
-# group (its run id), so every main push keeps a finished check; one shared group would
-# cancel queued or running main runs when pushes land close together.
+# group (its run id), so every main push keeps a finished check; one shared
+# group would cancel queued or running main runs when pushes land close together.
 concurrency:
   group: tests-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
   cancel-in-progress: true
