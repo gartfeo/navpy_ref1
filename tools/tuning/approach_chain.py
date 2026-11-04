@@ -224,21 +224,25 @@ class WindowsHandle:
         """Its pid came from Start-Process; nothing more to learn."""
 
 
-def unreal(paths: ChainPaths, lens_table: Path) -> ProcSpec:
+def unreal(paths: ChainPaths, lens_table: Path, scene: Path, scene_hash: str) -> ProcSpec:
+    """scene: the scenario service's file for Unreal (its dock pose), passed on unread. Ready once the camera is
+    mounted and Unreal has built this run's scene (scene_hash, public), which ends after its terrain sample."""
     log = paths.run_dir / "unreal.log"
     args = (win_path(paths.uproject), UNREAL_LEVEL, "-game", "-windowed", "-ResX=640", "-ResY=360",
             "-NavPyEnableNativeCameraStream=1", f"-NavPyNativeCameraHost={paths.wsl_ip}",
             "-NavPyInterpolatedVehiclePose=1", "-NavPyNativeCameraHeaderVersion=3",
             "-NavPyNativeCameraOverscan=80,48", "-NavPyNativeCameraBoardTimeCadence=1",
             "-NavPyNativeCameraFrameRate=30", "-NavPyNativeCameraWidth=1920", "-NavPyNativeCameraHeight=1080",
-            f"-NavPyLensProfile={win_path(lens_table)}", "-NoRayTracing", "-NoVSync", "-nosound",
+            f"-NavPyLensProfile={win_path(lens_table)}", f"-NavPyScenario={win_path(scene)}", "-NoRayTracing",
+            "-NoVSync", "-nosound",
             f"-abslog={win_path(log)}",
             "-ini:Game:[/Script/NavPyUnrealBridge.NavPyGimbalCameraActor]:bEnablePixelStreaming=False",
             "-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableTailPixelStreaming=False",
             "-ini:Game:[/Script/NavPyUnrealBridge.NavPyOperatorViewActor]:bEnableGimbalInset=False",
             "-ExecCmds=t.MaxFPS 60,ShowFlag.Rendering 0")        # the main view off (todo 186)
-    return ProcSpec("unreal", (UNREAL_EXE, *args), "NavPyCameraMount", READY_TIMEOUT_S["unreal"], stop_wait_s=90.0,
-                    ready_file=log, refuse=unreal_running, kind="windows")
+    ready = rf"(?s)(?=.*NavPyCameraMount)(?=.*NavPyScenario applied scene_hash={scene_hash}\b)"
+    return ProcSpec("unreal", (UNREAL_EXE, *args), ready, READY_TIMEOUT_S["unreal"], stop_wait_s=90.0,
+                    ready_file=log, refuse=unreal_running, kind="windows", refused=r"NavPyScenario refused: .*")
 
 
 def spawn_unreal(affinity: Optional[int]) -> Callable[[ProcSpec, IO[str]], WindowsHandle]:

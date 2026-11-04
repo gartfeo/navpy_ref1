@@ -11,7 +11,8 @@
   style patterns, or run the script through `bash -s` with a heredoc.
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
-  note). Insert or change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  note; twice more in HITL step 14, even with "\\n" in a quoted 'PYEOF' heredoc). Insert or
+  change code with the Edit tool, never a heredoc; check with `ast.parse`.
   A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
   (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
@@ -2266,6 +2267,21 @@
 - Python edits through Bash heredocs turn "\b" into a backspace byte; check edited files for \x08.
 - Under heavy PC load (other programs at 100% CPU) the Windows emulator took over 30 s to print its ready line;
   a smoke script must still stop what it started when a start fails.
+
+## HITL step 14: scenario isolation (2026-11-04)
+
+- Check every reader of a log before putting truth in it. The first design logged Unreal's dock readback, but the
+  runner reads unreal.log for Unreal's ready line, and the board pose lines were already there. With a scenario,
+  Unreal now writes the readback and board pose to a private file and logs only the scene hash and relative heights.
+- Git Bash `sed -i` rewrote a CRLF file as LF, and a later sed that matched "\r" then silently did nothing (a
+  missing include). Edit line-ending files on bytes in a Python script and check with `file` afterwards.
+- A poisoned-open test (builtins.open, io.open, os.open) proves nothing until it fails once: removing the manifest's
+  private-folder exclusion made it fail, as it should.
+- Escapes in edit scripts went wrong three more times in the review rounds: a regex \b became a backspace byte
+  and a \n in generated test code became a real newline, even from a quoted heredoc. Both showed only as
+  odd test failures. Write edit scripts with the Write tool, and grep the result for control bytes.
+- Changing a function's signature needs a search for every caller, tools included: Codex found the scene check
+  still calling the old chain.unreal, which only a test through the real call would have caught.
 
 ## Rehearsals (ready plan step 8, 2026-11-03)
 

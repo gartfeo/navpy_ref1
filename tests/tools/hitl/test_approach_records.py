@@ -11,6 +11,7 @@ from pathlib import Path
 
 import pytest
 
+from navpy.app.perception.integration_timing_input import load_integration_timing
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from tests.tools.hitl import media_fakes
 from tools.hitl import approach_records as ar
@@ -24,6 +25,11 @@ TIMING = IntegrationTimingConfig(run_id="r001-pc-sitl", mode="pc-sitl", source_i
                                  attitude_correction_s=0.004, gimbal_correction_s=-0.002)
 BRIDGE = ar.BridgeRun(plant="program", jsbsim_version="synthetic-1.0", integration_dt_s=1.0 / 1200.0,
                       loop_rate_hz=200.0, servo_speed_s=0.03)
+# A scenario's public half (tools/hitl/scenario_public.py): identity, lane and limits, never the dock pose.
+SCENARIO = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 3,
+            "scene_hash": "e" * 64, "consumers": ["unreal", "scoring"],
+            "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
+            "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
 
 
 @pytest.fixture(autouse=True)
@@ -62,7 +68,7 @@ def declaration_of(name: str, files_sha256: dict) -> dict:
 def make(folder: Path, **changes) -> dict:
     kwargs = dict(run_id="r001-pc-sitl", mode="pc-sitl", created=CREATED, model_input=declaration(folder),
                   model_dir=folder, bridge=BRIDGE, law="vision-nav-pn", sources=SOURCES,
-                  media_runtime=MEDIA, integration_timing=TIMING)
+                  media_runtime=MEDIA, integration_timing=TIMING, scenario=SCENARIO)
     kwargs.update(changes)
     return ar.new_record(**kwargs)
 
@@ -158,9 +164,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 3"),
-    (("schema_version",), 3.0, "must be 3"),
-    (("schema_version",), 2, "must be 3"),
+    (("schema_version",), True, "must be 4"),
+    (("schema_version",), 4.0, "must be 4"),
+    (("schema_version",), 3, "must be 4"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),
@@ -452,3 +458,14 @@ def test_integration_timing_of_another_run_is_refused(model_dir):
     other = IntegrationTimingConfig(**{**TIMING.__dict__, "run_id": "r002-pc-sitl"})
     with pytest.raises(RecordError, match="another run's"):
         make(model_dir, integration_timing=other)
+
+
+def test_navpy_reads_the_same_config_from_records_of_two_scenes(model_dir, tmp_path):
+    """navpy's only read of the record (its acquisition and timing input) does not change with the scene."""
+    other = {**SCENARIO, "seed_index": 4, "scene_hash": "f" * 64}
+    configs = []
+    for name, scenario in (("one.json", SCENARIO), ("two.json", other)):
+        path = tmp_path / name
+        path.write_text(json.dumps(make(model_dir, scenario=scenario)), encoding="utf-8")
+        configs.append(load_integration_timing(path))
+    assert configs[0] == configs[1] == TIMING
