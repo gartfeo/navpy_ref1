@@ -1,10 +1,14 @@
+import { isLockstepRun } from './simDeadline.js';
+
 /**
  * Fetch wrapper with exponential-backoff retry for network and server errors.
  *
  * Retries on: network exceptions (TypeError), 5xx, 408 (Request Timeout).
- * Does NOT retry on 4xx client errors (except 408).
+ * Does NOT retry on 4xx client errors (except 408), nor on a lockstep run,
+ * where a wall delay would decide whether a request enters the run.
  */
 export default async function fetchWithRetry(url, options = {}, { maxRetries = 2, baseDelay = 500 } = {}) {
+  if (isLockstepRun()) maxRetries = 0;
   for (let attempt = 0; ; attempt++) {
     try {
       const res = await fetch(url, options);
