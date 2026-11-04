@@ -184,6 +184,22 @@ def test_a_gap_before_admission_restarts_the_window_from_the_packet_after_it():
     assert source.state == ADMITTED
 
 
+
+def test_airspeed_without_fresh_status_never_counts_toward_the_window():
+    """Every counted packet needs fresh SYS_STATUS: 60 s of pitot alone, then a first status, admits nothing."""
+    source = _ready()
+    t = 1.0
+    for i in range(int(ADMIT_WINDOW_S * HZ) + 20):
+        t = 1.0 + i / HZ
+        source.observe_airspeed(0, CAS, USING, t)
+    source.observe_status(BITS, BITS, BITS, t + 0.01)
+    source.observe_airspeed(0, CAS, USING, t + 0.02)
+    assert source.state == PENDING
+    t = _feed(source, t + 0.05, ADMIT_WINDOW_S - 1.0)
+    assert source.state == PENDING
+    _feed(source, t + 1 / HZ, 1.2)
+    assert source.state == ADMITTED
+
 # -- the four source states, after admission: revoke, no readmission, no law input ----------------------------------
 @pytest.mark.parametrize("bad, reason", [
     ({"flags": USING | UNHEALTHY}, "sensor_unhealthy"),           # healthy -> unhealthy
@@ -272,6 +288,32 @@ def test_the_guard_sends_nothing_before_admission_or_after_a_revoke(monkeypatch)
             guarded.issue(1.0, 2.0, None)
     assert actuator.writes == [(1.0, 2.0, None)] and guarded.refused == 6
 
+
+
+def test_the_guard_holds_the_source_through_the_write_so_no_revoke_falls_between(monkeypatch):
+    """The check and the send are one step: during the send the bus thread cannot revoke (it would wait), and a
+    revoke that lands first leaves the send unsent."""
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr("navpy.app.approach.law_airspeed.rt.perf_counter", lambda: clock.now)
+    source, clock.now = _admitted()
+    held: list[bool] = []
+
+    class _Probe(_Actuator):
+        def issue(self, roll_deg, pitch_deg, throttle):
+            free = source._lock.acquire(blocking=False)
+            if free:
+                source._lock.release()
+            held.append(not free)
+            super().issue(roll_deg, pitch_deg, throttle)
+
+    actuator = _Probe()
+    guarded = LawAirspeed(source).guard(actuator)
+    guarded.issue(1.0, 2.0, None)
+    assert held == [True] and actuator.writes == [(1.0, 2.0, None)]
+    source.observe_airspeed(0, CAS, USING | UNHEALTHY, clock.now + 0.01)
+    with pytest.raises(AirspeedIneligible):
+        guarded.issue(1.0, 2.0, None)
+    assert actuator.writes == [(1.0, 2.0, None)]
 
 def test_a_plausible_hud_value_is_never_the_law_input():
     """Integration timing takes the eligible reader only: the vehicle's VFR_HUD airspeed is not read."""

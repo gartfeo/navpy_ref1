@@ -51,10 +51,10 @@ class AirspeedGuardedActuator:
         self.refused = 0
 
     def issue(self, roll_deg: float, pitch_deg: float, throttle: float | None) -> None:
-        if self._source.read(rt.perf_counter()) is None:
+        # The check and the send hold the source's lock together: no revoke can fall between them.
+        if self._source.read(rt.perf_counter(), lambda: self._actuator.issue(roll_deg, pitch_deg, throttle)) is None:
             self.refused += 1
             raise AirspeedIneligible(f"airspeed source {self._source.state}: {self._source.revoked or 'unproven'}")
-        self._actuator.issue(roll_deg, pitch_deg, throttle)
 
 
 class LawAirspeed:

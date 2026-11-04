@@ -85,6 +85,21 @@ class _Latest:
     status_s: float | None = None
 
 
+
+def _usable(state: str, latest: _Latest, counts: dict[str, int],
+            now_s: float) -> tuple[float | None, tuple[str, float | None] | None]:
+    """(value, None) when admitted and fresh; (None, (reason, age_s)) when found stale; the caller holds the lock."""
+    if state != ADMITTED:
+        counts["refused_reads"] += 1
+        return None, None
+    for reason, seen_s, max_age_s in ((SENSOR_STALE, latest.airspeed_s, AIRSPEED_MAX_AGE_S),
+                                      (STATUS_STALE, latest.status_s, STATUS_MAX_AGE_S)):
+        if seen_s is None or now_s - seen_s > max_age_s:
+            counts["refused_reads"] += 1
+            return None, (reason, None if seen_s is None else now_s - seen_s)
+    counts["reads"] += 1
+    return latest.airspeed, None
+
 @dataclass
 class _Window:
     """The healthy window: its first good packet's time and the good packets after it."""
@@ -190,9 +205,13 @@ class AirspeedEligibility:
         with self._lock:
             # A good packet; after a gap before admission it starts the new window.
             self._latest.airspeed, self._latest.airspeed_s = float(airspeed), now_s
-            # The window opens only once the claim is acknowledged and the pins hold, so it measures the claim.
+            status_fresh = self._latest.status_s is not None and now_s - self._latest.status_s <= STATUS_MAX_AGE_S
+            # The window opens only once the claim is acknowledged and the pins hold, so it measures the claim; a
+            # packet without fresh SYS_STATUS restarts it, so every counted packet had a healthy status beside it.
             if self._state == PENDING and self._setup.ready:
-                if self._window.start_s is None:
+                if not status_fresh:
+                    self._window = _Window()
+                elif self._window.start_s is None:
                     self._window = _Window(now_s, 0)
                 else:
                     self._window.count += 1
@@ -213,25 +232,17 @@ class AirspeedEligibility:
             self._latest.status_s = now_s
 
     # -- law input ---------------------------------------------------------------------------------------------
-    def read(self, now_s: float) -> float | None:
-        """The airspeed (m/s) the law may use now, else None. A stale source found here revokes."""
+    def read(self, now_s: float, send: Callable[[], None] | None = None) -> float | None:
+        """The airspeed (m/s) the law may use now, else None; a stale source found here revokes. ``send`` runs only
+        when the value is usable, with the state lock held through it, so a revoke on the bus thread lands wholly
+        before (nothing sent) or after the send; it must not wait on the bus."""
         with self._lock:
-            state, latest = self._state, _Latest(**vars(self._latest))
-            if state != ADMITTED:
-                self.counts["refused_reads"] += 1
-                return None
-        if latest.airspeed_s is None or now_s - latest.airspeed_s > AIRSPEED_MAX_AGE_S:
-            self._revoke(SENSOR_STALE, now_s, age_s=None if latest.airspeed_s is None else now_s - latest.airspeed_s)
-            return None
-        if latest.status_s is None or now_s - latest.status_s > STATUS_MAX_AGE_S:
-            self._revoke(STATUS_STALE, now_s, age_s=None if latest.status_s is None else now_s - latest.status_s)
-            return None
-        with self._lock:
-            if self._state != ADMITTED:
-                self.counts["refused_reads"] += 1
-                return None
-            self.counts["reads"] += 1
-        return latest.airspeed
+            value, stale = _usable(self._state, self._latest, self.counts, now_s)
+            if value is not None and send is not None:
+                send()
+        if stale is not None:
+            self._revoke(stale[0], now_s, age_s=stale[1])
+        return value
 
     # -- internals ---------------------------------------------------------------------------------------------
     def _try_admit(self, now_s: float) -> None:
