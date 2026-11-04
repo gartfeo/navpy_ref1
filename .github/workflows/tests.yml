@@ -14,15 +14,20 @@ concurrency:
 
 jobs:
   pytest:
-    runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # Windows, like the development PCs: many tests use Windows paths and WSL.
+    runs-on: windows-latest
+    timeout-minutes: 40
     steps:
+      # Full history: guards read pinned base commits.
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
           cache: pip
-      - run: pip install -e ".[test]"
+      # The default suite imports the GCS backend too.
+      - run: pip install -e ".[test]" -r src/gcs/requirements.txt
       # A public-repo runner has 4 cores.
       - run: python -m pytest tests -n 4 -q
         env:
