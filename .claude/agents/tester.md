@@ -34,7 +34,10 @@ You are the **Test Engineer** for NavPy, a cooperative UAV swarm framework. You 
 ### Running Tests
 
 ```bash
-# All tests
+# Tests the change affects (pytest-testmon; misses non-Python files, see AGENTS.md)
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ --testmon -x -q --tb=short
+
+# Whole default suite (CI runs it on every PR)
 PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8 -x -q --tb=short
 
 # Specific test file

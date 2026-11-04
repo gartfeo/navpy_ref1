@@ -89,7 +89,8 @@ round-trip examples.
 Tests live under `tests/`:
 
 ```bash
-PYTHONPATH="$PWD/src" python -m pytest tests -n 8   # pytest-xdist, from the test extra
+PYTHONPATH="$PWD/src" python -m pytest tests --testmon   # affected tests only (pytest-testmon)
+PYTHONPATH="$PWD/src" python -m pytest tests -n 8        # whole default suite (pytest-xdist); CI runs it on every PR
 ```
 
 The repository targets Python 3.9+ (`requires-python` in `pyproject.toml`) and

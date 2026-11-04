@@ -1,0 +1,29 @@
+# Full default suite (it skips tests/gcs) on every pull request and push to
+# main. Local runs use `pytest --testmon` (affected tests only, see AGENTS.md),
+# which misses changes in non-Python files, so this run is the merge gate.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      - run: pip install -e ".[test]"
+      # A public-repo runner has 4 cores.
+      - run: python -m pytest tests -n 4 -q
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src
