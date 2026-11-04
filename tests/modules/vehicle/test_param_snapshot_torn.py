@@ -12,6 +12,7 @@ from types import SimpleNamespace
 from unittest import mock
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot._mavftp._upstream_mavftp import MAVFTP
 
 from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT,
@@ -21,6 +22,7 @@ from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     ParamPckError,
     parse_param_pck,
 )
+from navpy.plugins.vehicle.ardupilot._mavftp.vehicle_ftp import VehicleFtp
 from navpy.plugins.vehicle.ardupilot.parameter_snapshot import (
     TORN_PCK_FETCHES,
     ParameterSnapshotClient,
@@ -47,7 +49,23 @@ def _torn() -> bytes:
     return before[:20] + after[20:]
 
 
+def _real_ftp() -> VehicleFtp:
+    """A VehicleFtp over the real MAVFTP client, with a silent link."""
+    master = SimpleNamespace(
+        mav=SimpleNamespace(file_transfer_protocol_send=lambda *_a, **_k: None),
+        recv_match=lambda **_k: None,
+    )
+    adapter = VehicleFtp.__new__(VehicleFtp)
+    adapter.ftp = MAVFTP(master, target_system=1, target_component=1)
+    return adapter
+
+
+SHORTEST_TIMEOUT_S = _real_ftp().shortest_timeout_s
+
+
 class _StubFtp:
+    shortest_timeout_s = SHORTEST_TIMEOUT_S
+
     def __init__(self, blobs) -> None:
         self.blobs = list(blobs)
         self.fetches = 0
@@ -58,6 +76,8 @@ class _StubFtp:
 
     def fetch_param_pck(self, *, timeout: float, **_kwargs) -> bytes:
         self.fetches += 1
+        # The real client refuses this (process_ftp_reply's assert).
+        assert timeout > self.shortest_timeout_s, timeout
         self.timeouts.append(timeout)
         self.now += self.cost
         return self.blobs.pop(0)
@@ -78,7 +98,7 @@ class TestTornParamPck(unittest.TestCase):
 
     def test_torn_blob_is_fetched_again(self):
         client, ftp = _client([_torn(), _pck(2.5)])
-        snapshot = client.fetch(timeout=1.0)
+        snapshot = client.fetch(timeout=30.0)
         self.assertEqual(ftp.fetches, 2)
         first = snapshot.pck.records[0]
         self.assertEqual((first.value, first.default), (2.5, 2.0))
@@ -86,11 +106,13 @@ class TestTornParamPck(unittest.TestCase):
     def test_refetch_is_bounded(self):
         client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
         with self.assertRaises(ParamPckError):
-            client.fetch(timeout=1.0)
+            client.fetch(timeout=30.0)
         self.assertEqual(ftp.fetches, TORN_PCK_FETCHES)
 
-    def test_every_layout_join_is_refused_or_one_whole_table(self):
-        # A gap read joins one layout's head to the other's tail at some cut.
+    def test_every_head_tail_join_is_refused_or_one_whole_table(self):
+        # One layout's head joined to the other's tail at any cut. An interior
+        # gap (old head, new middle, old tail) can parse as a mixed table:
+        # todo 272 keeps that open.
         a, b = _pck(2.0), _pck(2.5)
         wholes = {parse_param_pck(x, defaults_requested=True).records for x in (a, b)}
         for before, after in ((a, b), (b, a)):
@@ -107,20 +129,25 @@ class TestTornParamPck(unittest.TestCase):
         ftp.cost = 4.0
         with mock.patch.object(rt, "monotonic", lambda: ftp.now):
             with self.assertRaises(ParamPckError):
-                client.fetch(timeout=10.0)
-        self.assertEqual(ftp.timeouts, [10.0, 6.0, 2.0])
+                client.fetch(timeout=20.0)
+        self.assertEqual(ftp.timeouts, [20.0, 16.0, 12.0])
 
-    def test_no_refetch_once_the_timeout_is_spent(self):
+    def test_no_refetch_when_the_rest_is_too_short_for_the_client(self):
         client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
-        ftp.cost = 10.0
+        ftp.cost = 10.0 - SHORTEST_TIMEOUT_S  # leaves exactly the shortest
         with mock.patch.object(rt, "monotonic", lambda: ftp.now):
             with self.assertRaises(ParamPckError):
                 client.fetch(timeout=10.0)
         self.assertEqual(ftp.fetches, 1)
 
+    def test_the_real_client_refuses_the_shortest_timeout(self):
+        adapter = _real_ftp()
+        with self.assertRaisesRegex(AssertionError, "idle_detection_time"):
+            adapter.ftp.process_ftp_reply("OpenFileRO", timeout=adapter.shortest_timeout_s)
+
     def test_good_blob_is_fetched_once(self):
         client, ftp = _client([_pck(2.0)])
-        client.fetch(timeout=1.0)
+        client.fetch(timeout=30.0)
         self.assertEqual(ftp.fetches, 1)
 
 

@@ -80,13 +80,15 @@ class ParameterSnapshotClient:
         for attempt in range(1, TORN_PCK_FETCHES + 1):
             data = self._ftp.fetch_param_pck(
                 with_defaults=with_defaults,
-                timeout=max(0.0, deadline - rt.monotonic()),
+                timeout=timeout if attempt == 1 else deadline - rt.monotonic(),
                 progress_callback=progress_callback,
             )
             try:
                 return parse_param_pck(data, defaults_requested=with_defaults)
             except ParamPckError as exc:
-                if attempt == TORN_PCK_FETCHES or rt.monotonic() >= deadline:
+                # A fetch needs more than the client's idle-detection time.
+                left = deadline - rt.monotonic()
+                if attempt == TORN_PCK_FETCHES or left <= self._ftp.shortest_timeout_s:
                     raise
                 log.warning(
                     "param.pck for sys_id=%d is torn (%s); fetching again "
