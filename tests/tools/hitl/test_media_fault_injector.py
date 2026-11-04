@@ -129,6 +129,38 @@ def test_aged_frames_are_discarded_never_published_late(tmp_path):
     assert wrapped.counts["discarded_aged"] == 1
 
 
+def test_a_released_frame_is_published_on_its_age_check_before_any_slow_log_write(tmp_path):
+    clock = _Clock()
+    backend = _Backend(8, clock)
+    wrapped = mfi.MediaFaultWrapper(spec.parse("delay:1"), tmp_path / "fault.jsonl", clock)(backend, _Logger())
+    write = wrapped._log.write
+
+    def slow_write(record):                              # each log line stalls the capture thread 0.3 s
+        write(record)
+        clock.now += 0.3
+    wrapped._log.write = slow_write
+    ages = []
+    wrapped.run(lambda frame, stamp: ages.append(clock.now - stamp.captured_at_s), lambda: True)
+    wrapped.close()
+    # Each held frame is 0.33 s old when the next arrives (under the bound): it goes out at that age, not after the
+    # 0.3 s write that follows.
+    assert len(ages) == 7 and max(ages) == pytest.approx(0.3 + PERIOD_S)
+
+
+def test_a_failed_close_summary_still_frees_the_held_frames_and_the_log(tmp_path):
+    clock = _Clock()
+    backend = _Backend(4, clock)
+    wrapped = mfi.MediaFaultWrapper(spec.parse("delay:2"), tmp_path / "fault.jsonl", clock)(backend, _Logger())
+    wrapped.run(lambda frame, stamp: None, lambda: True)
+
+    def full_disk(record):
+        raise OSError("no space left on device")
+    wrapped._log.write = full_disk
+    with pytest.raises(OSError):
+        wrapped.close()
+    assert backend.closed and not wrapped._held and wrapped._log._file.closed
+
+
 # ---- loss -----------------------------------------------------------------------------------------------------------
 def test_total_loss_publishes_nothing_after_its_start(tmp_path):
     clock = _Clock()

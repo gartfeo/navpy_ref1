@@ -85,8 +85,8 @@ class FaultInjectingCapture:
         record: dict[str, Any] = {"event": "frame", "at_s": self._clock(), **_identity(capture)}
         if self.counts["decoded"] <= self._spec.after_frames:
             record["action"] = PASS
-            self._count_and_log(record)
             publish(frame, capture)
+            self._count_and_log(record)
             return
         if self._spec.kind == LOSS:
             record["action"] = DROP
@@ -103,9 +103,9 @@ class FaultInjectingCapture:
         outcome = DISCARDED_AGED if age_s > self._spec.max_hold_s else RELEASED
         record[outcome] = {**_identity(late_capture), "age_s": age_s}
         self.counts[outcome] += 1
-        self._count_and_log(record)
-        if outcome == RELEASED:
+        if outcome == RELEASED:                      # published at once on its age check: no log I/O between
             publish(late_frame, late_capture)        # the stamp it was read with: never retimestamped
+        self._count_and_log(record)
 
     def _count_and_log(self, record: dict[str, Any]) -> None:
         self.counts[record["action"]] += 1
@@ -118,9 +118,11 @@ class FaultInjectingCapture:
         try:
             self._inner.close()
         finally:
-            self._log.write({"event": "close", **self.counts, "left_held": len(self._held)})
-            self._held.clear()
-            self._log.close()
+            try:
+                self._log.write({"event": "close", **self.counts, "left_held": len(self._held)})
+            finally:                                 # a failed summary still frees the frames and the file
+                self._held.clear()
+                self._log.close()
 
 
 class MediaFaultWrapper:
