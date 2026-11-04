@@ -596,18 +596,35 @@ def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_
     assert events == ["run", "app stop failed", "fleet stopped", "released"]
 
 
-def test_an_app_session_script_only_waits_then_stops_the_companions(tmp_path, monkeypatch):
-    """Step 13: with ``app_session_s`` the app drives the run; the script runs no mission."""
-    calls = []
-    clock = SimpleNamespace(sleep=lambda seconds: calls.append(("sleep", seconds)))
-    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: SimpleNamespace(clock=clock))
+class _SessionClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.mark.parametrize(("snap_at", "slept"), [(5.0, 5.0), (None, 10.0)])
+def test_an_app_session_script_waits_for_the_snap_ends_or_its_length_then_stops_the_companions(
+        tmp_path, monkeypatch, snap_at, slept):
+    """Step 13: with ``app_session_s`` the app drives the run; the script runs no
+    mission. It returns once every UAV reached its SNAP end (the coordinator's
+    finalization then waits for it), or when the session ends."""
+    calls, clock = [], _SessionClock()
+    context = SimpleNamespace(clock=clock)
+    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: context)
+    monkeypatch.setattr(lockstep_eval, "all_have_snap",
+                        lambda ctx: ctx is context and snap_at is not None and clock.now >= snap_at)
     monkeypatch.setattr(lockstep_eval, "run_mission", lambda *a: pytest.fail("ran the scripted mission"))
-    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: calls.append(("stop",)))
+    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: calls.append(("stop", clock.now)))
     operator = SimpleNamespace(wait_ready=lambda ordinal: calls.append(("ready", ordinal)))
-    options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=900.0)
+    options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=10.0)
     outcome = lockstep_eval.operator_script(SLICE, tmp_path, options)(operator)
     assert outcome == {"approvals": [], "error": None}
-    assert calls == [("ready", fleet_layout(SLICE).backend), ("sleep", 900.0), ("stop",)]
+    assert calls == [("ready", fleet_layout(SLICE).backend), ("stop", slept)]
 
 
 def test_the_app_session_is_a_recorded_run_option_the_replay_reads_back(tmp_path, monkeypatch, no_claim):

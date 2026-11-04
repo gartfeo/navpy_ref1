@@ -63,8 +63,8 @@ from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_app import ACTIONS_FILE, operator_side, write_actions
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
 from scripts.eval_gcs_demo_lockstep_wiring import WIRING, fleet_layout, require_wired
-from scripts.eval_gcs_demo_mission import run_mission
-from scripts.eval_gcs_demo_models import RegressionError
+from scripts.eval_gcs_demo_mission import all_have_snap, run_mission
+from scripts.eval_gcs_demo_models import RegressionError, StackContext
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
 from scripts.eval_gcs_demo_sitl_root import SITL_START_TIME_UTC, terrain_tiles
@@ -92,6 +92,10 @@ EPOCH_US = SITL_START_TIME_UTC * 1_000_000
 #: first, as an ``operator_returned`` outcome; this bounds an operator that
 #: keeps waiting past them.
 MISSION_BUDGET_S = 3600.0
+#: How often an app session (step 13) looks for the fleet's SNAP ends, in sim
+#: seconds: well inside the coordinator's 30 s finalization budget, which starts
+#: at the last SNAP and waits for the operator to return.
+APP_SESSION_POLL_S = 1.0
 #: Host supervision of the participants (registration, a DONE, an exit).
 WALL_BUDGETS = WallBudgets(register_s=120, done_s=120, exit_s=60)
 #: The outcome of a run a ``ParticipantFault`` ended: no coordinator result exists.
@@ -172,7 +176,7 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
         outcome: dict = {"approvals": [], "error": None}
         try:
             if options.app_session_s is not None:  # the app connects, uploads, launches
-                context.clock.sleep(options.app_session_s)
+                app_session(context, options.app_session_s)
             else:
                 mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s)
                 outcome["approvals"] = mission.approvals
@@ -187,6 +191,14 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
         return outcome
 
     return script
+
+
+def app_session(context: StackContext, session_s: float) -> None:
+    """The app drives the run: wait until every UAV reached its SNAP end, as the
+    scripted mission's approval loop does, or until ``session_s`` sim seconds passed."""
+    deadline = context.clock.monotonic() + session_s
+    while not all_have_snap(context) and context.clock.monotonic() < deadline:
+        context.clock.sleep(APP_SESSION_POLL_S)
 
 
 def lockstep_operator(ids: RequestIds, scenario: DemoScenario, run_dir: Path,
