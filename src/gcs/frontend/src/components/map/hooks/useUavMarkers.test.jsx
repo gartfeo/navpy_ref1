@@ -30,7 +30,7 @@ function setup() {
   const preUpdate = new Set();
   const scene = {
     requestRender: vi.fn(),
-    preUpdate: { addEventListener: (fn) => preUpdate.add(fn), removeEventListener: (fn) => preUpdate.delete(fn) },
+    preUpdate: { addEventListener: (fn) => { preUpdate.add(fn); return () => preUpdate.delete(fn); } },
   };
   const viewer = { current: { entities, scene } };
   const entitiesRef = { current: {} };
@@ -102,9 +102,18 @@ describe('useUavMarkers', () => {
     expect(rendered.slice(2, 20).every(Boolean)).toBe(true);
     // ...on the last sample, then nothing more.
     expect(rendered.at(-1)).toBe(false);
+    expect(rendered.filter(Boolean).length).toBeLessThan(rendered.length - 10);
     expect(t.offFrom(1, 0.0025)).toBeLessThan(0.01);
     t.hook.unmount();
     expect(t.preUpdate.size).toBe(0);
+  });
+
+  it('a stall across the settling still draws the model at rest once', () => {
+    const t = setup();
+    for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
+    vi.advanceTimersByTime(5000); // no frame ran meanwhile
+    expect(t.frame()).toBe(true);
+    expect(t.frame()).toBe(false);
   });
 
   it('without a gap a far sample is still eased into', () => {

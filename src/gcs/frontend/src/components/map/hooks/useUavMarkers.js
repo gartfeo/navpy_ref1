@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
-import { positionAt, orientationAt, advanceAnim, animSettling, setGround } from '../utils/lerpAnim';
+import { positionAt, orientationAt, advanceAnim, animAtRest, animSettling, setGround } from '../utils/lerpAnim';
 import { poseFinite } from '../../../utils/fpvView';
 import { uavModelOrientation } from '../utils/uavOrientation';
 
@@ -22,7 +22,8 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * The viewer renders on request (requestRenderMode), and each store update
  * requests one. When a UAV's samples stop, its model slows and eases back
  * onto its last sample with no update to show it, so every frame checks
- * (scene.preUpdate) whether a model is settling and then requests a render.
+ * (scene.preUpdate) whether a model is settling and then requests a render,
+ * and one more once it is at rest, in case frames skipped the settling.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -163,19 +164,24 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
     }
 
     // Render while a model settles (the trail's live segment shrinks with it).
+    const restDrawn = new WeakSet();
     function onPreUpdate() {
       const now = Date.now();
+      let render = false;
       for (const a of Object.values(animRef.current)) {
-        if (animSettling(a, now)) { viewer.scene.requestRender(); return; }
+        if (animSettling(a, now)) render = true;
+        else if (!restDrawn.has(a) && animAtRest(a, now)) { restDrawn.add(a); render = true; }
       }
+      if (render) viewer.scene.requestRender();
     }
 
     update();
     const unsubscribe = storeRef.current.subscribe(update);
-    viewer.scene.preUpdate.addEventListener(onPreUpdate);
+    // The remover holds the event itself, so it works after the viewer is destroyed.
+    const removePreUpdate = viewer.scene.preUpdate.addEventListener(onPreUpdate);
     return () => {
       unsubscribe();
-      viewer.scene.preUpdate.removeEventListener(onPreUpdate);
+      removePreUpdate();
     };
   }, [viewerReady]);
 }
