@@ -110,6 +110,8 @@ def add(tables, host, procs=(), socks=()):
     (("C:\\Py\\python.exe", "-W", "ignore", "-m", "tools.tuning.hitl_bridge"), ("bridge",)),
     (("python", "run.py", "-m", "tools.tuning.hitl_bridge"), ()),          # a script's own arguments
     (("python", "-c", "import x", "-m", "aas_hitl.zr10"), ()),
+    (("C:\Py\pythonw.exe", "-m", "tools.hitl.zr10_emulator"), ("emulator",)),
+    (("pyw", "-3.11", "-m", "aas_hitl", "zr10", "emulate"), ("emulator",)),
     # Found live: a shell whose command text names the emulator (Windows command lines split on spaces).
     (("C:\\Git\\bin\\bash.exe", "-c", "source", "s.sh", "&&", "py", "-3.11", "-m", "aas_hitl.zr10"), ()),
 ])
@@ -228,7 +230,32 @@ def test_a_second_copy_inside_the_roles_own_tree_is_a_second_owner(role):
     host, proc = COPIES[role]
     result = census(add(chain_tables(), host, (proc,)))
     assert result["roles"][role]["owners"] == [role] and not result["ok"]
-    assert result["problems"][0].endswith(f"2 copies on {host}")
+    assert result["problems"][0].endswith(f"2 or more copies on {host}")
+
+
+def test_a_second_holder_of_a_role_socket_inside_its_own_tree_is_a_second_owner():
+    """A copy whose command line Windows does not show (or a windowed Python) is still seen by its socket."""
+    hidden = Proc(WINDOWS, 5003, 5001, ())
+    result = census(add(chain_tables(), WINDOWS, (hidden,), (Sock(WINDOWS, "udp", 37260, "bound", 5003),)))
+    assert result["roles"]["emulator"]["owners"] == ["emulator"] and not result["ok"]
+    assert result["problems"][0].endswith("2 or more copies on windows emulator sockets")
+
+
+def test_a_hidden_copy_holding_the_roles_other_socket_is_a_second_owner():
+    """Codex round 3: the emulator holds 37260, a child with no command line holds 17113: two processes, one unit."""
+    hidden = Proc(WINDOWS, 5003, 5001, ())
+    tables = chain_tables()
+    tables[1] = replace(tables[1], procs=tables[1].procs + (hidden,),
+                        socks=tuple(replace(s, pid=5003) if s.local_port == 17113 else s for s in tables[1].socks))
+    result = census(tables)
+    assert not result["ok"] and result["problems"][0].endswith("2 or more copies on windows emulator sockets")
+
+
+def test_the_publishers_two_servers_may_be_two_processes():
+    """Live run 3: the native server (18110) and the RTSP server (18554) are separate publisher processes."""
+    tables = chain_tables()
+    wsl_socks = {s.local_port: s.pid for s in tables[0].socks if s.local_port in (18110, 18554)}
+    assert len(set(wsl_socks.values())) == 2 and census(tables)["ok"]
 
 
 def test_a_role_with_no_owner_fails():

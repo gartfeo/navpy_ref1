@@ -572,6 +572,8 @@
   spy on it once to confirm it really ran on the baton.
 - **Run codex exec with stdin closed.** In a background shell it waits on
   "Reading additional input from stdin..." until the timeout. Add < /dev/null.
+  Missed again in HITL step 17 (2026-11-04): round 3 sat 3 hours at 0.6 s CPU.
+  Check the log's last line before suspecting login or the app-server.
 - **Keep scratch scripts out of shared temp folders.** A stray dis.py in the
   temp folder shadowed the stdlib; use a task-specific directory.
 

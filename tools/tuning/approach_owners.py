@@ -28,7 +28,7 @@ from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional
 
 from tools.tuning import approach_chain as chain
-from tools.tuning.approach_procs import RunnerError
+from tools.tuning.approach_procs import ProcessGroup, RunnerError
 from tools.tuning.approach_tables import WINDOWS, WSL, Proc, Sock, Tables, windows_tables, wsl_tables
 
 ROLE_OWNER = {"autopilot": "backing", "bridge": "bridge", "emulator": "emulator", "publisher": "publisher"}
@@ -42,17 +42,18 @@ class PortRule:
     port: int
     state: str                          # "listen", "bound" (UDP) or "client" (a TCP connection to it)
     allowed: str                        # the owned role that may hold it without being the role's owner
+    unit: str                           # the one process that holds it; rules with the same unit share it
 
 
 PORT_RULES = (
-    PortRule("autopilot", "tcp", chain.SITL_PORT, "listen", "backing"),
-    PortRule("autopilot", "tcp", chain.HIL_PORT, "listen", "backing"),
-    PortRule("autopilot", "tcp", chain.SITL_PORT, "client", "router"),     # a second MAVLink serial owner
-    PortRule("bridge", "tcp", chain.HIL_PORT, "client", "bridge"),
-    PortRule("emulator", "udp", chain.SIYI_PORT, "bound", "emulator"),
-    PortRule("emulator", "udp", chain.VEHICLE_STATE_PORT, "bound", "emulator"),
-    PortRule("publisher", "tcp", chain.NATIVE_PORT, "listen", "publisher"),
-    PortRule("publisher", "tcp", chain.RTSP_PORT, "listen", "publisher"),
+    PortRule("autopilot", "tcp", chain.SITL_PORT, "listen", "backing", "sitl"),
+    PortRule("autopilot", "tcp", chain.HIL_PORT, "listen", "backing", "sitl"),
+    PortRule("autopilot", "tcp", chain.SITL_PORT, "client", "router", "serial0 client"),  # a second serial owner
+    PortRule("bridge", "tcp", chain.HIL_PORT, "client", "bridge", "bridge"),
+    PortRule("emulator", "udp", chain.SIYI_PORT, "bound", "emulator", "emulator"),
+    PortRule("emulator", "udp", chain.VEHICLE_STATE_PORT, "bound", "emulator", "emulator"),
+    PortRule("publisher", "tcp", chain.NATIVE_PORT, "listen", "publisher", "native server"),
+    PortRule("publisher", "tcp", chain.RTSP_PORT, "listen", "publisher", "rtsp server"),
 )
 # Programs by the module they run (``-m MODULE``): navpy's and aas-hitl's implementations of each role. aas-hitl's
 # CLI by its command (cli.py): ``run`` is its flight launcher with the truth bridge, ``sitl start|mission`` its SITL.
@@ -63,7 +64,7 @@ AAS_HITL_COMMANDS = {("run",): ("autopilot", "bridge"), ("sitl", "start"): ("aut
                      ("video", "publish"): ("publisher",)}
 
 
-INTERPRETER = re.compile(r"(python[\d.]*|py)(\.exe)?", re.IGNORECASE)
+INTERPRETER = re.compile(r"(python[\d.]*w?|pyw?)(\.exe)?", re.IGNORECASE)     # pythonw/pyw: windowed
 NICE = re.compile(r"nice(\.exe)?", re.IGNORECASE)
 ARG_OPTIONS = ("-W", "-X", "-Q")       # interpreter options that take the next word
 
@@ -146,7 +147,7 @@ class Owners:
         return image.lower() == WSL_RELAY      # its command line holds only its arguments
 
 
-def group_owners(group) -> tuple[dict[int, str], dict[int, str]]:
+def group_owners(group: ProcessGroup) -> tuple[dict[int, str], dict[int, str]]:
     """The runner's roles by WSL process-tree root and by Windows pid (Unreal; the emulator's own Windows Python)."""
     wsl, windows = {}, {}
     for owned in group.owned:
@@ -173,7 +174,7 @@ def claims(tables: Iterable[Tables], owners: Owners) -> dict[str, list[dict]]:
                 owner = owners.of(sock.host, sock.pid)
                 if rule.state == "client" and owner == rule.allowed and rule.allowed != ROLE_OWNER[rule.role]:
                     continue            # the router: the one expected client of serial0
-                found[rule.role].append({"owner": owner, "host": sock.host, "pid": sock.pid,
+                found[rule.role].append({"owner": owner, "host": sock.host, "pid": sock.pid, "unit": rule.unit,
                                          "what": f"{rule.proto} {rule.state} {rule.port}"})
         for proc in table.procs:
             if owners.is_self(proc):
@@ -193,6 +194,9 @@ def verdict(found: Mapping[str, list[dict]], running: bool) -> dict:
         holders = sorted({item["owner"] for item in items})
         hosts = [item["host"] for item in items if item.get("instance")]
         copies = sorted({host for host in hosts if hosts.count(host) > 1})
+        units = {(i["host"], i["unit"]) for i in items if "unit" in i}   # one process per unit: a hidden copy shows
+        pids_of = {key: {i["pid"] for i in items if (i["host"], i.get("unit")) == key} for key in units}
+        copies += sorted(f"{host} {unit} sockets" for (host, unit), pids in pids_of.items() if len(pids) > 1)
         ok = (holders == [ROLE_OWNER[role]] and not copies) if running else not holders
         roles[role] = {"owners": holders, "claims": items, "ok": ok}
         if not ok:
@@ -201,11 +205,11 @@ def verdict(found: Mapping[str, list[dict]], running: bool) -> dict:
                        if item["owner"] != ROLE_OWNER[role] or not running]
             problems.append(f"{role}: {want}, found {holders or 'none'}" + (f" ({'; '.join(foreign)})" if foreign
                                                                              else "")
-                            + "".join(f"; {hosts.count(host)} copies on {host}" for host in copies))
+                            + "".join(f"; 2 or more copies on {where}" for where in copies))
     return {"ok": not problems, "roles": roles, "problems": problems}
 
 
-def census(group, tables: Callable[[], list[Tables]], own_pid: int, running: bool) -> dict:
+def census(group: ProcessGroup, tables: Callable[[], list[Tables]], own_pid: int, running: bool) -> dict:
     """One census; a table that cannot be read fails it (unknown is not free)."""
     try:
         taken = tables()
@@ -223,7 +227,7 @@ def host_tables() -> list[Tables]:
     return [wsl_tables(), windows_tables(subprocess.run)]
 
 
-def check(run: dict, group, phase: str, tables: Optional[Callable[[], list[Tables]]] = None) -> None:
+def check(run: dict, group: ProcessGroup, phase: str, tables: Optional[Callable[[], list[Tables]]] = None) -> None:
     """The runner's census at *phase*, recorded in ``run["owners"]``. Before the run nothing may own a role and
     once the chain is up each has exactly its own owner: a failure there raises. At the end it is only recorded (the
     run's stop must still run), and only once the chain came up."""
