@@ -254,7 +254,8 @@ def test_rate_navigation_is_invariant_to_wall_clock_speedup(speedup: float):
         tracker.update(sample)
 
     reference = _navigation_reference_commands()
-    assert actuator.commands == pytest.approx(reference)
+    # Exact: approx never looked inside these (yaw, pitch) tuples, and pytest 9.2 rejects them.
+    assert actuator.commands == reference
 
 
 def _navigation_reference_commands() -> list[tuple[float, float]]:

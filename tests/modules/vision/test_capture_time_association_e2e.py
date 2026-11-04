@@ -33,6 +33,7 @@ DA0_S = 0.012           # fixed ATTITUDE transport delay
 DC0_S = 0.180           # fixed camera-path delay (a real latent camera)
 ATTITUDE_PERIOD_S = 0.025
 BASE_S = 1000.0
+PUBLISH_AFTER_READ_S = 0.001  # the store publishes just after the camera read
 
 
 def _truth_roll(at_s: float) -> float:
@@ -102,9 +103,10 @@ def _associate(
     history=None,
 ):
     """One frame through the REAL publication store and association builder."""
-    store = FramePublicationStore()
-    frame = np.zeros((480, 640, 3), dtype=np.uint8)
     read_s = exposure_s + DC0_S + camera_jitter_s
+    # Publication on the test's capture clock, not the host's time since boot.
+    store = FramePublicationStore(clock=lambda: read_s + PUBLISH_AFTER_READ_S)
+    frame = np.zeros((480, 640, 3), dtype=np.uint8)
     store.publish(frame, CaptureStamp(read_s, CaptureStampKind.READ))
     snapshot = store.snapshot()
     assert snapshot.capture is not None and snapshot.published_at_s is not None
