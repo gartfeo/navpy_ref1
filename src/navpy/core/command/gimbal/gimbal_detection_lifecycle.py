@@ -39,7 +39,7 @@ class GimbalDetectionLifecycle:
         self._neutral = neutral
 
     def start(self, obj_id: int) -> None:
-        if self._trackers.rate is None and self._trackers.zoom is None:
+        if self._trackers.rate is None and not self._zoom.drives_zoom:
             return
         with self._gate.lock:
             with self._fence.lock:

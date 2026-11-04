@@ -17,6 +17,9 @@ from navpy.core.ports.gimbal_capture_history import GimbalCaptureHistory
 EVENT_ASSOCIATION = "association"
 EVENT_ATTITUDE_RECEIPT = "attitude_receipt"
 EVENT_GIMBAL_RECEIPT = "gimbal_receipt"
+EVENT_ZOOM_READING = "zoom_reading"
+EVENT_ZOOM_COMMAND = "zoom_command"
+EVENT_ZOOM_CONFIG = "zoom_config"
 # The last record of a cleanly closed log, counting the records before it (app/perception/integration_timing_input.py).
 EVENT_LOG_END = "log_end"
 
@@ -36,6 +39,8 @@ class ReceiptLog:
         # The newest receipt already logged per history, so each sample is logged once.
         self._logged_attitude_s = -math.inf
         self._logged_gimbal: tuple[int, float] | None = None
+        self._logged_zoom_reading: tuple[int, float] | None = None
+        self._logged_zoom_command: tuple[int, float] | None = None
 
     def log(self, attitude_history: Sequence[SimpleNamespace], gimbal_history: GimbalCaptureHistory | None) -> None:
         for sample in attitude_history:
@@ -58,6 +63,24 @@ class ReceiptLog:
             self._log({
                 "event": EVENT_GIMBAL_RECEIPT, "run_id": self._run_id,
                 "session": sample.session, "seq": sample.seq, "receipt_s": sample.receipt_s,
+            })
+        for reading in gimbal_history.zoom_readings:
+            last = self._logged_zoom_reading
+            if last is not None and last[0] == reading.session and reading.receipt_s <= last[1]:
+                continue
+            self._logged_zoom_reading = (reading.session, reading.receipt_s)
+            self._log({
+                "event": EVENT_ZOOM_READING, "run_id": self._run_id, "session": reading.session,
+                "seq": reading.seq, "receipt_s": reading.receipt_s, "reading": reading.reading,
+            })
+        for command in gimbal_history.zoom_commands:
+            last = self._logged_zoom_command
+            if last is not None and last[0] == command.session and command.sent_s <= last[1]:
+                continue
+            self._logged_zoom_command = (command.session, command.sent_s)
+            self._log({
+                "event": EVENT_ZOOM_COMMAND, "run_id": self._run_id, "session": command.session,
+                "sent_s": command.sent_s, "absolute_tenths": command.absolute_tenths,
             })
 
 
@@ -109,6 +132,9 @@ __all__ = [
     "EVENT_ASSOCIATION",
     "EVENT_ATTITUDE_RECEIPT",
     "EVENT_GIMBAL_RECEIPT",
+    "EVENT_ZOOM_COMMAND",
+    "EVENT_ZOOM_CONFIG",
+    "EVENT_ZOOM_READING",
     "EVENT_LOG_END",
     "ReceiptLog",
     "TimingLog",

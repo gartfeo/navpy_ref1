@@ -37,6 +37,7 @@ from navpy.core.perception.pointing.gimbal_rate_tracker import (
     GimbalRateTracker,
     GimbalRateTrackerConfig,
 )
+from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom, FixedStepZoomDrive
 from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
 from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 from navpy.core.perception.profile.vision_camera_calibration import (
@@ -151,7 +152,23 @@ def build_gimbal_navigation(
     rate_tracker: GimbalRateTracker | None,
     zoom_tracker: PoiZoomTracker | None,
     neutral_pitch_deg: float | None,
+    fixed_zoom: FixedStepZoom | None = None,
 ) -> GimbalNavigationParts:
+    fixed_drive = None
+    if fixed_zoom is not None:
+        # The fixed-step drive is the only zoom writer: no POI zoom tracker
+        # (and so no range-driven geo acquisition zoom) is built beside it.
+        zoom_config, zoom_tracker = None, None
+        fixed_drive = FixedStepZoomDrive(
+            fixed_zoom,
+            mount.gimbal_capture_history,
+            mount.command_zoom,
+            logger,
+        )
+        logger.info(
+            f"GimbalNavigation({mount.name}): fixed zoom steps "
+            f"{[step.command for step in fixed_zoom.steps.steps]}"
+        )
     active, hardware, trackers = _build_trackers(
         mount,
         logger,
@@ -171,6 +188,7 @@ def build_gimbal_navigation(
         command_gate,
         fence,
         detection_memory,
+        fixed_drive,
     )
     active_rate_tracker = trackers.rate
     neutral = (

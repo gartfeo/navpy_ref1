@@ -12,6 +12,7 @@ from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
 from navpy.core.perception.pipeline.integration_log import TimingLog
+from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom
 from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
 from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
@@ -104,6 +105,13 @@ class DetectorPipelineConfig:
     # HITL commissioning only (stage 1 step 15): wraps the decoded capture;
     # supplied with integration timing by a launcher, never by a profile.
     capture_wrapper: "CaptureBackendWrapper | None" = None
+    # HITL step 18: calibrated zoom steps and their settle evidence, built with
+    # integration timing from the profile's reading table; never alone.
+    fixed_zoom: "FixedStepZoom | None" = None
+
+    def __post_init__(self) -> None:
+        if self.fixed_zoom is not None and self.integration_timing is None:
+            raise ValueError("fixed zoom needs integration timing")
 
 
 @dataclass(frozen=True)

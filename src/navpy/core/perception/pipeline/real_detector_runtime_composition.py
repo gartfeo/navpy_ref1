@@ -104,6 +104,7 @@ def build_association(
             integration_source,
             mount.gimbal_capture_history,
             None if pipeline is None else pipeline.integration_timing_log,
+            None if pipeline is None else pipeline.fixed_zoom,
         )
     return FrameAssociationBuilder(
         attitude_sample_reader=lambda: vehicle.attitude_sample,
@@ -144,12 +145,17 @@ def build_runtime(
         capture_wrapper=pipeline.capture_wrapper,
     )
     navigation = None
-    if config.gimbal.tracking is not None or config.gimbal.zoom is not None:
+    if (
+        config.gimbal.tracking is not None
+        or config.gimbal.zoom is not None
+        or pipeline.fixed_zoom is not None
+    ):
         navigation = GimbalNavigation(
             dependencies.mount,
             dependencies.logger,
             tracking=config.gimbal.tracking,
             zoom_config=config.gimbal.zoom,
+            fixed_zoom=pipeline.fixed_zoom,
         )
     association = build_association(dependencies, pipeline, integration_source)
     return RealDetectorRuntime(

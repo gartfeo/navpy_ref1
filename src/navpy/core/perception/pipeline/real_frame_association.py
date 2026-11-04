@@ -219,6 +219,7 @@ class FrameAssociationBuilder:
                 rt.perf_counter(),
                 attitude_bracket_max_s=self._maximum_skew_s,
                 seam_tolerance_s=self._maximum_skew_s / 2.0,
+                frame_size=(snapshot.width, snapshot.height),
             )
             capture_timing = outcome.timing
             capture_status = outcome.status
