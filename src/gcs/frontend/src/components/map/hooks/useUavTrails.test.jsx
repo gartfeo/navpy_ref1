@@ -424,6 +424,16 @@ describe('useUavTrails', () => {
       expect(t.live(1)[0].lon).toBe(44.003);
     });
 
+    it('is not drawn while the model is still in a gap', () => {
+      const t = setup();
+      t.placeModel(1, 44.0015, 100);
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      t.entitiesRef.current.uavGap = new Set([1]);
+      expect(t.live(1)).toEqual([]);
+      t.entitiesRef.current.uavGap = new Set();
+      expect(t.live(1)).toHaveLength(2);
+    });
+
     it('is not drawn after Clear all or without a model', () => {
       const t = setup();
       t.store.send(1, 44.000); t.store.send(1, 44.001);

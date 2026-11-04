@@ -28,8 +28,9 @@ import { zoneColorsSolid } from '../../../styles';
  * re-reads every frame, as the model's position is; nothing is stored. Its
  * start is the head as the trail draws it, its end the model's own position
  * property, so both ends keep their own height rule. It is not drawn while
- * the current run is empty, the UAV's telemetry is not fresh or recording
- * is paused (the trail does not grow then, so it would bridge a gap). When
+ * the current run is empty, the UAV's telemetry is not fresh, recording
+ * is paused (the trail does not grow then, so it would bridge a gap) or the
+ * model still holds its pose from before a gap (useUavMarkers). When
  * the UAV stops, the model comes to rest on its newest fix and the segment
  * shrinks to nothing.
  */
@@ -176,7 +177,7 @@ export default function useUavTrails(
      * The live segment of a UAV, read every frame: its trail's drawn head to
      * its model's drawn position. Empty (not drawn) unless the head is the
      * newest point of the current run, telemetry is fresh, recording runs
-     * and the model exists.
+     * and the model exists and has left any gap (useUavMarkers).
      */
     function addLiveEntity(pool, sid) {
       const modelPos = new Cesium.Cartesian3();
@@ -191,6 +192,8 @@ export default function useUavTrails(
             if (!head || !trail || trailHead(trail) !== head.point || pausedRef.current) return none;
             const store = storeRef.current;
             if (store.isTelemetryFresh && !store.isTelemetryFresh(sid)) return none;
+            // The model still holds its pose from before a gap.
+            if (entitiesRef.current.uavGap?.has(sid)) return none;
             const model = entitiesRef.current.uavMap?.[sid]?.position;
             // The model's callback returns its own scratch value: copy it.
             const pos = model?.getValue(time, modelPos);

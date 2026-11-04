@@ -34,7 +34,8 @@ function setup() {
     entitiesRef.current.uavMap[sid].position.getValue(JulianDate.now(), new Cartesian3()),
     Cartesian3.fromDegrees(lon, 0, 100),
   );
-  return { store, offFrom };
+  const inGap = (sid) => entitiesRef.current.uavGap.has(sid);
+  return { store, offFrom, inGap };
 }
 
 describe('useUavMarkers', () => {
@@ -58,6 +59,22 @@ describe('useUavMarkers', () => {
     vi.advanceTimersByTime(5000);
     t.store.send(1, 0.01);
     expect(t.offFrom(1, 0.01)).toBeLessThan(0.01);
+  });
+
+  it('stays in a gap, for the trail, until a fresh sample with a full pose', () => {
+    const t = setup();
+    t.store.send(1, 0);
+    expect(t.inGap(1)).toBe(false);
+    t.store.disconnect();
+    expect(t.inGap(1)).toBe(true);
+    // Fresh, but no attitude: the model keeps its old pose and stays in the gap.
+    t.store.vehicles.set(1, { sys_id: 1, lat: 0, lon: 0.01, alt_rel: 100, heading: null, roll: 0, pitch: 0 });
+    t.store.fresh.add(1);
+    t.store.notify();
+    expect(t.inGap(1)).toBe(true);
+    t.store.send(1, 0.0105);
+    expect(t.inGap(1)).toBe(false);
+    expect(t.offFrom(1, 0.0105)).toBeLessThan(0.01);
   });
 
   it('without a gap a far sample is still eased into', () => {

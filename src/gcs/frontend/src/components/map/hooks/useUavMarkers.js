@@ -16,7 +16,8 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * its ground (setGround), never its speed. The first sample after a gap (the
  * UAV's telemetry was not fresh, or it had no position) starts a new motion
  * at that sample, as the trail starts a new run there (useUavTrails): the
- * model does not glide across the gap.
+ * model does not glide across the gap. Until then the sys_id is in
+ * entitiesRef.current.uavGap.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -151,6 +152,8 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
       }
 
       ents.uavMap = existing;
+      // A model still in a gap is not joined to the trail (useUavTrails).
+      ents.uavGap = stale;
       viewer.scene.requestRender();
     }
 
