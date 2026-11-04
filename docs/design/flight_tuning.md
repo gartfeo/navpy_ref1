@@ -67,7 +67,7 @@ by both versions; the firmware differences are listed in the firmware section.
    Fourier sums integrate between the script's samples: the rate and the rest of the
    output as straight lines, with the straight line's amplitude loss over each record
    divided out, and the output's response to each new demand (FF, P and D through
-   FLTT, FLTE and FLTD) exactly. A straight line alone reads that bend as an output
+   FLTT, FLTE and FLTD, with the speed scaler read at each call) exactly. A straight line alone reads that bend as an output
    delay that grows with the square of the call interval (todo 268). The record-to-record
    scatter weights each frequency.
 3. **Model fit** (Levenberg-Marquardt, from several starts). Roll: gain, pole, lag and
@@ -115,7 +115,7 @@ by both versions; the firmware differences are listed in the firmware section.
   - The saved gains are checked on the simulator's exact discrete loop by independent
     Python code: margins are kept even with script calls up to 40 ms late on every call,
     the model stays within 2.5 deg of the simulator plant up to 20 rad/s and the
-    predicted margins stay below the exact ones (seeds 1-20).
+    predicted margins stay below the exact ones (seeds 1-20, also with FLTE 8 Hz).
   - A test checks ArduPilot's Lua compiler limits (100 active locals, 127 upvalues).
 - **ArduPlane SITL** (python3 -m tools.tuning.sitl_driver inflight-tune, plane-elevon model, SITL's default
   gains, TCONST 0.25):

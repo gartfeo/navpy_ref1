@@ -191,7 +191,7 @@ TRUE_PLANT = {"roll": {"K": 4.0, "a": 6.0, "b": 40.0},
               "pitch": {"K": 1.0, "z": 3.0, "wn": 9.0, "zeta": 0.5, "b": 40.0}}
 
 
-def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0):
+def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0, flte_hz=0.0):
     """Exact discrete rate-loop response of the simulator in flight_tune_harness.lua.
 
     rate_ctl computes out_k from the rate of the previous step, the plant uses out
@@ -213,6 +213,9 @@ def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0):
         g = pl["K"] * (x1 + x2 / pl["z"])
     alpha_d = T / (T + 1 / (2 * np.pi * fltd_hz))
     c = sc * sc * (P + I * T / (1 - zi) + D * alpha_d * (1 - zi) / (T * (1 - (1 - alpha_d) * zi)))
+    if flte_hz > 0:                                # the error through FLTE first
+        alpha_e = T / (T + 1 / (2 * np.pi * flte_hz))
+        c = c * alpha_e / (1 - (1 - alpha_e) * zi)
     return (c * zi * g)[None, :], w
 
 
@@ -310,15 +313,16 @@ def _model_response(row, w):
             / ((1 + 2 * row["P3"] * s / row["P2"] + (s / row["P2"]) ** 2) * (1 + s / row["P4"])))
 
 
-@pytest.mark.parametrize(("late_s", "seed", "base_d", "rms_max"), [
-    (0.01, 7, 0, 0.1),
-    (0.01, 9, 0, 0.1),
-    (0.04, 1, 0, 0.15),
-    (0.04, 5, 0, 0.15),        # the largest RMS and lowest exact PM of seeds 1-20
-    (0.04, 7, 0, 0.15),
-    (0.04, 2, 0.005, 0.15),    # D in the flown gains: the largest phase error of seeds 1-20
+@pytest.mark.parametrize(("late_s", "seed", "base_d", "flte", "rms_max"), [
+    (0.01, 7, 0, 0, 0.1),
+    (0.01, 9, 0, 0, 0.1),
+    (0.04, 1, 0, 0, 0.15),
+    (0.04, 5, 0, 0, 0.15),        # the largest RMS and lowest exact PM of seeds 1-20
+    (0.04, 7, 0, 0, 0.15),
+    (0.04, 2, 0.005, 0, 0.15),    # D in the flown gains: the largest phase error of seeds 1-20
+    (0.04, 16, 0, 8, 0.15),       # error filter: the old sums failed the model checks on both axes
 ])
-def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed, base_d, rms_max):
+def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed, base_d, flte, rms_max):
     # Every call starts up to late_s late, so samples are 20 to 20 + late_s ms apart.
     # The Fourier sums integrate the controller's bend after each call exactly and divide
     # out the straight line's loss (M.dft_add), so the model still matches the exact
@@ -333,10 +337,15 @@ def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed
     # the delay (30 to 110 rad/s over the seeds) while the response stays as above.
     # The unweighted fit RMS grows with the record-to-record scatter at the top
     # frequencies (0.5 to 1.0 with 60 ms gaps); the fit weights those down.
+    # FLTE 8 Hz, seeds 1-20 at 40 ms: model error at most 0.05 and 1.9 deg up to 20 rad/s,
+    # 4.2 deg up to 38 rad/s, the prediction at least 11 deg and 2 dB below the exact
+    # margins (before: 13.5 deg, and 0.02 dB). Seed 5 there has RMS 0.156, its other
+    # checks pass.
     out = run(START + f"""
 math.randomseed({seed})
 S.jitter_s = {late_s}
 S.params.RLL_RATE_D, S.params.PTCH_RATE_D = {base_d}, {base_d}
+S.params.RLL_RATE_FLTE, S.params.PTCH_RATE_FLTE = {flte}, {flte}
 S.params.FTUN_AXES = 3
 h.run(500)
 """)
@@ -355,7 +364,8 @@ h.run(500)
     for ax, axis, prefix in ((1, "roll", "RLL_RATE_"), (2, "pitch", "PTCH_RATE_")):
         g = out["saved"]
         assert g[prefix + "FF"] == pytest.approx(full_tune["saved"][prefix + "FF"], rel=0.05)
-        L, w = _harness_rate_loop(axis, g[prefix + "P"], g[prefix + "I"], g[prefix + "D"], fltd_hz=10.0)
+        L, w = _harness_rate_loop(axis, g[prefix + "P"], g[prefix + "I"], g[prefix + "D"], fltd_hz=10.0,
+                                  flte_hz=flte)
         pm, gm = design._pm_gm(L, w)
         assert pm[0] >= 42 and gm[0] >= 5.5, (axis, pm[0], gm[0])
         assert pred[ax]["PMr"] <= pm[0] and pred[ax]["GMr"] <= gm[0], (axis, pred[ax], pm[0], gm[0])
@@ -523,8 +533,8 @@ def test_controller_modes_match_the_ac_pid_demand_response(case):
     # rebuilt here at the identification frequencies it must equal the filter chain
     ctl, g = CTL_CASES[case]
     out = run(f"""
-local m = X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}},
-                      {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}, 1.2, 1.05)
+local m = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}},
+                                  {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), 1.2, 1.05)
 h.dump({{k0 = m.k0, ks = m.ks, lam = m.lam, r = m.r}})
 DUMPED = true
 """, export=True)
@@ -537,39 +547,53 @@ DUMPED = true
 
 def test_output_sums_integrate_the_controller_bend_between_calls_exactly():
     # u is exactly the controller model's response to demands held over uneven call
-    # intervals (20-60 ms), read just before each new demand. With the model the record's
-    # output sum is the exact Fourier integral of u; the straight line alone is not.
+    # intervals (20-60 ms), read just before each new demand, with the speed scaler
+    # changing between calls (airspeed 25 % up and down). With the model the record's
+    # output sum is the exact Fourier integral of u; the straight line alone is not, nor
+    # is a model whose gains stay at the first call's scaler.
     rng = np.random.default_rng(3)
     hs = 0.02 + 0.04 * rng.random(80)
     dem = rng.normal(0, 20, 81)
+    sc = 1 + 0.25 * np.sin(np.arange(81) / 8)         # scaler set at each call
     ctl, g = CTL_CASES["harness roll"]
     lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
     out = run(f"""
-local hs, dem = {lua_list(hs)}, {lua_list(dem)}
-local m = X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
-                      {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}, 1, 1)
-local cm, d, plain = X.cm_new(m), X.dft_new(), X.dft_new()
+local hs, dem, sc = {lua_list(hs)}, {lua_list(dem)}, {lua_list(sc)}
+local m = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
+                                  {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), sc[1], 1)
+local fm = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
+                                   {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), sc[1], 1)
+local cm, fc, d, plain, frozen = X.cm_new(m), X.cm_new(fm), X.dft_new(), X.dft_new(), X.dft_new()
 X.dft_add(d, 0, 0, 0, 0, cm)
 X.dft_add(plain, 0, 0, 0, 0)
-cm.dem = dem[1]
+X.dft_add(frozen, 0, 0, 0, 0, fc)
+cm.dem, fc.dem = dem[1], dem[1]
 local t = 0
 for k = 1, #hs do
     t = t + hs[k]
     X.cm_step(cm, hs[k])
+    X.cm_step(fc, hs[k])
     X.dft_add(d, t, 0, cm.ud1, 0, cm)
     X.dft_add(plain, t, 0, cm.ud1, 0)
-    cm.dem = dem[k + 1]
+    X.dft_add(frozen, t, 0, cm.ud1, 0, fc)
+    X.ctl_scale(m, sc[k + 1], 1)
+    cm.dem, fc.dem = dem[k + 1], dem[k + 1]
 end
-h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui, k0 = m.k0, lam = m.lam, r = m.r}})
+h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui, lam = m.lam,
+        fk0 = m.f.k0, fr = m.f.r, pk0 = m.p.k0, pr = m.p.r,
+        zr = frozen.ur, zi = frozen.ui, zvr = frozen.vr, zvi = frozen.vi}})
 DUMPED = true
 """, export=True)
     e = out["extra"]
-    # independent: u(t) from the modes' exponentials on a fine grid, trapezoid integral
-    k0, lam, r = e["k0"], np.array(e["lam"]), np.array(e["r"])
+    # independent: u(t) from the modes' exponentials on a fine grid, with FF scaled by
+    # sc and P, D by sc^2 over each interval, trapezoid integral
+    lam = np.array(e["lam"])
     z = np.zeros(len(lam))
     exact = np.zeros(len(ID_W), complex)
     t0 = 0.0
-    for h, d in zip(hs, dem[:-1]):
+    for h, d, s in zip(hs, dem[:-1], sc[:-1]):
+        k0 = s * e["fk0"] + s * s * e["pk0"]
+        r = s * np.array(e["fr"]) + s * s * np.array(e["pr"])
         tau = np.linspace(0, h, 2001)
         zt = d / lam + (z - d / lam) * np.exp(-np.outer(tau, lam))
         u = k0 * d + zt @ r
@@ -578,10 +602,12 @@ DUMPED = true
         z, t0 = zt[-1], t0 + h
     with_model = np.array(e["ur"]) + 1j * np.array(e["ui"]) + np.array(e["vr"]) + 1j * np.array(e["vi"])
     plain = np.array(e["lr"]) + 1j * np.array(e["li"])
+    frozen = np.array(e["zr"]) + 1j * np.array(e["zi"]) + np.array(e["zvr"]) + 1j * np.array(e["zvi"])
     scale = np.abs(exact).max()
     assert np.abs(np.array(e["ur"]) + 1j * np.array(e["ui"])).max() < 1e-9 * scale   # nothing left to interpolate
     assert np.abs(with_model - exact).max() < 1e-4 * scale
     assert np.abs(plain - exact).max() > 0.02 * scale                                # the bend matters
+    assert np.abs(frozen - exact).max() > 0.02 * scale                               # so does the scaler
 
 
 def test_record_divides_out_the_straight_line_loss_of_a_smooth_signal():

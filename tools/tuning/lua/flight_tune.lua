@@ -278,8 +278,10 @@ end
 -- target, P and D on the FLTE error, D through FLTD) for a demand held between calls:
 -- u_d = k0 d + ks d' + sum r_k z_k with z_k' = d - lam_k z_k. Poles are kept apart by
 -- K.POLE_SEP so the partial fractions stay finite when two filters share a cutoff.
-function M.ctl_modes(ctl, g, sc, e2t)
-    local m = {k0 = 0, ks = 0, lam = {}, r = {}}
+-- The FF path (gain scaler / EAS2TAS) and the P and D paths (scaler^2) are kept apart
+-- in m.f and m.p, so M.ctl_scale can follow the speed scaler as airspeed changes.
+function M.ctl_modes(ctl, g)
+    local m = {k0 = 0, ks = 0, lam = {}, r = {}, f = {k0 = 0, ks = 0, r = {}}, p = {k0 = 0, ks = 0, r = {}}}
     local function pole(hz)
         if hz <= 0 then return nil end
         local l, moved = 2 * math.pi * hz, true
@@ -289,11 +291,12 @@ function M.ctl_modes(ctl, g, sc, e2t)
                 if abs(l - q) < K.POLE_SEP * q then l, moved = l * (1 + K.POLE_SEP), true end
             end
         end
-        m.lam[#m.lam + 1], m.r[#m.lam + 1] = l, 0
-        return #m.lam
+        local n = #m.lam + 1
+        m.lam[n], m.r[n], m.f.r[n], m.p.r[n] = l, 0, 0, 0
+        return n
     end
     local it, ie, id = pole(ctl.fltt), pole(ctl.flte), pole(ctl.fltd)
-    local function path(gain, has_s, ...)
+    local function path(c, gain, has_s, ...)
         if gain == 0 then return end
         local idx = {}           -- the filters present (absent ones are nil)
         for n = 1, select("#", ...) do
@@ -301,10 +304,10 @@ function M.ctl_modes(ctl, g, sc, e2t)
             if i then idx[#idx + 1] = i end
         end
         if #idx == 0 then
-            if has_s then m.ks = m.ks + gain else m.k0 = m.k0 + gain end
+            if has_s then c.ks = c.ks + gain else c.k0 = c.k0 + gain end
             return
         end
-        if has_s and #idx == 1 then m.k0 = m.k0 + gain * m.lam[idx[1]] end
+        if has_s and #idx == 1 then c.k0 = c.k0 + gain * m.lam[idx[1]] end
         local prod = 1
         for _, j in ipairs(idx) do prod = prod * m.lam[j] end
         for _, i in ipairs(idx) do
@@ -312,18 +315,26 @@ function M.ctl_modes(ctl, g, sc, e2t)
             for _, j in ipairs(idx) do
                 if j ~= i then den = den * (m.lam[j] - li) end
             end
-            m.r[i] = m.r[i] + gain * (has_s and -li or 1) * prod / den
+            c.r[i] = c.r[i] + gain * (has_s and -li or 1) * prod / den
         end
     end
-    path(g.FF * sc / e2t, false, it)
-    path(sc * sc * g.P, false, it, ie)
-    path(sc * sc * g.D, true, it, ie, id)
+    path(m.f, g.FF, false, it)
+    path(m.p, g.P, false, it, ie)
+    path(m.p, g.D, true, it, ie, id)
+    return m
+end
+
+-- sets the modes' gains for speed scaler sc and EAS2TAS e2t, as AC_PID applies them now
+function M.ctl_scale(m, sc, e2t)
+    local a, b = sc / e2t, sc * sc
+    m.k0, m.ks = a * m.f.k0 + b * m.p.k0, a * m.f.ks + b * m.p.ks
+    for k = 1, #m.lam do m.r[k] = a * m.f.r[k] + b * m.p.r[k] end
     return m
 end
 
 -- controller model state over the manoeuvre: dem is the demand being held now
 function M.cm_new(modes)
-    local cm = {m = modes, z = {}, g = {}, el = {}, vr = {}, vi = {}, dem = 0, dprev = 0}
+    local cm = {m = modes, z = {}, g = {}, el = {}, vr = {}, vi = {}, dem = 0, dprev = 0, ud1 = 0}
     for k, l in ipairs(modes.lam) do
         cm.z[k], cm.vr[k], cm.vi[k] = 0, {}, {}
         for i = 1, NW do        -- 1 / (lam + jw)
@@ -337,14 +348,15 @@ end
 
 -- advance over an interval of h seconds with cm.dem held; keeps the interval's
 -- model output at both ends (left limits, as the output is read before a new
--- demand) and its exact Fourier terms for M.dft_add
+-- demand and new gains: the start is the previous interval's end) and its exact
+-- Fourier terms for M.dft_add
 function M.cm_step(cm, h)
     local m, dem = cm.m, cm.dem
-    local ud0, ud1, dcs = m.k0 * cm.dprev, m.k0 * dem, m.k0 * dem
+    local ud0, ud1, dcs = cm.ud1, m.k0 * dem, m.k0 * dem
     for k, l in ipairs(m.lam) do
         local el, zs, z0 = exp(-l * h), dem / l, cm.z[k]
         local z1 = zs + (z0 - zs) * el
-        ud0, ud1, dcs = ud0 + m.r[k] * z0, ud1 + m.r[k] * z1, dcs + m.r[k] * zs
+        ud1, dcs = ud1 + m.r[k] * z1, dcs + m.r[k] * zs
         cm.g[k], cm.el[k], cm.z[k] = m.r[k] * (z0 - zs), el, z1
     end
     cm.ud0, cm.ud1, cm.dcs, cm.imp = ud0, ud1, dcs, m.ks * (dem - cm.dprev)
@@ -1281,7 +1293,7 @@ local function start_manoeuvre(s, now)
         man.sign = (st.reps % 2 == 0) and 1 or -1
         man.dft = M.dft_new()
         -- the controller's response to the demands, from control take-over (demand 0)
-        man.cm = M.cm_new(M.ctl_modes(sess.ctl[ax.id], sess.base[ax.id], speed_scaler(s.asp, sess.ac), s.e2t))
+        man.cm = M.cm_new(M.ctl_scale(M.ctl_modes(sess.ctl[ax.id], sess.base[ax.id]), speed_scaler(s.asp, sess.ac), s.e2t))
         man.p0, man.u0, man.n0 = 0, 0, 0
         man.v_sum, man.e2t_sum, man.n_sum = 0, 0, 0
         man.jit_sum, man.jit_n = 0, 0
@@ -1387,7 +1399,10 @@ local function manoeuvre_tick(s, now)
     if now - man.last_ms > K.MAX_TICK_GAP_MS then return finish_manoeuvre(false, "script delayed", false) end
     local dt = (now - man.last_ms) * 0.001
     man.last_ms = now
-    if man.cm then M.cm_step(man.cm, dt) end
+    if man.cm then                   -- the interval just flown, then the gains for the next
+        M.cm_step(man.cm, dt)
+        M.ctl_scale(man.cm.m, speed_scaler(s.asp, sess.ac), s.e2t)
+    end
 
     -- controller output of the axis under test, and saturation
     local u = ax.id == 1 and s.ail or s.elev
@@ -1896,6 +1911,7 @@ if FTUN_TEST_EXPORT then
     FTUN_TEST_EXPORT.dft_new = M.dft_new
     FTUN_TEST_EXPORT.dft_add = M.dft_add
     FTUN_TEST_EXPORT.ctl_modes = M.ctl_modes
+    FTUN_TEST_EXPORT.ctl_scale = M.ctl_scale
     FTUN_TEST_EXPORT.cm_new = M.cm_new
     FTUN_TEST_EXPORT.cm_step = M.cm_step
     FTUN_TEST_EXPORT.margins = M.margins

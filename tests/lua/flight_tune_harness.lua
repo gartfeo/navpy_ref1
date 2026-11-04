@@ -79,8 +79,8 @@ local function new_state()
         mode_roll = 20, mode_pitch = 2,
         x = {phi = 20, p = 0, rl = 0, theta = 2, x1 = 0, x2 = 0, el = 0},
         buf = {roll = {}, pitch = {}},
-        ctl = {roll = {i = 0, tf = 0, derr = 0, eprev = 0, out = 0},
-               pitch = {i = 0, tf = 0, derr = 0, eprev = 0, out = 0}},
+        ctl = {roll = {i = 0, tf = 0, ef = 0, derr = 0, eprev = 0, out = 0},
+               pitch = {i = 0, tf = 0, ef = 0, derr = 0, eprev = 0, out = 0}},
         thr = 55,
         next_call = 0,
         script_dead = false,
@@ -223,7 +223,8 @@ end
 local function rate_ctl(c, pre, target, meas, sc)
     local p = S.params
     c.tf = c.tf + lp_alpha(p[pre .. "FLTT"]) * (target - c.tf)
-    local err = c.tf - meas
+    c.ef = c.ef + lp_alpha(p[pre .. "FLTE"]) * (c.tf - meas - c.ef)   -- AC_PID: error through FLTE
+    local err = c.ef
     local derr = (err - c.eprev) / DT
     c.eprev = err
     c.derr = c.derr + lp_alpha(p[pre .. "FLTD"]) * (derr - c.derr)
