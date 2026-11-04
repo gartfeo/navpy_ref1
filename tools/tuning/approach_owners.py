@@ -63,11 +63,31 @@ AAS_HITL_COMMANDS = {("run",): ("autopilot", "bridge"), ("sitl", "start"): ("aut
                      ("video", "publish"): ("publisher",)}
 
 
+INTERPRETER = re.compile(r"(python[\d.]*|py)(\.exe)?", re.IGNORECASE)
+NICE = re.compile(r"nice(\.exe)?", re.IGNORECASE)
+ARG_OPTIONS = ("-W", "-X", "-Q")       # interpreter options that take the next word
+
+
+def _base(word: str) -> str:
+    return word.replace("\\", "/").rsplit("/", 1)[-1]
+
+
 def program_roles(argv: tuple[str, ...]) -> tuple[str, ...]:
-    """The roles a command line plays by the module it runs; () for any other program."""
-    for i, token in enumerate(argv[:-1]):
-        if token != "-m":
-            continue
+    """The roles a command line plays by the module it runs (``[nice -n N] python [options] -m MODULE``); () for any
+    other program, including a shell whose command text only names one."""
+    start = 0
+    if argv and NICE.fullmatch(_base(argv[0])):
+        start = 1
+        while start < len(argv) and argv[start].startswith("-"):
+            start += 2 if argv[start] == "-n" else 1
+    if start >= len(argv) or not INTERPRETER.fullmatch(_base(argv[start])):
+        return ()
+    i = start + 1
+    while i < len(argv) - 1 and argv[i] != "-m":
+        if not argv[i].startswith("-") or argv[i] == "-c":
+            return ()                   # a script or a command string: not a module run
+        i += 2 if argv[i] in ARG_OPTIONS else 1
+    if i < len(argv) - 1:
         module = argv[i + 1]
         if module in PROGRAMS:
             return PROGRAMS[module]

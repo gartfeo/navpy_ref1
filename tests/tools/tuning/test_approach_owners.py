@@ -106,6 +106,12 @@ def add(tables, host, procs=(), socks=()):
     (("py", "-m", "aas_hitl", "sitl", "status"), ()),
     (("grep", "tools.hitl.zr10_emulator"), ()),                      # names it, does not run it
     (("python", "-m", "pytest", "-m", "tools.hitl.zr10_emulator"), ()),
+    (("nice", "-n", "10", "/usr/bin/python3", "-E", "-m", "aas_hitl.video.gstreamer_encoder"), ("publisher",)),
+    (("C:\\Py\\python.exe", "-W", "ignore", "-m", "tools.tuning.hitl_bridge"), ("bridge",)),
+    (("python", "run.py", "-m", "tools.tuning.hitl_bridge"), ()),          # a script's own arguments
+    (("python", "-c", "import x", "-m", "aas_hitl.zr10"), ()),
+    # Found live: a shell whose command text names the emulator (Windows command lines split on spaces).
+    (("C:\\Git\\bin\\bash.exe", "-c", "source", "s.sh", "&&", "py", "-3.11", "-m", "aas_hitl.zr10"), ()),
 ])
 def test_a_program_plays_the_role_its_module_implements(argv, roles):
     assert owners.program_roles(argv) == roles
