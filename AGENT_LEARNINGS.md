@@ -1393,7 +1393,7 @@
   memory: I told the owner it could be turned back on, and the PC's own dialog said otherwise.
 - Writing scratch analysis through a Bash heredoc mangled Python twice (a NUL byte, a broken quote). Use a file for
   anything longer than a line.
-- Copy a temp worktree's .logs out before removing it; bench tools in the scratchpad go to the evidence folder too.
+- Before removing a temp worktree, put what matters from its .logs into git, kept small, then delete the rest (2026-11-04: logs are no longer kept outside git).
 
 ## Todo 105: bounded mission transfers (2026-10-23)
 

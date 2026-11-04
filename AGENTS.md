@@ -139,7 +139,7 @@ A task is done only when every applicable item holds; otherwise report it as not
 - **Rules hold** — Pure Vision Approach Constraint, glossary terms, GCS launch rules.
 - **In sync** — generated files regenerated (see Agent Definitions); docs updated when commands, behavior or terms change.
 - **Scoped diff** — only the task's change; out-of-scope bugs become separate tasks.
-- **Cleanup** — remove debug code, scratch files and code the change made obsolete (no shims); keep `.logs/`. Stop what you started (GCS stack via `gcs_stop.py`, `--eval` for eval SITL, dev servers, shells) unless the user wants it running. Touch only your own work. `/cleanup` does this and sweeps what finished chats leave.
+- **Cleanup** — remove debug code, scratch files, code the change made obsolete (no shims), and your run outputs not in git (`.logs/` runs, WSL `~/navpy-eval-roots/` roots, temp) once what matters is in git, kept small. Stop what you started (GCS stack via `gcs_stop.py`, `--eval` for eval SITL, dev servers, shells) unless the user wants it running. Touch only your own work. `/cleanup` does this and sweeps what finished chats leave.
 
 ## Agent Definitions
 
