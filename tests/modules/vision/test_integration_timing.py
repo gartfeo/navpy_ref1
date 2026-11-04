@@ -292,13 +292,14 @@ def _mount(*, static=False, zoom=None):
     )
 
 
-def _gimbal_history(start_s, end_s, period_s=0.05, session=1):
+def _gimbal_history(start_s, end_s, period_s=0.05, session=1, lag_s=0.0):
+    """A gimbal pitching 4 deg/s; each report reaches navpy lag_s after the plant held it."""
     samples = []
     seq = 65500                             # wraps inside the trace
     receipt = start_s
     while receipt <= end_s:
         samples.append(GimbalHistorySample(session, seq % 65536, receipt,
-                                           Attitude(-30.0 + 4.0 * (receipt - start_s), 5.0, 0.0)))
+                                           Attitude(-30.0 + 4.0 * (receipt - lag_s - start_s), 5.0, 0.0)))
         seq += 1
         receipt += period_s
     return GimbalCaptureHistory(session, tuple(samples), GimbalData(att=samples[-1].att))
@@ -453,6 +454,22 @@ def test_an_abort_during_association_refuses_the_frame():
         association = builder.capture(store.snapshot(), frame)
     assert not association.pose_is_frame_atomic
     assert association.pose_status == STATUS_ABORTED == records[-1]["status"]
+
+
+REPORT_LAG_S = 0.04          # tests/tools/hitl/timing_scenario.py's report lag
+
+
+@pytest.mark.parametrize("correction_s, error_deg", [(REPORT_LAG_S, 0.0), (0.0, -4.0 * REPORT_LAG_S)])
+def test_a_known_gimbal_report_lag_is_removed_only_by_its_correction(correction_s, error_deg):
+    """Step 17: the gimbal state navpy joins to a frame is the plant's at the capture instant once C_g holds the
+    report lag; without it the join is one lag late, 4 deg/s * 40 ms here."""
+    gimbal = _gimbal_history(T0_S - 1.0, T0_S + 15.0, lag_s=REPORT_LAG_S)
+    association, records, _ = _associate(gimbal=gimbal, corrections=(0.0, correction_s), now_after_read_s=0.1)
+    assert association.pose_is_frame_atomic, association.pose_status
+    capture_s = association.capture.estimate_s
+    plant_pitch = -30.0 + 4.0 * (capture_s - (T0_S - 1.0))
+    assert association.mount_state.gimbal_data.att.pitch - plant_pitch == pytest.approx(error_deg, abs=1e-6)
+    assert records[-1]["gimbal_lookup_s"] == pytest.approx(capture_s + correction_s)
 
 
 def test_unbracketed_and_stale_gimbal_state_is_refused():
