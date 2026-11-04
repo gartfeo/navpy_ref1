@@ -96,6 +96,9 @@ MISSION_BUDGET_S = 3600.0
 #: seconds: well inside the coordinator's 30 s finalization budget, which starts
 #: at the last SNAP and waits for the operator to return.
 APP_SESSION_POLL_S = 1.0
+#: Sim seconds for one full-parameter read: the route's MAVFTP budget (30 s,
+#: ``full_params.py``) and its one retry, with margin.
+FULL_PARAMETERS_TIMEOUT_S = 90.0
 #: Host supervision of the participants (registration, a DONE, an exit).
 WALL_BUDGETS = WallBudgets(register_s=120, done_s=120, exit_s=60)
 #: The outcome of a run a ``ParticipantFault`` ended: no coordinator result exists.
@@ -178,7 +181,8 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
             if options.app_session_s is not None:  # the app connects, uploads, launches
                 app_session(context, options.app_session_s)
             else:
-                mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s)
+                mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s,
+                                      after_connect=read_full_parameters)
                 outcome["approvals"] = mission.approvals
         except Exception as error:  # noqa: BLE001 - the workflow's outcome, reported and gated
             outcome["error"] = scrub(f"{type(error).__name__}: {error}")
@@ -191,6 +195,15 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
         return outcome
 
     return script
+
+
+def read_full_parameters(context: StackContext) -> None:
+    """The app's connect-time prewarm (``App.jsx``): each vehicle's full table, read
+    by MAVFTP, so every scripted run also checks the FTP worker (step 13)."""
+    for sys_id in context.sys_ids:
+        body = context.api.get_json(f"/api/vehicles/{sys_id}/parameters", timeout=FULL_PARAMETERS_TIMEOUT_S)
+        if not isinstance(body, dict) or not body.get("params"):
+            raise RegressionError(f"full parameter read of {sys_id} returned no parameters")
 
 
 def app_session(context: StackContext, session_s: float) -> None:

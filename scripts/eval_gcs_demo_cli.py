@@ -142,7 +142,12 @@ def run_lockstep(
     if run.operator_error is not None:
         errors.append(f"operator: {run.operator_error}")
     try:
-        report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
+        if args.app_session_s is not None:
+            # The app flew its own plan: the gates score the scripted mission's resolved
+            # plan only, so an app session passes on its run (outcome, faults, operator).
+            report = RunReport(True, ".", [], 1.0, 0.0, run.approvals, {}, [])
+        else:
+            report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
     except (OSError, ValueError, TypeError, RegressionError) as error:
         report = RunReport(False, ".", [], 1.0, 0.0, run.approvals, {}, [],
                            [f"analysis: {type(error).__name__}: {error}"])

@@ -1,6 +1,6 @@
 {
   "about": "Source lines of the serial-step firmware (scripts/lockstep_firmware.lock.json) that size the ingress FIFO and the per-port block; read from the WSL worktree at the locked commit, clean tree.",
-  "commit": "f1626afa6f26d8ef886c5248419cad3face57234",
+  "commit": "67de80462472a7c768e8e0ea31c70246504f2e8d",
   "lines": {
     "libraries/SITL/SIM_NavPyStepPort.h:30": "    static constexpr uint32_t BUFFER_BYTES = 1U << 20;",
     "libraries/SITL/SIM_NavPyStepPort.cpp:25": "    to_autopilot = NEW_NOTHROW ByteBuffer{BUFFER_BYTES + 1};",

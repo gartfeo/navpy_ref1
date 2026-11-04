@@ -652,13 +652,41 @@ def test_cli_passes_the_app_session_and_refuses_it_without_the_app(tmp_path, mon
         seen.append((options.app, options.app_session_s))
         return lockstep_eval.LockstepRun("d" * 64, "ok", [], None)
 
+    import json
+
+    analyzed = []
     monkeypatch.setattr(cli, "execute_lockstep_run", run)
-    monkeypatch.setattr(cli, "analyze_run", lambda *a, **k: pytest.fail("stop after the run"))
+    monkeypatch.setattr(cli, "analyze_run", lambda *a, **k: analyzed.append(a))
+    (tmp_path / "a").mkdir()
     base = ["--lockstep", "--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path / "a")]
     with pytest.raises(RegressionError, match="--app-session-s needs --app"):
         cli.main([*base, "--app-session-s", "600"])
-    try:
-        cli.main([*base, "--app", "--app-session-s", "600"])
-    except BaseException:  # noqa: BLE001 - the analysis stub ends the run
-        pass
+    assert cli.main([*base, "--app", "--app-session-s", "600"]) == 0
     assert seen == [(True, 600.0)]
+    # The app flew its own plan: the scripted mission's gates do not score it.
+    assert analyzed == []
+    report = json.loads((tmp_path / "a" / "report.json").read_text(encoding="utf-8"))
+    assert report["passed"] is True and report["errors"] == []
+
+
+def test_a_scripted_lockstep_run_reads_each_full_parameter_table_after_connect(tmp_path, monkeypatch):
+    """Step 13: as the app's prewarm does, so every matrix cell runs MAVFTP."""
+    seen = []
+    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: SimpleNamespace())
+    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: None)
+    monkeypatch.setattr(lockstep_eval, "run_mission",
+                        lambda *a, after_connect=None: seen.append(after_connect) or SimpleNamespace(approvals=[]))
+    lockstep_eval.operator_script(SLICE, tmp_path, OPTIONS)(SimpleNamespace(wait_ready=lambda _o: None))
+    assert seen == [lockstep_eval.read_full_parameters]
+
+    reads = []
+
+    def get_json(path, *, timeout):
+        reads.append((path, timeout))
+        return {"params": [{"name": "A", "value": 1.0}]} if path.startswith("/api/vehicles/1/") else {"params": []}
+
+    context = SimpleNamespace(sys_ids=(1, 2), api=SimpleNamespace(get_json=get_json))
+    with pytest.raises(RegressionError, match="full parameter read of 2"):
+        lockstep_eval.read_full_parameters(context)
+    timeout = lockstep_eval.FULL_PARAMETERS_TIMEOUT_S
+    assert reads == [("/api/vehicles/1/parameters", timeout), ("/api/vehicles/2/parameters", timeout)]
