@@ -25,7 +25,17 @@ from typing import Iterable, Optional
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
-ROUTER_SYSTEM = 250                     # the tools' system id (board.SOURCE_SYSTEM, SYSID_MYGCS in sitl/hitl.parm)
+# Observation (hitl_final_approach.md step 16): a reader client (navpy while the harness flies the fixed search lane)
+# reaches the board only to read (parameters, the mission, one message, terrain), to report (heartbeats, text, acks,
+# its own camera/gimbal status) or to claim a stream rate (the claims below stay per client). Every other packet is a
+# write to the aircraft (modes, arming, attitude/position targets, missions, parameters, RC, files, any other
+# command) and is dropped and counted. An allow list: a message added to navpy later stays blocked until named here.
+OBSERVATION_MESSAGES = frozenset({
+    "HEARTBEAT", "STATUSTEXT", "COMMAND_ACK", "PARAM_REQUEST_READ", "PARAM_REQUEST_LIST", "MISSION_REQUEST_LIST",
+    "MISSION_REQUEST_INT", "MISSION_REQUEST", "MISSION_ACK", "TERRAIN_CHECK", "CAMERA_INFORMATION", "CAMERA_SETTINGS",
+    "CAMERA_FOV_STATUS", "GIMBAL_DEVICE_ATTITUDE_STATUS", "VIDEO_STREAM_INFORMATION"})
+OBSERVATION_COMMANDS = frozenset({mavlink2.MAV_CMD_SET_MESSAGE_INTERVAL, mavlink2.MAV_CMD_REQUEST_MESSAGE})
+ROUTER_SYSTEM = 250                    # the tools' system id (board.SOURCE_SYSTEM, SYSID_MYGCS in sitl/hitl.parm)
 ROUTER_COMPONENT = mavlink2.MAV_COMP_ID_UDP_BRIDGE      # 240: the router's own commands, apart from the runner's
 ALL_COMPONENTS = 0                      # MAV_COMP_ID_ALL: a target or a client identity standing for the system
 NO_TARGET = 0
@@ -61,6 +71,19 @@ def destinations(msg: mavlink2.MAVLink_message, clients: dict[str, set[Identity]
     if target is None:
         return list(clients)
     return [name for name, identities in clients.items() if addressed_to(target, identities)]
+
+
+def observation_allowed(msg: mavlink2.MAVLink_message) -> bool:
+    """A reader's packet that may reach the board (OBSERVATION_MESSAGES / OBSERVATION_COMMANDS)."""
+    kind = msg.get_type()
+    if kind in COMMAND_MESSAGES:
+        return msg.command in OBSERVATION_COMMANDS
+    return kind in OBSERVATION_MESSAGES
+
+
+def command_of(msg: mavlink2.MAVLink_message) -> Optional[int]:
+    """The MAV_CMD of a COMMAND_LONG or COMMAND_INT, else None (the write log's command column)."""
+    return int(msg.command) if msg.get_type() in COMMAND_MESSAGES else None
 
 
 def is_router_target(msg: mavlink2.MAVLink_message) -> bool:

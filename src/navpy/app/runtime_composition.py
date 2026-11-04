@@ -50,7 +50,7 @@ from navpy.app.runtime_resources import (
 )
 from navpy.app.runtime_ready import emit_runtime_ready
 from navpy.app.terminal_handoff import (
-    TerminalHandoff, build_terminal_handoff, fenced_opener, siyi_fence, terminal_observer,
+    TerminalHandoff, build_terminal_handoff, fenced_opener, own_quiesce, siyi_fence, terminal_observer,
 )
 from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
@@ -223,6 +223,8 @@ def _build_session(
         dock_contact=vision.dock_contact,
     )
     resources.own_quiescence("controller", controller.stop)
+    # HITL: closes first, so the fences close before the controller, navigation, vision and vehicle stop.
+    own_quiesce(resources.own_quiescence, foundation.terminal_handoff, hooks.get("stop_requested"))
     controller.set_network(foundation.network)
     scheduler_rate_hz = resolve_ardupilot_scheduler_rate_hz(
         foundation.vehicle,

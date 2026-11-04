@@ -1,4 +1,4 @@
-"""``sitl_driver approach``: one approach run of the HITL chain (hitl_final_approach.md sections 1 and 9, step 13).
+"""``sitl_driver approach``: one approach run of the HITL chain (hitl_final_approach.md sections 1 and 9, steps 13, 16).
 
 Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
 
@@ -12,12 +12,15 @@ the path of its private file unread. It writes the run's record (approach_record
 refuses at once when a role's port or Unreal is taken, then starts backing -> router -> board setup (parameters, the
 bridge, the boot on the bridge) -> emulator -> publisher -> Unreal -> navpy, each on its ready line. The publisher
 starts before Unreal (Unreal connects to it; step 9's order). Takeoff, the scenario's search lane (approach_lane.py)
-in AUTO with navpy's detection gated to it; it waits for navpy's terminal record or the scenario's observe_s, then
+in AUTO with navpy's detection gated to it and navpy only observing (the router's reader: none of its writes to the
+aircraft reaches the board); it waits for navpy's terminal record or the scenario's observe_s, then
 stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a breach of the scenario's
-floor takes the same path (HeightFloor). Every owned process is stopped on every exit; scoring then checks that Unreal
-built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest (tools/hitl/run_manifest.py) and
-the orphan check follow. Exit 0 only when the flight, the handoff, every stop, the scene, the link health and the
-orphan check all passed. ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
+floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM) runs the same idempotent quiesce
+(approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on every exit; scoring then
+checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest (tools/hitl/run_manifest.py) and
+the orphan check follow. Exit 0 only when the flight, the handoff, every stop, the scene, the link health, the
+orphan check and the observation audit (0 forbidden navpy writes, 0 after the drain ack) all passed.
+``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
 
@@ -25,33 +28,31 @@ import argparse
 import hashlib
 import json
 import shutil
+import signal
 import subprocess
 import sys
-import time
 from datetime import datetime, timezone
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
-from navpy.app.router_barrier import RouterBarrier
-from navpy.app.terminal_handoff import NAVPY_TERMINAL_MARKER
 from tools.hitl import approach_records, media_fault_spec, run_manifest
 from tools.hitl.model_input import read_model_input
 from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
+from tools.tuning import approach_quiesce as stop
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
-from tools.tuning.board import DEFAULT_BAUD, Board
+from tools.tuning.board import Board
 from tools.tuning.dock_pass import END_RTL_S, Point, home_position
 from tools.tuning.flight_floor import HeightFloor
 from tools.tuning.hitl import board_param_files
 from tools.tuning.hitl_bridge.board_clock import DEFAULT_LOOP_RATE_HZ
 from tools.tuning.hitl_bridge.bridge import DEFAULT_INTEGRATION_DT_S, PLANT_PROGRAM
 from tools.tuning.hitl_procs import HitlProcesses
-from tools.tuning.navpy_handoff import NavpyHandoff, direct_rtl, end_process, stop_navpy
 from tools.tuning.private_data import private_dir
 
 MODE = "pc-sitl"
@@ -61,7 +62,6 @@ SIM_HIL_BINARY = Path.home() / "fw-worktrees" / "ardupilot-sim-hil" / "build" / 
 YEGHVARD_ORIGIN = "40.3117412,44.4552112,1292.8,0"      # hitl_unreal_camera.md: the Unreal level's origin
 SERVO_SPEED_S = 0.03            # the bridge's servo lag in the dock-pass runs (hitl_unreal_camera.md)
 JSBSIM = "/usr/games/JSBSim"
-TERMINAL_POLL_S = 1.0           # one HEARTBEAT wait per check of navpy's output and the owned processes
 AAS_SCRIPT = Path("scripts") / "lua" / "aas_params.lua"     # navpy's AAS_* parameters, as on the aircraft's SD card
 BOARD_SCRIPTING = "board_scripting.parm"                   # the run's parameter file: SCR_ENABLE 1
 
@@ -131,43 +131,20 @@ def _adopting_popen(group: ProcessGroup) -> Callable[..., subprocess.Popen]:
     return popen
 
 
-def _observe(board: Board, group: ProcessGroup, navpy_out: Path, seconds: float) -> str:
-    """Drain the link (the floor's hook sees every position) until navpy's terminal record or the deadline."""
-    deadline, tail = time.monotonic() + seconds, ""
-    with open(navpy_out, encoding="utf-8", errors="replace") as out:
-        while time.monotonic() < deadline:
-            board.wait_message("HEARTBEAT", TERMINAL_POLL_S)
-            group.check()
-            tail = tail[-len(NAVPY_TERMINAL_MARKER):] + out.read()     # a marker split across two reads
-            if NAVPY_TERMINAL_MARKER in tail:
-                return "terminal record"
-    return "deadline"
-
-
-def _handed_off(group: ProcessGroup, role: str, result: dict, clean: Optional[str]) -> dict:
-    """The handoff stopped this owned role itself: recorded as stopped, ended after stop only by its own stop."""
-    group.mark_stopped(role, result.get("returncode") if clean is not None and result.get("stop") == clean else None)
-    return result
-
-
-def _fly(args: argparse.Namespace, board: Board, group: ProcessGroup, run: dict) -> None:
+def _fly(board: Board, group: ProcessGroup, run: dict, quiesce: stop.Quiesce) -> None:
     from tools.tuning.sitl_driver import takeoff        # sitl_driver imports this module
-    navpy_process = group.handle("navpy").process
-    handoff = NavpyHandoff(lambda: _handed_off(group, "navpy", stop_navpy(navpy_process), "requested"),
-                           RouterBarrier(("127.0.0.1", chain.CONTROL_PORT), "navpy"),
-                           lambda: _handed_off(group, "router", end_process(group.handle("router").process), None),
-                           lambda: direct_rtl(f"tcp:127.0.0.1:{chain.SITL_PORT}", DEFAULT_BAUD))
     limits = run["scenario"]["limits"]
     takeoff(board)
     flight = run["flight"] = {}
-    with HeightFloor(board, limits["min_height_m"], flight, before_recovery=handoff.before_rtl):
+    with HeightFloor(board, limits["min_height_m"], flight, before_recovery=lambda: quiesce.run(stop.FLOOR)):
         lat, lon, _ = home_position(board)
         lane = build_lane(Point(lat, lon), LaneSpec.of(run["scenario"]["lane"]))
         flight["lane"] = lane.describe()
         fly_lane(board, lane)
         flight["lane_reached_utc"] = datetime.now(timezone.utc).isoformat()
-        flight["ended_by"] = _observe(board, group, group.output_path("navpy"), limits["observe_s"])
-    record = run["handoff"] = handoff.before_rtl()      # quiesce first: navpy stopped, its endpoint closed
+        flight["ended_by"] = stop.observe(board, group, group.output_path("navpy"), limits["observe_s"])
+    # quiesce first: navpy stopped, its endpoint closed
+    record = quiesce.run(stop.TERMINAL if flight["ended_by"] == stop.ENDED_BY_TERMINAL else stop.DEADLINE)
     if record.get("rtl") != "direct":
         board.set_mode("RTL")
         board.fly_for(END_RTL_S)
@@ -232,7 +209,8 @@ def approach(args: argparse.Namespace) -> int:
                               args.hitl_data)
     board = Board(f"udpin:127.0.0.1:{chain.RUNNER_PORT}", run_dir / "board", files, origin=args.origin, hitl=hitl,
                   log_fetch=False)
-    failed = None
+    failed, reason, quiesce = None, stop.EXIT, stop.Quiesce.of(group)
+    previous_sigterm = signal.signal(signal.SIGTERM, stop.raise_aborted)
     try:
         specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens),
@@ -247,11 +225,14 @@ def approach(args: argparse.Namespace) -> int:
         board.start()
         for spec in specs[2:]:
             group.start(spec)
-        _fly(args, board, group, run)
-    except Exception as exc:          # noqa: BLE001 - recorded; every owned process still stops below
+        _fly(board, group, run, quiesce)
+    except BaseException as exc:      # noqa: BLE001 - recorded; the quiesce and every stop still run below
+        reason = stop.ABORT if isinstance(exc, (KeyboardInterrupt, stop.Aborted)) else stop.CRASH
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
-        print(f"[approach] run FAILED: {failed}", flush=True)
+        print(f"[approach] run FAILED ({reason}): {failed}", flush=True)
     finally:
+        signal.signal(signal.SIGTERM, previous_sigterm)
+        run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
         try:
             board.stop()
         except Exception as exc:      # noqa: BLE001 - recorded; the owned processes must still stop
@@ -260,6 +241,10 @@ def approach(args: argparse.Namespace) -> int:
         group.mark_stopped("bridge", board.record.get("hitl", {}).get("bridge_exit"))
         group.stop_all()
         run["producers"], run["orphans"] = group.producers(), group.orphans()
+        records = stop.navpy_records(group.output_path("navpy"))
+        run["quiesce"] = quiesce.describe()
+        run["outcome"] = stop.outcome(records, run.get("flight", {}).get("ended_by"))
+        run["observation"] = stop.audit(run_dir / "router_writes.csv", quiesce.record, records)
         run["scene"] = scenario_run.verify(scenario_dir, run_dir / "unreal.log")
         _copy_logs(run_dir, board)
         run["board"] = board.report()
@@ -269,9 +254,11 @@ def approach(args: argparse.Namespace) -> int:
     ended = all(item.get("ended_after_stop") for item in run["producers"].values())
     scene = scenario_run.reproduced(run["scene"], run["scenario"])
     print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
-          f"scene reproduced {scene}, link health {health.get('ok')}; folder {run_dir}"
+          f"scene reproduced {scene}, link health {health.get('ok')}, outcome {run['outcome']['outcome']}, "
+          f"observation {run['observation']}; folder {run_dir}"
           + "".join(f"; {problem}" for problem in run["admission_problems"]), flush=True)
-    return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") else 1
+    clean = run["observation"]["ok"] and not run["outcome"]["problems"]
+    return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") and clean else 1
 
 
 def add_parser(sub: argparse._SubParsersAction) -> None:

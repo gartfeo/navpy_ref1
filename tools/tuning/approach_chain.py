@@ -100,8 +100,9 @@ def backing(paths: ChainPaths, origin: str, binary: str) -> ProcSpec:
 
 
 def router(paths: ChainPaths) -> ProcSpec:
+    """navpy is a reader: observation (step 16), no navpy write to the aircraft reaches the board."""
     return ProcSpec("router", tool(paths, "tools.tuning.mav_router", "--board", f"tcp:127.0.0.1:{SITL_PORT}",
-                                   "--client", f"runner={RUNNER_PORT}", "--client", f"navpy={NAVPY_PORT}",
+                                   "--client", f"runner={RUNNER_PORT}", "--reader", f"navpy={NAVPY_PORT}",
                                    "--control", str(CONTROL_PORT),
                                    "--write-log", str(paths.run_dir / "router_writes.csv"),
                                    "--stats", str(paths.run_dir / "router_stats.json"), "--exit-on-stdin-eof"),

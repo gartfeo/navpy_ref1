@@ -12,9 +12,9 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 from tools.tuning.hitl_bridge.transport import Transport
 from tools.tuning.mav_router_control import ControlServer
 from tools.tuning.mav_router_endpoint import Client, SeqGaps, interval_command, msg_id, new_parser, wake_all
-from tools.tuning.mav_router_policy import (ROUTER_COMPONENT, ROUTER_SYSTEM, Identity,
-                                            StreamClaims, all_streams_rate_hz, destinations, interval_request,
-                                            is_router_target)
+from tools.tuning.mav_router_policy import (ROUTER_COMPONENT, ROUTER_SYSTEM, SET_MESSAGE_INTERVAL, Identity,
+                                            StreamClaims, all_streams_rate_hz, command_of, destinations,
+                                            interval_request, is_router_target, observation_allowed)
 from tools.tuning.mp_mirror import LOOPBACK, MAX_DATAGRAM, UNPARSED, blocked
 
 OPEN_RETRY_S = 0.5             # board.OPEN_RETRY_S: the OS gives no event when a USB port comes back
@@ -36,7 +36,7 @@ class MavRouter:
         self._lock = threading.Lock()               # identities, claims, stats, endpoint state
         self._io = threading.Lock()                 # the board handle: open, write, close
         self._write_log = write_log
-        self._to_board: queue.Queue[Optional[tuple[str, int, int, bytes]]] = queue.Queue()
+        self._to_board: queue.Queue[Optional[tuple[str, int, int, bytes, Optional[int]]]] = queue.Queue()
         self._link_gen = 0                          # bumped at every (re)open: older queued packets never go out
         self._write_failed = threading.Event()
         self._parser = new_parser()
@@ -135,7 +135,7 @@ class MavRouter:
             item = self._to_board.get()
             if item is None:
                 return
-            source, epoch, link_gen, buf = item
+            source, epoch, link_gen, buf, command = item
             with self._io:
                 with self._lock:
                     client = self.clients.get(source)
@@ -159,21 +159,21 @@ class MavRouter:
                 if client is not None:
                     client.last_write_s = now
                 if self._write_log is not None:
-                    self._write_log.write(f"{now:.6f},{source},{msg_id(buf)}\n")
+                    self._write_log.write(f"{now:.6f},{source},{msg_id(buf)},{'' if command is None else command}\n")
 
     def _link_state(self) -> int:
         """The link generation while the board is open, -1 while it is closed (caller holds the router lock)."""
         return self._link_gen if self._link_up.is_set() else -1
 
-    def _enqueue(self, source: str, buf: bytes) -> None:
-        """Queue one packet for the board (caller holds the router lock); dropped at once while the link is down."""
+    def _enqueue(self, source: str, buf: bytes, command: Optional[int] = None) -> None:
+        """Queue one packet, command its MAV_CMD for the write log (caller holds the lock); dropped while link down."""
         if not self._link_up.is_set():
             self.stats["dropped_link_down"] += 1
             return
         client = self.clients.get(source)
         if client is not None:
             client.queued += 1
-        self._to_board.put((source, client.epoch if client is not None else 0, self._link_gen, buf))
+        self._to_board.put((source, client.epoch if client is not None else 0, self._link_gen, buf, command))
 
     # ---- the clients' side --------------------------------------------------------------
     def _receive(self, client: Client) -> None:
@@ -220,7 +220,7 @@ class MavRouter:
             if link_gen < 0 or link_gen != self._link_state():  # link down or an earlier link: no claim, no write
                 self.stats["dropped_link_down"] += 1
                 return
-            if client.observer and blocked(msg):
+            if (client.observer and blocked(msg)) or (client.reader and not observation_allowed(msg)):
                 self.stats[f"blocked_{client.name}_{kind}"] += 1
                 return
             identity = Identity(msg.get_srcSystem(), msg.get_srcComponent())
@@ -232,7 +232,7 @@ class MavRouter:
             else:
                 buf = msg.get_msgbuf()
             rate_hz = all_streams_rate_hz(msg)
-            self._enqueue(client.name, buf)
+            self._enqueue(client.name, buf, command_of(msg))
             if rate_hz is not None:
                 self.claims.stream_rate(rate_hz)
             if kind == "REQUEST_DATA_STREAM":    # any such request re-sets intervals of its streams: claims after it
@@ -251,8 +251,8 @@ class MavRouter:
 
     def _queue_claims(self, autopilot: Identity) -> None:
         """Re-send every claimed interval to the autopilot in the router's name (caller holds the lock)."""
-        for message_id, interval_us in self.claims.claimed().items():
-            self._enqueue(ROUTER_SOURCE, interval_command(self._own, autopilot, message_id, interval_us))
+        for message, rate in self.claims.claimed().items():
+            self._enqueue(ROUTER_SOURCE, interval_command(self._own, autopilot, message, rate), SET_MESSAGE_INTERVAL)
             self.stats["router_intervals_sent"] += 1
 
     # ---- endpoint barrier ------------------------------------------------------------------

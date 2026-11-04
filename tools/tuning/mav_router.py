@@ -14,15 +14,18 @@ docs/design/hitl_final_approach.md, section 2.
   under an earlier link are dropped, never replayed into a new boot. A failed write counts as a lost link. After each
   (re)open the first board HEARTBEAT re-sends the claimed intervals (a new boot starts from its stream rates).
 - An observer client (Mission Planner) cannot fly or change rates: mp_mirror.blocked() packets are dropped.
+- A reader client (navpy in observation, design step 16) may only read and report: packets outside
+  mav_router_policy.observation_allowed() are dropped and counted (blocked_NAME_TYPE).
 - One owner of the board handle: writes, opens and closes run under one lock, so a reboot (the reader closing the
   port) can never meet a write in progress.
 - Endpoint barrier (the terminal handoff, design section 2): a JSON request on the loopback control port closes a
   client's endpoint; from then on its packets are refused, those still queued are dropped, any write in progress has
   returned, and the reply says how many were dropped and when that client's last packet was written. "open" re-opens
-  it (the next navpy process). With --write-log every packet written to the board is logged with its source.
+  it (the next navpy process). With --write-log every packet written to the board is logged: router monotonic
+  seconds, source, message id and, for COMMAND_LONG/INT, the MAV_CMD (else empty).
 
 Run: python -m tools.tuning.mav_router --board COM15 --client runner=9641 --client navpy=9642 [--observer mp=9640]
-     [--control 9643] [--write-log FILE] [--stats FILE] [--exit-on-stdin-eof]
+     [--reader NAME=PORT] [--control 9643] [--write-log FILE] [--stats FILE] [--exit-on-stdin-eof]
 """
 from __future__ import annotations
 
@@ -60,6 +63,8 @@ def build_parser() -> argparse.ArgumentParser:
                    help="a client with full authority (the runner, navpy)")
     p.add_argument("--observer", type=parse_endpoint, action="append", default=[], metavar="NAME=PORT",
                    help="a watching client (Mission Planner): no RC, no stream rates, no SYSID_MYGCS")
+    p.add_argument("--reader", type=parse_endpoint, action="append", default=[], metavar="NAME=PORT",
+                   help="an observing client (navpy in observation): only reads, reports and stream-rate claims")
     p.add_argument("--control", type=int, metavar="PORT",
                    help="loopback UDP control port for the endpoint barrier (JSON {op: close|open, client, id})")
     p.add_argument("--write-log", type=Path, help="log every packet written to the board: monotonic s, source, msgid")
@@ -71,7 +76,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 def main(argv: Optional[list[str]] = None) -> int:
     args = build_parser().parse_args(argv)
-    endpoints = [(n, p, False) for n, p in args.client] + [(n, p, True) for n, p in args.observer]
+    endpoints = ([(n, p, "client") for n, p in args.client] + [(n, p, "observer") for n, p in args.observer]
+                 + [(n, p, "reader") for n, p in args.reader])
     names = [n for n, _, _ in endpoints]
     ports = [p for _, p, _ in endpoints]
     if not endpoints or len(set(names)) != len(names) or len(set(ports)) != len(ports):
@@ -79,7 +85,8 @@ def main(argv: Optional[list[str]] = None) -> int:
         return 2
     print(f"[router] {raise_bridge_priority()}", flush=True)
     write_log = args.write_log.open("w", encoding="utf-8", buffering=1) if args.write_log else None
-    router = MavRouter(make_transport(args.board), [Client(n, p, o) for n, p, o in endpoints],
+    clients = [Client(n, p, role == "observer", role == "reader") for n, p, role in endpoints]
+    router = MavRouter(make_transport(args.board), clients,
                        control_port=args.control, write_log=write_log).start()
     print(f"[router] {args.board} <-> " + ", ".join(f"{n} udp {p}" for n, p, _ in endpoints), flush=True)
     try:

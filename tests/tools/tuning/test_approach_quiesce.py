@@ -1,0 +1,395 @@
+"""The run's quiesce (hitl_final_approach.md section 9, step 16): one idempotent step for terminal, deadline, crash
+and abort, at the board boundary (the real router with navpy as its reader, the real barrier, the router's write
+log), with late queues and reconnects; navpy's own quiesce when it is stopped without an outcome; the runner's exit
+paths; and the rule that a deadline never yields DOCKED."""
+from __future__ import annotations
+
+import json
+import signal
+import socket
+import threading
+from pathlib import Path
+
+import pytest
+from pymavlink.dialects.v20 import ardupilotmega as mavlink2
+
+from navpy.app.router_barrier import BarrierResult, RouterBarrier
+from navpy.app.runtime_resources import RuntimeResourceStack
+from navpy.app.terminal_handoff import (TRIGGER_SHUTDOWN, TRIGGER_STOP, LinkFence, TerminalHandoff, own_quiesce,
+                                        print_terminal_record)
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
+from tests.modules.navigation.test_terminal_handoff import IDENTITY, RecordingGimbal, ScriptedBarrier
+from tests.tools.tuning import test_approach_runner as runner_rig
+from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, GatedBoard, UdpClient, heartbeat, wait_until)
+from tools.tuning import approach, approach_quiesce as stop
+from tools.tuning.approach_procs import Owned, ProcSpec, RunnerError
+from tools.tuning.mav_router_core import MavRouter
+from tools.tuning.mav_router_endpoint import Client
+from tools.tuning.mp_mirror import LOOPBACK
+from tools.tuning.navpy_handoff import NavpyHandoff
+from tools.tuning.vehicle import MODE
+
+M = mavlink2
+WAIT_S = 2.0
+QUEUED = 4                       # navpy packets queued behind the write in progress when the quiesce starts
+ATTITUDE_TARGET = M.MAVLink_set_attitude_target_message(0, 1, 1, 0, [1, 0, 0, 0], 0, 0, 0, 0.5)
+RTL = M.MAVLink_command_long_message(1, 1, M.MAV_CMD_DO_SET_MODE, 0, 1, MODE["RTL"], 0, 0, 0, 0, 0)
+
+
+@pytest.fixture
+def boundary(tmp_path):
+    """The router on a held board, navpy its reader, the runner a full client, the write log in a file."""
+    board, navpy, runner = GatedBoard(), UdpClient(NAVPY), UdpClient(RUNNER)
+    log_path = tmp_path / "router_writes.csv"
+    log = log_path.open("w", encoding="utf-8", buffering=1)
+    router = MavRouter(board, [Client("navpy", navpy.port, False, reader=True), Client("runner", runner.port, False)],
+                       announce=lambda line: None, control_port=0, write_log=log).start()
+    ports = {name: c.sock.getsockname() for name, c in router.clients.items()}
+    navpy.peer, runner.peer = ports["navpy"], ports["runner"]
+    rig = {"board": board, "navpy": navpy, "runner": runner, "router": router, "log": log_path}
+    yield rig
+    board.gate.set()
+    router.close()
+    log.close()
+    rig["navpy"].sock.close()
+    runner.sock.close()
+
+
+def control(router: MavRouter) -> tuple[str, int]:
+    return router.control.sock.getsockname()
+
+
+def late_queue(rig: dict) -> None:
+    """A navpy write in progress at the board, QUEUED more behind it, and one forbidden write (blocked)."""
+    board, navpy, router = rig["board"], rig["navpy"], rig["router"]
+    board.gate.clear()
+    navpy.send(ATTITUDE_TARGET)
+    for _ in range(1 + QUEUED):
+        navpy.send(heartbeat())
+    assert board.writing.wait(WAIT_S)
+    wait_until(lambda: router.clients["navpy"].queued == QUEUED)
+
+
+def released_after(board: GatedBoard, seconds: float = 0.1) -> threading.Timer:
+    """The write in progress returns a little later, while the barrier waits for it."""
+    timer = threading.Timer(seconds, board.gate.set)
+    timer.start()
+    return timer
+
+
+def navpy_reconnects(rig: dict) -> None:
+    """A new navpy process binds the same port and sends again: the closed endpoint refuses it."""
+    old = rig["navpy"]
+    port, peer = old.port, old.peer
+    old.sock.close()
+    fresh = UdpClient(NAVPY)
+    fresh.sock.close()
+    fresh.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    fresh.sock.bind((LOOPBACK, port))
+    fresh.port, fresh.peer = port, peer
+    rig["navpy"] = fresh
+    fresh.send(heartbeat())
+    fresh.send(ATTITUDE_TARGET)
+
+
+def board_reconnects(rig: dict) -> None:
+    """The board link drops and comes back (a reboot); navpy's endpoint stays closed across it."""
+    board, router = rig["board"], rig["router"]
+    opened = board.open_count
+    board.reboot()
+    wait_until(lambda: board.open_count == opened + 1 and router._link_up.is_set())
+
+
+def runner_flies_rtl(rig: dict) -> None:
+    writes = len(rig["board"].written)
+    rig["runner"].send(RTL)
+    wait_until(lambda: len(rig["board"].written) > writes)
+
+
+def handoff_for(rig: dict, case: str, events: list) -> NavpyHandoff:
+    """navpy's stop for each fault case, as the runner sees it."""
+    navpy, router = rig["navpy"], rig["router"]
+
+    def navpy_stop() -> dict:
+        events.append("navpy stop")
+        if case == "deadline":                     # navpy still writes while it stops: these queue late as well
+            navpy.send(heartbeat())
+            navpy.send(ATTITUDE_TARGET)
+            return {"stop": "requested", "returncode": 0}
+        if case == "terminal":
+            return {"stop": "requested", "returncode": 0}
+        return {"stop": "already exited", "returncode": -9}         # crash, abort: navpy is gone, its packets not
+
+    return NavpyHandoff(navpy_stop, RouterBarrier(control(router), "navpy"),
+                        lambda: pytest.fail("the router answered"), lambda: pytest.fail("the router answered"))
+
+
+REASONS = {"terminal": stop.TERMINAL, "deadline": stop.DEADLINE, "crash": stop.CRASH, "abort": stop.ABORT}
+
+
+@pytest.mark.parametrize("case", list(REASONS))
+def test_no_navpy_write_reaches_the_board_after_the_drain_ack_in_any_fault_case(boundary, case):
+    rig, events, records = boundary, [], []
+    late_queue(rig)
+    if case == "terminal":                         # navpy's own handoff closes first; the runner's close repeats it
+        fence = LinkFence()
+        navpy_handoff = TerminalHandoff(fence, RouterBarrier(control(rig["router"]), "navpy"),
+                                        publish=records.append)
+        navpy_handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+        timer = released_after(rig["board"])
+        assert navpy_handoff.join(WAIT_S)
+    else:
+        timer = released_after(rig["board"])
+    quiesce = stop.Quiesce(handoff_for(rig, case, events))
+    record = quiesce.run(REASONS[case])
+    timer.join()
+    assert record["barrier"]["ok"] and "failed" not in record
+    assert record["barrier"]["ack"]["already_closed"] is (case == "terminal")
+    navpy_reconnects(rig)
+    board_reconnects(rig)
+    rig["navpy"].send(heartbeat())                 # after the board came back: still closed
+    runner_flies_rtl(rig)
+    assert quiesce.run(stop.EXIT) is record        # idempotent: the same record, only the reason is added
+    wait_until(lambda: rig["router"].report()["stats"].get("refused_closed_navpy", 0) >= 3)
+    result = stop.audit(rig["log"], record, records)
+    assert result["forbidden"] == 0 and result["after_drain"] == 0 and result["ok"], result
+    assert result["navpy_writes"] == 1             # only the write in progress at the barrier went out
+    assert quiesce.describe() == {"reason": REASONS[case], "repeats": [stop.EXIT], "handoff": record}
+    stats = rig["router"].report()["stats"]
+    assert stats["blocked_navpy_SET_ATTITUDE_TARGET"] >= 1
+
+
+def test_a_barrier_without_an_ack_fails_the_audit(tmp_path):
+    dead = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    dead.bind((LOOPBACK, 0))
+    try:
+        quiesce = stop.Quiesce(NavpyHandoff(lambda: {"stop": "already exited"},
+                                            RouterBarrier(dead.getsockname(), "navpy", timeout_s=0.2),
+                                            lambda: {"ended": "terminated"},
+                                            lambda: {"rtl": "direct", "confirmed": True}))
+        record = quiesce.run(stop.CRASH)
+    finally:
+        dead.close()
+    assert record["rtl"] == "direct" and "no ack" in record["failed"]
+    (tmp_path / "w.csv").write_text("1.0,navpy,0,\n", encoding="utf-8")
+    result = stop.audit(tmp_path / "w.csv", record, [])
+    assert result["after_drain"] is None and not result["ok"]
+
+
+def test_a_raising_handoff_is_recorded_and_the_quiesce_never_raises():
+    class Broken:
+        record = None
+
+        def before_rtl(self):
+            raise RuntimeError("handoff broke")
+
+    assert stop.Quiesce(Broken()).run(stop.ABORT)["failed"] == "quiesce raised"
+
+
+def test_the_runners_last_quiesce_needs_a_started_navpy(tmp_path):
+    calls: list = []
+    quiesce = stop.Quiesce(NavpyHandoff(lambda: calls.append("stop") or {}, None, None, None))
+
+    class Group:
+        owned: list = []
+
+    assert quiesce.end(Group(), stop.CRASH) is None and calls == [] and quiesce.reasons == []
+
+
+# ---- the outcome: a deadline never yields DOCKED ------------------------------------------------------
+DOCKED = {"trigger": "terminal", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
+STOPPED = {"trigger": "stop", "outcome": None, "barrier": "acked", "gimbal_stop": "sent"}
+
+
+def test_only_a_terminal_record_that_ended_the_observation_gives_the_outcome():
+    assert stop.outcome([DOCKED], stop.ENDED_BY_TERMINAL)["outcome"] == "docked"
+    assert stop.outcome([DOCKED], stop.ENDED_BY_DEADLINE)["outcome"] is None      # printed after the deadline
+    assert stop.outcome([STOPPED], stop.ENDED_BY_DEADLINE)["outcome"] is None
+    assert stop.outcome([STOPPED], stop.ENDED_BY_TERMINAL)["outcome"] is None
+    assert stop.outcome([], None)["outcome"] is None                               # a crash before any record
+    assert stop.outcome([DOCKED], None)["outcome"] is None                         # the flight raised
+
+
+def test_navpys_failed_barrier_or_gimbal_stop_is_a_problem():
+    result = stop.outcome([{**DOCKED, "barrier": "failed", "barrier_error": "no ack", "gimbal_stop": "timeout"}],
+                          stop.ENDED_BY_TERMINAL)
+    assert result["problems"] == ["navpy's own barrier failed: no ack", "navpy's gimbal stop: timeout"]
+    assert stop.outcome([{**DOCKED, "gimbal_stop": "no_gimbal"}], stop.ENDED_BY_TERMINAL)["problems"] == []
+
+
+def test_navpys_records_are_read_from_its_output(tmp_path, capsys):
+    print_terminal_record(STOPPED)
+    out = tmp_path / "navpy.out"
+    out.write_text("starting\n" + capsys.readouterr().out + "NAVPY_STOPPED_V1\n", encoding="utf-8")
+    assert stop.navpy_records(out) == [STOPPED]
+    assert stop.navpy_records(tmp_path / "missing.out") == []
+
+
+# ---- navpy's own quiesce when stopped without an outcome ------------------------------------------------
+def scripted(events: list, result: BarrierResult | None = None) -> tuple[TerminalHandoff, ScriptedBarrier]:
+    fence = LinkFence()
+    barrier = ScriptedBarrier(events, fence, result or BarrierResult({"op": "closed", "client": "navpy"}))
+    return TerminalHandoff(fence, barrier, publish=lambda record: events.append(("record", record))), barrier
+
+
+def test_a_stop_quiesces_without_an_outcome_and_a_later_docked_is_never_reported():
+    events: list = []
+    handoff, barrier = scripted(events)
+    gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
+    barrier.release.set()
+    handoff.quiesce(TRIGGER_STOP)
+    handoff.on_terminal(Terminal.DOCKED, IDENTITY)         # latched after the deadline's stop
+    assert handoff.join(WAIT_S)
+    records = [e[1] for e in events if e[0] == "record"]
+    assert len(records) == 1 and records[0]["trigger"] == "stop" and records[0]["outcome"] is None
+    assert records[0]["gimbal_stop"] == "sent" and barrier.calls == 1
+    again = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)  # reconnect
+    again.requestGimbalSpeed(30, 0)
+    gimbal.requestGimbalSpeed(30, 0)
+    assert handoff.gimbal_fence.dropped == 2
+    assert [e for e in events if e[0] == "gimbal"] == [("gimbal", 0x07), ("gimbal", 0x05)]
+
+
+def test_a_terminal_outcome_before_the_stop_keeps_its_record():
+    events: list = []
+    handoff, barrier = scripted(events)
+    barrier.release.set()
+    handoff.on_terminal(Terminal.MISSED, IDENTITY)
+    assert handoff.finish(TRIGGER_STOP)
+    records = [e[1] for e in events if e[0] == "record"]
+    assert [(r["trigger"], r["outcome"]) for r in records] == [("terminal", "missed")]
+
+
+def test_finish_reports_a_record_that_is_not_out_in_time():
+    events: list = []
+    handoff, barrier = scripted(events)
+    assert handoff.finish(TRIGGER_SHUTDOWN, timeout_s=0.1) is False
+    barrier.release.set()
+    assert handoff.join(WAIT_S)
+
+
+@pytest.mark.parametrize("stopped, trigger", [(True, "stop"), (False, "shutdown")])
+def test_navpys_cleanup_quiesces_first(stopped, trigger):
+    """Owned last, the handoff closes first: navigation and vision stop behind closed fences, the gimbal stopped."""
+    events: list = []
+    handoff, barrier = scripted(events)
+    handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
+    barrier.release.set()
+    resources = RuntimeResourceStack()
+    resources.own_quiescence("vision", lambda: events.append(("vision stops", handoff.fence.closed)))
+    own_quiesce(resources.own_quiescence, handoff, lambda: stopped)
+    resources.close()
+    kinds = [e[0] for e in events]
+    assert kinds == ["gimbal", "gimbal", "barrier", "record", "vision stops"]
+    assert events[-1] == ("vision stops", True) and events[3][1]["trigger"] == trigger
+
+
+def test_without_router_control_nothing_is_owned():
+    owned: list = []
+    own_quiesce(lambda label, action: owned.append(label), None, lambda: True)
+    assert owned == []
+
+
+def test_a_write_after_the_stop_quiesce_is_fenced():
+    events: list = []
+    handoff, barrier = scripted(events)
+
+    class Link:
+        written: list = []
+
+        def write(self, buf: bytes) -> None:
+            self.written.append(buf)
+
+    link = Link()
+    handoff.fence.install(link, threading.RLock())
+    barrier.release.set()
+    handoff.quiesce(TRIGGER_STOP)
+    link.write(b"navigation's stop: AUTO restart")
+    assert handoff.join(WAIT_S) and link.written == [] and handoff.fence.dropped == 1
+
+
+# ---- the runner's exit paths ----------------------------------------------------------------------------
+class RecordingQuiesce(stop.Quiesce):
+    def __init__(self, log: list) -> None:
+        super().__init__(NavpyHandoff(lambda: log.append("navpy stop") or {}, None, None, None))
+        self._log = log
+
+    def run(self, reason: str) -> dict:
+        self._log.append(f"quiesce {reason}")
+        self.reasons.append(reason)
+        self._handoff.record = self._handoff.record or {"barrier": {"ok": True, "ack": None}}
+        return self._handoff.record
+
+
+def _runner(tmp_path, monkeypatch, fly):
+    log: list = []
+
+    class FakeBoard:
+        def __init__(self, *args, **kwargs) -> None:
+            self.workdir, self.record = Path(args[1]), {"hitl": {"bridge_exit": 0}}
+
+        def start(self):
+            log.append("board start")
+
+        def stop(self):
+            log.append("board stop")
+
+        def report(self):
+            return {"link_health": {"ok": True}}
+
+    def start(group, spec):
+        log.append(f"start {spec.role}")
+        owned = Owned(ProcSpec(spec.role, (), None, 0.0), runner_rig.FakeHandle(log, spec.role), None, "t")
+        group.owned.append(owned)
+        return owned
+
+    for name, value in [("_record", lambda *a: {"run": {}, "commissioning": runner_rig.NO_FAULT.record()}),
+                        ("_addresses", lambda: ("172.0.0.2", "172.0.0.1")), ("Board", FakeBoard),
+                        ("board_param_files", lambda *a: []), ("_board_scripts", lambda *a: None), ("_fly", fly)]:
+        monkeypatch.setattr(approach, name, value)
+    monkeypatch.setattr(approach.scenario_run, "service", runner_rig.fake_service)
+    monkeypatch.setattr(approach.approach_records, "write_record",
+                        lambda record, run_dir: runner_rig._written(run_dir / "approach_record.json"))
+    monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
+    monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
+    monkeypatch.setattr(approach.handles, "windows_udp_in_use", lambda ports: None)
+    monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
+    monkeypatch.setattr(approach.chain, "win_path", lambda path: "C:/x")
+    monkeypatch.setattr(approach.ProcessGroup, "start", start)
+    monkeypatch.setattr(approach.stop.Quiesce, "of", classmethod(lambda cls, group: RecordingQuiesce(log)))
+    code = approach.approach(runner_rig.approach_args(tmp_path))
+    run_dir = next((tmp_path / "runs").iterdir())
+    return code, log, json.loads((run_dir / "approach_run.json").read_text(encoding="utf-8"))
+
+
+def _raises(exc: BaseException):
+    def fly(board, group, run, quiesce):
+        raise exc
+    return fly
+
+
+@pytest.mark.parametrize("exc, reason", [(RunnerError("navpy exited with code -9 during the run"), stop.CRASH),
+                                         (KeyboardInterrupt(), stop.ABORT), (stop.Aborted("signal 15"), stop.ABORT)])
+def test_a_crash_or_an_abort_quiesces_before_the_boards_stop(tmp_path, monkeypatch, exc, reason):
+    before = signal.getsignal(signal.SIGTERM)
+    code, log, run = _runner(tmp_path, monkeypatch, _raises(exc))
+    assert code == 1 and signal.getsignal(signal.SIGTERM) is before
+    assert log.index(f"quiesce {reason}") < log.index("board stop")
+    assert (run["quiesce"]["reason"], run["quiesce"]["repeats"]) == (reason, []) and run["outcome"]["outcome"] is None
+
+
+def test_a_deadline_quiesces_once_and_the_exit_only_repeats_it(tmp_path, monkeypatch):
+    def fly(board, group, run, quiesce):
+        run["flight"] = {"ended_by": stop.ENDED_BY_DEADLINE}
+        quiesce.run(stop.DEADLINE)
+
+    code, log, run = _runner(tmp_path, monkeypatch, fly)
+    assert (run["quiesce"]["reason"], run["quiesce"]["repeats"]) == ("deadline", ["exit"])
+    assert run["outcome"]["outcome"] is None and run["outcome"]["ended_by"] == "deadline"
+    assert log.index("quiesce deadline") < log.index("board stop")
+    assert code == 1 and not run["observation"]["ok"]      # no write log here: the audit cannot pass
+
+
+def test_sigterm_raises_an_abort():
+    with pytest.raises(stop.Aborted):
+        stop.raise_aborted(signal.SIGTERM, None)

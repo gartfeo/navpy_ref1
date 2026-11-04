@@ -588,7 +588,7 @@ def test_members_left_after_the_handoff_stop_are_terminated(tmp_path):
     navpy = _Members(log, "navpy", "kill")
     group.adopt("navpy", navpy)
     navpy.code = 0
-    approach._handed_off(group, "navpy", {"stop": "requested", "returncode": 0}, "requested")
+    approach.stop._handed_off(group, "navpy", {"stop": "requested", "returncode": 0}, "requested")
     group.stop_all()
     stopped = group.producers()["navpy"]
     assert stopped["leftover"]["how"] == "kill" and not stopped["ended_after_stop"] and group.orphans() == []
@@ -604,7 +604,7 @@ def test_a_role_the_handoff_stopped_is_stopped_not_already_exited(tmp_path, resu
     group, handles, _ = _group(tmp_path, log)
     group.start(_spec("navpy"))
     handles["navpy"].code = result["returncode"]           # the handoff stopped it
-    assert approach._handed_off(group, "navpy", result, clean) is result
+    assert approach.stop._handed_off(group, "navpy", result, clean) is result
     group.stop_all()
     stopped = group.producers()["navpy"]
     assert stopped["how"] == "stop" and stopped["ended_after_stop"] is ended and "navpy stop" not in log
