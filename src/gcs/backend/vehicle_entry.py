@@ -13,6 +13,7 @@ from navpy.plugins.vehicle.ardupilot.preflight_health import (
 )
 from gcs.backend.companion_identity import COMPANION_TELEMETRY_COMPONENT_IDS, is_from_companion
 from gcs.backend.companion_swarm_state import CompanionSwarmState
+from gcs.backend.position_path import PositionPath
 from gcs.backend.producer_inventory import producers
 from gcs.backend.video_streams import VehicleVideoStreams
 from gcs.backend.vehicle_status import ACCEL_CAL_ACTIVE_WINDOW_S, RC_CHANNELS_MAX, CONFIRM_BLOCKED_STALE_S
@@ -62,6 +63,8 @@ class VehicleEntry:
         self._rc_lock = rt.Lock()
         # FREE/BUSY from the own companion's SWARM_HEARTBEAT.
         self._swarm_state = CompanionSwarmState(sys_id)
+        # Every position fix between broadcasts, for the map trail.
+        self.position_path = PositionPath(sys_id)
         # Camera-protocol video discovery of the own companion's cameras
         # (display only, gcs_video_streams.md).
         self._video_streams = VehicleVideoStreams(sys_id, vehicle)
@@ -72,6 +75,7 @@ class VehicleEntry:
             ("CAMERA_SETTINGS", self._on_camera_settings),
             ("RC_CHANNELS", self._on_rc_channels),
             ("SWARM_HEARTBEAT", self._swarm_state.on_heartbeat),
+            ("GLOBAL_POSITION_INT", self.position_path.on_global_position),
             ("HEARTBEAT", self._video_streams.on_heartbeat),
             ("COMMAND_ACK", self._video_streams.on_command_ack),
             ("CAMERA_INFORMATION", self._video_streams.on_camera_information),

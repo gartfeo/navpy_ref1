@@ -23,6 +23,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 | WS-SEND | manual_control_stop | `hooks/useManualControl.js:87` | user | no | MAVLink | none (todo 240) |
 | GET | /api/settings | `hooks/useSettings.js:39,92` | startup | yes | files | untested |
 | PUT | /api/settings | `hooks/useSettings.js:70` | user | no | files, NavPy (lifecycle change restarts) | untested |
+| GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | untested |
 | GET | /api/vision-profiles | `hooks/useSettings.js:40,81`, `settings/ProfileSelector.jsx:45` | startup | yes | files | untested |
 | PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | untested |
 | PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | untested |
@@ -73,8 +74,8 @@ These go to other servers, so the relay never forwards them and they never enter
 | Request | Sent from | When | Demo | Notes |
 |---|---|---|---|---|
 | WHEP `OPTIONS`, `POST` (SDP body, `application/sdp`), `PATCH` (`application/trickle-ice-sdpfrag`, `If-Match`), `DELETE`, to each stream's `whep_url` | `vendor/mediamtx/reader.js:94,637,684,766`, via `hooks/useWhepStream.js:35` | a video window opens or closes | no (video is optional) | the media server; a simulated run has only the optional test pattern |
-| Map tiles from `tile.openstreetmap.org` | `map/hooks/useCesiumViewer.js:171` | startup, map moves | yes (display) | display only |
-| Cesium ion imagery and terrain (`IonImageryProvider`, `sampleTerrainMostDetailed`) | `map/hooks/useCesiumViewer.js:159,272`, `map/hooks/usePlanSync.js:84`, `map/hooks/useCorridorLayer.js:204`, `map/hooks/useClosestApproachMarks.js:217` | startup, plan edits | yes (display) | display only: terrain heights feed the drawn map, not a backend request |
+| Map tiles from `tile.openstreetmap.org` (street) and `{s}.tile.opentopomap.org` (terrain, the default) | `map/utils/baseLayers.js:68,73` | startup, map moves, a layer pick | yes (display) | display only |
+| Cesium ion imagery and terrain (`IonImageryProvider`, `sampleTerrainMostDetailed`) | `map/utils/baseLayers.js:65`, `map/hooks/useCesiumViewer.js:285`, `map/hooks/usePlanSync.js:84`, `map/hooks/useCorridorLayer.js:204`, `map/hooks/useClosestApproachMarks.js:217` | startup, plan edits | yes (display) | display only: terrain heights feed the drawn map, not a backend request |
 | Static files (`/aas-logo.svg`, the bundle) | `LoadingScreen.jsx:136`, the page | startup | yes | the frontend's own server |
 | Links the operator opens: `www.google.com` maps, `ardupilot.org` docs | `TaskConfirmCard.jsx:376`, `utils/preflightRemediation.js:21-23` | user | no | opened in a new tab, not sent by the app |
 | `www.w3.org` | SVG icons | never | no | the SVG namespace, not a request |

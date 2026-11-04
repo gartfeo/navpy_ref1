@@ -419,6 +419,13 @@
     "tracks": "Tracks",
     "launchZone": "Launch Zone"
   },
+  "mapLayers": {
+    "title": "Map layer",
+    "terrain": "Terrain",
+    "satellite": "Satellite",
+    "street": "Street",
+    "needsIon": "Satellite needs a Cesium Ion token"
+  },
   "mapMarkers": {
     "launchPoint": "LP",
     "detectionStart": "DS",

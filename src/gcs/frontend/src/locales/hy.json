@@ -419,6 +419,13 @@
     "tracks": "Հետքեր",
     "launchZone": "Արձակման գոտի"
   },
+  "mapLayers": {
+    "title": "Քարտեզի շերտ",
+    "terrain": "Ռելիեֆ",
+    "satellite": "Արբանյակային",
+    "street": "Փողոցներ",
+    "needsIon": "Արբանյակային շերտը պահանջում է Cesium Ion տոկեն"
+  },
   "mapMarkers": {
     "launchPoint": "ԱԿ",
     "detectionStart": "ՀՍ",

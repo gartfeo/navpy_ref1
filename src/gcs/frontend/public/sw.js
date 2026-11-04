@@ -8,6 +8,7 @@ const MAX_TILE_ENTRIES = 2000;
 // Tile URL patterns (network-first, cache fallback)
 const TILE_PATTERNS = [
   /tile\.openstreetmap\.org/,
+  /tile\.opentopomap\.org/,
   /\.virtualearth\.net/,
   /assets\.ion\.cesium\.com/,
   /api\.cesium\.com/,

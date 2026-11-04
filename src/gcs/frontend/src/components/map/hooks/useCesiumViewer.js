@@ -1,7 +1,8 @@
 import { useRef, useEffect, useState } from 'react';
 import { CAMERA_KEY, ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from '../constants/icons';
 import { flyToOptions } from '../../../utils/cameraFlyTo';
-import { cesiumIonToken } from '../../../utils/cesiumConfig';
+import { loadCesiumIonToken } from '../../../utils/cesiumConfig';
+import { DEFAULT_BASE_LAYER, createBaseLayer, applyBaseLayer, isBaseLayerAvailable, watchBaseLayer } from '../utils/baseLayers';
 
 /** Convert a map tile zoom level to approximate camera height in meters. */
 function zoomToHeight(zoom) {
@@ -100,6 +101,8 @@ export function restoreCamera(Cesium, viewer, saved) {
  *
  * `persistSuspendedRef.current` true (FPV or RC owns the camera) skips camera
  * persistence, so a first-person pose is never stored as the startup view.
+ * The viewer starts on `baseLayerId` and swaps its base imagery when that id
+ * changes; `onBaseLayerFailed(id, err)` reports a layer whose provider failed.
  */
 /**
  * The reset-view fit flight. `flyingRef` stays true exactly while the newest
@@ -119,7 +122,9 @@ export function createFitFlight(camera, flyingRef) {
   };
 }
 
-export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { persistSuspendedRef, mapCameraRef } = {}) {
+export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, {
+  persistSuspendedRef, mapCameraRef, baseLayerId, onBaseLayerFailed,
+} = {}) {
   const containerRef = useRef(null);
   const viewerRef = useRef(null);
   const cesiumRef = useRef(null);
@@ -128,6 +133,14 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
   const fitFlyingRef = useRef(false);
   const mapDefaultsRef = useRef(mapDefaults);
   mapDefaultsRef.current = mapDefaults;
+  const baseLayerIdRef = useRef(baseLayerId);
+  baseLayerIdRef.current = baseLayerId;
+  const onBaseLayerFailedRef = useRef(onBaseLayerFailed);
+  onBaseLayerFailedRef.current = onBaseLayerFailed;
+  // Base layer currently on the globe, so the swap effect skips the initial one.
+  const appliedBaseLayerRef = useRef(null);
+  // Whether the backend served an Ion token; Ion layers are never applied without one.
+  const hasIonRef = useRef(false);
   const [viewerReady, setViewerReady] = useState(false);
   const [terrainReady, setTerrainReady] = useState(false);
   // Base map has painted its first tiles — the signal that dismisses the loading
@@ -141,7 +154,8 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
     let cancelled = false;
 
     (async () => {
-      const Cesium = await import('cesium');
+      // The Ion token comes from the backend at runtime (see cesiumConfig.js).
+      const [Cesium, ionToken] = await Promise.all([import('cesium'), loadCesiumIonToken()]);
       if (cancelled) return;
       cesiumRef.current = Cesium;
 
@@ -155,8 +169,8 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       }
 
       self.CESIUM_BASE_URL = '/Cesium/';
-      const ionToken = cesiumIonToken();
       if (ionToken) Cesium.Ion.defaultAccessToken = ionToken;
+      hasIonRef.current = ionToken != null;
 
       const viewDiv = document.createElement('div');
       viewDiv.style.width = '100%';
@@ -165,14 +179,16 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       containerRef.current.innerHTML = '';
       containerRef.current.appendChild(viewDiv);
 
-      // OSM imagery as initial base layer. Cesium 1.138 has no imageryProvider
-      // option: passing one only turns the default layer off, leaving no imagery.
-      const osmImagery = new Cesium.OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/',
-      });
-
+      // The operator's base layer goes in at construction, so the tile-drain
+      // watcher below sees its first tiles.
+      const initialLayerId = isBaseLayerAvailable(baseLayerIdRef.current, hasIonRef.current)
+        ? baseLayerIdRef.current : DEFAULT_BASE_LAYER;
+      appliedBaseLayerRef.current = initialLayerId;
       const viewer = new Cesium.Viewer(viewDiv, {
-        baseLayer: new Cesium.ImageryLayer(osmImagery),
+        baseLayer: watchBaseLayer(
+          createBaseLayer(Cesium, initialLayerId),
+          (e) => onBaseLayerFailedRef.current?.(initialLayerId, e),
+        ),
         terrainProvider: undefined,
         infoBox: false,
         selectionIndicator: false,
@@ -240,13 +256,13 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       );
 
       // Dismiss path: flip tilesReady once the base map's first tiles have loaded
-      // and the load queue drains (OSM initially, or Ion after the swap below) —
-      // i.e. the imagery is renderable, not merely requested.
+      // and the load queue drains — i.e. the imagery is renderable, not merely
+      // requested.
       // tileLoadProgressEvent reports tiles still queued; we wait for it to drain
       // to 0 *after* seeing a positive count (so we don't fire on the idle 0
       // before any tile is requested). This is the ONLY signal that flips
-      // tilesReady — the Ion upgrade below deliberately does NOT, since a resolved
-      // provider proves only metadata, not a loaded/renderable tile. Harmless if
+      // tilesReady — the Ion terrain upgrade below deliberately does NOT, since a
+      // resolved provider proves only metadata, not a loaded tile. Harmless if
       // it never fires: CesiumMap has a bounded fallback (LOADING_FALLBACK_MS).
       let sawTiles = false;
       const onTileProgress = (remaining) => {
@@ -257,23 +273,13 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       };
       viewer.scene.globe.tileLoadProgressEvent.addEventListener(onTileProgress);
 
-      // Upgrade to Cesium Ion imagery + terrain, kicked immediately (dropping the
-      // old fixed 1.2 s delay). This runs UNCONDITIONALLY — the previous version
-      // gated the whole load behind the (slower, network-bound) Ion terrain fetch,
-      // so the "AAS LOADING" screen stayed up for the entire upgrade. Now the
-      // overlay is dismissed as soon as the IMAGERY tiles have loaded/drained
-      // (via the tileLoadProgressEvent drain watcher above) — NOT on provider-add,
-      // which only proves metadata resolved and would blank the map if Ion tiles
-      // are slow or failing. The terrain geometry keeps loading behind the
-      // already-visible map; terrain-dependent features gate on terrainReady,
-      // unchanged. Without a configured Ion token the map stays on OSM.
+      // Upgrade to Cesium World Terrain elevation when an Ion token is configured.
+      // Imagery is the operator's base layer choice and is not touched here. The
+      // terrain geometry loads behind the already-visible map; terrain-dependent
+      // features gate on terrainReady. Without a token the globe stays on the
+      // ellipsoid.
       if (ionToken) (async () => {
         try {
-          const ionImagery = await Cesium.IonImageryProvider.fromAssetId(3);
-          if (cancelled || viewer.isDestroyed()) return;
-          viewer.imageryLayers.removeAll();
-          viewer.imageryLayers.addImageryProvider(ionImagery);
-          viewer.scene.requestRender();
           const ionTerrain = await Cesium.CesiumTerrainProvider.fromIonAssetId(ION_TERRAIN_ASSET_ID);
           await ionTerrain.requestTileGeometry(0, 0, 0);
           if (cancelled || viewer.isDestroyed()) return;
@@ -281,7 +287,7 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
           setTerrainReady(true);
           viewer.scene.requestRender();
         } catch (e) {
-          console.warn('Cesium Ion upgrade failed, keeping OSM tiles:', e);
+          console.warn('Cesium Ion terrain upgrade failed, keeping the ellipsoid:', e);
         }
       })();
 
@@ -372,6 +378,17 @@ export default function useCesiumViewer(resetViewRef, flyToRef, mapDefaults, { p
       cancelled = true;
     };
   }, []);
+
+  // Swap the base imagery when the operator picks another layer.
+  useEffect(() => {
+    const viewer = viewerRef.current;
+    if (!viewerReady || !viewer || viewer.isDestroyed()) return;
+    if (appliedBaseLayerRef.current === baseLayerId) return;
+    if (!isBaseLayerAvailable(baseLayerId, hasIonRef.current)) return;
+    appliedBaseLayerRef.current = baseLayerId;
+    applyBaseLayer(cesiumRef.current, viewer, baseLayerId,
+      (e) => onBaseLayerFailedRef.current?.(baseLayerId, e));
+  }, [viewerReady, baseLayerId]);
 
   return { containerRef, viewerRef, cesiumRef, readyRef, fitFlyingRef, viewerReady, terrainReady, tilesReady, mapStopped };
 }

@@ -201,6 +201,11 @@ class TelemetryLoop:
                             "ts": rt.time(),
                         })
                     if prev is None or _has_changed(prev, snap):
+                        # Every fix since this vehicle's last broadcast, so
+                        # the trail follows the flown path, not straight lines
+                        # between snapshots. Drained only here: an unchanged
+                        # vehicle keeps its fixes for its next broadcast.
+                        snap["path"] = self._mgr.drain_position_path(sid)
                         changed.append(snap)
                         last_broadcast[sid] = snap
 

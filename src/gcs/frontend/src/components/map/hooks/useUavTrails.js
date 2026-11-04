@@ -1,12 +1,13 @@
 import { useEffect, useRef } from 'react';
-import { addTrailPoint, newTrail, startRun, trailPieces, TRAIL_SEGMENTS } from '../utils/trailAccum';
+import { addTrailPoint, newTrail, startRun, trailPieces, trailUpdatePoints, TRAIL_SEGMENTS } from '../utils/trailAccum';
 import { zoneColorsSolid } from '../../../styles';
 
 /**
  * Render the flight-path trace behind each UAV.
  *
  * Records lon/lat/alt history for every UAV in the fleet, shown or hidden
- * (older points are thinned, see trailAccum). Only fresh telemetry records
+ * (older points are thinned, see trailAccum): every fix of each update's
+ * `path`, or the current position of an update without one (trailUpdatePoints). Only fresh telemetry records
  * (store.isTelemetryFresh): cached positions held over a link gap never do,
  * and the first fresh position after a gap opens a new run. `paused` stops
  * recording for the whole fleet; resuming opens a new run. Each trace uses
@@ -20,6 +21,8 @@ export default function useUavTrails(
 ) {
   const trailDataRef = useRef({});
   const staleRef = useRef(new Set());
+  // sys_id -> the `path` array last recorded, so a kept path is not re-added.
+  const usedPathRef = useRef({});
   const visRef = useRef({ show, hiddenSysIds });
   visRef.current = { show, hiddenSysIds };
   const pausedRef = useRef(paused);
@@ -98,8 +101,10 @@ export default function useUavTrails(
               startRun(trail);
               stale.delete(sid);
             }
+            const points = trailUpdatePoints(v, usedPathRef.current[sid]);
+            usedPathRef.current[sid] = v.path;
             if (!pausedRef.current) {
-              addTrailPoint(trail, { lon: v.lon, lat: v.lat, alt: v.alt_rel ?? v.alt ?? 0 });
+              for (const pt of points) addTrailPoint(trail, pt);
             }
           }
 
@@ -151,6 +156,7 @@ export default function useUavTrails(
           }
           delete trailMap[sid];
           delete trailData[sid];
+          delete usedPathRef.current[sid];
           stale.delete(Number(sid));
         }
       }
