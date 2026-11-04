@@ -17,8 +17,17 @@ export function deadlineHeaders(ms) {
  * Read only this key: the whole env object would build every VITE_ value,
  * the Ion token too, into the bundle (tests/gcs/test_no_committed_tokens.py).
  */
-export function isLockstepRun(env = { VITE_NAVPY_LOCKSTEP: import.meta.env.VITE_NAVPY_LOCKSTEP }) {
+export function isLockstepRun(env = { VITE_NAVPY_LOCKSTEP: lockstepFlag() }) {
   return env?.VITE_NAVPY_LOCKSTEP === '1';
+}
+
+// Plain Node (tests/gcs/frontend) has no env object; Vite replaces the read.
+function lockstepFlag() {
+  try {
+    return import.meta.env.VITE_NAVPY_LOCKSTEP;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
