@@ -106,15 +106,15 @@ Runtime behavior changes include or update tests. Never delete, skip, weaken, or
 
 For safety-critical navigation, mission, or operator-facing behavior, prefer both a mechanism-level regression test and a simulation/log/integration check when feasible.
 
-Run the smallest relevant targeted test first, then broader tests when shared behavior, interfaces, or safety-relevant paths changed:
+Run the smallest relevant targeted test first, then broader tests when shared behavior, interfaces, or safety-relevant paths changed. Run the default suite (it skips `tests/gcs`) on 8 workers (`-n 8`, pytest-xdist from the `test` extra): about 6 min instead of 20 (11,000 tests, 2026-11-04). More workers were no faster and 20 ran the PC out of memory. Keep targeted runs serial; workers add about 8 s of start-up. Run live tests (`DRONEMAV_CONN` set) serially: they share the vehicles. A real-clock check that fails only under parallel load (for example in `test_mission_transfer.py`) is a load failure until it also fails alone.
 
 ```powershell
 $env:PYTHONPATH="$PWD\src"
-python -m pytest tests
+python -m pytest tests -n 8
 ```
 
 ```bash
-PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8
 ```
 
 ## Design Rules

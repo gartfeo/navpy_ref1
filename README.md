@@ -89,7 +89,7 @@ round-trip examples.
 Tests live under `tests/`:
 
 ```bash
-PYTHONPATH="$PWD/src" python -m pytest tests
+PYTHONPATH="$PWD/src" python -m pytest tests -n 8   # pytest-xdist, from the test extra
 ```
 
 The repository targets Python 3.9+ (`requires-python` in `pyproject.toml`) and
