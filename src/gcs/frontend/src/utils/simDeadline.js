@@ -14,9 +14,20 @@ export function deadlineHeaders(ms) {
  * True when the page serves a lockstep run (scripts/lockstep_app_stack.py sets
  * `VITE_NAVPY_LOCKSTEP=1`). There no wall timer may decide whether a request is
  * sent: no retry after a wall delay, no diagnostic posted from a wall abort.
+ * Read only this key: the whole env object would build every VITE_ value,
+ * the Ion token too, into the bundle (tests/gcs/test_no_committed_tokens.py).
  */
-export function isLockstepRun(env = import.meta.env) {
+export function isLockstepRun(env = { VITE_NAVPY_LOCKSTEP: lockstepFlag() }) {
   return env?.VITE_NAVPY_LOCKSTEP === '1';
+}
+
+// Plain Node (tests/gcs/frontend) has no env object; Vite replaces the read.
+function lockstepFlag() {
+  try {
+    return import.meta.env.VITE_NAVPY_LOCKSTEP;
+  } catch {
+    return undefined;
+  }
 }
 
 /**
