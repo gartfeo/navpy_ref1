@@ -100,6 +100,12 @@ def board_reconnects(rig: dict) -> None:
     wait_until(lambda: board.open_count == opened + 1 and router._link_up.is_set())
 
 
+def refused(rig: dict) -> int:
+    """navpy datagrams the router turned away: on the closed endpoint, or read across the board's reboot."""
+    stats = rig["router"].report()["stats"]
+    return stats.get("refused_closed_navpy", 0) + stats.get("dropped_stale_navpy", 0)
+
+
 def runner_flies_rtl(rig: dict) -> None:
     writes = len(rig["board"].written)
     rig["runner"].send(RTL)
@@ -145,12 +151,13 @@ def test_no_navpy_write_reaches_the_board_after_the_drain_ack_in_any_fault_case(
     timer.join()
     assert record["barrier"]["ok"] and "failed" not in record
     assert record["barrier"]["ack"]["already_closed"] is (case == "terminal")
+    turned_away = refused(rig)
     navpy_reconnects(rig)
     board_reconnects(rig)
     rig["navpy"].send(heartbeat())                 # after the board came back: still closed
     runner_flies_rtl(rig)
     assert quiesce.run(stop.EXIT) is record        # idempotent: the same record, only the reason is added
-    wait_until(lambda: rig["router"].report()["stats"].get("refused_closed_navpy", 0) >= 3)
+    wait_until(lambda: refused(rig) >= turned_away + 3)
     result = stop.audit(rig["log"], record, records)
     assert result["forbidden"] == 0 and result["after_drain"] == 0 and result["ok"], result
     assert result["navpy_writes"] == 1             # only the write in progress at the barrier went out
@@ -392,6 +399,31 @@ def test_a_stop_during_the_vehicle_build_quiesces_before_the_vehicle_closes(monk
     kinds = [e[0] for e in events]
     assert kinds == ["barrier", "record", "vehicle closed", "ack"]
     assert events[1][1]["trigger"] == "stop" and events[2] == ("vehicle closed", True)
+
+
+def test_a_failed_vehicle_build_still_quiesces_and_publishes(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from navpy.app import runtime_composition as composition
+
+    events: list = []
+    handoff, barrier = scripted(events)
+    barrier.release.set()
+
+    def create_vehicle(_args, _logger, *, bus, stop_requested):
+        events.append(("vehicle rolled back",))        # vehicle_build_transaction's own rollback, then the raise
+        raise TimeoutError("no heartbeat")
+
+    for name, value in [("ConnArgs", lambda _a: SimpleNamespace(source_system=1)), ("LoggerArgs", lambda _a: object()),
+                        ("initialize_logger", lambda *_a: MagicMock()), ("build_terminal_handoff", lambda _a: handoff),
+                        ("open_vehicle_bus", lambda *_a: object()), ("create_vehicle", create_vehicle)]:
+        monkeypatch.setattr(composition, name, value)
+    monkeypatch.setattr(composition.GroundStationLoggerNetwork, "create", MagicMock())
+    with pytest.raises(TimeoutError):
+        composition.compose_runtime(SimpleNamespace())
+    assert [e[0] for e in events] == ["vehicle rolled back", "barrier", "record"]
+    assert events[-1][1]["trigger"] == "shutdown" and handoff.fence.closed
 
 
 @pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")     # the raise under test

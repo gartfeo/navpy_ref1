@@ -123,7 +123,9 @@ def _build_foundation(
     ports.observe_logger(logger)
 
     terminal_handoff = build_terminal_handoff(args)
-    bus = open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
+    # HITL: a failed vehicle build (its own rollback runs first) still quiesces and publishes a shutdown record.
+    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
+    bus =open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
     # After the stop the vehicle's reads and mission transfers end at once,
     # so startup reaches a stop check without waiting on the link.
     vehicle = create_vehicle(connection_args, logger, bus=bus, stop_requested=stop_requested)
