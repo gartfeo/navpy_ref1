@@ -219,11 +219,14 @@ def test_committed_plan_file_is_the_builders_output():
     assert plan.main(["--check"]) == 0
 
 
-def test_drawn_plan_changes_only_the_area():
+def test_drawn_plan_changes_only_the_area_spacing_and_corridor():
     original, drawn = plan.plan_file(FIXTURE), plan.drawn_plan_file(FIXTURE)
-    assert {k: v for k, v in drawn.items() if k != "polygon"} == {
-        k: v for k, v in original.items() if k != "polygon"}
+    changed = {"polygon", "route_offset_m", "set_corridors"}
+    assert {k: v for k, v in drawn.items() if k not in changed} == {
+        k: v for k, v in original.items() if k not in changed}
     assert drawn["polygon"] == [dict(corner) for corner in plan.DRAWN_AREA]
+    assert drawn["route_offset_m"] == plan.DRAWN_LINE_SPACING_M
+    assert drawn["set_corridors"] == [[dict(point) for point in plan.DRAWN_CORRIDOR]]
 
 
 def test_drawn_area_is_the_owners_box_south_west_of_the_launch_point():
