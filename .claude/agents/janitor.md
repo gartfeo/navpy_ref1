@@ -55,8 +55,6 @@ were invoked in:
   read-only instead: Read `~/.gcs/instances.json` (or the `GCS_INSTANCE_REGISTRY`
   override) directly.
 - NEVER modify the registry or stop another directory's GCS instance.
-- Do not delete `.logs/` content (navigation analysis data) unless explicitly
-  asked.
 - Prefer `git -C <path>` over `cd <path>` — a shell cd into a worktree holds
   its root directory handle on Windows and blocks deletion.
 

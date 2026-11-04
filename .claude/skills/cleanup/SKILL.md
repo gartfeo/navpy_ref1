@@ -17,7 +17,7 @@ Rules:
 - Beyond this chat's own processes and files, act only on items the user picks
   here; an app approval card is not that pick.
 - Never touch running, pinned or open chats, dirty worktrees, unmerged
-  branches, files you didn't create, or `.logs/`.
+  branches, or files you didn't create.
 - Read `~/.gcs/instances.json` directly; `--list` prunes it.
 - Chats in one directory share its GCS slot, and a new branch looks merged
   until it has commits: judge ownership and "finished" by chat and PR, not by
@@ -32,7 +32,9 @@ Rules:
    `python scripts/gcs_stop.py` and/or `--eval`. Exit 2 means nothing to stop;
    ignore its `--all` hint.
 2. Stop dev servers and background commands this chat started.
-3. Delete scratch and debug files this chat created.
+3. Put what matters into git, kept small. Then delete the scratch and debug
+   files and run outputs this chat created (`.logs/` runs, WSL eval roots,
+   temp).
 4. PR merged or closed: offer to archive this chat (`archive_session` with
    `self`). Open: if `get_status` shows auto-archive off, offer `set_monitor`.
    No PR: leave the worktree.
