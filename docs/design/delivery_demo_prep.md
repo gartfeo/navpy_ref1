@@ -330,9 +330,9 @@ runs −10 to +2 m. The planner aims the lines at the launch point, so they
 cross the box diagonally. The docks are zone 2's waypoints 1 and 2 on the
 box's west edge. Hubs and their indices are the rehearsed plan's. Since
 2026-11-04 the file is the owner's own save: lines 90 m apart instead of
-150 m, and one corridor point (40.307462, 44.457417). The line counts and
-dock spacing measured with 150 m (4, 2 and 3 lines; docks 169 m apart) are
-not re-measured.
+150 m, and one corridor point (40.307462, 44.457417): 3 lines per route
+(4, 2 and 3 with 150 m), docks 86 m apart (169 m), checked in
+`usePlanFileRoundTrip.test.jsx`.
 
 **One command** `delivery_demo.py`:
 1. Run dir, settings and SITL root, then the commit and input record,
