@@ -536,8 +536,8 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
 
         def run(self):
             events.append("run")
-            made["admission"].actions.append({"k": 3, "source": "relay", "kind": "request",
-                                              "target": 2, "id": [0, 4], "payload": {}})
+            made["side"].admission.actions.append({"k": 3, "source": "relay", "kind": "request",
+                                                  "target": 2, "id": [0, 4], "payload": {}})
             raise HostFault("exchange_budget", "stop here", tick=3)
 
     fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
@@ -554,8 +554,8 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
         execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
     assert events == [("app", 40, fleet_layout(SLICE).backend), "run", "app stopped",
                       "fleet stopped", "released"]
-    assert made["admission"].relay is Stack.relay and made["admission"].refuse is app_side.refusal
-    assert isinstance(made["pace"], app_side.RealTimePacer)
+    assert made["side"].admission.relay is Stack.relay and made["side"].admission.refuse is app_side.refusal
+    assert isinstance(made["side"].pace, app_side.RealTimePacer)
     assert (tmp_path / "run" / app_side.ACTIONS_FILE).read_text(encoding="ascii") == (
         '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n')
 
