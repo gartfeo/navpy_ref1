@@ -9,6 +9,9 @@ from __future__ import annotations
 import struct
 import unittest
 from types import SimpleNamespace
+from unittest import mock
+
+from navpy.core.kernel import runtime_time as rt
 
 from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
     AP_TYPE_FLOAT,
@@ -49,8 +52,14 @@ class _StubFtp:
         self.blobs = list(blobs)
         self.fetches = 0
 
-    def fetch_param_pck(self, **_kwargs) -> bytes:
+        self.timeouts: list[float] = []
+        self.now = 0.0
+        self.cost = 0.0
+
+    def fetch_param_pck(self, *, timeout: float, **_kwargs) -> bytes:
         self.fetches += 1
+        self.timeouts.append(timeout)
+        self.now += self.cost
         return self.blobs.pop(0)
 
 
@@ -79,6 +88,35 @@ class TestTornParamPck(unittest.TestCase):
         with self.assertRaises(ParamPckError):
             client.fetch(timeout=1.0)
         self.assertEqual(ftp.fetches, TORN_PCK_FETCHES)
+
+    def test_every_layout_join_is_refused_or_one_whole_table(self):
+        # A gap read joins one layout's head to the other's tail at some cut.
+        a, b = _pck(2.0), _pck(2.5)
+        wholes = {parse_param_pck(x, defaults_requested=True).records for x in (a, b)}
+        for before, after in ((a, b), (b, a)):
+            for cut in range(1, max(len(before), len(after))):
+                joined = before[:cut] + after[cut:]
+                try:
+                    records = parse_param_pck(joined, defaults_requested=True).records
+                except ParamPckError:
+                    continue
+                self.assertIn(records, wholes, f"cut {cut} accepted a mixed table")
+
+    def test_refetches_share_one_timeout(self):
+        client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
+        ftp.cost = 4.0
+        with mock.patch.object(rt, "monotonic", lambda: ftp.now):
+            with self.assertRaises(ParamPckError):
+                client.fetch(timeout=10.0)
+        self.assertEqual(ftp.timeouts, [10.0, 6.0, 2.0])
+
+    def test_no_refetch_once_the_timeout_is_spent(self):
+        client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
+        ftp.cost = 10.0
+        with mock.patch.object(rt, "monotonic", lambda: ftp.now):
+            with self.assertRaises(ParamPckError):
+                client.fetch(timeout=10.0)
+        self.assertEqual(ftp.fetches, 1)
 
     def test_good_blob_is_fetched_once(self):
         client, ftp = _client([_pck(2.0)])

@@ -11,6 +11,8 @@ NavPy-sim start and stop run in the sim. Two kinds of vehicle command are
 refused by name (``REFUSED_COMMANDS``): every ``MAV_CMD_PREFLIGHT_CALIBRATION``
 blocks the firmware's main loop for seconds, a clock step the fleet grid
 refuses (todo 271), and a reboot restarts the firmware, which closes its relay.
+A settings edit that turns on the launch's own calibration (``launch.auto_preflight_cal``)
+is refused for the same reason.
 
 Anything that is not an HTTP request with a method and a target is refused
 too: the relay sends nothing else.
@@ -42,6 +44,9 @@ REFUSED_COMMANDS: dict[str, str] = {
     "compass_cal_reboot": _REBOOT,
 }
 COMMAND_PATH = "/api/control/command"
+#: ``PUT /api/settings`` may not turn on the launch's own preflight calibration
+#: (``control_preflight._maybe_auto_preflight_cal``, sent at launch and trigger).
+SETTINGS_PATH = "/api/settings"
 NOT_HTTP = "only HTTP requests enter the run"
 NOT_ASCII = "a request target is ASCII (percent-encoded)"
 STATUS = 501
@@ -71,8 +76,14 @@ def refusal(payload: dict[str, Any]) -> dict[str, Any] | None:
         command = body.get("command") if isinstance(body, dict) else None
         if isinstance(command, str) and command in REFUSED_COMMANDS:
             return answer(REFUSED_COMMANDS[command])
+    if method == "PUT" and path == SETTINGS_PATH:
+        body = payload.get("json")
+        launch = body.get("launch") if isinstance(body, dict) else None
+        # Anything but an explicit false could validate as on (pydantic coerces 1, "true").
+        if isinstance(launch, dict) and launch.get("auto_preflight_cal", False) is not False:
+            return answer(_CALIBRATION)
     return None
 
 
-__all__ = ["COMMAND_PATH", "NOT_ASCII", "NOT_HTTP", "REFUSED", "REFUSED_COMMANDS", "STATUS",
+__all__ = ["COMMAND_PATH", "NOT_ASCII", "NOT_HTTP", "REFUSED", "REFUSED_COMMANDS", "SETTINGS_PATH", "STATUS",
            "answer", "refusal"]

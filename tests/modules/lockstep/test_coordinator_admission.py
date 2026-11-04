@@ -196,6 +196,22 @@ def test_a_command_refusal_needs_the_command_route_and_a_string_command():
     assert app_refusals.refusal({**_http("/api/control/command", "POST")}) is None
 
 
+@pytest.mark.parametrize(("launch", "refused"), [
+    ({"auto_preflight_cal": True}, True),
+    ({"auto_preflight_cal": 1}, True),
+    ({"auto_preflight_cal": "true"}, True),
+    ({"auto_preflight_cal": False}, False),
+    ({"pitot_covered": True}, False),
+])
+def test_settings_that_turn_on_the_launch_calibration_are_refused(launch, refused):
+    """The launch sends a preflight calibration itself when ``launch.auto_preflight_cal``
+    is on (``control_preflight``): turning it on is refused like the calibration command."""
+    payload = {**_http("/api/settings", "PUT"), "json": {"launch": launch}}
+    assert (app_refusals.refusal(payload) is not None) is refused
+    assert app_refusals.refusal({**_http("/api/settings", "PUT"), "json": {"flight": {}}}) is None
+    assert app_refusals.refusal({**_http("/api/settings", "GET")}) is None
+
+
 def test_a_payload_that_is_not_http_is_refused():
     assert app_refusals.refusal({"kind": "subscribe"})["status"] == 501
     assert app_refusals.refusal({"kind": "http", "method": "GET"})["status"] == 501

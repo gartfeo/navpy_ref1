@@ -23,7 +23,8 @@ log = logging.getLogger(__name__)
 # With defaults, a record holds its default only while the value differs
 # from it, so a value that crosses its default during a lossy read moves
 # every later record. Gap reads then join bytes from two layouts and the
-# blob is torn. Fetch the whole file again, a bounded number of times.
+# blob is torn. Fetch the whole file again, a bounded number of times,
+# within the one timeout. The root fix, a snapshot per read, is todo 272.
 TORN_PCK_FETCHES = 3
 
 
@@ -74,16 +75,18 @@ class ParameterSnapshotClient:
         timeout: float,
         progress_callback: Callable[[dict[str, object] | None], None] | None,
     ) -> ParamPck:
+        # The refetches share the caller's timeout; they do not each get it again.
+        deadline = rt.monotonic() + timeout
         for attempt in range(1, TORN_PCK_FETCHES + 1):
             data = self._ftp.fetch_param_pck(
                 with_defaults=with_defaults,
-                timeout=timeout,
+                timeout=max(0.0, deadline - rt.monotonic()),
                 progress_callback=progress_callback,
             )
             try:
                 return parse_param_pck(data, defaults_requested=with_defaults)
             except ParamPckError as exc:
-                if attempt == TORN_PCK_FETCHES:
+                if attempt == TORN_PCK_FETCHES or rt.monotonic() >= deadline:
                     raise
                 log.warning(
                     "param.pck for sys_id=%d is torn (%s); fetching again "
