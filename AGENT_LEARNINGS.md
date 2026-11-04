@@ -572,6 +572,8 @@
   spy on it once to confirm it really ran on the baton.
 - **Run codex exec with stdin closed.** In a background shell it waits on
   "Reading additional input from stdin..." until the timeout. Add < /dev/null.
+  Missed again in HITL step 17 (2026-11-04): round 3 sat 3 hours at 0.6 s CPU.
+  Check the log's last line before suspecting login or the app-server.
 - **Keep scratch scripts out of shared temp folders.** A stray dis.py in the
   temp folder shadowed the stdlib; use a task-specific directory.
 
@@ -2399,3 +2401,28 @@
   the model (start a new motion), not in the line.
 - `find /` from Git Bash runs for an hour and outlives the agent that started it; tell live testers
   not to search the whole disk, and check for leftover shells after they finish.
+
+## Elevon sweep and hitl5 design (2026-10-16)
+
+- **When the owner points to an earlier chat, read its transcript first.** The
+  owner's "archived" chats are in ~/.claude/projects/<project>/*.jsonl (the
+  customTitle field names them). I first answered from a later file and missed
+  the chat's own measurement list.
+- **Check a reading's definition before calling it inconsistent.** I flagged
+  the sweep's full-throw angles against "24 deg full throw"; that 24 deg was
+  pitch stick only, which is half throw at MIXING_GAIN 0.5. Read the stored
+  measurement note (it said so) before doubting new data.
+- **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
+  Fit a smooth curve and label it an approximation; ask for an up/down repeat.
+
+## Smooth UAV models by playout, todo 267 (2026-11-04)
+
+- When the owner says the map looks bad, first ask which page (port, branch) they watch. Here
+  they watched another chat's stack on :3000 with the old code while my fix ran on :3001.
+- The built-in Browser pane draws at 0-2 fps when the session is not on screen; numbers from it
+  measure the throttle. Use the owner's Chrome for frame-level checks.
+- One WebSocket (TCP) delivers in order: a jitter test with reordered messages tests a case that
+  cannot happen and fails for the wrong reason. Model holds and bursts, keep the order.
+- `long-animation-frame` entries (PerformanceObserver) split a slow page into Cesium render and
+  telemetry handler time per script; strip query strings from the output, or Claude in Chrome
+  blocks it.

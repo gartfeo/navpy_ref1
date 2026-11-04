@@ -282,6 +282,7 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     monkeypatch.setattr(approach, "spawn_posix", spawn)
     monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
     monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
+    monkeypatch.setattr(approach.owners, "census", lambda *a, **k: {"ok": True, "roles": {}, "problems": []})
     monkeypatch.setattr(approach.handles, "windows_udp_in_use", lambda ports: None)
     monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
     monkeypatch.setattr(approach.chain, "win_path", lambda path: "C:/x")

@@ -1,5 +1,5 @@
 import { act, renderHook } from '@testing-library/react';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import useUavTrails from './useUavTrails';
 
 /** Minimal telemetry store: vehicles by sys_id, a fresh set, subscribers. */
@@ -371,11 +371,17 @@ describe('useUavTrails', () => {
   });
 
   describe('live segment to the model', () => {
+    // The playout clock (uavPlayout) runs on the page clock: tick() moves it.
+    beforeEach(() => { vi.useFakeTimers(); vi.setSystemTime(10000); });
+    afterEach(() => { vi.useRealTimers(); });
+    const tick = (ms) => vi.advanceTimersByTime(ms);
+
     it('joins the drawn head, at its ground + alt, to the model and follows the model every frame', async () => {
       const t = setup({ terrainReady: true });
       t.store.sendPath(1, [44.000, 44.001]);
       t.placeModel(1, 44.0013, 1513);
       expect(t.live(1)).toEqual([]); // head ground unknown: the trail is not drawn either
+      tick(1000); // the model has passed both fixes
       await t.settle();
       expect(t.live(1)).toEqual([{ lon: 44.001, lat: 40, h: 1410 }, { lon: 44.0013, lat: 40, h: 1513 }]);
       t.placeModel(1, 44.0016, 1516); // no telemetry: only the model moved
@@ -383,28 +389,68 @@ describe('useUavTrails', () => {
       expect(t.lons(1)).toEqual([44.000, 44.001]); // nothing is stored
     });
 
-    it('starts at the newest fix of each new path and is solid like the head piece', () => {
+    it('draws the trail only to the fixes the model has passed; the segment runs on through them', () => {
       const t = setup();
       t.placeModel(1, 44.0025, 100);
       t.store.sendPath(1, [44.000, 44.001]);
+      tick(200);
       t.store.sendPath(1, [44.002]);
-      expect(t.live(1)[0]).toEqual({ lon: 44.002, lat: 40, h: 100 });
+      // 44.002 is ahead of the playout clock: not drawn yet, by the trail or the segment.
+      expect(t.lons(1)).not.toContain(44.002);
+      const before = t.live(1);
+      expect(before.slice(0, -1).map((p) => p.lon)).not.toContain(44.002);
+      expect(before[0].lon).toBe(Math.max(...t.lons(1))); // starts at the drawn head
+      // Without an update, the clock passes 44.002: the segment draws it, then the model.
+      tick(1000);
+      const after = t.live(1);
+      expect(after.at(-2).lon).toBe(44.002);
+      expect(after.at(-1)).toEqual({ lon: 44.0025, lat: 40, h: 100 });
+      // The next update draws it into the trail and starts the segment there.
+      t.store.notify();
+      expect(t.lons(1)).toContain(44.002);
+      expect(t.live(1)[0].lon).toBe(44.002);
       const pool = t.entitiesRef.current.trailMap[1];
       expect(pool.live.polyline.material).toBe(pool.base); // the UAV's solid colour
     });
 
-    it('shrinks to nothing when the model comes to rest on the newest fix', () => {
+    it('never draws the trail end backwards over jittery, bursty updates', () => {
       const t = setup();
-      t.store.sendPath(1, [44.000, 44.001]);
-      t.placeModel(1, 44.001, 100);
-      const [head, model] = t.live(1);
-      expect(model).toEqual(head);
+      // Model and trail at one place: the model comes in through the hook's
+      // own playout, as useUavMarkers draws it.
+      const scratch = {};
+      t.entitiesRef.current.uavMap = { 1: { position: { getValue: () => scratch } } };
+      let lon = 44;
+      let lastEnd = -Infinity;
+      const holds = [0, 0, 120, 0, 450, 0, 0, 30, 0, 0];
+      for (let k = 0; k < 60; k++) {
+        const path = [1, 2, 3, 4, 5].map(() => { lon += 0.0001; return lon; });
+        t.store.sendPath(1, path);
+        for (let ms = 0; ms < 200 + holds[k % holds.length]; ms += 16) {
+          tick(16);
+          const pb = t.entitiesRef.current.uavPlayout[1];
+          const clock = pb.clock;
+          const pts = pb.fixes;
+          // Where useUavMarkers draws the model at this clock (lon only, lat 40).
+          let i = pts.length - 1;
+          while (i > 0 && pts[i].t > clock) i--;
+          const b = pts[i + 1];
+          scratch.lon = b && clock > pts[i].t ? pts[i].lon + (b.lon - pts[i].lon) * (clock - pts[i].t) / (b.t - pts[i].t) : pts[i].lon;
+          scratch.lat = 40; scratch.h = 100;
+          const seg = t.live(1);
+          // The drawn trail never reaches past the model, and its end never goes back.
+          const end = seg.length ? seg.at(-1).lon : Math.max(...t.lons(1));
+          expect(Math.max(...t.lons(1))).toBeLessThanOrEqual(scratch.lon + 1e-9);
+          expect(end).toBeGreaterThanOrEqual(lastEnd - 1e-9);
+          lastEnd = end;
+        }
+      }
     });
 
     it('is not drawn while telemetry is not fresh, and a reconnect does not bridge the gap', () => {
       const t = setup();
       t.placeModel(1, 44.0015, 100);
-      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      t.store.send(1, 44.000); tick(200); t.store.send(1, 44.001);
+      tick(1000); t.store.notify();
       expect(t.live(1)).toHaveLength(2);
       t.store.disconnect();
       expect(t.live(1)).toEqual([]);
@@ -421,13 +467,15 @@ describe('useUavTrails', () => {
       t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: false });
       expect(t.live(1)).toEqual([]); // the new run is empty
       t.store.send(1, 44.003);
+      tick(1000); t.store.notify(); // the model has passed it
       expect(t.live(1)[0].lon).toBe(44.003);
     });
 
     it('is not drawn while the model is still in a gap', () => {
       const t = setup();
       t.placeModel(1, 44.0015, 100);
-      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      t.store.send(1, 44.000); tick(200); t.store.send(1, 44.001);
+      tick(1000); t.store.notify();
       t.entitiesRef.current.uavGap = new Set([1]);
       expect(t.live(1)).toEqual([]);
       t.entitiesRef.current.uavGap = new Set();

@@ -225,6 +225,7 @@ export default function ConnectionPanel({
                     {isDl ? t('connection.downloading') : t('connection.connectingStatus')}
                   </span>
                 </div>
+                <DeviceAddress device={av.device} />
               </div>
             );
           })}
@@ -271,6 +272,7 @@ export default function ConnectionPanel({
                     </span>
                   )}
                 </div>
+                <DeviceAddress device={v.device} />
                 <button
                   onClick={() => handleDisconnect(v.sys_id)}
                   title={t('connection.disconnect')}
@@ -393,6 +395,31 @@ export default function ConnectionPanel({
         </div>
       )}
     </div>
+  );
+}
+
+// The MAVLink connection string (udp:/tcp:/serial) a vehicle is connected on.
+function DeviceAddress({ device }) {
+  if (!device) return null;
+  return (
+    <span
+      data-testid="connection-device"
+      title={device}
+      style={{
+        flex: 1,
+        minWidth: 0,
+        margin: '0 6px',
+        color: colors.textDim,
+        fontSize: 10,
+        fontFamily: 'monospace',
+        textAlign: 'right',
+        overflow: 'hidden',
+        textOverflow: 'ellipsis',
+        whiteSpace: 'nowrap',
+      }}
+    >
+      {device}
+    </span>
   );
 }
 

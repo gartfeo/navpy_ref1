@@ -19,6 +19,7 @@ class MissionDeliveryHub(LatLon):
 class VehicleStatus(BaseModel):
     sys_id: int
     name: str
+    device: Optional[str] = None
     battery: Optional[int] = None
     mode: Optional[str] = None
     armed: Optional[bool] = None

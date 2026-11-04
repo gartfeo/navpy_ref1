@@ -7,20 +7,20 @@ Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
         --params-file F.parm --scenario-series SERIES.json --seed-index N [--timing-constants FIT.json]
 
 The scenario service (tools/hitl/scenario_service.py, its own process: approach_scenario.py) prepares the seed's
-scenario folder; the runner reads only its public half (identity, lane, limits: scenario_public.py) and hands Unreal
-the path of its private file unread. It writes the run's record (approach_records.py) into a new private run folder,
-refuses at once when a role's port or Unreal is taken, then starts backing -> router -> board setup (parameters, the
-bridge, the boot on the bridge) -> emulator -> publisher -> Unreal -> navpy, each on its ready line. The publisher
-starts before Unreal (Unreal connects to it; step 9's order). Takeoff, the scenario's search lane (approach_lane.py)
-in AUTO with navpy's detection gated to it and navpy only observing (the router's reader: none of its writes to the
-aircraft reaches the board); it waits for navpy's terminal record or the scenario's observe_s, then
-stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a breach of the scenario's
-floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM, SIGHUP) runs the same idempotent quiesce
-(approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on every exit; scoring then
-checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest
-(tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only when
-the flight, the handoff, every stop, the scene, the link health, the orphan check and the observation audit
-(0 forbidden navpy writes, 0 after the drain ack) all passed.
+scenario folder; the runner reads only its public half (identity, lane, limits: scenario_public.py) and hands Unreal the
+path of its private file unread. It writes the run's record (approach_records.py) into a new private run folder, refuses
+at once when a role's port or Unreal is taken or anything holds a role (approach_owners.py), then starts backing ->
+router -> board setup (parameters, the bridge, the boot on the bridge) -> emulator -> publisher -> Unreal -> navpy, each
+on its ready line (the publisher first: Unreal connects to it), and counts each role's owners again. Takeoff, the
+scenario's search lane (approach_lane.py) in AUTO with navpy's detection gated to it and navpy only observing (the
+router's reader: none of its writes to the aircraft reaches the board); it waits for navpy's terminal record or the
+scenario's observe_s, then stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a
+breach of the scenario's floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM, SIGHUP) runs the
+same idempotent quiesce (approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on
+every exit; scoring then checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the
+manifest (tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only
+when the flight, the handoff, every stop, the scene, the link health, the orphan check, the observation audit (0
+forbidden navpy writes, 0 after the drain ack), and one owner per role in each census and in the logs all passed.
 ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
@@ -43,7 +43,7 @@ from tools.hitl.model_input import read_model_input
 from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
-from tools.tuning import approach_quiesce as stop
+from tools.tuning import approach_owners as owners, approach_quiesce as stop
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
 from tools.tuning.board import Board
@@ -219,12 +219,14 @@ def approach(args: argparse.Namespace) -> int:
         problems = group.refusals(specs)
         if problems:
             raise RunnerError("; ".join(problems))
+        owners.check(run, group, owners.PREFLIGHT)
         for spec in specs[:2]:
             group.start(spec)
         _board_scripts(repo, run_dir)                # after sitl-backing wiped its workdir, before the reboot
         board.start()
         for spec in specs[2:]:
             group.start(spec)
+        owners.check(run, group, owners.READY)
         _fly(board, group, run, quiesce)
     except BaseException as exc:      # noqa: BLE001 - recorded; the quiesce and every stop still run below
         reason = stop.ABORT if isinstance(exc, (KeyboardInterrupt, stop.Aborted)) else stop.CRASH
@@ -239,6 +241,7 @@ def approach(args: argparse.Namespace) -> int:
                 continue                        # one that arrived as shield() began: shield again
         try:
             run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
+            owners.check(run, group, owners.END)            # once the chain came up: still one owner each
             try:
                 board.stop()
             except Exception as exc:      # noqa: BLE001 - recorded; the owned processes must still stop
@@ -252,21 +255,22 @@ def approach(args: argparse.Namespace) -> int:
             run["outcome"] = stop.outcome(records, run.get("flight", {}).get("ended_by"))
             run["observation"] = stop.audit(run_dir / "router_writes.csv", quiesce.record, records)
             run["scene"] = scenario_run.verify(scenario_dir, run_dir / "unreal.log")
+            run["sources"] = owners.sources(run_dir / "unreal.log", run_dir / "emulator.jsonl")
             _copy_logs(run_dir, board)
             run["board"] = board.report()
             run["manifest"] = str(_manifest(run_dir, run_id, record_path, group))
-            (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n",
-                                                       encoding="utf-8")
+            (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", "utf-8")
         finally:
             stop.restore(handlers)
     health = run["board"].get("link_health") or {}
     ended = all(item.get("ended_after_stop") for item in run["producers"].values())
     scene = scenario_run.reproduced(run["scene"], run["scenario"])
+    owned, owner_problems = owners.verdicts(run)
     print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
           f"scene reproduced {scene}, link health {health.get('ok')}, outcome {run['outcome']['outcome']}, "
-          f"observation {run['observation']}; folder {run_dir}"
-          + "".join(f"; {problem}" for problem in run["admission_problems"]), flush=True)
-    clean = run["observation"]["ok"] and not run["outcome"]["problems"]
+          f"observation {run['observation']}, one owner each {owned}; folder {run_dir}"
+          + "".join(f"; {problem}" for problem in run["admission_problems"] + owner_problems), flush=True)
+    clean = run["observation"]["ok"] and not run["outcome"]["problems"] and owned
     return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") and clean else 1
 
 

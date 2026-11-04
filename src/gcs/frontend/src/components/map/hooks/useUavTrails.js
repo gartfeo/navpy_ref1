@@ -1,13 +1,18 @@
 import { useEffect, useRef } from 'react';
-import { addTrailPoint, newTrail, startRun, trailGrounds, trailHead, trailPieceFlat, trailPieces, trailUpdatePoints, TRAIL_SEGMENTS } from '../utils/trailAccum';
+import { addTrailPoint, newTrail, startRun, trailGrounds, trailPieceFlat, trailPieces, TRAIL_SEGMENTS } from '../utils/trailAccum';
+import { ingestVehicle, playClock, playoutsOf, prunePlayouts } from '../utils/uavPlayout';
+import { backendNowMs } from '../../../utils/backendClock';
 import { zoneColorsSolid } from '../../../styles';
 
 /**
  * Render the flight-path trace behind each UAV.
  *
  * Records lon/lat/alt history for every UAV in the fleet, shown or hidden
- * (older points are thinned, see trailAccum): every fix of each update's
- * `path`, or the current position of an update without one (trailUpdatePoints). Only fresh telemetry records
+ * (older points are thinned, see trailAccum): every fix the UAV's playout
+ * (uavPlayout, shared with the model) takes from an update, that is every
+ * fix of its `path`, or the current position of an update without one, each
+ * with its playout time. A fix the playout marks as a jump (a SITL restart)
+ * opens a new run. Only fresh telemetry records
  * (store.isTelemetryFresh): cached positions held over a link gap never do,
  * and the first fresh position after a gap opens a new run. `paused` stops
  * recording for the whole fleet; resuming opens a new run. Each trace uses
@@ -21,18 +26,21 @@ import { zoneColorsSolid } from '../../../styles';
  * yet takes the last known ground before it; a trail with no known ground is
  * not drawn.
  *
- * The trail grows only at the 5 Hz updates while the model (useUavMarkers)
- * moves on every frame, so a live segment joins the trail's newest fix to
- * the model's drawn position. It is a polyline whose positions are a
- * CallbackProperty, which Cesium draws through a PolylineCollection and
- * re-reads every frame, as the model's position is; nothing is stored. Its
- * start is the head as the trail draws it, its end the model's own position
- * property, so both ends keep their own height rule. It is not drawn while
- * the current run is empty, the UAV's telemetry is not fresh, recording
- * is paused (the trail does not grow then, so it would bridge a gap) or the
- * model still holds its pose from before a gap (useUavMarkers). When
- * the UAV stops, the model comes to rest on its newest fix and the segment
- * shrinks to nothing.
+ * The model (useUavMarkers) is drawn a playout delay behind the newest fix,
+ * so the trail is drawn only up to it: an update draws the current run's
+ * fixes the playout clock has passed (the drawn head), and a live segment
+ * joins the drawn head through the fixes the clock passes after it to the
+ * model's drawn position, every frame. Neither end ever runs ahead of the
+ * model or back from it (todo 267). The live segment is a polyline whose
+ * positions are a CallbackProperty, which Cesium draws through a
+ * PolylineCollection and re-reads every frame, as the model's position is;
+ * nothing is stored. Its fixes take the trail's grounds, its end the model's
+ * own position property. It is not drawn while the current run has no drawn
+ * fix, the UAV's telemetry is not fresh, recording is paused (the trail does
+ * not grow then, so it would bridge a gap) or the model still holds its pose
+ * from before a gap (useUavMarkers); then, as with no model, the whole run is
+ * drawn. When the UAV stops, the model comes to rest on its newest fix and
+ * the segment ends there.
  */
 export default function useUavTrails(
   cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady,
@@ -41,8 +49,8 @@ export default function useUavTrails(
 ) {
   const trailDataRef = useRef({});
   const staleRef = useRef(new Set());
-  // sys_id -> the `path` array last recorded, so a kept path is not re-added.
-  const usedPathRef = useRef({});
+  // sys_id -> id of the newest playout fix taken, so a fix is recorded once.
+  const takenRef = useRef({});
   const visRef = useRef({ show, hiddenSysIds });
   visRef.current = { show, hiddenSysIds };
   const pausedRef = useRef(paused);
@@ -150,13 +158,33 @@ export default function useUavTrails(
         .then(apply, () => apply(undefined));
     }
 
+    /**
+     * Whether the live segment joins sid's trail to its model now: a model
+     * out of any gap, fresh telemetry, recording on. Else the whole run is
+     * drawn and the segment is not.
+     */
+    function joinsModel(sid) {
+      const ents = entitiesRef.current;
+      if (!ents.uavMap?.[sid] || ents.uavGap?.has(sid) || pausedRef.current) return false;
+      const store = storeRef.current;
+      return !store.isTelemetryFresh || store.isTelemetryFresh(sid);
+    }
+
     function draw(sid) {
       const pool = entitiesRef.current.trailMap?.[sid];
       const trail = trailDataRef.current[sid];
       if (!pool || !trail) return;
       const lastGround = terrainReadyRef.current ? trail.lastGround : 0;
       const grounds = trailGrounds(trail.runs, groundOf, lastGround);
-      const pieces = trailPieces(trail.runs);
+      // Draw the current run to the fixes the model has passed; the live
+      // segment draws the rest as it passes them.
+      const run = trail.runs[trail.runs.length - 1];
+      const playout = playoutsOf(entitiesRef.current)[sid];
+      const clock = joinsModel(sid) && playout ? playClock(playout, Date.now()) : null;
+      let cut = run.length;
+      if (clock !== null) while (cut > 0 && run[cut - 1].t > clock) cut--;
+      const runs = cut === run.length ? trail.runs : [...trail.runs.slice(0, -1), run.slice(0, cut)];
+      const pieces = trailPieces(runs);
       for (let seg = 0; seg < TRAIL_SEGMENTS; seg++) {
         const segPieces = pieces[seg];
         const segEnts = pool.segs[seg];
@@ -166,22 +194,31 @@ export default function useUavTrails(
           segEnts[k].polyline.positions = flat.length ? Cesium.Cartesian3.fromDegreesArrayHeights(flat) : [];
         }
       }
-      // The live segment starts where the trail is drawn to.
-      const head = trailHead(trail);
-      const ground = head ? grounds.get(head) : undefined;
-      pool.head = ground === undefined ? null
-        : { point: head, pos: Cesium.Cartesian3.fromDegrees(head.lon, head.lat, ground + head.alt) };
+      // The live segment starts where the trail is drawn to, and goes on
+      // through the fixes after it.
+      const at = (p) => {
+        const ground = grounds.get(p);
+        return ground === undefined ? null : Cesium.Cartesian3.fromDegrees(p.lon, p.lat, ground + p.alt);
+      };
+      const head = cut > 0 ? run[cut - 1] : null;
+      const headPos = head && at(head);
+      pool.head = headPos ? { point: head, run, pos: headPos } : null;
+      pool.pending = [];
+      for (let k = cut; k < run.length && pool.head; k++) {
+        const pos = at(run[k]);
+        if (pos) pool.pending.push({ t: run[k].t, pos });
+      }
     }
 
     /**
-     * The live segment of a UAV, read every frame: its trail's drawn head to
-     * its model's drawn position. Empty (not drawn) unless the head is the
-     * newest point of the current run, telemetry is fresh, recording runs
-     * and the model exists and has left any gap (useUavMarkers).
+     * The live segment of a UAV, read every frame: its trail's drawn head,
+     * the fixes after it the model has passed, and the model's drawn
+     * position. Empty (not drawn) unless the head is in the current run and
+     * the segment joins the model (joinsModel).
      */
     function addLiveEntity(pool, sid) {
       const modelPos = new Cesium.Cartesian3();
-      const positions = [null, modelPos];
+      const positions = [];
       const none = [];
       pool.live = viewer.entities.add({
         show: visibleFor(sid),
@@ -189,17 +226,22 @@ export default function useUavTrails(
           positions: new Cesium.CallbackProperty((time) => {
             const head = pool.head;
             const trail = trailDataRef.current[sid];
-            if (!head || !trail || trailHead(trail) !== head.point || pausedRef.current) return none;
-            const store = storeRef.current;
-            if (store.isTelemetryFresh && !store.isTelemetryFresh(sid)) return none;
-            // The model still holds its pose from before a gap.
-            if (entitiesRef.current.uavGap?.has(sid)) return none;
-            const model = entitiesRef.current.uavMap?.[sid]?.position;
+            if (!head || !trail || trail.runs[trail.runs.length - 1] !== head.run || !joinsModel(sid)) return none;
+            const model = entitiesRef.current.uavMap[sid].position;
             // The model's callback returns its own scratch value: copy it.
-            const pos = model?.getValue(time, modelPos);
+            const pos = model.getValue(time, modelPos);
             if (!pos) return none;
             Cesium.Cartesian3.clone(pos, modelPos);
-            positions[0] = head.pos;
+            // The clock the model was just drawn at (one clock per page ms).
+            const playout = playoutsOf(entitiesRef.current)[sid];
+            const clock = (playout && playClock(playout, Date.now())) ?? -Infinity;
+            positions.length = 0;
+            positions.push(head.pos);
+            for (const p of pool.pending) {
+              if (p.t > clock) break;
+              positions.push(p.pos);
+            }
+            positions.push(modelPos);
             return positions;
           }, false),
           width: 2,
@@ -234,6 +276,7 @@ export default function useUavTrails(
           const trail = trailData[sid];
 
           const fresh = store.isTelemetryFresh ? store.isTelemetryFresh(sid) : true;
+          const playout = ingestVehicle(ents, v, fresh, backendNowMs());
           if (!fresh) {
             stale.add(sid);
           } else {
@@ -241,10 +284,13 @@ export default function useUavTrails(
               startRun(trail);
               stale.delete(sid);
             }
-            const points = trailUpdatePoints(v, usedPathRef.current[sid]);
-            usedPathRef.current[sid] = v.path;
-            if (!pausedRef.current) {
-              for (const pt of points) addTrailPoint(trail, pt);
+            const taken = takenRef.current[sid] ?? 0;
+            for (const f of playout?.fixes || []) {
+              if (f.id <= taken) continue;
+              takenRef.current[sid] = f.id;
+              if (!f.trail || pausedRef.current) continue;
+              if (f.jump) startRun(trail);
+              addTrailPoint(trail, { lon: f.lon, lat: f.lat, alt: f.alt, t: f.t });
             }
           }
 
@@ -287,11 +333,12 @@ export default function useUavTrails(
           try { viewer.entities.remove(trailMap[sid].live); } catch {}
           delete trailMap[sid];
           delete trailData[sid];
-          delete usedPathRef.current[sid];
+          delete takenRef.current[sid];
           stale.delete(Number(sid));
         }
       }
 
+      prunePlayouts(ents, seen);
       ents.trailMap = trailMap;
     }
 
