@@ -72,7 +72,7 @@ def control_address(router: MavRouter) -> tuple[str, int]:
 
 
 def writes(log: io.StringIO) -> list[tuple[float, str]]:
-    return [(float(t), source) for t, source, _ in (line.split(",") for line in log.getvalue().splitlines())]
+    return [(float(t), source) for t, source, *_ in (line.split(",") for line in log.getvalue().splitlines())]
 
 
 def hold_navpy_writes(board: rig.GatedBoard, router: MavRouter, send) -> None:

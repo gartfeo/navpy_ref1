@@ -7,11 +7,17 @@ On the approach's first terminal outcome (DOCKED, MISSED or FAILED: episode_latc
    bounded, until no gimbal send is, and sends every gimbal one zero rate and zoom hold;
 2. closes its router endpoint and waits, bounded, for the ack (router_barrier.py), so nothing it sent before the
    fence reaches the board after the record;
-3. prints one flushed record, ``NAVPY_TERMINAL_V1 {json}``: outcome, task, dock, episode, aircraft time, fenced
-   writes, the gimbal stop and fenced gimbal commands, and the barrier's ack, or its error (then the run counts as
-   failed; a failed gimbal stop too).
+3. prints one flushed record, ``NAVPY_TERMINAL_V1 {json}``: trigger, outcome, task, dock, episode, aircraft time,
+   fenced writes, the gimbal stop and fenced gimbal commands, and the barrier's ack, or its error (then the run counts
+   as failed; a failed gimbal stop too).
 Then it holds: the fences stay closed until the process stops (RESET's AUTO restart never reaches the board, and
 no gimbal or zoom command reaches the gimbal).
+
+The same quiesce, once per process, runs when navpy stops without an outcome (hitl_final_approach.md step 16): first
+in its cleanup, trigger ``stop`` after a stop request (the runner's deadline or abort) and ``shutdown`` after an error
+or an interrupt, so the fences close before navigation, vision and the vehicle stop and the gimbal gets its stop while
+its SDK is still open. Such a record has no outcome, and an outcome latched after the quiesce began is never reported:
+a deadline never becomes DOCKED. Whichever trigger comes first is the record's.
 """
 
 from __future__ import annotations
@@ -22,15 +28,19 @@ from collections.abc import Callable
 
 from pymavlink import mavutil
 
-from navpy.app.router_barrier import RouterBarrier, parse_address
+from navpy.app.router_barrier import BARRIER_TIMEOUT_S, RouterBarrier, parse_address
 from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal, TerminalObserver
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.dock_contact import DockContactIdentity
-from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
+from navpy.plugins.gimbal.siyi.hardware.command_fence import GIMBAL_STOP_TIMEOUT_S, SiyiCommandFence
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 
 NAVPY_TERMINAL_MARKER = "NAVPY_TERMINAL_V1"
 DEFAULT_ROUTER_CLIENT = "navpy"
+TRIGGER_TERMINAL, TRIGGER_STOP, TRIGGER_SHUTDOWN = "terminal", "stop", "shutdown"
+# The cleanup's wait for the record: the handoff's own bounds (gimbal stop, then barrier) and a second for the rest
+# (the write in progress, the print). Past it the cleanup fails, navpy prints no stop ack and the runner ends it.
+HANDOFF_JOIN_S = GIMBAL_STOP_TIMEOUT_S + BARRIER_TIMEOUT_S + 1.0
 
 TerminalPublisher = Callable[[dict[str, object]], None]
 
@@ -97,6 +107,19 @@ def terminal_observer(handoff: TerminalHandoff | None) -> TerminalObserver | Non
     return None if handoff is None else handoff.on_terminal
 
 
+def own_quiesce(own_quiescence: Callable[[str, Callable[[], object]], None], handoff: TerminalHandoff | None,
+                stop_requested: Callable[[], bool] | None) -> None:
+    """Owned last, so navpy's cleanup quiesces first (module notes): RuntimeResourceStack.own_quiescence."""
+    if handoff is None:
+        return
+
+    def quiesce() -> bool:
+        stopped = stop_requested is not None and stop_requested()
+        return handoff.finish(TRIGGER_STOP if stopped else TRIGGER_SHUTDOWN)
+
+    own_quiescence("terminal handoff", quiesce)
+
+
 def print_terminal_record(record: dict[str, object]) -> None:
     encoded = json.dumps(record, sort_keys=True, separators=(",", ":"))
     print(f"{NAVPY_TERMINAL_MARKER} {encoded}", flush=True)
@@ -114,7 +137,7 @@ def parse_terminal_record(line: str) -> dict[str, object] | None:
 
 
 class TerminalHandoff:
-    """Fence, barrier, record: once per process, on the first terminal outcome."""
+    """Fence, barrier, record: once per process, on the first terminal outcome or quiesce (module notes)."""
 
     def __init__(self, fence: LinkFence, barrier: RouterBarrier,
                  publish: TerminalPublisher = print_terminal_record,
@@ -125,32 +148,50 @@ class TerminalHandoff:
         self._publish = publish
         self._lock = rt.Lock()
         self._thread = None
+        self._published = False
 
     def on_terminal(self, outcome: FinalApproachTerminal, identity: DockContactIdentity | None) -> None:
         """Any thread, under the final-approach lock: closes the fence at once; the rest runs on its own thread."""
+        self._begin(TRIGGER_TERMINAL, outcome, identity)
+
+    def quiesce(self, trigger: str) -> None:
+        """The same handoff without an outcome (TRIGGER_STOP or TRIGGER_SHUTDOWN); nothing once one has begun."""
+        self._begin(trigger, None, None)
+
+    def finish(self, trigger: str, timeout_s: float = HANDOFF_JOIN_S) -> bool:
+        """navpy's cleanup: quiesce unless already begun, then wait, bounded, for the record (False: not out)."""
+        self.quiesce(trigger)
+        return self.join(timeout_s)
+
+    def _begin(self, trigger: str, outcome: FinalApproachTerminal | None,
+               identity: DockContactIdentity | None) -> None:
         with self._lock:
             if self._thread is not None:
                 return
             self.fence.close()
             self.gimbal_fence.close()
-            self._thread = rt.Thread(target=self._handoff, args=(outcome, identity), name="navpy-terminal-handoff")
+            self._thread = rt.Thread(target=self._handoff, args=(trigger, outcome, identity),
+                                     name="navpy-terminal-handoff")
             self._thread.start()
 
     def join(self, timeout_s: float | None = None) -> bool:
-        """True once the record is out (False before any outcome or while the barrier waits)."""
+        """True once the record is out (False before any outcome, while the barrier waits, or if the handoff raised:
+        the fences stay closed)."""
         with self._lock:
             thread = self._thread
         if thread is None:
             return False
         thread.join(timeout_s)
-        return not thread.is_alive()
+        return not thread.is_alive() and self._published
 
-    def _handoff(self, outcome: FinalApproachTerminal, identity: DockContactIdentity | None) -> None:
+    def _handoff(self, trigger: str, outcome: FinalApproachTerminal | None,
+                 identity: DockContactIdentity | None) -> None:
         self.fence.wait_idle()
         gimbal_stop = self.gimbal_fence.quiesce_and_stop()
         barrier = self._barrier.close_endpoint()
         self._publish({
-            "outcome": outcome.value,
+            "trigger": trigger,
+            "outcome": None if outcome is None else outcome.value,
             "task": None if identity is None else identity.task_id,
             "dock": None if identity is None else identity.dock_uid,
             "episode": None if identity is None else identity.episode,
@@ -162,6 +203,7 @@ class TerminalHandoff:
             "router_ack": barrier.ack,
             "barrier_error": barrier.error,
         })
+        self._published = True
 
 
 def build_terminal_handoff(args: Namespace) -> TerminalHandoff | None:
@@ -186,7 +228,7 @@ def add_args(parser: ArgumentParser) -> None:
 
 
 __all__ = [
-    "DEFAULT_ROUTER_CLIENT", "LinkFence", "NAVPY_TERMINAL_MARKER", "TerminalHandoff", "add_args",
-    "build_terminal_handoff", "fenced_opener", "parse_terminal_record", "print_terminal_record", "siyi_fence",
-    "terminal_observer",
+    "DEFAULT_ROUTER_CLIENT", "HANDOFF_JOIN_S", "LinkFence", "NAVPY_TERMINAL_MARKER", "TRIGGER_SHUTDOWN",
+    "TRIGGER_STOP", "TRIGGER_TERMINAL", "TerminalHandoff", "add_args", "build_terminal_handoff", "fenced_opener",
+    "own_quiesce", "parse_terminal_record", "print_terminal_record", "siyi_fence", "terminal_observer",
 ]

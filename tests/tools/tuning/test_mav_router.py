@@ -669,9 +669,12 @@ def test_write_log_names_the_source_of_every_board_packet():
     navpy.peer = router.clients["navpy"].sock.getsockname()
     try:
         navpy.send(heartbeat())
-        wait_until(lambda: len(board.written) == 1)
+        navpy.send(M.MAVLink_command_long_message(1, 1, M.MAV_CMD_DO_SET_MODE, 0, 1, 10, 0, 0, 0, 0, 0))
+        wait_until(lambda: len(board.written) == 2)
     finally:
         router.close()
         navpy.sock.close()
-    stamp, source, message = log.getvalue().strip().split(",")
-    assert source == "navpy" and int(message) == M.MAVLINK_MSG_ID_HEARTBEAT and float(stamp) > 0
+    lines = [line.split(",") for line in log.getvalue().strip().splitlines()]
+    (stamp, source, message, command), command_line = lines
+    assert source == "navpy" and int(message) == M.MAVLINK_MSG_ID_HEARTBEAT and float(stamp) > 0 and command == ""
+    assert command_line[1:] == ["navpy", str(M.MAVLINK_MSG_ID_COMMAND_LONG), str(M.MAV_CMD_DO_SET_MODE)]

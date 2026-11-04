@@ -50,7 +50,7 @@ from navpy.app.runtime_resources import (
 )
 from navpy.app.runtime_ready import emit_runtime_ready
 from navpy.app.terminal_handoff import (
-    TerminalHandoff, build_terminal_handoff, fenced_opener, siyi_fence, terminal_observer,
+    TerminalHandoff, build_terminal_handoff, fenced_opener, own_quiesce, siyi_fence, terminal_observer,
 )
 from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
@@ -123,7 +123,9 @@ def _build_foundation(
     ports.observe_logger(logger)
 
     terminal_handoff = build_terminal_handoff(args)
-    bus = open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
+    # HITL: a failed vehicle build (its own rollback runs first) still quiesces and publishes a shutdown record.
+    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
+    bus =open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
     # After the stop the vehicle's reads and mission transfers end at once,
     # so startup reaches a stop check without waiting on the link.
     vehicle = create_vehicle(connection_args, logger, bus=bus, stop_requested=stop_requested)
@@ -131,6 +133,8 @@ def _build_foundation(
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
     resources.own_quiescence("vehicle", close_gate.close_vehicle)
+    # HITL: from here a stop or failure of the start closes the fences before the vehicle closes (see _build_session).
+    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
     raise_if_stopped(stop_requested)
     status_logger.set_vehicle(vehicle)
     _log_configuration(args, vehicle, logger)
@@ -192,7 +196,13 @@ def _build_session(
             lambda: vision.is_quiescent,
         ),
     )
-    planner = MissionPlanner(foundation.logger, MissionPlannerArgs(args))
+    # HITL: owned after each writer, so a stop or failure at any point of the start closes the fences before any
+    # component stops; the first close quiesces, the later ones only wait for the record (idempotent).
+    def quiesce() -> None:
+        own_quiesce(resources.own_quiescence, foundation.terminal_handoff, hooks.get("stop_requested"))
+
+    quiesce()
+    planner =MissionPlanner(foundation.logger, MissionPlannerArgs(args))
     navigation = Navigation(
         foundation.vehicle,
         vision.geo_ref,
@@ -207,6 +217,7 @@ def _build_session(
         ),
     )
     resources.own_quiescence("navigation", navigation.stop)
+    quiesce()
     # Values read after the stop are defaults: never start on them.
     raise_if_stopped(hooks.get("stop_requested"))
     navigation.start()
@@ -223,6 +234,7 @@ def _build_session(
         dock_contact=vision.dock_contact,
     )
     resources.own_quiescence("controller", controller.stop)
+    quiesce()
     controller.set_network(foundation.network)
     scheduler_rate_hz = resolve_ardupilot_scheduler_rate_hz(
         foundation.vehicle,

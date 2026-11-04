@@ -2326,6 +2326,24 @@
   and a missing one is a truthy Mock. Only the full suite (tests/modules/vision) showed 18 failures; the touched
   groups did not. Grep for `integration_log=` or `.integration_log =` in tests when adding a field.
 
+## HITL step 16 observation and quiesce (2026-11-04)
+
+- **pgrep -f matches the sh -c wrapper.** A fault script's `pgrep -f "sitl_driver.py approach"` found the WSL
+  session's `/bin/sh -c` first; SIGTERM killed that shell, the runner got SIGHUP and died with no cleanup, leaving
+  SITL, the publisher and Unreal running. Anchor the pattern on the interpreter path (`^/path/python -s ...`), and
+  handle SIGHUP in any runner that owns processes.
+- **Signal handlers change in a window too.** Codex rounds 5 to 7: arm inside the try, save each first handler
+  before replacing it, block the signals while ignoring them, and retry the shield inline in the cleanup.
+  Test it by sending real signals and by raising inside `signal.signal`, not by reading handlers back.
+- **Datagrams across a board reboot count as dropped_stale, not refused_closed.** A boundary test counting only
+  refused_closed was flaky under load; count both from a baseline.
+- **The WSL runner needs NAVPY_HITL_TOOLS_DIR** (`/mnt/c/Users/<user>/AppData/Local/navpy-hitl-tools`); without it
+  the run made a stray `~/navpy-hitl-tools` and could not find the private folder.
+- **Pull the WSL clone from the main repo folder,** not the worktree (its `.git` file holds a Windows path), and
+  give `git show REV:path` forward slashes.
+- A long first-fault delay lets other ends win: a 60 s abort landed after the floor quiesce; use about 20 s so the
+  fault is the run's first reason.
+
 ## Rehearsing both demo plans (2026-11-04)
 
 - Lost one launch to a missing `node_modules` in a fresh worktree, although lines 723 and 1209 say so: run `npm ci` in `src/gcs/frontend` before `delivery_demo.py`.

@@ -51,12 +51,14 @@ def wake_all(clients: Iterable[Client]) -> None:
 
 class Client:
     """One client's UDP endpoint: the router sends from an ephemeral port to 127.0.0.1:port and takes packets only
-    from that port."""
+    from that port. An observer (Mission Planner) may not fly or change rates (mp_mirror.blocked); a reader
+    (observation) may only read and report (mav_router_policy.observation_allowed)."""
 
-    def __init__(self, name: str, port: int, observer: bool) -> None:
+    def __init__(self, name: str, port: int, observer: bool, reader: bool = False) -> None:
         self.name = name
         self.port = port
         self.observer = observer
+        self.reader = reader
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
         self.sock.bind((LOOPBACK, 0))
         self.parser = new_parser()
