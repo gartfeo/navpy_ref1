@@ -34,6 +34,12 @@ and never replies, then runs synthetic ticks with ``end`` until every
 participant ended. The snapshot is taken only after every participant ended
 flushed and exited; then every SITL is stopped by ownership.
 
+The operator phase (``coordinator_operator.OperatorPhase``) is one
+admission step (``admission``, ``coordinator_admission``): the scripted
+operator's items, then the app relay's, in one order with shared ids; relay
+responses and the backend's broadcasts go back to the relay. ``pace`` runs
+after each reply with ``t_k``.
+
 Port bytes take the router path for any N, the slice included
 (``coordinator_router``: the router, the queues and the packet records).
 The journal opens with the run's tick grid and topology (the SITL ports,
@@ -53,7 +59,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from navpy.sim.lockstep.coordinator_deadline import OPERATOR as OPERATOR_WAIT
+from navpy.sim.lockstep.coordinator_admission import Admission
 from navpy.sim.lockstep.coordinator_deadline import ExchangeDeadline
 from navpy.sim.lockstep.coordinator_faults import FaultRunner
 from navpy.sim.lockstep.coordinator_fleet import Sitl, SitlFleet, SitlHost, anchor_now
@@ -62,7 +68,7 @@ from navpy.sim.lockstep.coordinator_journal import RunJournal, TickRecord, sha25
 from navpy.sim.lockstep.coordinator_latches import SnapLatch
 from navpy.sim.lockstep.coordinator_lifecycle import OPERATOR, LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Roster
-from navpy.sim.lockstep.coordinator_operator import deliver_operator_requests
+from navpy.sim.lockstep.coordinator_operator import OperatorPhase
 from navpy.sim.lockstep.coordinator_router import RoutedPorts
 from navpy.sim.lockstep.coordinator_types import (
     DRAIN_BUDGET_US,
@@ -71,7 +77,6 @@ from navpy.sim.lockstep.coordinator_types import (
     HostFault,
     Manifest,
     OperatorHost,
-    OperatorInbox,
     ParticipantFault,
     RunFault,
 )
@@ -103,12 +108,14 @@ class LockstepCoordinator:
                  roster: Roster, ids: RequestIds, host_dir: Path, *,
                  delay: Callable[[str], None] = lambda point: None,
                  launch: Callable[[ExchangeDeadline], None] = anchor_now,
-                 radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = ()) -> None:
+                 radio_loss_pct: float = 0.0, faults: Sequence[FaultPlan] = (),
+                 admission: Admission | None = None,
+                 pace: Callable[[int], None] = lambda t_us: None) -> None:
         self._manifest = manifest
         self._fleet = SitlFleet(manifest, sitls, roster.deadline, launch=launch)
-        self._operator = operator
         self._roster = roster
         self._book = LifecycleBook(roster, ids)
+        self._operator = OperatorPhase(operator, roster, self._book, admission or Admission(ids), pace)
         ports = RoutedPorts(manifest, roster, radio_loss_pct=radio_loss_pct)
         self._exchange = TickExchange(roster, self._book, manifest.companion_roles, ports,
                                       FaultRunner(faults, roster, self._book, ports.radio.cuts,
@@ -206,7 +213,7 @@ class LockstepCoordinator:
                 self._reply(k, record, frames)
                 continue
             output = self._exchange.run(k, t_us, record, draining=False)
-            self._run_operator(k, t_us, output, record)
+            self._operator.run(k, t_us, output, record)
             self._reply(k, record, frames)
             self._raise_faults(output)
             if phase == "mission":
@@ -235,30 +242,12 @@ class LockstepCoordinator:
                                 "a companion was not stopped through the participant stop "
                                 "before drain", tick=k_f, ordinal=spawn.ordinal)
 
-    def _inbox(self, k: int, t_us: int, output: TickOutput,
-               wall_deadline: float | None = None) -> OperatorInbox:
-        return OperatorInbox(k, t_us, tuple(output.responses), tuple(output.events),
-                             tuple(output.log_lines), tuple(self._book.operator), wall_deadline)
-
-    def _run_operator(self, k: int, t_us: int, output: TickOutput, record: TickRecord) -> None:
-        if self._operator.done:
-            return
-        # The baton's handoffs and timer rounds all draw on what is left of D_k.
-        requests = self._roster.deadline.bounded(
-            OPERATOR_WAIT, lambda wall: self._operator.run_tick(self._inbox(k, t_us, output, wall)))
-        deliver_operator_requests(self._roster, requests, k)
-        self._note_operator(record)
-
-    def _note_operator(self, record: TickRecord) -> None:
-        observed = self._operator.observations()
-        if observed:  # what the operator's ports saw this tick: receipts, drops
-            record.note("operator", observed)
-
     def _reply(self, k: int, record: TickRecord, frames: list[Frame]) -> None:
         raws = self._fleet.reply(k, self._exchange.ports.reply(k, record, frames))
         record.note("reply", [sha256(raw) for raw in raws])
         self.journal.add(record.data)
         self._delay("after_reply")
+        self._operator.pace(record.data["t_us"])
 
     def _raise_faults(self, output: TickOutput) -> None:
         if output.faults:
@@ -285,8 +274,7 @@ class LockstepCoordinator:
             record = TickRecord(k, "drain", t_us)
             output = self._exchange.run(k, t_us, record, draining=True)
             self._exchange.ports.drained(record)
-            self._operator.deliver_drain(self._inbox(k, t_us, output))
-            self._note_operator(record)
+            self._operator.drain(k, t_us, output, record)
             self.journal.add(record.data)
             self._raise_faults(output)
         for member in self._roster.members:

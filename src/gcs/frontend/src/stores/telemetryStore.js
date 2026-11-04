@@ -4,6 +4,8 @@
  * full-tree re-renders. Components subscribe via useTelemetryStore hooks.
  */
 
+import { noteBackendTs } from '../utils/backendClock';
+
 let _vehicles = {};
 let _connected = false;
 // Vehicles whose snapshot was replaced since the socket last opened. A closed
@@ -115,6 +117,7 @@ function connect() {
         ? JSON.parse(evt.data)
         : JSON.parse(new TextDecoder().decode(evt.data));
 
+      if (data.type === 'telemetry') noteBackendTs(data.ts);
       if (data.type === 'telemetry' && data.vehicles) {
         const next = { ..._vehicles };
         for (const v of data.vehicles) {

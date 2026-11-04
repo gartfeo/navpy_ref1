@@ -31,6 +31,7 @@ for _path in (ROOT, ROOT / "src"):
     if str(_path) not in sys.path:
         sys.path.insert(0, str(_path))
 
+from gcs.backend import instance_registry as reg  # noqa: E402
 from gcs.backend import instance_registry_lockstep as lockstep  # noqa: E402
 from navpy.sim.lockstep.coordinator_fleet import SitlFleet  # noqa: E402
 from navpy.sim.lockstep.coordinator_types import ROUTER_DEVICE, Manifest, fleet_sitl_ports  # noqa: E402
@@ -136,7 +137,7 @@ def main() -> int:
     try:
         for _ in args.delay_seeds:  # every slot held at once: each run gets its own
             claims.append(lockstep.claim(run_token=f"seed-{args.seed}", clone=str(ROOT),
-                                         owner=f"dir:{ROOT}"))
+                                         owner=reg.owner_for(str(ROOT))))
         for index, ((slot, owner), delay) in enumerate(zip(claims, args.delay_seeds)):
             outcomes.append(run_once(args.run_dir / f"run{index + 1}", slot, owner, seed=args.seed,
                                      delay_seed=delay, ticks=args.ticks, boot_budget_us=budget))

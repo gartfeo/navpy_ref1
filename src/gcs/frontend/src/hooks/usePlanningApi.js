@@ -1,6 +1,7 @@
 import { useCallback, useRef } from 'react';
 import fetchWithRetry from '../utils/fetchRetry';
 import { diagnosticRequest, emitDiagnostic } from '../utils/diagnostics';
+import { isSimDeadline, requestDeadline } from '../utils/simDeadline';
 
 // Hard caps so a wedged backend / dropped link can't leave a request — and the
 // UI "connecting" / "downloading" indicator that keys off it — pending forever.
@@ -10,14 +11,10 @@ import { diagnosticRequest, emitDiagnostic } from '../utils/diagnostics';
 const CONNECT_TIMEOUT_MS = 20000;
 const MISSION_DOWNLOAD_TIMEOUT_MS = 45000;
 
-// A caller-owned AbortController that fires after `ms`. Gives requests a TOTAL
-// deadline (across fetchWithRetry's retries, which pass the signal through to
-// fetch and bail on AbortError instead of retrying into the same wall).
-function abortAfter(ms) {
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), ms);
-  return { signal: ctrl.signal, clear: () => clearTimeout(timer) };
-}
+// requestDeadline gives each request a TOTAL deadline (across fetchWithRetry's
+// retries, which pass the signal through to fetch and bail on AbortError
+// instead of retrying into the same wall). On lockstep the run's sim-time
+// deadline answers instead, and is handled like the abort.
 
 /**
  * Hook for calling backend planning API endpoints.
@@ -201,13 +198,14 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
   }, []);
 
   const connectVehicle = useCallback(async (device, sysId, name) => {
-    const t = abortAfter(CONNECT_TIMEOUT_MS);
+    const t = requestDeadline(CONNECT_TIMEOUT_MS);
     const diagnostic = diagnosticRequest();
     emitDiagnostic('client_request_started', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'connect' });
     try {
       const params = new URLSearchParams({ device, sys_id: sysId });
       if (name) params.set('name', name);
-      const res = await fetch(`/api/vehicles/connect?${params}`, { method: 'POST', signal: t.signal, headers: diagnostic.headers });
+      const res = await fetch(`/api/vehicles/connect?${params}`, { method: 'POST', signal: t.signal, headers: { ...diagnostic.headers, ...t.headers } });
+      if (isSimDeadline(res)) throw new DOMException('sim-time deadline', 'AbortError');
       if (res.ok) {
         emitDiagnostic('vehicle_operation_finished', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'connect', outcome: 'success' });
         return await res.json();
@@ -265,11 +263,15 @@ export default function usePlanningApi({ setAnalysis, setPlan }) {
   }, []);
 
   const downloadMission = useCallback(async (sysId) => {
-    const t = abortAfter(MISSION_DOWNLOAD_TIMEOUT_MS);
+    const t = requestDeadline(MISSION_DOWNLOAD_TIMEOUT_MS);
     const diagnostic = diagnosticRequest();
     emitDiagnostic('client_request_started', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission' });
     try {
-      const res = await fetchWithRetry(`/api/vehicles/${sysId}/mission`, { signal: t.signal, headers: diagnostic.headers });
+      const res = await fetchWithRetry(`/api/vehicles/${sysId}/mission`, {
+        signal: t.signal,
+        headers: { ...diagnostic.headers, ...t.headers },
+      });
+      if (isSimDeadline(res)) throw new DOMException('sim-time deadline', 'AbortError');
       if (res.ok) {
         const data = await res.json();
         emitDiagnostic('client_request_finished', { request_id: diagnostic.requestId, sys_id: sysId, phase: 'mission', outcome: 'success', total: data?.waypoints?.length || 0 });

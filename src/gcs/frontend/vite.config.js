@@ -12,8 +12,10 @@ const PUBLIC_DIR = fileURLToPath(new URL('./public', import.meta.url))
 // 3000/8000 defaults for a plain `npm run dev`.
 const FRONTEND_PORT = Number(process.env.PORT) || 3000
 const BACKEND_PORT = Number(process.env.VITE_BACKEND_PORT) || 8000
-const BACKEND_HTTP = `http://localhost:${BACKEND_PORT}`
-const BACKEND_WS = `ws://localhost:${BACKEND_PORT}`
+// A lockstep app run's relay listens on 127.0.0.1 only (scripts/lockstep_app_stack.py).
+const BACKEND_HOST = process.env.VITE_BACKEND_HOST || 'localhost'
+const BACKEND_HTTP = `http://${BACKEND_HOST}:${BACKEND_PORT}`
+const BACKEND_WS = `ws://${BACKEND_HOST}:${BACKEND_PORT}`
 
 // Git branch shown in the app title so it's obvious which version is running.
 function gitBranch() {
@@ -90,6 +92,8 @@ export default defineConfig({
         },
       },
       '/health': BACKEND_HTTP,
+      // A lockstep app run's explicit cancel (scripts/lockstep_app_relay.py, todo 253).
+      '/__relay': BACKEND_HTTP,
     },
   },
   // `vite preview` reads this separately from `server` above — needed so a

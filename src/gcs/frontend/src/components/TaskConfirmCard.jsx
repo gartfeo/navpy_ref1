@@ -6,7 +6,7 @@ import {
   isPending, canCancel, confirmRoundKey, confirmWaitSec, confirmDeadlineMs, msLeft, secondsLeft,
   confirmZeroLabel, confirmAgeSec, formatClock, CONFIRM_PHASE,
 } from '../hooks/taskConfirmationState';
-import { confirmNow } from '../utils/confirmClock';
+import { confirmNow, onConfirmTime } from '../utils/confirmClock';
 import { LONG_PRESS_MS } from '../utils/armAction';
 import useLongPress from '../hooks/useLongPress';
 import usePressGuard, { EXPIRY_OPEN_MS } from '../hooks/usePressGuard';
@@ -132,10 +132,12 @@ export default function TaskConfirmCard({
     // Decided cards never count down or auto-fire.
     if (!pending) return undefined;
     let interval = null;
+    let unsubscribe = null;
     const fire = () => {
       if (firedRef.current) return;
       firedRef.current = true;
       if (interval) clearInterval(interval);
+      unsubscribe?.();
       if (autoApprove) onApprove(sysId);
       else onDeny(sysId);
       onAutoFireRef.current?.(sysId, firedRoundRef.current);
@@ -146,8 +148,13 @@ export default function TaskConfirmCard({
       if (r <= 0) fire();
     };
     tick();
-    if (!firedRef.current) interval = setInterval(tick, 1000);
-    return () => { if (interval) clearInterval(interval); };
+    // The clock's own advance decides the auto-fire; the wall interval only
+    // refreshes the shown seconds (and is the clock before telemetry starts).
+    if (!firedRef.current) {
+      unsubscribe = onConfirmTime(tick);
+      interval = setInterval(tick, 1000);
+    }
+    return () => { if (interval) clearInterval(interval); unsubscribe?.(); };
   }, [pending, sysId, deadlineMs, autoApprove, onApprove, onDeny]);
 
   if (!pending) {

@@ -10,7 +10,9 @@ import pytest
 from navpy.sim.lockstep.coordinator_types import HostFault, ParticipantFault
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
-from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest, require_wired
+from scripts import eval_gcs_demo_lockstep_app as app_side
+from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest
+from scripts.eval_gcs_demo_lockstep_wiring import WIRING, fleet_layout, require_wired
 from scripts.eval_gcs_demo_constants import PARAM_REQUEST_BUDGET_S
 from scripts.eval_gcs_demo_models import ProductFailure, RegressionError, StackContext
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
@@ -90,6 +92,7 @@ def test_cli_lockstep_reports_the_run_relative_log_dir(tmp_path, monkeypatch):
 def _faulting_run(monkeypatch, fault):
     class Faulting:
         journal = SimpleNamespace(write=lambda _path: None, digest="d" * 64)
+        admission = SimpleNamespace(actions=[])  # the action file: nothing admitted
 
         def __init__(self, *_args, **_kwargs) -> None:
             pass
@@ -463,11 +466,11 @@ def test_each_profile_names_its_homes_and_lines_files():
     from scripts.eval_gcs_demo_slice_gates import NAVPY_LINES_FILE
     from scripts.lockstep_topology import fleet_homes
 
-    slice_wiring = lockstep_eval.WIRING[SLICE.gate_profile]
-    certified = lockstep_eval.WIRING[CERTIFIED.gate_profile]
-    assert slice_wiring.homes(SLICE, lockstep_eval.fleet_layout(SLICE)) == (SLICE.home,)
+    slice_wiring = WIRING[SLICE.gate_profile]
+    certified = WIRING[CERTIFIED.gate_profile]
+    assert slice_wiring.homes(SLICE, fleet_layout(SLICE)) == (SLICE.home,)
     assert slice_wiring.lines_file(1) == NAVPY_LINES_FILE
-    homes = certified.homes(CERTIFIED, lockstep_eval.fleet_layout(CERTIFIED))
+    homes = certified.homes(CERTIFIED, fleet_layout(CERTIFIED))
     assert homes == fleet_homes(CERTIFIED.home, 3) and len(set(homes)) == 3
     assert [certified.lines_file(i) for i in (1, 2, 3)] == [navpy_lines_file(i) for i in (1, 2, 3)]
 
@@ -477,13 +480,115 @@ def test_write_lines_writes_each_navpys_lines_with_their_ticks(tmp_path, scenari
     import json
 
     chosen = SLICE if scenario == "slice" else CERTIFIED
-    layout = lockstep_eval.fleet_layout(chosen)
+    layout = fleet_layout(chosen)
     journal = SimpleNamespace(
         log_lines={i: [f"line {i}.a", f"line {i}.b"] for i in (*layout.sys_ids, layout.backend)},
         log_ticks={i: [i, 10 + i] for i in (*layout.sys_ids, layout.backend)})
     lockstep_eval.write_lines(tmp_path, chosen, SimpleNamespace(journal=journal))
-    name = lockstep_eval.WIRING[chosen.gate_profile].lines_file
+    name = WIRING[chosen.gate_profile].lines_file
     assert sorted(p.name for p in tmp_path.iterdir()) == sorted(name(i) for i in layout.sys_ids)
     for sys_id in layout.sys_ids:
         rows = [json.loads(row) for row in (tmp_path / name(sys_id)).read_text(encoding="utf-8").splitlines()]
         assert rows == [[sys_id, f"line {sys_id}.a"], [10 + sys_id, f"line {sys_id}.b"]]
+
+
+def test_the_lockstep_claim_is_this_directorys_so_gcs_stop_eval_finds_it(tmp_path, monkeypatch):
+    """Todo 55: the claim's owner is ``owner_for`` (normcased), the key ``gcs_stop --eval`` looks up."""
+    from gcs.backend import instance_registry as reg
+    from gcs.backend import instance_registry_lockstep as lockstep
+
+    monkeypatch.setenv("GCS_INSTANCE_REGISTRY", str(tmp_path / "instances.json"))
+    claimed, real_claim = [], lockstep.claim
+
+    def claim(**kwargs):
+        claimed.append(real_claim(port_check=lambda n: True, **kwargs))
+        raise AssertionError("claimed")
+
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", claim)
+    with pytest.raises(AssertionError, match="claimed"):
+        execute_lockstep_run(tmp_path / "run", SLICE, OPTIONS)
+    ((slot, identity),) = claimed
+    try:
+        entry = reg.find_for_owner(reg.owner_for(str(ROOT)), label="sitl-eval", include_lockstep=True)
+        assert entry is not None and entry["chat_index"] == slot
+    finally:
+        assert lockstep.release_if_owner(slot, identity)
+
+
+def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypatch):
+    """``--app``: the app stack starts on the claimed slot before the coordinator, its relay,
+    the refusals and a pacer reach the coordinator, and the stack stops after the run."""
+    import dataclasses
+
+    events, made = [], {}
+
+    class Stack:
+        relay = object()
+        url = "http://localhost:3040"
+
+        def stop(self):
+            events.append("app stopped")
+
+    class Coordinator:
+        def __init__(self, *args, **kwargs):
+            made.update(kwargs)
+            self.journal = lockstep_eval.RunJournal()
+
+        def run(self):
+            events.append("run")
+            made["admission"].actions.append({"k": 3, "source": "relay", "kind": "request",
+                                              "target": 2, "id": [0, 4], "payload": {}})
+            raise HostFault("exchange_budget", "stop here", tick=3)
+
+    fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval.lockstep, "release_if_owner", lambda *_a: events.append("released"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", lambda *_a: fleet)
+    monkeypatch.setattr(app_side, "start_app_stack",
+                        lambda run_dir, slot, owner, target, frontend: events.append(("app", slot, target)) or Stack())
+    monkeypatch.setattr(app_side, "Admission", lambda ids, relay=None, refuse=None: SimpleNamespace(
+        relay=relay, refuse=refuse, actions=[]))
+    monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Coordinator)
+    with pytest.raises(RegressionError, match="lockstep run fault"):
+        execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
+    assert events == [("app", 40, fleet_layout(SLICE).backend), "run", "app stopped",
+                      "fleet stopped", "released"]
+    assert made["admission"].relay is Stack.relay and made["admission"].refuse is app_side.refusal
+    assert isinstance(made["pace"], app_side.RealTimePacer)
+    assert (tmp_path / "run" / app_side.ACTIONS_FILE).read_text(encoding="ascii") == (
+        '{"id":[0,4],"k":3,"kind":"request","payload":{},"source":"relay","target":2}\n')
+
+
+def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_path, monkeypatch):
+    """A stop error is not a run fault: it is raised as it is, after the fleet stop and the release."""
+    import dataclasses
+
+    events = []
+
+    class Stack:
+        relay = object()
+        url = "http://localhost:3040"
+
+        def stop(self):
+            events.append("app stop failed")
+            raise RuntimeError("frontend still running")
+
+    class Coordinator:
+        def __init__(self, *args, **kwargs):
+            self.journal = lockstep_eval.RunJournal()
+
+        def run(self):
+            events.append("run")
+
+    fleet = SimpleNamespace(sitls=(), launch=None, root="root", stop=lambda: events.append("fleet stopped"))
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda *_a: "X 1\n")
+    monkeypatch.setattr(lockstep_eval.lockstep, "claim", lambda **_k: (40, "owner"))
+    monkeypatch.setattr(lockstep_eval.lockstep, "release_if_owner", lambda *_a: events.append("released"))
+    monkeypatch.setattr(lockstep_eval, "WslFleet", lambda *_a: fleet)
+    monkeypatch.setattr(app_side, "start_app_stack", lambda *_a, **_k: Stack())
+    monkeypatch.setattr(lockstep_eval, "LockstepCoordinator", Coordinator)
+    with pytest.raises(RuntimeError, match="frontend still running") as raised:
+        execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
+    assert type(raised.value) is RuntimeError  # not scored as a RegressionError
+    assert events == ["run", "app stop failed", "fleet stopped", "released"]

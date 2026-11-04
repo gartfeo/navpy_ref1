@@ -3,6 +3,7 @@ import { render, act, fireEvent, within } from '@testing-library/react';
 import { useState } from 'react';
 import TaskConfirmCard from './TaskConfirmCard';
 import { LONG_PRESS_MS } from '../utils/armAction';
+import { noteBackendTs, resetBackendClock } from '../utils/backendClock';
 
 // The card counts down with setInterval and measures elapsed with Date.now().
 // Fake exactly those so advancing the clock drives the countdown; the setup
@@ -53,6 +54,42 @@ function renderCard(entry, handlers, options) {
 }
 
 describe('TaskConfirmCard auto-timeout', () => {
+  // A lockstep run: the countdown counts the backend's sim time (telemetry ts),
+  // so wall time alone never fires it (deterministic_dev_sim.md section 5).
+  it('counts the backend clock: wall time alone never fires, sim time does', () => {
+    noteBackendTs(1767225600);
+    try {
+      const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
+      const entry = { ...entryFor({ roundUid: '424242:30' }), receivedAt: 1767225600000 };
+      renderCard(entry, handlers);
+      advance((TIMEOUT_SEC + 5) * 1000);
+      expect(handlers.onDeny).not.toHaveBeenCalled();
+      noteBackendTs(1767225600 + TIMEOUT_SEC + 0.2);
+      advance(1000);
+      expect(handlers.onDeny).toHaveBeenCalledTimes(1);
+    } finally {
+      resetBackendClock();
+    }
+  });
+
+  // The clock's own advance fires it, with no wall timer turn: a throttled tab
+  // or a reset right after the crossing cannot change whether it is sent.
+  it('fires the moment the backend clock passes the deadline, before a reset', () => {
+    noteBackendTs(1767225600);
+    try {
+      const handlers = { onApprove: vi.fn(), onDeny: vi.fn(), onCancel: vi.fn() };
+      const entry = { ...entryFor({ roundUid: '424242:31' }), receivedAt: 1767225600000 };
+      const { unmount } = renderCard(entry, handlers);
+      act(() => { noteBackendTs(1767225600 + TIMEOUT_SEC + 0.2); });
+      unmount();
+      expect(handlers.onDeny).toHaveBeenCalledTimes(1);
+      noteBackendTs(1767225600 + TIMEOUT_SEC + 5);  // unsubscribed: once only
+      expect(handlers.onDeny).toHaveBeenCalledTimes(1);
+    } finally {
+      resetBackendClock();
+    }
+  });
+
   // Sanity: the same driver the re-ask test uses does fire a single round's
   // timeout. Without this the assertions below could pass vacuously.
   it('fires the timeout action once when the countdown runs out', () => {

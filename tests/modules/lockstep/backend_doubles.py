@@ -22,13 +22,14 @@ import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from navpy.sim.lockstep.coordinator_admission import Admission
 from navpy.sim.lockstep.coordinator_members import Roster
 from navpy.sim.lockstep.coordinator_run import LockstepCoordinator, RunResult
 from navpy.sim.lockstep.coordinator_spawn import PROCESSES_HOST_FILE, HostSidecar, LocalSpawner
 from navpy.sim.lockstep.coordinator_types import Manifest, RoleSpec, WallBudgets
 from navpy.sim.lockstep.operator_baton import OperatorBaton
 from navpy.sim.lockstep.mavlink_wire import StreamDecoder
-from navpy.sim.lockstep.part_wire import Done, RequestId
+from navpy.sim.lockstep.part_wire import Done, RequestId, Tick
 from navpy.sim.lockstep.participant_hooks import RequestIds
 from navpy.sim.lockstep.step_wire import Frame, PortState, pack_frame, unpack_reply
 from scripts.eval_gcs_demo_config import build_settings
@@ -128,8 +129,11 @@ class BackendRun:
     coordinator: LockstepCoordinator
     sitl: AutopilotSitl
     operator: OperatorBaton
+    admission: Admission
     #: Every ``DONE`` the backend sent, decoded, in tick order.
     dones: list[Done] = field(default_factory=list)
+    #: Every ``TICK`` the backend was sent, in tick order.
+    ticks: list[Tick] = field(default_factory=list)
 
     def run(self) -> RunResult:
         return self.coordinator.run()
@@ -151,8 +155,10 @@ class BackendRun:
 
 
 def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
-          companions: bool = False, navpy: bool = False) -> BackendRun:
-    """``script(scenario)`` makes the operator's script (default: the setup calls)."""
+          companions: bool = False, navpy: bool = False, relay=None,
+          refuse=lambda payload: None) -> BackendRun:
+    """``script(scenario)`` makes the operator's script (default: the setup calls);
+    ``relay`` and its refusals go to the coordinator's admission."""
     scenario = load_scenario(SLICE_SCENARIO)
     plan = manifest(scenario, companions=companions or navpy, navpy=navpy)
     delays = HostDelays(delay_seed)
@@ -163,10 +169,17 @@ def build(run_dir: Path, *, delay_seed: int = 0, script=None, autopilot=None,
                     WallBudgets(register_s=120, done_s=120, exit_s=60))
     ids = RequestIds(0)
     operator = OperatorBaton(ids, (script or (lambda s: setup_script(s, SLICE)))(scenario))
+    admission = Admission(ids, relay, refuse)
     coordinator = LockstepCoordinator(plan, (sitl,), operator, roster, ids, run_dir / "host",
-                                      delay=delays)
-    run = BackendRun(coordinator, sitl, operator)
-    receive = roster.receive
+                                      delay=delays, admission=admission)
+    run = BackendRun(coordinator, sitl, operator, admission)
+    receive, send = roster.receive, roster.send
+
+    def sent(member, tick):
+        run.ticks.append(tick)
+        return send(member, tick)
+
+    roster.send = sent
 
     def capture(member, k):
         done, raw = receive(member, k)
