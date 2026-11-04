@@ -148,6 +148,7 @@ class TerminalHandoff:
         self._publish = publish
         self._lock = rt.Lock()
         self._thread = None
+        self._published = False
 
     def on_terminal(self, outcome: FinalApproachTerminal, identity: DockContactIdentity | None) -> None:
         """Any thread, under the final-approach lock: closes the fence at once; the rest runs on its own thread."""
@@ -174,13 +175,14 @@ class TerminalHandoff:
             self._thread.start()
 
     def join(self, timeout_s: float | None = None) -> bool:
-        """True once the record is out (False before any outcome or while the barrier waits)."""
+        """True once the record is out (False before any outcome, while the barrier waits, or if the handoff raised:
+        the fences stay closed)."""
         with self._lock:
             thread = self._thread
         if thread is None:
             return False
         thread.join(timeout_s)
-        return not thread.is_alive()
+        return not thread.is_alive() and self._published
 
     def _handoff(self, trigger: str, outcome: FinalApproachTerminal | None,
                  identity: DockContactIdentity | None) -> None:
@@ -201,6 +203,7 @@ class TerminalHandoff:
             "router_ack": barrier.ack,
             "barrier_error": barrier.error,
         })
+        self._published = True
 
 
 def build_terminal_handoff(args: Namespace) -> TerminalHandoff | None:

@@ -131,6 +131,8 @@ def _build_foundation(
     # Quiescence: the MAVLink reader dispatches into the logger, so the
     # logger stays open until the reader has really stopped.
     resources.own_quiescence("vehicle", close_gate.close_vehicle)
+    # HITL: from here a stop or failure of the start closes the fences before the vehicle closes (see _build_session).
+    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
     raise_if_stopped(stop_requested)
     status_logger.set_vehicle(vehicle)
     _log_configuration(args, vehicle, logger)

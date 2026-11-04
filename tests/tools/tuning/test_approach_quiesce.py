@@ -365,6 +365,49 @@ def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(m
     assert records[0]["trigger"] == ("stop" if fails == "stopped before start" else "shutdown")
 
 
+def test_a_stop_during_the_vehicle_build_quiesces_before_the_vehicle_closes(monkeypatch):
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from navpy.app import runtime_composition as composition
+
+    events: list = []
+    handoff, barrier = scripted(events)
+    barrier.release.set()
+    stopped = {"now": False}
+
+    def create_vehicle(_args, _logger, *, bus, stop_requested):
+        stopped["now"] = True                            # the stop arrives during the vehicle build
+        return SimpleNamespace(close=lambda: events.append(("vehicle closed", handoff.fence.closed)))
+
+    for name, value in [("stop_hooks", lambda *_a: {"stop_requested": lambda: stopped["now"],
+                                                     "acknowledge_stop": lambda: events.append(("ack",))}),
+                        ("ConnArgs", lambda _a: SimpleNamespace(source_system=1)), ("LoggerArgs", lambda _a: object()),
+                        ("initialize_logger", lambda *_a: MagicMock()), ("build_terminal_handoff", lambda _a: handoff),
+                        ("open_vehicle_bus", lambda *_a: object()), ("create_vehicle", create_vehicle),
+                        ("create_network", MagicMock(side_effect=AssertionError("built past the stop")))]:
+        monkeypatch.setattr(composition, name, value)
+    monkeypatch.setattr(composition.GroundStationLoggerNetwork, "create", MagicMock())
+    assert composition.compose_runtime(SimpleNamespace()).run() == 0
+    kinds = [e[0] for e in events]
+    assert kinds == ["barrier", "record", "vehicle closed", "ack"]
+    assert events[1][1]["trigger"] == "stop" and events[2] == ("vehicle closed", True)
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")     # the raise under test
+def test_a_handoff_that_raises_is_not_a_published_record():
+    events: list = []
+    fence = LinkFence()
+
+    class Raising(ScriptedBarrier):
+        def close_endpoint(self):
+            raise OSError("no socket")
+
+    handoff = TerminalHandoff(fence, Raising(events, fence, BarrierResult({})), publish=events.append)
+    assert handoff.finish(TRIGGER_SHUTDOWN, timeout_s=WAIT_S) is False
+    assert events == [] and fence.closed
+
+
 def test_without_router_control_nothing_is_owned():
     owned: list = []
     own_quiesce(lambda label, action: owned.append(label), None, lambda: True)
