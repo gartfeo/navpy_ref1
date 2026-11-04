@@ -1,0 +1,40 @@
+# Full default suite (it skips tests/gcs) on every pull request and push to
+# main. Local runs use `pytest --testmon` (affected tests only, see AGENTS.md),
+# which misses changes in non-Python files, so this run is the merge gate.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    # Windows, like the development PCs: many tests use Windows paths and WSL.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      # Full history: guards read pinned base commits.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      # The Lua script tests need lua5.3; without it they try WSL, which has
+      # no distro here. WSL-only tests carry the `wsl` marker and skip.
+      - uses: ilammy/msvc-dev-cmd@v1
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.3"
+      # The default suite imports the GCS backend too.
+      - run: pip install -e ".[test]" -r src/gcs/requirements.txt
+      # A public-repo runner has 4 cores.
+      - run: python -m pytest tests -n 4 -q
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src

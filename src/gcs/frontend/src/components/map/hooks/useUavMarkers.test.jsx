@@ -47,7 +47,10 @@ function setup() {
     Cartesian3.fromDegrees(lon, 0, 100),
   );
   const inGap = (sid) => entitiesRef.current.uavGap.has(sid);
-  return { store, offFrom, inGap, frame, hook, preUpdate };
+  /** Metres east of lon 0 of sid's drawn model (at lat 0, east is +y). */
+  const east = (sid) => entitiesRef.current.uavMap[sid].position.getValue(JulianDate.now(), new Cartesian3()).y;
+  const orientation = (sid) => entitiesRef.current.uavMap[sid].orientation.getValue(JulianDate.now(), new Cesium.Quaternion());
+  return { store, offFrom, inGap, frame, hook, preUpdate, east, orientation };
 }
 
 describe('useUavMarkers', () => {
@@ -73,42 +76,49 @@ describe('useUavMarkers', () => {
     expect(t.offFrom(1, 0.01)).toBeLessThan(0.01);
   });
 
-  it('stays in a gap, for the trail, until a fresh sample with a full pose', () => {
+  it('leaves the gap at the first fresh position; a missing attitude keeps the last one', () => {
     const t = setup();
     t.store.send(1, 0);
     expect(t.inGap(1)).toBe(false);
+    const ori = Cesium.Quaternion.clone(t.orientation(1));
     t.store.disconnect();
     expect(t.inGap(1)).toBe(true);
-    // Fresh, but no attitude: the model keeps its old pose and stays in the gap.
     t.store.vehicles.set(1, { sys_id: 1, lat: 0, lon: 0.01, alt_rel: 100, heading: null, roll: 0, pitch: 0 });
     t.store.fresh.add(1);
     t.store.notify();
-    expect(t.inGap(1)).toBe(true);
-    t.store.send(1, 0.0105);
     expect(t.inGap(1)).toBe(false);
-    expect(t.offFrom(1, 0.0105)).toBeLessThan(0.01);
+    expect(t.offFrom(1, 0.01)).toBeLessThan(0.01);
+    expect(Cesium.Quaternion.equalsEpsilon(t.orientation(1), ori, 1e-9)).toBe(true);
   });
 
-  it('requests renders while a model settles after its samples stop, and only then', () => {
+  it('moves forward between updates, frame by frame, and draws every frame while it moves', () => {
     const t = setup();
-    for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
-    // Samples flowing: each one renders through its update, frames ask nothing.
-    t.store.send(1, 0.0025);
-    vi.advanceTimersByTime(100);
-    expect(t.frame()).toBe(false);
-    // Samples stopped: every frame renders until the model is at rest...
+    // 0.0005 deg (55 m) per 200 ms: 278 m/s, SITL speedup 10.
+    for (let i = 0; i < 10; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
+    t.store.send(1, 0.005);
+    let last = t.east(1);
+    for (let ms = 0; ms < 192; ms += 16) {
+      vi.advanceTimersByTime(16);
+      expect(t.frame()).toBe(true);
+      const now = t.east(1);
+      expect(now).toBeGreaterThan(last);
+      last = now;
+    }
+  });
+
+  it('comes to rest on the last sample, draws once more, then asks nothing', () => {
+    const t = setup();
+    for (let i = 0; i < 6; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
     const rendered = [];
-    for (let ms = 100; ms < 2000; ms += 50) { vi.advanceTimersByTime(50); rendered.push(t.frame()); }
-    expect(rendered.slice(2, 20).every(Boolean)).toBe(true);
-    // ...on the last sample, then nothing more.
-    expect(rendered.at(-1)).toBe(false);
-    expect(rendered.filter(Boolean).length).toBeLessThan(rendered.length - 10);
+    for (let ms = 0; ms < 3000; ms += 50) { vi.advanceTimersByTime(50); rendered.push(t.frame()); }
+    expect(rendered.slice(0, 5).every(Boolean)).toBe(true);
+    expect(rendered.slice(-5).some(Boolean)).toBe(false);
     expect(t.offFrom(1, 0.0025)).toBeLessThan(0.01);
     t.hook.unmount();
     expect(t.preUpdate.size).toBe(0);
   });
 
-  it('a stall across the settling still draws the model at rest once', () => {
+  it('a stall across the move still draws the model at rest once', () => {
     const t = setup();
     for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
     vi.advanceTimersByTime(5000); // no frame ran meanwhile
@@ -116,10 +126,11 @@ describe('useUavMarkers', () => {
     expect(t.frame()).toBe(false);
   });
 
-  it('without a gap a far sample is still eased into', () => {
+  it('a jump faster than any flight (a SITL restart) moves the model at once', () => {
     const t = setup();
     for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
-    t.store.send(1, 0.01);
-    expect(t.offFrom(1, 0.01)).toBeGreaterThan(500);
+    t.store.send(1, 0.03); // ~3.1 km in one 200 ms step
+    vi.advanceTimersByTime(16);
+    expect(t.offFrom(1, 0.03)).toBeLessThan(0.01);
   });
 });

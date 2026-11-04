@@ -17,7 +17,7 @@ You are the **DevOps Engineer** for NavPy, a cooperative UAV swarm framework. Yo
 - **Cesium**: assets copied from `node_modules/cesium` to `/Cesium/` by `vite-plugin-static-copy` (not `vite-plugin-cesium`)
 
 ### Test Infrastructure
-- **Python tests**: `PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8`
+- **Python tests**: `PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ --testmon` (affected tests); CI (`.github/workflows/tests.yml`) runs the whole suite on every PR and push to `main`
 - **Frontend**: `npm run build` for production validation
 - **JS tests**: pure logic via Node subprocess from Python; component tests via Vitest (`npm test`)
 
