@@ -9,7 +9,7 @@ Owner, later the same day: avoid two execution routes; one deterministic run for
 
 So lockstep (`deterministic_demo_eval.md`, `lockstep_fleet.md`, `lockstep_contracts.md`) becomes the only way anything simulated runs: development, evals and the simulated demo. Wall time is left for real hardware only, with the same product code on the wall clock (the `RuntimeTime` port, `runtime_time.py`). Two properties must hold together:
 - **Realistic:** the timing, ordering, loss and noise effects that cause bugs in wall mode, and on hardware, also happen in lockstep.
-- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves (`c184d961…` with every model off since step 2; section 6).
+- **Repeatable:** the same code, manifest and seed give the same digest, as the 5-run matrix proves (with every model off, seed 1: `d54e57b2…` since step 12's base `705abab2`; section 6).
 
 The way to get both is the one established deterministic simulation testing uses: every source of chaos is a model that draws from the run seed, in sim time.
 
@@ -158,6 +158,11 @@ The demo and daily development use the same lockstep run, watched and driven fro
   - The page aborts nothing in the run by closing. An explicit cancel is `POST /__relay/cancel/{X-GCS-Request-ID}`; nothing in the app sends one yet (todo 253). The relay maps `cancelled` to 499, `deadline` to 504.
   - The relay drops WebSocket input other than `ping` and logs it (manual control, todo 240). A body that is not JSON, or holds NaN or infinity, or a target that is not ASCII never enters the run (400); the target is forwarded as sent, so the refusal and the backend decode it once, the same way. At stop the relay answers open requests 503 and cancels open connections after 2 s. A new page first gets the merged telemetry state.
   - Frontend: the confirm countdown and the armed token use the last telemetry `ts`, so the countdown steps at the telemetry rate (5 Hz) and stops when telemetry stops; its auto-fire is checked on each advance of that clock, not on a wall timer. The connect, mission download and parameter fetches send their timeout as `X-NavPy-Deadline-S`, which the relay turns into `deadline_s`. On a lockstep page (`VITE_NAVPY_LOCKSTEP=1`, set by the app stack) they set no wall timer: the run's deadline answer (504) is the page's timeout, so sim time decides the `client_timeout` diagnostic and any follow-up, and `fetchWithRetry` sends once (todo 244 (a), (c)); auto-connect is off in the eval's settings (244 (b)).
+- **As built (step 12).**
+  - `python scripts/eval_gcs_demo_lockstep_replay.py RUN_DIR --run-dir NEW_DIR [--stop-at N] [--pace]` replays a run from its `input_manifest.json` (seed, profile, budgets) and `lockstep_actions.jsonl`, with no relay, browser or script (`navpy.sim.lockstep.replay`). The action file now ends with an `end` line: the tick the operator returned at, so the replay ends where the run did.
+  - The replay gives each item back at its tick on its side: the script's from a stand-in operator, which draws ids from the shared counter as the script did; the relay's after them, in their order. An item whose tick passed untaken, or an id the counter already passed, is a `replay_diverged` fault.
+  - Same digest means the replay digest: the journal's chain without the script's `operator` notes (what its ports saw), the one record part a script-off replay cannot have. `replay_report.json` holds both replay digests, the first differing record, and whether the admitted actions and the inputs equal the run's; exit 0 only when all match.
+  - `--stop-at N` ends the run after tick N's reply. The journal ends with a stop record (per SITL: clock, quiet helpers, port buffers; per member: role, generation, live, ready), and `lockstep_snapshot.json` adds the app's telemetry state and the open requests. `--pace` changes no digest.
 
 ## 6. Steps
 Each step is small and has its proof. Every step keeps the digest with all models off (`dd58131e…`, or a documented re-baseline).
