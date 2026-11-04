@@ -26,16 +26,28 @@ function setup() {
     disconnect() { store.fresh.clear(); store.notify(); },
   };
   const entities = { add: vi.fn((e) => e), remove: vi.fn() };
-  const viewer = { current: { entities, scene: { requestRender: () => {} } } };
+  // preUpdate runs every frame, render or not; frame() is one such frame.
+  const preUpdate = new Set();
+  const scene = {
+    requestRender: vi.fn(),
+    preUpdate: { addEventListener: (fn) => preUpdate.add(fn), removeEventListener: (fn) => preUpdate.delete(fn) },
+  };
+  const viewer = { current: { entities, scene } };
   const entitiesRef = { current: {} };
-  renderHook(() => useUavMarkers({ current: Cesium }, viewer, entitiesRef, { current: store }, true));
+  const hook = renderHook(() => useUavMarkers({ current: Cesium }, viewer, entitiesRef, { current: store }, true));
+  /** Run one frame; whether it requested a render. */
+  const frame = () => {
+    scene.requestRender.mockClear();
+    for (const fn of preUpdate) fn();
+    return scene.requestRender.mock.calls.length > 0;
+  };
   /** Metres between sid's drawn model and lon (lat 0, alt 100). */
   const offFrom = (sid, lon) => Cartesian3.distance(
     entitiesRef.current.uavMap[sid].position.getValue(JulianDate.now(), new Cartesian3()),
     Cartesian3.fromDegrees(lon, 0, 100),
   );
   const inGap = (sid) => entitiesRef.current.uavGap.has(sid);
-  return { store, offFrom, inGap };
+  return { store, offFrom, inGap, frame, hook, preUpdate };
 }
 
 describe('useUavMarkers', () => {
@@ -75,6 +87,24 @@ describe('useUavMarkers', () => {
     t.store.send(1, 0.0105);
     expect(t.inGap(1)).toBe(false);
     expect(t.offFrom(1, 0.0105)).toBeLessThan(0.01);
+  });
+
+  it('requests renders while a model settles after its samples stop, and only then', () => {
+    const t = setup();
+    for (let i = 0; i < 5; i++) { t.store.send(1, 0.0005 * i); vi.advanceTimersByTime(200); }
+    // Samples flowing: each one renders through its update, frames ask nothing.
+    t.store.send(1, 0.0025);
+    vi.advanceTimersByTime(100);
+    expect(t.frame()).toBe(false);
+    // Samples stopped: every frame renders until the model is at rest...
+    const rendered = [];
+    for (let ms = 100; ms < 2000; ms += 50) { vi.advanceTimersByTime(50); rendered.push(t.frame()); }
+    expect(rendered.slice(2, 20).every(Boolean)).toBe(true);
+    // ...on the last sample, then nothing more.
+    expect(rendered.at(-1)).toBe(false);
+    expect(t.offFrom(1, 0.0025)).toBeLessThan(0.01);
+    t.hook.unmount();
+    expect(t.preUpdate.size).toBe(0);
   });
 
   it('without a gap a far sample is still eased into', () => {

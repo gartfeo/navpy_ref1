@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
-import { positionAt, orientationAt, advanceAnim, setGround } from '../utils/lerpAnim';
+import { positionAt, orientationAt, advanceAnim, animSettling, setGround } from '../utils/lerpAnim';
 import { poseFinite } from '../../../utils/fpvView';
 import { uavModelOrientation } from '../utils/uavOrientation';
 
@@ -18,6 +18,11 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * at that sample, as the trail starts a new run there (useUavTrails): the
  * model does not glide across the gap. Until then the sys_id is in
  * entitiesRef.current.uavGap.
+ *
+ * The viewer renders on request (requestRenderMode), and each store update
+ * requests one. When a UAV's samples stop, its model slows and eases back
+ * onto its last sample with no update to show it, so every frame checks
+ * (scene.preUpdate) whether a model is settling and then requests a render.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -157,7 +162,20 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
       viewer.scene.requestRender();
     }
 
+    // Render while a model settles (the trail's live segment shrinks with it).
+    function onPreUpdate() {
+      const now = Date.now();
+      for (const a of Object.values(animRef.current)) {
+        if (animSettling(a, now)) { viewer.scene.requestRender(); return; }
+      }
+    }
+
     update();
-    return storeRef.current.subscribe(update);
+    const unsubscribe = storeRef.current.subscribe(update);
+    viewer.scene.preUpdate.addEventListener(onPreUpdate);
+    return () => {
+      unsubscribe();
+      viewer.scene.preUpdate.removeEventListener(onPreUpdate);
+    };
   }, [viewerReady]);
 }
