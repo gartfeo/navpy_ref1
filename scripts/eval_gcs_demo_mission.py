@@ -272,20 +272,11 @@ def run_mission(
     start_esp32_simulator(context)
     wait_for_missions(context, timeout_s)
     plan = resolve_live_plan(context, log_dir)
-    persist_command_bounds(
-        command_bounds,
-        log_dir / "demo_command_bounds.json",
-    )
+    persist_command_bounds(command_bounds, log_dir / "demo_command_bounds.json")
     if plan.sys_ids != context.sys_ids:
         raise RegressionError("resolved plan sysids changed before launch")
     prepare_container_launch(context, min(timeout_s, 180.0))
-    approvals = approve_requests_until_snap(
-        context,
-        plan,
-        log_dir,
-        timeout_s,
-        confirmation_delay_s,
-    )
+    approvals = approve_requests_until_snap(context, plan, log_dir, timeout_s, confirmation_delay_s)
     return MissionArtifacts(
         context.sys_ids,
         approvals,

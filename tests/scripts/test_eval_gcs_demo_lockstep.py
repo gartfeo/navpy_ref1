@@ -11,6 +11,7 @@ from navpy.sim.lockstep.coordinator_types import HostFault, ParticipantFault
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
 from scripts import eval_gcs_demo_lockstep_app as app_side
+from scripts import eval_gcs_demo_lockstep_session as session
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest
 from scripts.eval_gcs_demo_lockstep_wiring import WIRING, fleet_layout, require_wired
 from scripts.eval_gcs_demo_constants import PARAM_REQUEST_BUDGET_S
@@ -616,9 +617,9 @@ def test_an_app_session_script_waits_for_the_snap_ends_or_its_length_then_stops_
     calls, clock = [], _SessionClock()
     context = SimpleNamespace(clock=clock)
     monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: context)
-    monkeypatch.setattr(lockstep_eval, "all_have_snap",
+    monkeypatch.setattr(session, "all_have_snap",
                         lambda ctx: ctx is context and snap_at is not None and clock.now >= snap_at)
-    monkeypatch.setattr(lockstep_eval, "run_mission", lambda *a: pytest.fail("ran the scripted mission"))
+    monkeypatch.setattr(session, "run_mission", lambda *a: pytest.fail("ran the scripted mission"))
     monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: calls.append(("stop", clock.now)))
     operator = SimpleNamespace(wait_ready=lambda ordinal: calls.append(("ready", ordinal)))
     options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=10.0)
@@ -674,10 +675,10 @@ def test_a_scripted_lockstep_run_reads_each_full_parameter_table_after_connect(t
     seen = []
     monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: SimpleNamespace())
     monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: None)
-    monkeypatch.setattr(lockstep_eval, "run_mission",
+    monkeypatch.setattr(session, "run_mission",
                         lambda *a, after_connect=None: seen.append(after_connect) or SimpleNamespace(approvals=[]))
     lockstep_eval.operator_script(SLICE, tmp_path, OPTIONS)(SimpleNamespace(wait_ready=lambda _o: None))
-    assert seen == [lockstep_eval.read_full_parameters]
+    assert seen == [session.read_full_parameters]
 
     reads = []
 
@@ -687,6 +688,6 @@ def test_a_scripted_lockstep_run_reads_each_full_parameter_table_after_connect(t
 
     context = SimpleNamespace(sys_ids=(1, 2), api=SimpleNamespace(get_json=get_json))
     with pytest.raises(RegressionError, match="full parameter read of 2"):
-        lockstep_eval.read_full_parameters(context)
-    timeout = lockstep_eval.FULL_PARAMETERS_TIMEOUT_S
+        session.read_full_parameters(context)
+    timeout = session.FULL_PARAMETERS_TIMEOUT_S
     assert reads == [("/api/vehicles/1/parameters", timeout), ("/api/vehicles/2/parameters", timeout)]

@@ -83,8 +83,10 @@ BANNED_MEMBERS = frozenset({
 # (sockets, serial, MAVLink transport, asyncio, logging, ML runtimes): the
 # lint cannot see their internal clocks and threads; step 9 replaces the
 # transports and its thread audit and journal catch the rest.
+# argcomplete: the vendored MAVFTP CLI's optional shell completion (_mavftp).
 EXTERNAL_IMPORTS = frozenset({
-    "__future__", "abc", "anyio.to_thread", "argparse", "asyncio", "atexit", "base64", "bisect",
+    "__future__", "abc", "anyio.to_thread", "argcomplete", "argcomplete.completers",
+    "argparse", "asyncio", "atexit", "base64", "bisect",
     "boxmot.motion.cmc", "boxmot.reid.core", "boxmot.trackers.bbox.botsort.botsort",
     "boxmot.trackers.bbox.strongsort.strongsort", "builtins", "collections",
     "collections.abc", "contextlib", "contextvars", "copy", "csv", "ctypes", "cv2",
