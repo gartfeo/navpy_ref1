@@ -6,8 +6,11 @@ any answer. The table is the step-10 inventory's rows that simulation does
 not support (``gcs_request_inventory.md``, "Sim today"): the two zip
 downloads, stamped with wall time (todo 241), and the vision-profile edits,
 which write ``vision_profiles.json`` in the source tree, outside the run
-(todo 264). Since step 13 the full-parameter read (MAVFTP) and the app's
-NavPy-sim start and stop run in the sim.
+(todo 265). Since step 13 the full-parameter read (MAVFTP) and the app's
+NavPy-sim start and stop run in the sim. Two kinds of vehicle command are
+refused by name (``REFUSED_COMMANDS``): every ``MAV_CMD_PREFLIGHT_CALIBRATION``
+blocks the firmware's main loop for seconds, a clock step the fleet grid
+refuses (todo 267), and a reboot restarts the firmware, which closes its relay.
 
 Anything that is not an HTTP request with a method and a target is refused
 too: the relay sends nothing else.
@@ -25,8 +28,20 @@ REFUSED: tuple[tuple[str, re.Pattern[str], str], ...] = tuple(
     (method, re.compile(pattern), reason) for method, pattern, reason in (
         ("GET", r"/api/diagnostics/export", "a zip download (todo 241)"),
         ("GET", r"/api/logs/download/[^/]+", "a zip download (todo 241)"),
-        ("PUT", r"/api/vision-profiles/.+", "writes vision_profiles.json in the source tree (todo 264)"),
+        ("PUT", r"/api/vision-profiles/.+", "writes vision_profiles.json in the source tree (todo 265)"),
     ))
+#: ``POST /api/control/command`` commands refused by their ``command`` field.
+_CALIBRATION = "a preflight calibration blocks the firmware's main loop (todo 267)"
+_REBOOT = "a reboot restarts the firmware, which closes its relay (todo 267)"
+REFUSED_COMMANDS: dict[str, str] = {
+    "preflight_cal": _CALIBRATION,
+    "accel_level": _CALIBRATION,
+    "accel_cal_start": _CALIBRATION,
+    "accel_cal_pos": _CALIBRATION,
+    "reboot": _REBOOT,
+    "compass_cal_reboot": _REBOOT,
+}
+COMMAND_PATH = "/api/control/command"
 NOT_HTTP = "only HTTP requests enter the run"
 NOT_ASCII = "a request target is ASCII (percent-encoded)"
 STATUS = 501
@@ -51,7 +66,13 @@ def refusal(payload: dict[str, Any]) -> dict[str, Any] | None:
     for refused_method, pattern, reason in REFUSED:
         if method == refused_method and pattern.fullmatch(path):
             return answer(reason)
+    if method == "POST" and path == COMMAND_PATH:
+        body = payload.get("json")
+        command = body.get("command") if isinstance(body, dict) else None
+        if isinstance(command, str) and command in REFUSED_COMMANDS:
+            return answer(REFUSED_COMMANDS[command])
     return None
 
 
-__all__ = ["NOT_ASCII", "NOT_HTTP", "REFUSED", "STATUS", "answer", "refusal"]
+__all__ = ["COMMAND_PATH", "NOT_ASCII", "NOT_HTTP", "REFUSED", "REFUSED_COMMANDS", "STATUS",
+           "answer", "refusal"]

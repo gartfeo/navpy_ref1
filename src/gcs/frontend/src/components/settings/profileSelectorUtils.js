@@ -92,3 +92,20 @@ export function buildDiagramDevices(
     };
   });
 }
+
+/**
+ * PUT a vision-profile edit and return the catalog the backend answers with.
+ * A refusal (a lockstep run answers 501, "not supported in simulation") or an
+ * error is thrown with the backend's detail, so its body never becomes the catalog.
+ */
+export async function putVisionProfile(url, body, fetchFn = fetch) {
+  const init = { method: 'PUT' };
+  if (body !== undefined) {
+    init.headers = { 'Content-Type': 'application/json' };
+    init.body = JSON.stringify(body);
+  }
+  const r = await fetchFn(url, init);
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+  return data;
+}

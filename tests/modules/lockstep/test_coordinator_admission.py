@@ -154,7 +154,7 @@ def test_no_relay_traffic_adds_no_journal_note():
     ("POST", "/api/control/navpy-sim/restart-ready", False),
     ("GET", "/api/settings", False),
     ("GET", "/api/vision-profiles", False),
-    # The profile edits write the source tree's vision_profiles.json (todo 264).
+    # The profile edits write the source tree's vision_profiles.json (todo 265).
     ("PUT", "/api/vision-profiles/default/sim", True),
     ("PUT", "/api/vision-profiles/sim", True),
     ("PUT", "/api/vision-profiles/sim/devices/zr10", True),
@@ -166,6 +166,34 @@ def test_no_relay_traffic_adds_no_journal_note():
 ])
 def test_app_refusals(method, target, refused):
     assert (app_refusals.refusal(_http(target, method)) is not None) is refused
+
+
+@pytest.mark.parametrize(("command", "refused"), [
+    # Step 13 live probe: a gyro calibration stepped the clock 2.1 s in one tick (a grid
+    # fault), and a reboot closed the SITL's relay; every preflight calibration blocks.
+    ("preflight_cal", True),
+    ("accel_level", True),
+    ("accel_cal_start", True),
+    ("accel_cal_pos", True),
+    ("reboot", True),
+    ("compass_cal_reboot", True),
+    ("set_mode", False),
+    ("estop", False),
+    ("compass_cal_start", False),
+    ("rc_cal_save", False),
+])
+def test_commands_that_block_or_restart_the_firmware_are_refused(command, refused):
+    payload = {**_http("/api/control/command", "POST"), "json": {"command": command, "sys_ids": [1]}}
+    assert (app_refusals.refusal(payload) is not None) is refused
+
+
+def test_a_command_refusal_needs_the_command_route_and_a_string_command():
+    body = {"command": "reboot", "sys_ids": [1]}
+    assert app_refusals.refusal({**_http("/api/control/commands", "POST"), "json": body}) is None
+    assert app_refusals.refusal({**_http("/api/control/command", "PUT"), "json": body}) is None
+    assert app_refusals.refusal({**_http("/api/control/command?x=1", "POST"), "json": body}) is not None
+    assert app_refusals.refusal({**_http("/api/control/command", "POST"), "json": ["reboot"]}) is None
+    assert app_refusals.refusal({**_http("/api/control/command", "POST")}) is None
 
 
 def test_a_payload_that_is_not_http_is_refused():
