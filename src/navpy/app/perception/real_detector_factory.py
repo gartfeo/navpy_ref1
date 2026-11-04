@@ -18,6 +18,7 @@ from navpy.core.kernel.config.detector_backend import (
     backend_requires_model_path,
     validate_detector_backend,
 )
+from navpy.app.perception.fixed_zoom_profile import build_fixed_zoom
 from navpy.app.perception.integration_timing_input import IntegrationTimingInput
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
 from navpy.core.perception.profile.vision_detector_profile import validate_detector_settings_keys
@@ -170,6 +171,10 @@ class RealDetectorFactory:
                     ),
                     capture_wrapper=(
                         None if integration is None else integration.capture_wrapper
+                    ),
+                    fixed_zoom=(
+                        None if integration is None
+                        else build_fixed_zoom(mount_spec.device)
                     ),
                 ),
                 debug=DetectorDebugConfig(

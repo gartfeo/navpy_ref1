@@ -2414,3 +2414,13 @@
   measurement note (it said so) before doubting new data.
 - **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
   Fit a smooth curve and label it an approximation; ask for an up/down repeat.
+
+## Fixed zoom policy, HITL step 18 (2026-11-04)
+
+- **The CRLF note was missed a third time.** A Python `str.replace` edit
+  matched nothing on a CRLF worktree file and reported no error. Use the
+  Edit tool on tracked files, or assert the match count in an edit script.
+- **ReadingIntrinsicsTable.readings() returns labels, not numbers.** Passing
+  the label ("3.8") back to settings()/optics() found no row, so no zoom
+  step was built. Convert with float() first. A run of the builder on the
+  real profile showed it before any test did.
