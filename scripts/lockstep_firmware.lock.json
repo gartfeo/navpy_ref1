@@ -2,8 +2,8 @@
   "repository": "https://github.com/gartfeo/ardupilot.git",
   "branch": "feat/navpy-serial-step-ftp",
   "base_commit": "95d96adbde",
-  "commit": "67de804624",
+  "commit": "6bf32fa8c8",
   "binary_path": "/home/gart/fw-worktrees/ardupilot-serial-step-ftp/build/sitl/bin/arduplane",
-  "binary_sha256": "5882610e8549a01b572dbe95db22e887f9bc3a17d2516b182b7a3ee944c22e92",
+  "binary_sha256": "24ac29eda7df61a21e6c2879fe6fc964d54f9bf9d3f455462c3072bf7ded4fcd",
   "mode": "EVAL-ONLY serial-step (NAVPY_SERIAL_STEP=1)"
 }
