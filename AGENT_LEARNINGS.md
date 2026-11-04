@@ -2405,7 +2405,7 @@
   tolerance: seed 7 hid the todo 268 gap.
 - **One concurrency group for main cancels main's checks.** Two pushes 6 min
   apart left 3e4ceef3 and e1928be2 with cancelled runs; each main push now
-  gets its own group (PR runs still cancel older ones).
+  gets its own group by run id, not commit, since a commit can be pushed twice (PR runs still cancel older ones).
 ## Live trail segment, todo 264 (2026-11-04)
 
 - The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
