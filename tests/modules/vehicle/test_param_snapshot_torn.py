@@ -60,12 +60,11 @@ def _real_ftp() -> VehicleFtp:
     return adapter
 
 
-SHORTEST_TIMEOUT_S = _real_ftp().shortest_timeout_s
+# The real client refuses a timeout at or below this (process_ftp_reply).
+SHORTEST_TIMEOUT_S = float(_real_ftp().ftp.ftp_settings.idle_detection_time)
 
 
 class _StubFtp:
-    shortest_timeout_s = SHORTEST_TIMEOUT_S
-
     def __init__(self, blobs) -> None:
         self.blobs = list(blobs)
         self.fetches = 0
@@ -77,7 +76,7 @@ class _StubFtp:
     def fetch_param_pck(self, *, timeout: float, **_kwargs) -> bytes:
         self.fetches += 1
         # The real client refuses this (process_ftp_reply's assert).
-        assert timeout > self.shortest_timeout_s, timeout
+        assert timeout > SHORTEST_TIMEOUT_S, timeout
         self.timeouts.append(timeout)
         self.now += self.cost
         return self.blobs.pop(0)
@@ -124,41 +123,20 @@ class TestTornParamPck(unittest.TestCase):
                     continue
                 self.assertIn(records, wholes, f"cut {cut} accepted a mixed table")
 
-    def test_refetches_share_one_timeout(self):
+    def test_each_fetch_gets_the_callers_timeout(self):
+        # One read needs the whole timeout on a lossy link; the read is bounded
+        # at TORN_PCK_FETCHES x timeout.
         client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
-        ftp.cost = 4.0
+        ftp.cost = 18.0  # stress seed 40: a whole read takes 14-18 s
         with mock.patch.object(rt, "monotonic", lambda: ftp.now):
             with self.assertRaises(ParamPckError):
-                client.fetch(timeout=20.0)
-        self.assertEqual(ftp.timeouts, [20.0, 16.0, 12.0])
-
-    def test_no_refetch_when_the_rest_is_too_short_for_the_client(self):
-        client, ftp = _client([_torn()] * TORN_PCK_FETCHES)
-        ftp.cost = 10.0 - SHORTEST_TIMEOUT_S  # leaves exactly the shortest
-        with mock.patch.object(rt, "monotonic", lambda: ftp.now):
-            with self.assertRaises(ParamPckError):
-                client.fetch(timeout=10.0)
-        self.assertEqual(ftp.fetches, 1)
-
-    def test_the_timeout_checked_is_the_timeout_passed(self):
-        # Time that passes before the refetch (here: while the warning is
-        # logged) must not shrink the value handed to the client below its
-        # bound: the stub asserts as the real client does.
-        client, ftp = _client([_torn(), _pck(2.5)])
-        ftp.cost = 10.0 - SHORTEST_TIMEOUT_S - 0.1  # 0.1 s above the bound after it
-        slow_log = mock.patch(
-            "navpy.plugins.vehicle.ardupilot.parameter_snapshot.log.warning",
-            lambda *_a: setattr(ftp, "now", ftp.now + 0.2),
-        )
-        with mock.patch.object(rt, "monotonic", lambda: ftp.now), slow_log:
-            with self.assertRaises(ParamPckError):
-                client.fetch(timeout=10.0)
-        self.assertEqual(ftp.fetches, 1)
+                client.fetch(timeout=30.0)
+        self.assertEqual(ftp.timeouts, [30.0] * TORN_PCK_FETCHES)
 
     def test_the_real_client_refuses_the_shortest_timeout(self):
         adapter = _real_ftp()
         with self.assertRaisesRegex(AssertionError, "idle_detection_time"):
-            adapter.ftp.process_ftp_reply("OpenFileRO", timeout=adapter.shortest_timeout_s)
+            adapter.ftp.process_ftp_reply("OpenFileRO", timeout=SHORTEST_TIMEOUT_S)
 
     def test_good_blob_is_fetched_once(self):
         client, ftp = _client([_pck(2.0)])

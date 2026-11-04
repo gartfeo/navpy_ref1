@@ -72,11 +72,6 @@ class VehicleFtp:
             target_component=MAV_COMP_ID_AUTOPILOT1,
         )
 
-    @property
-    def shortest_timeout_s(self) -> float:
-        """A fetch's timeout must exceed this (process_ftp_reply asserts it)."""
-        return float(self.ftp.ftp_settings.idle_detection_time)
-
     def close(self) -> None:
         self._subscription.cancel()
 

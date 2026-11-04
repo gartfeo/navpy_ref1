@@ -23,8 +23,8 @@ log = logging.getLogger(__name__)
 # With defaults, a record holds its default only while the value differs
 # from it, so a value that crosses its default during a lossy read moves
 # every later record. Gap reads then join bytes from two layouts and the
-# blob is torn. Fetch the whole file again, a bounded number of times,
-# within the one timeout. The root fix, a snapshot per read, is todo 272.
+# blob is torn. Fetch the whole file again, a bounded number of times.
+# The root fix, a snapshot per read, is todo 272.
 TORN_PCK_FETCHES = 3
 
 
@@ -75,13 +75,13 @@ class ParameterSnapshotClient:
         timeout: float,
         progress_callback: Callable[[dict[str, object] | None], None] | None,
     ) -> ParamPck:
-        # The refetches share the caller's timeout; they do not each get it again.
-        deadline = rt.monotonic() + timeout
-        budget = timeout
+        # Each fetch gets the caller's timeout whole: one read of the file
+        # needs it (stress seed 40: 14-18 s of 30 s), so the refetches cannot
+        # share it. The read is bounded at TORN_PCK_FETCHES x timeout.
         for attempt in range(1, TORN_PCK_FETCHES + 1):
             data = self._ftp.fetch_param_pck(
                 with_defaults=with_defaults,
-                timeout=budget,
+                timeout=timeout,
                 progress_callback=progress_callback,
             )
             try:
@@ -94,11 +94,6 @@ class ParameterSnapshotClient:
                     "(%d of %d)", self._identity.target_system, exc,
                     attempt + 1, TORN_PCK_FETCHES,
                 )
-                # The value checked is the value passed: a fetch needs more
-                # than the client's idle-detection time.
-                budget = deadline - rt.monotonic()
-                if budget <= self._ftp.shortest_timeout_s:
-                    raise
         raise AssertionError("unreachable")
 
     def close(self) -> None:
