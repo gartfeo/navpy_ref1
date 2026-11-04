@@ -2330,3 +2330,14 @@
 - A wait loop on a launch file started before the relaunch's `>` truncated it, so it reported the old failure. Clear or rename the old output first, or wait on a new file name.
 - To see WebSocket gaps and sizes without a second page, run a passive `/ws/telemetry` client that logs time and bytes per frame. Measure telemetry-to-telemetry gaps, not gaps to any message (Codex caught the mix), and call them reception gaps, not backend stalls.
 - A rehearsal claim from the live tester's JS inspection is not evidence unless saved: ask it to write the numbers to a file.
+## Trails over the terrain, todo 255 (2026-11-04)
+
+- Editing frontend files while a live tester runs hot-reloads them into its app, so the run mixes
+  versions. Finish edits (and mutation scripts) before starting a live run, or run it again.
+- I stripped CRLF with msys sed twice more despite the entry above. For any repo file, edit with the
+  Edit tool or Python with newline=""; check with `file` before the diff.
+- A test helper that keyed drawn points by lon in a Map hid two heights for one shared point. Make
+  such helpers assert on duplicates instead of overwriting them.
+- Async terrain samples per trail point: one request in flight per trail, chain only after a fully
+  successful batch (else a point with no data loops), and redraw from the sample, not the next
+  telemetry message.

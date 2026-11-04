@@ -42,12 +42,16 @@ export function accumulate(trail, pt) {
 /** Metres per degree of latitude. */
 const M_PER_DEG = 111320;
 
-/** Project lon/lat/alt points to local metres around the first point. */
+/**
+ * Project lon/lat/alt points to local metres around the first point. The
+ * height is the drawn one, over the sampled ground where known
+ * (useUavTrails), so thinning keeps a point that holds a line over a ridge.
+ */
 function toLocalMetres(pts) {
   const lat0 = pts[0].lat;
   const lon0 = pts[0].lon;
   const kx = Math.cos((lat0 * Math.PI) / 180) * M_PER_DEG;
-  return pts.map((p) => [(p.lon - lon0) * kx, (p.lat - lat0) * M_PER_DEG, p.alt ?? 0]);
+  return pts.map((p) => [(p.lon - lon0) * kx, (p.lat - lat0) * M_PER_DEG, (p.ground ?? 0) + (p.alt ?? 0)]);
 }
 
 /**
@@ -193,6 +197,42 @@ export function trailUpdatePoints(v, usedPath) {
   if (!Array.isArray(v.path)) return [trailPoint(v)];
   if (v.path === usedPath) return [];
   return v.path.filter((p) => p?.lat != null && p?.lon != null).map(trailPoint);
+}
+
+/**
+ * The ground each point of a trail is drawn over, as a Map from point.
+ * `groundOf(p)` is the ground under p, not finite while not sampled yet; such
+ * a point takes the last known ground before it in the trail, the first ones
+ * `lastGround`. Resolved once per trail, so the point two pieces share has
+ * one height in both. A point with no known ground is left out.
+ */
+export function trailGrounds(runs, groundOf, lastGround) {
+  const grounds = new Map();
+  let ground = lastGround;
+  for (const run of runs) {
+    for (const p of run) {
+      const g = groundOf(p);
+      if (Number.isFinite(g)) ground = g;
+      if (Number.isFinite(ground)) grounds.set(p, ground);
+    }
+  }
+  return grounds;
+}
+
+/**
+ * Flat lon, lat, height list for one drawn piece. A point's `alt` is over
+ * home, so it is drawn over the ground under it (`grounds`, from
+ * trailGrounds), as useUavMarkers draws the vehicle (terrain + alt_rel).
+ * Empty if a point has no known ground.
+ */
+export function trailPieceFlat(pts, grounds) {
+  const flat = [];
+  for (const p of pts) {
+    const ground = grounds.get(p);
+    if (ground === undefined) return [];
+    flat.push(p.lon, p.lat, ground + p.alt);
+  }
+  return flat;
 }
 
 /** Number of fade steps per trail (graduated alpha from tail to head). */

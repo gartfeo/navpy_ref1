@@ -305,7 +305,7 @@ function CesiumMap({
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
   useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef);
   useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
-  useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused);
+  useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused, terrainReady);
   useClosestApproachMarks(
     cesiumRef, viewerRef, storeRef, viewerReady, simClosestApproaches,
     simMode, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused,
