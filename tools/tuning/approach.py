@@ -231,7 +231,12 @@ def approach(args: argparse.Namespace) -> int:
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
         print(f"[approach] run FAILED ({reason}): {failed}", flush=True)
     finally:
-        stop.shield(handlers)                    # a later signal waits for the cleanup
+        while True:                             # a later signal waits for the cleanup
+            try:
+                stop.shield(handlers)
+                break
+            except (KeyboardInterrupt, stop.Aborted):
+                continue                        # one that arrived as shield() began: shield again
         try:
             run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
             try:

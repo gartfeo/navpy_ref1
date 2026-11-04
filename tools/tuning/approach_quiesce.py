@@ -72,18 +72,21 @@ def arm(saved: dict) -> None:
 def shield(saved: dict) -> None:
     """Ignore Ctrl+C, SIGTERM and SIGHUP while the run's cleanup runs, so a second signal cannot cut its stops short.
     The signals are blocked meanwhile (POSIX); one that was already on its way when shield() began is retried past,
-    and once all are ignored none can raise (CPython runs no handler for an ignored signal)."""
-    signums, block = (signal.SIGINT, *ABORT_SIGNALS), getattr(signal, "pthread_sigmask", None)
+    and once all are ignored none can raise (CPython runs no handler for an ignored signal). The caller retries the
+    call itself too, for a signal at its very start."""
+    mask = None
     while True:
         try:
+            signums, block = (signal.SIGINT, *ABORT_SIGNALS), getattr(signal, "pthread_sigmask", None)
             if block:
-                block(signal.SIG_BLOCK, signums)
+                held = block(signal.SIG_BLOCK, signums)
+                mask = held if mask is None else mask
             _install(signal.SIG_IGN, signums, saved)
             break
         except (Aborted, KeyboardInterrupt):
             continue
-    if block:
-        block(signal.SIG_UNBLOCK, signums)      # a signal held meanwhile now meets SIG_IGN
+    if mask is not None:
+        block(signal.SIG_SETMASK, mask)         # a signal held meanwhile now meets SIG_IGN
 
 
 def restore(saved: dict) -> None:

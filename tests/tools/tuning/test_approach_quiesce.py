@@ -532,6 +532,22 @@ def test_a_signal_as_the_run_arms_still_quiesces_and_stops(tmp_path, monkeypatch
     assert run["handoff"] is None                    # navpy never started: nothing to quiesce
 
 
+@pytest.mark.parametrize("exc", [stop.Aborted("signal 1"), KeyboardInterrupt()])
+def test_a_signal_as_the_cleanup_begins_still_quiesces_and_stops(tmp_path, monkeypatch, exc):
+    real, calls = stop.shield, []
+
+    def shield(saved):
+        calls.append(1)
+        if len(calls) == 1:
+            raise exc                                # a signal at shield()'s very start, before its own retry
+        real(saved)
+    monkeypatch.setattr(stop, "shield", shield)
+    before = signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)
+    code, log, run = _runner(tmp_path, monkeypatch, _raises(stop.Aborted("signal 15")))
+    assert len(calls) == 2 and "board stop" in log and run["quiesce"]["reason"] == stop.ABORT
+    assert (signal.getsignal(signal.SIGTERM), signal.getsignal(signal.SIGINT)) == before
+
+
 @pytest.mark.parametrize("exc, reason", [(RunnerError("navpy exited with code -9 during the run"), stop.CRASH),
                                          (KeyboardInterrupt(), stop.ABORT), (stop.Aborted("signal 15"), stop.ABORT)])
 def test_a_crash_or_an_abort_quiesces_before_the_boards_stop(tmp_path, monkeypatch, exc, reason):
