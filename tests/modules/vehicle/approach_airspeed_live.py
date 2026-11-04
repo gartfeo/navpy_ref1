@@ -60,6 +60,9 @@ class _Withholding:
     def get_parameter_fresh(self, name, timeout=2.0):
         return self._vehicle.get_parameter_fresh(name, timeout=timeout)
 
+    def exclusive_send(self):
+        return self._vehicle.exclusive_send()
+
 
 class _LawReader:
     def __init__(self, source) -> None:

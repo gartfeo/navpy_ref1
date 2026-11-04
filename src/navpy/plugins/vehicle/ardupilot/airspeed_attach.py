@@ -4,6 +4,7 @@ then read the pinned parameters back from the board."""
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager
 from typing import Any, Protocol
 
 from navpy.core.kernel import runtime_time as rt
@@ -28,6 +29,8 @@ class AirspeedVehicle(Protocol):
     def send_command_long(self, command: int, **parameters: object) -> object: ...
 
     def get_parameter_fresh(self, name: str, timeout: float = 2.0) -> float | None: ...
+
+    def exclusive_send(self) -> AbstractContextManager[None]: ...
 
 
 def _own(vehicle: AirspeedVehicle, message: object) -> bool:

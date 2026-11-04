@@ -10,6 +10,7 @@ four source states with the real firmware's flags and bits.
 """
 from __future__ import annotations
 
+import contextlib
 import json
 import math
 import os
@@ -315,6 +316,42 @@ def test_the_guard_holds_the_source_through_the_write_so_no_revoke_falls_between
         guarded.issue(1.0, 2.0, None)
     assert actuator.writes == [(1.0, 2.0, None)]
 
+def test_a_wait_for_the_send_lock_cannot_age_the_check(monkeypatch):
+    """The guard takes the link's send lock before it reads the clock: a write that waited 0.3 s behind another
+    sender (longer than the pitot's 0.2 s age limit) is refused, not sent on the stale check."""
+    clock = SimpleNamespace(now=0.0)
+    monkeypatch.setattr("navpy.app.approach.law_airspeed.rt.perf_counter", lambda: clock.now)
+    source, clock.now = _admitted()
+    entered: list[float] = []
+
+    @contextlib.contextmanager
+    def contended():
+        clock.now += 0.3                    # the time spent waiting for the other sender
+        entered.append(clock.now)
+        yield
+
+    actuator = _Actuator()
+    guarded = LawAirspeed(source, contended).guard(actuator)
+    with pytest.raises(AirspeedIneligible):
+        guarded.issue(1.0, 2.0, None)
+    assert actuator.writes == [] and entered and source.revoked == "sensor_stale"
+
+
+def test_the_vehicle_send_lock_is_reentrant_for_the_write_inside_it():
+    """exclusive_send holds the bus's send lock; the attitude write inside it takes the same lock again."""
+    from navpy.core.kernel import runtime_time as rt
+    from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+    from navpy.plugins.vehicle.ardupilot.vehicle_commands import VehicleCommands
+
+    sent: list[int] = []
+    transport = MavTransport(SimpleNamespace(mav=SimpleNamespace(
+        command_long_send=lambda *a: sent.append(a[2]))), rt.RLock())
+    commands = VehicleCommands(SimpleNamespace(target_system=1, target_component=1), transport)
+    with commands.exclusive_send():
+        commands.send_command_long(511)
+    assert sent == [511]
+
+
 def test_a_plausible_hud_value_is_never_the_law_input():
     """Integration timing takes the eligible reader only: the vehicle's VFR_HUD airspeed is not read."""
     vehicle = SimpleNamespace(air_speed=HUD, attitude_sample=None, location=lambda _: None,
@@ -395,6 +432,9 @@ class _Vehicle:
         if isinstance(value, Exception):
             raise value
         return value
+
+    def exclusive_send(self):
+        return contextlib.nullcontext()
 
 
 def test_attach_claims_twenty_hz_and_reads_the_pins():

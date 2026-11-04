@@ -215,10 +215,13 @@ FACADE_METHOD_ALLOWANCES = {
     # from a failed download so the GCS mission route answers an empty vehicle
     # with 200 (mission download outcome design, Codex-reviewed 2026-10-25)
     # -- a ratchet.
+    # 89 = 88 + exclusive_send, the send lock the HITL airspeed guard holds so
+    # its freshness check and its attitude write are one step (HITL step 20,
+    # Codex round 2) -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 88, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 89, frozenset({"_parts"})),
     # 45 = 44 + gimbal_capture_history, the gimbal readback history that
     # integration timing brackets at the capture instant (HITL stage 1
     # step 11, hitl_final_approach.md section 9) -- a ratchet, not headroom.
