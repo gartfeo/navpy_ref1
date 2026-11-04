@@ -2397,6 +2397,15 @@
   test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
   run under load failed two such checks too. Rerun alone before calling it a
   regression.
+- **CI on a fresh runner finds host dependencies.** The first Windows CI runs
+  failed on tests that read real WSL, on `perf_counter` (Windows: time since
+  boot, under 1000 s on a new runner) and on Lua 5.3 `math.random` (the C
+  library's generator: one seed draws differently in WSL and on Windows).
+  Stub host inputs; don't skip. Try other seeds before trusting a seeded
+  tolerance: seed 7 hid the todo 268 gap.
+- **One concurrency group for main cancels main's checks.** Two pushes 6 min
+  apart left 3e4ceef3 and e1928be2 with cancelled runs; each main push now
+  gets its own group by run id, not commit, since a commit can be pushed twice (PR runs still cancel older ones).
 ## Live trail segment, todo 264 (2026-11-04)
 
 - The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
