@@ -35,6 +35,7 @@ def no_claim(monkeypatch):
     monkeypatch.setattr(lockstep_eval.lockstep, "claim", claim)
 
 
+@pytest.mark.wsl
 def test_lockstep_runs_the_certified_scenario_up_to_the_slot_claim(tmp_path, monkeypatch, no_claim):
     """Step 10h: the certified fleet is no longer refused; its inputs name three SITLs."""
     import json
@@ -118,6 +119,7 @@ def _host_record(tmp_path):
 
 
 @pytest.mark.parametrize("kind", ["unscheduled_exit", "unclean_end", "stop_budget"])
+@pytest.mark.wsl
 def test_a_product_failure_ends_the_run_and_is_still_scored(tmp_path, monkeypatch, kind):
     """Section 4 and todo 202: a product failure is a failed run, not a failed setup, and the
     run is returned with its digest so the analysis scores what it did up to that tick."""
@@ -130,6 +132,7 @@ def test_a_product_failure_ends_the_run_and_is_still_scored(tmp_path, monkeypatc
     assert _host_record(tmp_path)["fault"] == f"ParticipantFault: {fault}"
 
 
+@pytest.mark.wsl
 def test_a_host_fault_is_a_failed_setup(tmp_path, monkeypatch):
     fault = HostFault("exchange_budget", "ran out", tick=9)
     _faulting_run(monkeypatch, fault)
@@ -166,6 +169,7 @@ def test_the_exit_code_parts_a_failed_run_from_a_failed_setup(monkeypatch, capsy
     assert line in capsys.readouterr().err
 
 
+@pytest.mark.wsl
 def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_path, monkeypatch,
                                                                            no_claim):
     """Steps 1-2 of deterministic_dev_sim.md: the default profile's draws are a run input;
@@ -192,6 +196,7 @@ def test_lockstep_records_the_sim_profile_realization_in_the_input_manifest(tmp_
     assert "SIM_UART_LOSS" not in merged[0]
 
 
+@pytest.mark.wsl
 def test_lockstep_launches_each_sitl_with_the_input_manifests_rng_seed(tmp_path, monkeypatch):
     """Step 2: the fleet boots with the defaults and per-sysid RNG seeds the manifest records."""
     import json
@@ -492,6 +497,7 @@ def test_write_lines_writes_each_navpys_lines_with_their_ticks(tmp_path, scenari
         assert rows == [[sys_id, f"line {sys_id}.a"], [10 + sys_id, f"line {sys_id}.b"]]
 
 
+@pytest.mark.wsl
 def test_the_lockstep_claim_is_this_directorys_so_gcs_stop_eval_finds_it(tmp_path, monkeypatch):
     """Todo 55: the claim's owner is ``owner_for`` (normcased), the key ``gcs_stop --eval`` looks up."""
     from gcs.backend import instance_registry as reg
@@ -515,6 +521,7 @@ def test_the_lockstep_claim_is_this_directorys_so_gcs_stop_eval_finds_it(tmp_pat
         assert lockstep.release_if_owner(slot, identity)
 
 
+@pytest.mark.wsl
 def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypatch):
     """``--app``: the app stack starts on the claimed slot before the coordinator, its relay,
     the refusals and a pacer reach the coordinator, and the stack stops after the run."""
@@ -562,6 +569,7 @@ def test_an_app_run_serves_the_app_and_writes_the_action_file(tmp_path, monkeypa
         '{"k":3,"kind":"end","source":"script"}\n')
 
 
+@pytest.mark.wsl
 def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_path, monkeypatch):
     """A stop error is not a run fault: it is raised as it is, after the fleet stop and the release."""
     import dataclasses

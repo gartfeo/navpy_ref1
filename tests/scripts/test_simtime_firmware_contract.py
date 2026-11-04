@@ -35,8 +35,11 @@ def _read_binary() -> tuple[bytes | None, str]:
         # An explicit Windows path is checked as given, never replaced by a default.
         path = Path(configured)
         return (path.read_bytes() if path.is_file() else None), configured
-    if not configured and Path(DEFAULT_UNC_BINARY).is_file():
-        return Path(DEFAULT_UNC_BINARY).read_bytes(), DEFAULT_UNC_BINARY
+    if not configured:
+        try:
+            return Path(DEFAULT_UNC_BINARY).read_bytes(), DEFAULT_UNC_BINARY
+        except OSError:  # no such file, or no WSL share at all (a CI runner)
+            pass
     linux_path = configured or DEFAULT_LINUX_BINARY
     try:
         result = subprocess.run(["wsl.exe", "--exec", "cat", linux_path],
