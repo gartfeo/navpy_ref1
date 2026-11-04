@@ -2442,3 +2442,11 @@
 - `long-animation-frame` entries (PerformanceObserver) split a slow page into Cesium render and
   telemetry handler time per script; strip query strings from the output, or Claude in Chrome
   blocks it.
+
+## Parent merges with renumbering (2026-11-04)
+
+- A merge script that runs `git merge --no-commit`, edits, then `git add -A; git commit` commits
+  conflict markers when the merge also conflicted. Check `git diff --name-only --diff-filter=U`
+  is empty before the commit; caught here before the push and amended.
+- Sessions that move GCS frontend code must run tests/gcs too: its source-string tests (for
+  example test_confirm_card_hosts_js) are not in npm test or the default pytest suite.
