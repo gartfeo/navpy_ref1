@@ -14,6 +14,7 @@ import { PANEL_MARGIN_PX, PICTURE_TAG_INSET_PX } from './vehicleWindowLayout';
 
 /** The heading tape's size where it has room (its 60 degree scale is drawn over this width). */
 export const HEADING_TAPE_W_PX = 300;
+/** Its height in both hosts: HeadingTape draws its scale labels down to about this, so a shorter canvas clips them. */
 export const HEADING_TAPE_H_PX = 36;
 /** The speed and altitude tapes' width over the main map. */
 export const RC_TAPE_W_PX = 70;
@@ -24,8 +25,6 @@ const RC_STRIP_BOTTOM_PX = 60;
 
 /** The tapes' width in the window picture: narrower, so the 318 px picture keeps its middle. */
 export const PICTURE_TAPE_W_PX = 56;
-/** The picture's heading tape: shorter, so the tapes keep their height in the 179 px picture. */
-export const PICTURE_HEADING_H_PX = 28;
 /** Below this a tape's value box and its scale no longer both show: the tape is left out. */
 export const PICTURE_TAPE_MIN_PX = 48;
 /**
@@ -84,10 +83,10 @@ export function pictureHudLayout({ width, height, tagHeight, status, creditsPx, 
   const room = Math.max(0, width - inset - rightOffset);
   const headingWidth = Math.min(HEADING_TAPE_W_PX, room);
   const heading = {
-    top: headingTop, height: PICTURE_HEADING_H_PX, width: headingWidth, left: inset + (room - headingWidth) / 2,
+    top: headingTop, height: HEADING_TAPE_H_PX, width: headingWidth, left: inset + (room - headingWidth) / 2,
   };
 
-  const tapesTop = headingTop + PICTURE_HEADING_H_PX + PICTURE_GAP_PX;
+  const tapesTop = headingTop + HEADING_TAPE_H_PX + PICTURE_GAP_PX;
   const tapesBottom = height - creditsPx - inset;
   const tape = (top) => {
     const h = Math.min(HUD_TAPE_MAX_PX, tapesBottom - top);

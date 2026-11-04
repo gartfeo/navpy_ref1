@@ -1,7 +1,7 @@
 // Placement of the shared first-person HUD in RC control and in the Synthetic picture.
 import { describe, it, expect } from 'vitest';
 import {
-  HEADING_TAPE_H_PX, HEADING_TAPE_W_PX, PICTURE_ATTITUDE_MIN_W_PX, PICTURE_HEADING_H_PX, PICTURE_TAPE_MIN_PX, PICTURE_TAPE_W_PX, RC_TAPE_W_PX,
+  HEADING_TAPE_H_PX, HEADING_TAPE_W_PX, PICTURE_ATTITUDE_MIN_W_PX, PICTURE_TAPE_MIN_PX, PICTURE_TAPE_W_PX, RC_TAPE_W_PX,
   pictureHudLayout, rcHudLayout,
 } from './hudLayout';
 import { HUD_TAPE_MAX_PX } from './appLayout';
@@ -36,13 +36,19 @@ describe('pictureHudLayout', () => {
     // The tag wraps before the status row.
     expect(tagMaxWidth).toBe(318 - INSET - INSET - STATUS.width - 4);
     const headingTop = INSET + 26 + 4;
-    expect(hud.heading).toEqual({ top: headingTop, height: PICTURE_HEADING_H_PX, width: 300, left: (318 - 300) / 2 });
-    const tapesTop = headingTop + PICTURE_HEADING_H_PX + 4;
+    expect(hud.heading).toEqual({ top: headingTop, height: HEADING_TAPE_H_PX, width: 300, left: (318 - 300) / 2 });
+    const tapesTop = headingTop + HEADING_TAPE_H_PX + 4;
     const tapeH = 179 - 16 - INSET - tapesTop;
     expect(hud.speed).toEqual({ left: INSET, top: tapesTop, height: tapeH, width: PICTURE_TAPE_W_PX });
     expect(hud.altitude).toEqual({ right: INSET, top: tapesTop, height: tapeH, width: PICTURE_TAPE_W_PX });
     expect(hud.strip).toEqual({ bottom: 16 + INSET });
     expect(hud.attitude).toEqual({ left: 0, right: 0 });
+  });
+
+  it('the heading tape keeps the height its drawing needs (a shorter canvas clipped its labels, Codex r1)', () => {
+    expect(normal().hud.heading.height).toBe(HEADING_TAPE_H_PX);
+    expect(HEADING_TAPE_H_PX).toBeGreaterThanOrEqual(36);
+    expect(normal({ smallMap: { width: 120, height: 80 }, width: 640, height: 360 }).hud.heading.height).toBe(HEADING_TAPE_H_PX);
   });
 
   it('a taller tag (it wrapped) moves the rows below it down', () => {
@@ -51,7 +57,7 @@ describe('pictureHudLayout', () => {
 
   it('too little height for a readable tape: the tapes are left out, never squeezed', () => {
     const { hud } = normal({ creditsPx: 60 });
-    expect(179 - 60 - INSET - hud.heading.top - PICTURE_HEADING_H_PX - 4).toBeLessThan(PICTURE_TAPE_MIN_PX);
+    expect(179 - 60 - INSET - hud.heading.top - HEADING_TAPE_H_PX - 4).toBeLessThan(PICTURE_TAPE_MIN_PX);
     expect(hud.speed).toBeNull();
     expect(hud.altitude).toBeNull();
   });

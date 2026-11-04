@@ -465,7 +465,7 @@ large vehicle view.
   RC control, and nothing RC sends changes. Where its parts go is a pure
   layout per host (`utils/hudLayout.js`): `rcHudLayout` keeps RC control's
   placement as it was; `pictureHudLayout` puts the tag and the status row in
-  one top row (the tag wraps before the row), the heading tape (28 px high,
+  one top row (the tag wraps before the row), the heading tape (36 px high like RC's, since its labels need that,
   at most 300 px wide) under it, 56 px tapes from there to the credit line,
   left out below 48 px, and while maximized keeps the row and the heading tape
   left of the small map and the altitude tape below it, and insets the
