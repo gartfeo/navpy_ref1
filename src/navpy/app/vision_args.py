@@ -23,6 +23,9 @@ class VisionArgs:
     integration_timing: str = ""
     integration_log: str = ""
     siyi_ip: str = ""             # HITL runner only: the SIYI gimbal's address over the profile's siyi_ip
+    # HITL commissioning only: a capture wrapper a launcher sets on the parsed args (tools/hitl/media_fault_injector.py);
+    # no command-line option sets it.
+    capture_wrapper: object = None
 
     @classmethod
     def from_args(cls, args) -> "VisionArgs":
@@ -38,6 +41,7 @@ class VisionArgs:
             integration_timing=getattr(args, "integration_timing", ""),
             integration_log=getattr(args, "integration_log", ""),
             siyi_ip=getattr(args, "siyi_ip", ""),
+            capture_wrapper=getattr(args, "capture_wrapper", None),
         )
 
     @staticmethod

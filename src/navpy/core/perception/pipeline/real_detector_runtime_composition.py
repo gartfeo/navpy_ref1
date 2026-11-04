@@ -141,6 +141,7 @@ def build_runtime(
         publication_observer=(
             None if integration_source is None else integration_source.observe
         ),
+        capture_wrapper=pipeline.capture_wrapper,
     )
     navigation = None
     if config.gimbal.tracking is not None or config.gimbal.zoom is not None:

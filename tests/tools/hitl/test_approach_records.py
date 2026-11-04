@@ -164,9 +164,9 @@ def test_missing_fields_are_named(model_dir):
 
 
 @pytest.mark.parametrize("path, value, reason", [
-    (("schema_version",), True, "must be 4"),
-    (("schema_version",), 4.0, "must be 4"),
-    (("schema_version",), 3, "must be 4"),
+    (("schema_version",), True, "must be 5"),
+    (("schema_version",), 5.0, "must be 5"),
+    (("schema_version",), 4, "must be 5"),
     (("run", "run_id"), "run 1", "must be a name"),
     (("run", "run_id"), "CON", "not a Windows device name"),
     (("run", "run_id"), "aux.r001", "not a Windows device name"),

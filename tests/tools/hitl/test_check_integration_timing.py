@@ -11,6 +11,7 @@ import pytest
 from tests.tools.hitl import timing_scenario as ts
 from tools.hitl.encoded_capture_score import INTERVAL_TOLERANCE_NS
 from tools.hitl import check_integration_timing as cit, run_manifest
+from tools.hitl.media_fault_spec import NO_FAULT
 from tools.hitl.timing_inputs import (
     TimingInputError,
     read_emulator_log,
@@ -398,7 +399,8 @@ def test_bootstrap_interval_reflects_correlation_within_blocks():
 
 # --- command line -----------------------------------------------------------------------------------------------
 def _record(config):
-    return {"run": {"run_id": config.run_id, "mode": config.mode}, "integration_timing": config.record()}
+    return {"run": {"run_id": config.run_id, "mode": config.mode}, "integration_timing": config.record(),
+            "commissioning": NO_FAULT.record()}
 
 
 def _write_logs(logs, folder):

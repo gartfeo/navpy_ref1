@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 
+from tools.hitl.media_fault_spec import NO_FAULT
 from tools.tuning import approach, approach_chain as chain, approach_handles as handles
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LANE_REPEATS, build_lane, lane_items
 from tools.tuning.approach_procs import STOP_EOF, STOP_SIGINT, ProcessGroup, ProcSpec, RunnerError
@@ -272,7 +273,8 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
         output.write(READY_LINES[spec.role] + "\n")
         return FakeHandle(log, spec.role)
 
-    monkeypatch.setattr(approach, "_record", lambda args, run_id, repo, scenario: {"run": {"run_id": run_id}})
+    monkeypatch.setattr(approach, "_record", lambda args, run_id, repo, scenario: {"run": {"run_id": run_id},
+                                                                         "commissioning": NO_FAULT.record()})
     monkeypatch.setattr(approach.scenario_run, "service", fake_service)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: _written(run_dir / "approach_record.json"))

@@ -90,8 +90,22 @@ class FrameCaptureBackend(Protocol):
     def close(self) -> None: ...
 
 
+class CaptureBackendWrapper(Protocol):
+    """Wraps one opened backend after decode: a HITL commissioning dependency, supplied by a launcher, never a profile.
+
+    The wrapper owns the backend it returns; it keeps each frame's ``CaptureStamp`` as the backend made it.
+    """
+
+    def __call__(
+        self,
+        backend: FrameCaptureBackend,
+        logger: CaptureLogger,
+    ) -> FrameCaptureBackend: ...
+
+
 __all__ = [
     "BoardClock",
+    "CaptureBackendWrapper",
     "CaptureLogger",
     "CaptureRunState",
     "CaptureStamp",

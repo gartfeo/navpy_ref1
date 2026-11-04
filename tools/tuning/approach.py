@@ -17,7 +17,7 @@ stops navpy and closes its router endpoint (navpy_handoff.py) and only then flie
 floor takes the same path (HeightFloor). Every owned process is stopped on every exit; scoring then checks that Unreal
 built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest (tools/hitl/run_manifest.py) and
 the orphan check follow. Exit 0 only when the flight, the handoff, every stop, the scene, the link health and the
-orphan check all passed.
+orphan check all passed. ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
 
@@ -37,8 +37,9 @@ from navpy.core.kernel.config.navigation_args import NavigationAlgorithm
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from navpy.app.router_barrier import RouterBarrier
 from navpy.app.terminal_handoff import NAVPY_TERMINAL_MARKER
-from tools.hitl import approach_records, run_manifest
+from tools.hitl import approach_records, media_fault_spec, run_manifest
 from tools.hitl.model_input import read_model_input
+from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
@@ -117,9 +118,9 @@ def _record(args: argparse.Namespace, run_id: str, repo: Path, scenario: dict) -
     return approach_records.new_record(
         run_id=run_id, mode=MODE, created=datetime.now(timezone.utc), model_input=read_model_input(args.model_input),
         model_dir=Path(args.model_dir), bridge=bridge, law=NavigationAlgorithm.VISION_NAV_PN.value,
-        sources={"navpy": approach_records.source_identity(repo)},
+        sources={"navpy": source_identity(repo)},
         media_runtime=json.loads(Path(args.media_runtime).read_text(encoding="utf-8")), integration_timing=timing,
-        scenario=scenario)
+        scenario=scenario, commissioning=args.commission_fault)
 
 
 def _adopting_popen(group: ProcessGroup) -> Callable[..., subprocess.Popen]:
@@ -187,7 +188,8 @@ def _manifest(run_dir: Path, run_id: str, record_path: Path, group: ProcessGroup
     files = [("run_record", record_path), ("navpy_integration_log", run_dir / "navpy_integration.jsonl"),
              ("publisher_status", publisher / "publisher.json"),
              *(("publisher_frames", path) for path in sorted(publisher.glob("frames-*.csv"))),
-             ("unreal_log", run_dir / "unreal.log"), ("emulator_log", run_dir / "emulator.jsonl")]
+             ("unreal_log", run_dir / "unreal.log"), ("emulator_log", run_dir / "emulator.jsonl"),
+             ("media_fault_log", run_dir / chain.FAULT_LOG)]
     producers = {**group.producers(), "runner": {"pid": None, "argv": sys.argv, "ended_after_stop": True}}
     manifest = run_manifest.build(run_id, producers, [(role, path) for role, path in files if path.exists()])
     # The scenario's private files hold the dock's truth: the runner leaves them unread (scoring checks them).
@@ -221,7 +223,8 @@ def approach(args: argparse.Namespace) -> int:
                                    "interop": handles.spawn_interop(chain.EMULATOR_PORTS, chain.EMULATOR_PID_LINE),
                                    "publisher": handles.spawn_publisher}, chain.port_free)
     run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "scenario": scenario,
-                 "addresses": [wsl_ip, windows_ip],
+                 "addresses": [wsl_ip, windows_ip], "commissioning": record["commissioning"],
+                 "admission_problems": media_fault_spec.admission_problems(record),
                  "sitl_binary": _binary(args.sitl_binary)}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
                          run_dir / "board", args.origin, popen=_adopting_popen(group))
@@ -234,7 +237,7 @@ def approach(args: argparse.Namespace) -> int:
         specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens),
                  chain.unreal(paths, lens, scenario_run.unreal_file(run_dir), run["scenario"]["scene_hash"]),
-                 chain.navpy(paths, record_path, FIRST_LANE_SEQ)]
+                 chain.navpy(paths, record_path, FIRST_LANE_SEQ, args.commission_fault.active)]
         problems = group.refusals(specs)
         if problems:
             raise RunnerError("; ".join(problems))
@@ -266,7 +269,8 @@ def approach(args: argparse.Namespace) -> int:
     ended = all(item.get("ended_after_stop") for item in run["producers"].values())
     scene = scenario_run.reproduced(run["scene"], run["scenario"])
     print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
-          f"scene reproduced {scene}, link health {health.get('ok')}; folder {run_dir}", flush=True)
+          f"scene reproduced {scene}, link health {health.get('ok')}; folder {run_dir}"
+          + "".join(f"; {problem}" for problem in run["admission_problems"]), flush=True)
     return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") else 1
 
 
@@ -291,4 +295,6 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--scenario-series", required=True,
                    help="the private series file (tools/hitl/scenario_service.py new-series); read only by the service")
     a.add_argument("--seed-index", type=int, required=True, help="the seed of the series this run flies (0-9)")
+    a.add_argument("--commission-fault", type=media_fault_spec.parse, default=media_fault_spec.NO_FAULT,
+                   metavar="FAULT", help="SITL commissioning only: delay:N[@K] or loss[@K] (media_fault_spec.py)")
     a.set_defaults(func=approach)
