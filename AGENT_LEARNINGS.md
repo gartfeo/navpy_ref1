@@ -2373,3 +2373,17 @@
   rises with distance (0.16 m over 1.5 km). Compare heights with the sample's own height.
 - Smoothing that restarts a fixed multiple of the sample interval towards each new sample settles
   that many intervals behind at constant speed; check the steady-state lag before tuning windows.
+
+## Slow full suite (2026-11-04)
+
+- **The suite ran in one process.** 11,146 tests took 19.5 min serial and
+  6 min on pytest-xdist `-n 8`. On an older main (7,714 tests) 60 tests used
+  58% of the serial 16 min (repo-scanning guards, lockstep fleet runs);
+  `-n 8` took 3.4 min, `-n 12` and `-n auto` (20) were slower, and 20 workers
+  ran out of memory (cv2 OutOfMemoryError) while other chats ran suites.
+- **Do not put `-n` in addopts.** Workers add about 8 s to a one-file run.
+- **pytest output hides `-X importtime`.** Add `-s`, or capture eats stderr.
+- **Wall-clock budgets fail under parallel load.** A 0.5 s budget in
+  test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
+  run under load failed two such checks too. Rerun alone before calling it a
+  regression.

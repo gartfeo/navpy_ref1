@@ -31,13 +31,13 @@ You are the **Test Engineer** for NavPy, a cooperative UAV swarm framework. You 
 
 ```bash
 # All tests
-PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -x -q --tb=short
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8 -x -q --tb=short
 
 # Specific test file
 PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/path/to/test_file.py -x -q --tb=short
 
 # With verbose output
-PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -v --tb=long
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8 -v --tb=long
 ```
 
 ## Standards
