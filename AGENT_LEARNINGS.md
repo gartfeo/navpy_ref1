@@ -2323,3 +2323,10 @@
 - **A new VisionArgs field needs every Mock fixture.** Tests build VisionArgs as `Mock()` with fields set by hand,
   and a missing one is a truthy Mock. Only the full suite (tests/modules/vision) showed 18 failures; the touched
   groups did not. Grep for `integration_log=` or `.integration_log =` in tests when adding a field.
+
+## Rehearsing both demo plans (2026-11-04)
+
+- Lost one launch to a missing `node_modules` in a fresh worktree, although lines 723 and 1209 say so: run `npm ci` in `src/gcs/frontend` before `delivery_demo.py`.
+- A wait loop on a launch file started before the relaunch's `>` truncated it, so it reported the old failure. Clear or rename the old output first, or wait on a new file name.
+- To see WebSocket gaps and sizes without a second page, run a passive `/ws/telemetry` client that logs time and bytes per frame. Measure telemetry-to-telemetry gaps, not gaps to any message (Codex caught the mix), and call them reception gaps, not backend stalls.
+- A rehearsal claim from the live tester's JS inspection is not evidence unless saved: ask it to write the numbers to a file.
