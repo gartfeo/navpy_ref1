@@ -14,6 +14,7 @@ from pymavlink import mavutil
 
 from navpy.app.approach.law_airspeed import parse_airspeed_record
 from navpy.plugins.vehicle.ardupilot.airspeed_profile import profile_for_mode, pin_matches
+from tools.tuning.board import Board
 
 # The launched binary -> the commit it embeds and reports (AUTOPILOT_VERSION.flight_custom_version, first 8 hex).
 # My value: the pc-sitl runner's default feat/sim-hil build, provenance in step 19's Built record.
@@ -49,7 +50,7 @@ def param_problems(mode: str, read: dict[str, float | None]) -> list[str]:
             if not pin_matches(read.get(name), value)]
 
 
-def pin_board(board, mode: str, binary: dict) -> dict:
+def pin_board(board: Board, mode: str, binary: dict) -> dict:
     """Read the pins and the firmware report from the board; raise AirspeedPinError on any mismatch."""
     read: dict[str, float | None] = {}
     for name in profile_for_mode(mode).pins():

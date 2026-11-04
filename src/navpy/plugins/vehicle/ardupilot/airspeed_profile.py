@@ -53,7 +53,7 @@ class AirspeedProfile:
     """The simulated pitot source a HITL run may admit: the board's effective parameters."""
 
     mode: str
-    arspd_type: int             # 100: AP_Airspeed_SITL (simulated sensor, fed by the bridge's HIL state in pc-sitl)
+    arspd_type: int             # the board's sensor driver (ARSPD_TYPE)
     arspd_use: int              # 1: the AHRS uses the sensor
     sensor: int                 # ARSPD_PRIMARY: the selected sensor's index, AIRSPEED.id
 
@@ -62,7 +62,12 @@ class AirspeedProfile:
 
 
 # Simulator only: there is no flight profile, so a flight or Qualification mode refuses (profile_for_mode).
-SIMULATED_PROFILES = {"pc-sitl": AirspeedProfile("pc-sitl", arspd_type=100, arspd_use=1, sensor=0)}
+# pc-sitl: SITL stands in for the board (approach_chain.backing), so no hitl_board.parm is loaded and ARSPD_TYPE is
+# SITL ArduPlane's default 2, the analog driver reading SITL's simulated pitot pin (AP_HAL_SITL sitl_airspeed.cpp),
+# which SIM_HIL feeds from the bridge's ind_airspeed (JSBSim's calibrated airspeed); ARSPD_USE 1 comes from
+# Tools/autotest/models/plane.parm. A real analog pitot has the same type: the runner's firmware pin (a SITL build,
+# tools/tuning/approach_airspeed.py) is what makes it simulated.
+SIMULATED_PROFILES = {"pc-sitl": AirspeedProfile("pc-sitl", arspd_type=2, arspd_use=1, sensor=0)}
 
 
 def profile_for_mode(mode: str) -> AirspeedProfile:

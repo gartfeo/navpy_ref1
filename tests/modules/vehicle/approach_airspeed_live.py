@@ -91,13 +91,14 @@ def _wait(predicate, timeout_s: float) -> bool:
 
 
 def _set(runner, name: str, value: float) -> None:
+    """``runner`` is the pymavlink connection (the runner's router client)."""
     for _ in range(5):
         runner.param_set_send(name, value)
-        msg = runner.recv_match(type="PARAM_VALUE", blocking=True, timeout=2.0)
-        while msg is not None and msg.param_id != name:
-            msg = runner.recv_match(type="PARAM_VALUE", blocking=True, timeout=2.0)
-        if msg is not None and abs(msg.param_value - value) < 1e-6:
-            return
+        deadline = time.monotonic() + 2.0
+        while time.monotonic() < deadline:
+            msg = runner.recv_match(type="PARAM_VALUE", blocking=True, timeout=0.5)
+            if msg is not None and msg.param_id == name and abs(msg.param_value - value) < 1e-6:
+                return
     raise RuntimeError(f"{name} not set to {value}")
 
 
@@ -117,8 +118,8 @@ def _state(navpy, events, fault=None, restore=None) -> dict:
         result["law_reads"] = reader.values
     finally:
         reader.stop()
-        if restore is not None:
-            restore()
+    if restore is not None:
+        restore()
     result["events"] = [e for e in events[mark:] if e["event"] != "window_restart"][:12]
     return result
 
@@ -144,12 +145,16 @@ def run_live_states(endpoint: str) -> dict:
         hud = vehicle.air_speed
         result: dict = {"hud": {"hud_airspeed": None if hud is None or not math.isfinite(hud) else float(hud),
                                 "law_read": pending.read(time.perf_counter()), "state": pending.state}}
+        result["params_at_start"] = {name: vehicle.get_parameter_fresh(name, timeout=2.0)
+                                     for name in ("ARSPD_TYPE", "ARSPD_USE", "ARSPD_PRIMARY", "ARSPD_OFFSET",
+                                                  "ARSPD_SKIP_CAL")}
+        offset = result["params_at_start"]["ARSPD_OFFSET"] or 1.0
         result["unhealthy"] = _state(
             navpy, events,
-            fault=lambda: (_set(runner.mav, "ARSPD_SKIP_CAL", 0), _set(runner.mav, "ARSPD_OFFSET", 0.0)),
-            restore=lambda: _set(runner.mav, "ARSPD_OFFSET", 1.0))
-        result["not_used"] = _state(navpy, events, fault=lambda: _set(runner.mav, "ARSPD_USE", 0),
-                                    restore=lambda: _set(runner.mav, "ARSPD_USE", 1))
+            fault=lambda: (_set(runner, "ARSPD_SKIP_CAL", 0), _set(runner, "ARSPD_OFFSET", 0.0)),
+            restore=lambda: _set(runner, "ARSPD_OFFSET", offset))
+        result["not_used"] = _state(navpy, events, fault=lambda: _set(runner, "ARSPD_USE", 0),
+                                    restore=lambda: _set(runner, "ARSPD_USE", 1))
         result["stale_status"] = _state(navpy, events, fault=lambda: (navpy.hold.set(), time.sleep(1.0)),
                                         restore=navpy.hold.clear)
         result["admitted"] = all(result[k]["admitted"] for k in ("unhealthy", "not_used", "stale_status"))

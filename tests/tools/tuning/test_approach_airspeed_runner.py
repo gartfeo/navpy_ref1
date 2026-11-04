@@ -11,7 +11,7 @@ from tools.tuning import approach, approach_airspeed as airspeed
 
 SHA = next(iter(airspeed.FIRMWARE_PINS))
 COMMIT = airspeed.FIRMWARE_PINS[SHA]
-GOOD = {"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}
+GOOD = {"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}
 
 
 def _version(commit: str = COMMIT) -> SimpleNamespace:
@@ -45,8 +45,8 @@ def test_the_pinned_board_passes_and_is_recorded():
 
 @pytest.mark.parametrize("params, binary, version, needle", [
     ({**GOOD, "ARSPD_USE": 0.0}, SHA, None, "ARSPD_USE"),
-    ({**GOOD, "ARSPD_TYPE": 1.0}, SHA, None, "ARSPD_TYPE"),
-    ({"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0}, SHA, None, "ARSPD_PRIMARY"),
+    ({**GOOD, "ARSPD_TYPE": 100.0}, SHA, None, "ARSPD_TYPE"),
+    ({"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0}, SHA, None, "ARSPD_PRIMARY"),
     (GOOD, "0" * 64, None, "not a pinned build"),
     (GOOD, None, None, "not a pinned build"),
     (GOOD, SHA, False, "no AUTOPILOT_VERSION"),

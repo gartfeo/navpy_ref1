@@ -10,6 +10,7 @@ four source states with the real firmware's flags and bits.
 """
 from __future__ import annotations
 
+import json
 import math
 import os
 from types import SimpleNamespace
@@ -69,7 +70,7 @@ def _ready(events: list | None = None) -> AirspeedEligibility:
     source = AirspeedEligibility(PROFILE, sink.append)
     source.claim_sent(0.0)
     source.observe_ack(A.MAV_RESULT_ACCEPTED, 0.0)
-    source.pins_read({"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, 0.0)
+    source.pins_read({"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, 0.0)
     return source
 
 
@@ -119,7 +120,7 @@ def test_the_window_opens_only_after_the_claim_ack_and_the_pins():
     _feed(source, 1.0, 70.0)
     assert source.state == PENDING
     source.observe_ack(A.MAV_RESULT_ACCEPTED, 71.0)
-    source.pins_read({"ARSPD_TYPE": 100, "ARSPD_USE": 1, "ARSPD_PRIMARY": 0}, 71.0)
+    source.pins_read({"ARSPD_TYPE": 2, "ARSPD_USE": 1, "ARSPD_PRIMARY": 0}, 71.0)
     t = _feed(source, 71.05, 59.0)
     assert source.state == PENDING          # the 70 s before the ack and pins do not count
     _feed(source, t + 1 / HZ, 1.5)
@@ -144,11 +145,11 @@ def test_no_accepted_ack_by_the_deadline_revokes():
 
 
 @pytest.mark.parametrize("values, reason", [
-    ({"ARSPD_TYPE": 100.0, "ARSPD_USE": 0.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
-    ({"ARSPD_TYPE": 1.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
-    ({"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 1.0}, "pin_mismatch"),
-    ({"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": None}, "pin_unreadable"),
-    ({"ARSPD_TYPE": 100.5, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
+    ({"ARSPD_TYPE": 2.0, "ARSPD_USE": 0.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
+    ({"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),   # the serial board's type
+    ({"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 1.0}, "pin_mismatch"),
+    ({"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": None}, "pin_unreadable"),
+    ({"ARSPD_TYPE": 2.5, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
     ({"ARSPD_TYPE": float("nan"), "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0}, "pin_mismatch"),
 ])
 def test_pins_that_do_not_hold_revoke(values, reason):
@@ -332,7 +333,7 @@ class _Vehicle:
         self.callbacks: dict[str, list] = {}
         self.commands: list[tuple] = []
         self._ack = ack
-        self._pins = {"ARSPD_TYPE": 100.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0} if pins is None else pins
+        self._pins = {"ARSPD_TYPE": 2.0, "ARSPD_USE": 1.0, "ARSPD_PRIMARY": 0.0} if pins is None else pins
 
     def on_message(self, name, callback):
         self.callbacks.setdefault(name, []).append(callback)
@@ -370,7 +371,7 @@ def test_attach_without_an_ack_revokes(monkeypatch):
 
 def test_attach_with_a_refused_ack_or_an_unreadable_pin_revokes():
     assert attach(_Vehicle(ack=A.MAV_RESULT_DENIED), PROFILE, lambda r: None).revoked == "claim_refused"
-    pins = {"ARSPD_TYPE": 100.0, "ARSPD_USE": RuntimeError("timeout"), "ARSPD_PRIMARY": 0.0}
+    pins = {"ARSPD_TYPE": 2.0, "ARSPD_USE": RuntimeError("timeout"), "ARSPD_PRIMARY": 0.0}
     assert attach(_Vehicle(pins=pins), PROFILE, lambda r: None).revoked == "pin_unreadable"
 
 
@@ -432,6 +433,10 @@ def test_live_pinned_sitl_source_states():
     from tests.modules.vehicle.approach_airspeed_live import run_live_states
 
     result = run_live_states(LIVE)
+    out = os.environ.get("NAVPY_STEP20_RESULT", "")
+    if out:
+        with open(out, "w", encoding="utf-8") as handle:
+            json.dump(result, handle, indent=1, default=str)
     assert result["admitted"], result
     for state in ("unhealthy", "not_used", "stale_status"):
         assert result[state]["revoked"], (state, result)

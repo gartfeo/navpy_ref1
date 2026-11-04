@@ -21,8 +21,7 @@ every exit; scoring then checks that Unreal built the delivered scene (scenario_
 manifest (tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only
 when the flight, the handoff, every stop, the scene, the link health, the orphan check, the observation audit (0
 forbidden navpy writes, 0 after the drain ack), one owner per role in each census and in the logs, and navpy's
-airspeed source (admitted, never revoked; its pins and firmware checked before takeoff: approach_airspeed.py) all
-passed.
+airspeed source (pinned before takeoff, admitted, never revoked: approach_airspeed.py) all passed.
 ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
@@ -45,10 +44,10 @@ from tools.hitl.model_input import read_model_input
 from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
-from tools.tuning import approach_airspeed as airspeed
-from tools.tuning import approach_owners as owners, approach_quiesce as stop
+from tools.tuning import approach_airspeed as airspeed, approach_owners as owners, approach_quiesce as stop
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
+from tools.tuning.approach_verdict import verdict
 from tools.tuning.board import Board
 from tools.tuning.dock_pass import END_RTL_S, Point, home_position
 from tools.tuning.flight_floor import HeightFloor
@@ -137,7 +136,6 @@ def _adopting_popen(group: ProcessGroup) -> Callable[..., subprocess.Popen]:
 def _fly(board: Board, group: ProcessGroup, run: dict, quiesce: stop.Quiesce) -> None:
     from tools.tuning.sitl_driver import takeoff        # sitl_driver imports this module
     limits = run["scenario"]["limits"]
-    # Step 20: the simulated pitot profile and the firmware mapping, before arming (raises on a mismatch).
     run["airspeed_pins"] = airspeed.pin_board(board, run["mode"], run["sitl_binary"])
     takeoff(board)
     flight = run["flight"] = {}
@@ -268,19 +266,7 @@ def approach(args: argparse.Namespace) -> int:
             (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", "utf-8")
         finally:
             stop.restore(handlers)
-    health = run["board"].get("link_health") or {}
-    ended = all(item.get("ended_after_stop") for item in run["producers"].values())
-    scene = scenario_run.reproduced(run["scene"], run["scenario"])
-    owned, owner_problems = owners.verdicts(run)
-    print(f"[approach] {run_id}: error {failed}, orphans {run['orphans']}, all ended after stop {ended}, "
-          f"scene reproduced {scene}, link health {health.get('ok')}, outcome {run['outcome']['outcome']}, "
-          f"observation {run['observation']}, one owner each {owned}; folder {run_dir}"
-          + "".join(f"; {problem}" for problem in run["admission_problems"] + owner_problems
-                    + run["airspeed"]["problems"]), flush=True)
-    clean = (run["observation"]["ok"] and not run["outcome"]["problems"] and not run["airspeed"]["problems"]
-             and owned)
-    return 0 if failed is None and not run["orphans"] and ended and scene and health.get("ok") and clean else 1
-
+    return verdict(run, run_id, run_dir, failed)
 
 def add_parser(sub: argparse._SubParsersAction) -> None:
     a = sub.add_parser("approach", help=approach.__doc__)
