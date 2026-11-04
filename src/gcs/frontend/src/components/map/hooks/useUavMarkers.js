@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { needsTerrainSample, sampleTerrain } from '../utils/terrainCache';
-import { positionAt, orientationAt, advanceAnim, setGround } from '../utils/lerpAnim';
+import { positionAt, orientationAt, advanceAnim, animAtRest, animSettling, setGround } from '../utils/lerpAnim';
 import { poseFinite } from '../../../utils/fpvView';
 import { uavModelOrientation } from '../utils/uavOrientation';
 
@@ -13,7 +13,17 @@ import { uavModelOrientation } from '../utils/uavOrientation';
  * movement between 5 Hz telemetry updates (dead reckoning, see lerpAnim).
  * Only a new snapshot of a UAV is a new sample (a store update for another
  * UAV must not restart its motion); a new ground height under it only moves
- * its ground (setGround), never its speed.
+ * its ground (setGround), never its speed. The first sample after a gap (the
+ * UAV's telemetry was not fresh, or it had no position) starts a new motion
+ * at that sample, as the trail starts a new run there (useUavTrails): the
+ * model does not glide across the gap. Until then the sys_id is in
+ * entitiesRef.current.uavGap.
+ *
+ * The viewer renders on request (requestRenderMode), and each store update
+ * requests one. When a UAV's samples stop, its model slows and eases back
+ * onto its last sample with no update to show it, so every frame checks
+ * (scene.preUpdate) whether a model is settling and then requests a render,
+ * and one more once it is at rest, in case frames skipped the settling.
  *
  * Altitude uses terrain-sampled height + relative (AGL) altitude.
  * heightReference is incompatible with explicit orientation quaternions
@@ -29,6 +39,8 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
   const animRef = useRef({});
   // sys_id -> { v, terrainH } of the last sample, so a repeat is not re-advanced.
   const sampleRef = useRef({});
+  // sys_ids in a gap since their last sample.
+  const staleRef = useRef(new Set());
 
   useEffect(() => {
     const Cesium = cesiumRef.current;
@@ -43,11 +55,16 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
       const cache = terrainCacheRef.current;
       const anim = animRef.current;
       const samples = sampleRef.current;
+      const stale = staleRef.current;
+      const store = storeRef.current;
       const now = Date.now();
 
       if (vehicleList && vehicleList.length > 0) {
         vehicleList.forEach((v, i) => {
           const sid = v.sys_id;
+          const fresh = store.isTelemetryFresh ? store.isTelemetryFresh(sid) : true;
+          // The trail's gap rule (useUavTrails): not fresh, or no position.
+          if (!fresh || v.lat == null || v.lon == null) stale.add(sid);
           if (!poseFinite(v)) {
             // Keep the existing model at its last valid pose.
             if (existing[sid]) seen.add(sid);
@@ -73,11 +90,13 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
             // Advance the animation from where the model is drawn now; the
             // sample is over home, the ground is added by the animation.
             const last = samples[sid];
-            if (!last || last.v !== v) {
+            const restart = fresh && stale.has(sid);
+            if (!last || last.v !== v || restart) {
               const samplePos = Cesium.Cartesian3.fromDegrees(v.lon, v.lat, altRel);
-              anim[sid] = advanceAnim(anim[sid], samplePos, poiOri, Cesium, now);
+              anim[sid] = advanceAnim(restart ? undefined : anim[sid], samplePos, poiOri, Cesium, now);
+              if (restart) stale.delete(sid);
             }
-            if (!last || last.terrainH !== terrainH) anim[sid] = setGround(anim[sid], terrainH, now);
+            if (!last || last.terrainH !== terrainH || restart) anim[sid] = setGround(anim[sid], terrainH, now);
             samples[sid] = { v, terrainH };
 
             if (existing[sid]) {
@@ -134,14 +153,35 @@ export default function useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRe
           delete cache[sid];
           delete anim[sid];
           delete samples[sid];
+          stale.delete(Number(sid));
         }
       }
 
       ents.uavMap = existing;
+      // A model still in a gap is not joined to the trail (useUavTrails).
+      ents.uavGap = stale;
       viewer.scene.requestRender();
     }
 
+    // Render while a model settles (the trail's live segment shrinks with it).
+    const restDrawn = new WeakSet();
+    function onPreUpdate() {
+      const now = Date.now();
+      let render = false;
+      for (const a of Object.values(animRef.current)) {
+        if (animSettling(a, now)) render = true;
+        else if (!restDrawn.has(a) && animAtRest(a, now)) { restDrawn.add(a); render = true; }
+      }
+      if (render) viewer.scene.requestRender();
+    }
+
     update();
-    return storeRef.current.subscribe(update);
+    const unsubscribe = storeRef.current.subscribe(update);
+    // The remover holds the event itself, so it works after the viewer is destroyed.
+    const removePreUpdate = viewer.scene.preUpdate.addEventListener(onPreUpdate);
+    return () => {
+      unsubscribe();
+      removePreUpdate();
+    };
   }, [viewerReady]);
 }

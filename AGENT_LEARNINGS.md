@@ -2354,6 +2354,8 @@
 
 - Editing frontend files while a live tester runs hot-reloads them into its app, so the run mixes
   versions. Finish edits (and mutation scripts) before starting a live run, or run it again.
+  Repeated twice in todo 264 (fixing review findings during live runs): while a live tester runs, put
+  review fixes on hold or draft them in the scratchpad (see todo 261 below), then edit after it ends.
 - I stripped CRLF with msys sed twice more despite the entry above. For any repo file, edit with the
   Edit tool or Python with newline=""; check with `file` before the diff.
 - A test helper that keyed drawn points by lon in a Map hid two heights for one shared point. Make
@@ -2387,3 +2389,13 @@
   test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
   run under load failed two such checks too. Rerun alone before calling it a
   regression.
+## Live trail segment, todo 264 (2026-11-04)
+
+- The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
+  is drawn only when something requests a render. Motion that goes on after telemetry stops (a model
+  easing back) is never shown unless a `scene.preUpdate` listener requests renders; preUpdate fires
+  every frame, before Cesium decides to render. Codex took three rounds to make me act on this.
+- A model that glides across a gap makes any line drawn to it bridge the gap: fix the gap rule in
+  the model (start a new motion), not in the line.
+- `find /` from Git Bash runs for an hour and outlives the agent that started it; tell live testers
+  not to search the whole disk, and check for leftover shells after they finish.

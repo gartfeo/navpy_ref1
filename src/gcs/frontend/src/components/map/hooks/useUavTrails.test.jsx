@@ -47,7 +47,12 @@ function setup(props = {}) {
   }));
   const cesium = { current: {
     Color: { fromCssColorString: () => ({ withAlpha: (a) => ({ a }) }) },
-    Cartesian3: { fromDegreesArrayHeights: (flat) => [...flat] },
+    Cartesian3: Object.assign(function Cartesian3() {}, {
+      fromDegreesArrayHeights: (flat) => [...flat],
+      fromDegrees: (lon, lat, h) => ({ lon, lat, h }),
+      clone: (src, dst) => Object.assign(dst, src),
+    }),
+    CallbackProperty: class { constructor(fn) { this.fn = fn; } getValue(time, result) { return this.fn(time, result); } },
     Cartographic: { fromDegrees: (lon, lat) => ({ lon, lat }) },
     sampleTerrainMostDetailed,
   } };
@@ -99,7 +104,17 @@ function setup(props = {}) {
     await act(async () => { while (pending.length) pending.shift()(); });
     await flush();
   };
-  return { store, hook, drawn, lons, joins, entities, entitiesRef, heights, flush, settle, sampleTerrainMostDetailed, terrain };
+  /** Place sid's model, as useUavMarkers' position property returns it (its own scratch value). */
+  const placeModel = (sid, lon, h) => {
+    const scratch = {};
+    entitiesRef.current.uavMap = { ...entitiesRef.current.uavMap, [sid]: { position: { getValue: () => Object.assign(scratch, { lon, lat: 40, h }) } } };
+  };
+  /** The live segment of sid as drawn this frame: [] or [head, model], each { lon, lat, h }. */
+  const live = (sid) => {
+    const e = entitiesRef.current.trailMap[sid]?.live;
+    return e ? e.polyline.positions.getValue(undefined, {}).map((p) => ({ ...p })) : [];
+  };
+  return { store, hook, drawn, lons, joins, entities, entitiesRef, heights, flush, settle, sampleTerrainMostDetailed, terrain, placeModel, live };
 }
 
 describe('useUavTrails', () => {
@@ -353,5 +368,89 @@ describe('useUavTrails', () => {
     t.store.notify();
     await t.settle();
     expect(t.heights(1)).toEqual([[44.005, 1450], [44.006, 1460]]);
+  });
+
+  describe('live segment to the model', () => {
+    it('joins the drawn head, at its ground + alt, to the model and follows the model every frame', async () => {
+      const t = setup({ terrainReady: true });
+      t.store.sendPath(1, [44.000, 44.001]);
+      t.placeModel(1, 44.0013, 1513);
+      expect(t.live(1)).toEqual([]); // head ground unknown: the trail is not drawn either
+      await t.settle();
+      expect(t.live(1)).toEqual([{ lon: 44.001, lat: 40, h: 1410 }, { lon: 44.0013, lat: 40, h: 1513 }]);
+      t.placeModel(1, 44.0016, 1516); // no telemetry: only the model moved
+      expect(t.live(1)[1]).toEqual({ lon: 44.0016, lat: 40, h: 1516 });
+      expect(t.lons(1)).toEqual([44.000, 44.001]); // nothing is stored
+    });
+
+    it('starts at the newest fix of each new path and is solid like the head piece', () => {
+      const t = setup();
+      t.placeModel(1, 44.0025, 100);
+      t.store.sendPath(1, [44.000, 44.001]);
+      t.store.sendPath(1, [44.002]);
+      expect(t.live(1)[0]).toEqual({ lon: 44.002, lat: 40, h: 100 });
+      const pool = t.entitiesRef.current.trailMap[1];
+      expect(pool.live.polyline.material).toBe(pool.base); // the UAV's solid colour
+    });
+
+    it('shrinks to nothing when the model comes to rest on the newest fix', () => {
+      const t = setup();
+      t.store.sendPath(1, [44.000, 44.001]);
+      t.placeModel(1, 44.001, 100);
+      const [head, model] = t.live(1);
+      expect(model).toEqual(head);
+    });
+
+    it('is not drawn while telemetry is not fresh, and a reconnect does not bridge the gap', () => {
+      const t = setup();
+      t.placeModel(1, 44.0015, 100);
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      expect(t.live(1)).toHaveLength(2);
+      t.store.disconnect();
+      expect(t.live(1)).toEqual([]);
+      t.store.send(1, 44.005); // new run, one point: the segment starts there, not at 44.001
+      expect(t.live(1)[0].lon).toBe(44.005);
+    });
+
+    it('is not drawn while paused, nor after resume until the new run has a point', () => {
+      const t = setup();
+      t.placeModel(1, 44.0015, 100);
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: true });
+      expect(t.live(1)).toEqual([]);
+      t.hook.rerender({ show: true, resetKey: 0, hidden: new Set(), paused: false });
+      expect(t.live(1)).toEqual([]); // the new run is empty
+      t.store.send(1, 44.003);
+      expect(t.live(1)[0].lon).toBe(44.003);
+    });
+
+    it('is not drawn while the model is still in a gap', () => {
+      const t = setup();
+      t.placeModel(1, 44.0015, 100);
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      t.entitiesRef.current.uavGap = new Set([1]);
+      expect(t.live(1)).toEqual([]);
+      t.entitiesRef.current.uavGap = new Set();
+      expect(t.live(1)).toHaveLength(2);
+    });
+
+    it('is not drawn after Clear all or without a model', () => {
+      const t = setup();
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      expect(t.live(1)).toEqual([]); // no model yet
+      t.placeModel(1, 44.0015, 100);
+      t.hook.rerender({ show: true, resetKey: 1, hidden: new Set(), paused: false });
+      expect(t.live(1)).toEqual([]);
+    });
+
+    it('hides with its trail and is removed when the UAV leaves', () => {
+      const t = setup();
+      t.store.send(1, 44.000); t.store.send(1, 44.001);
+      const e = t.entitiesRef.current.trailMap[1].live;
+      t.hook.rerender({ show: true, resetKey: 0, hidden: new Set([1]), paused: false });
+      expect(e.show).toBe(false);
+      t.store.leave(1);
+      expect(t.entities.remove).toHaveBeenCalledWith(e);
+    });
   });
 });

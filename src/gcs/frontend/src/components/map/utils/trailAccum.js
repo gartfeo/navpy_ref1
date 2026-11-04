@@ -261,3 +261,12 @@ export function trailPieces(runs) {
   }
   return pieces;
 }
+
+/**
+ * The newest point of a trail's current run, or null while that run is
+ * empty (a new run after a gap or Resume has no point to start from yet).
+ */
+export function trailHead(trail) {
+  const run = trail.runs[trail.runs.length - 1];
+  return run && run.length > 0 ? run[run.length - 1] : null;
+}

@@ -65,6 +65,21 @@ function coastTime(anim, elapsed) {
   return 1.5 * w * (1 - smoothstep(u));
 }
 
+/**
+ * Whether the model is between the window its next sample was due in and
+ * coming to rest: samples have stopped or are late, so it slows and eases
+ * back on its own, with no telemetry to request a render (requestRenderMode).
+ */
+export function animSettling(anim, now = Date.now()) {
+  const elapsed = now - anim.startTime;
+  return elapsed > anim.duration && !animAtRest(anim, now);
+}
+
+/** Whether the model has come to rest on its last sample (coastTime is 0). */
+export function animAtRest(anim, now = Date.now()) {
+  return now - anim.startTime >= (2 + SETTLE_WINDOWS) * anim.duration;
+}
+
 /** 0..1 eased with zero slope at both ends. */
 function smoothstep(u) {
   return u * u * (3 - 2 * u);
