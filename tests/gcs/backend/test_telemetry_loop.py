@@ -150,12 +150,9 @@ class TestTelemetryLoopNavpyRestart(unittest.TestCase):
 
             event_loop = asyncio.get_running_loop()
             probe = event_loop.create_future()
-            started = time.perf_counter()
-            event_loop.call_later(
-                0.02,
-                lambda: probe.set_result(time.perf_counter()),
-            )
 
+            # The patches import their target modules (cold, about 0.6 s), so
+            # the clock starts once they are applied.
             with patch(
                 "gcs.backend.telemetry_loop.settings_store.get",
                 return_value=settings,
@@ -169,6 +166,11 @@ class TestTelemetryLoopNavpyRestart(unittest.TestCase):
                 "gcs.backend.telemetry_loop.ws_manager.broadcast",
                 new_callable=AsyncMock,
             ):
+                started = time.perf_counter()
+                event_loop.call_later(
+                    0.02,
+                    lambda: probe.set_result(time.perf_counter()),
+                )
                 task = asyncio.create_task(telemetry._loop())
                 fired_at = await asyncio.wait_for(probe, 0.6)
                 telemetry._stop.set()

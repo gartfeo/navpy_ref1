@@ -7,6 +7,12 @@ ROOT = Path(__file__).resolve().parents[3]
 LOCALE_DIR = ROOT / "src" / "gcs" / "frontend" / "src" / "locales"
 SETTINGS_COMPONENT_DIR = ROOT / "src" / "gcs" / "frontend" / "src" / "components" / "settings"
 PLACEHOLDER_RE = re.compile(r"{{\s*([^}]+?)\s*}}")
+# The badge labels a UAV card can show: the labelKeys of missionStatus.js. The
+# rest of the missionStatus strings (reason, last outcome, reasons) are not badges.
+MISSION_STATUS_BADGE_KEYS = re.findall(
+    r"labelKey:\s*'missionStatus\.(\w+)'",
+    (ROOT / "src" / "gcs" / "frontend" / "src" / "utils" / "missionStatus.js").read_text(encoding="utf-8"),
+)
 
 IDENTICAL_VALUE_ALLOWLIST = {
     "settings.tabs.defaultDeliveryHubs",  # Owner-selected DDH tab acronym.
@@ -105,10 +111,11 @@ def test_armenian_locale_has_no_copied_english_values():
 def test_status_badges_read_distinctly_in_each_locale():
     """A UAV card badge must never show one word for two states (e.g. the
     Armenian idle label used to read "waiting", now a status of its own)."""
+    assert {"idle", "waiting", "docked", "dockFailed"} <= set(MISSION_STATUS_BADGE_KEYS)
     for locale in ("en", "hy"):
         strings = _load_locale(locale)
         labels = [
-            *strings["missionStatus"].values(),
+            *(strings["missionStatus"][key] for key in MISSION_STATUS_BADGE_KEYS),
             strings["vehicle"]["swarmBusy"],
             strings["vehicle"]["swarmUnknown"],
         ]
