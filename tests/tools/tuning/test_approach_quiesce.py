@@ -551,3 +551,17 @@ def test_a_deadline_quiesces_once_and_the_exit_only_repeats_it(tmp_path, monkeyp
 def test_sigterm_raises_an_abort():
     with pytest.raises(stop.Aborted):
         stop.raise_aborted(signal.SIGTERM, None)
+
+
+def test_sigterm_and_sighup_abort_a_run_and_are_ignored_in_its_cleanup():
+    """A hangup (the WSL session went away) would end the runner at once, with nothing stopped."""
+    assert stop.ABORT_SIGNALS == tuple(getattr(signal, n) for n in ("SIGTERM", "SIGHUP") if hasattr(signal, n))
+    before = {s: signal.getsignal(s) for s in (signal.SIGINT, *stop.ABORT_SIGNALS)}
+    armed = stop.arm()
+    try:
+        assert all(signal.getsignal(s) is stop.raise_aborted for s in stop.ABORT_SIGNALS)
+        handlers = {**stop.shield(), **armed}
+        assert all(signal.getsignal(s) is signal.SIG_IGN for s in before)
+    finally:
+        stop.restore(handlers)
+    assert {s: signal.getsignal(s) for s in before} == before

@@ -15,11 +15,12 @@ starts before Unreal (Unreal connects to it; step 9's order). Takeoff, the scena
 in AUTO with navpy's detection gated to it and navpy only observing (the router's reader: none of its writes to the
 aircraft reaches the board); it waits for navpy's terminal record or the scenario's observe_s, then
 stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a breach of the scenario's
-floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM) runs the same idempotent quiesce
+floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM, SIGHUP) runs the same idempotent quiesce
 (approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on every exit; scoring then
 checks that Unreal built the delivered scene (scenario_scoring.py: a verdict, no pose), and the manifest
-(tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only when the flight, the handoff, every stop, the scene, the link health, the
-orphan check and the observation audit (0 forbidden navpy writes, 0 after the drain ack) all passed.
+(tools/hitl/run_manifest.py) and the orphan check follow. A second signal waits for the cleanup. Exit 0 only when
+the flight, the handoff, every stop, the scene, the link health, the orphan check and the observation audit
+(0 forbidden navpy writes, 0 after the drain ack) all passed.
 ``--commission-fault`` (SITL only) runs navpy through media_fault_injector.py: never admitted.
 """
 from __future__ import annotations
@@ -28,7 +29,6 @@ import argparse
 import hashlib
 import json
 import shutil
-import signal
 import subprocess
 import sys
 from datetime import datetime, timezone
@@ -210,7 +210,7 @@ def approach(args: argparse.Namespace) -> int:
     board = Board(f"udpin:127.0.0.1:{chain.RUNNER_PORT}", run_dir / "board", files, origin=args.origin, hitl=hitl,
                   log_fetch=False)
     failed, reason, quiesce = None, stop.EXIT, stop.Quiesce.of(group)
-    previous_sigterm = signal.signal(signal.SIGTERM, stop.raise_aborted)
+    armed = stop.arm()
     try:
         specs = [chain.backing(paths, args.origin, args.sitl_binary), chain.router(paths), chain.emulator(paths),
                  chain.publisher(paths, chain.publisher_profile(paths), lens),
@@ -231,7 +231,7 @@ def approach(args: argparse.Namespace) -> int:
         failed = run["error"] = f"{type(exc).__name__}: {exc}"
         print(f"[approach] run FAILED ({reason}): {failed}", flush=True)
     finally:
-        handlers = {**stop.shield(), signal.SIGTERM: previous_sigterm}    # a later signal waits for the cleanup
+        handlers = {**stop.shield(), **armed}    # a later signal waits for the cleanup
         try:
             run["handoff"] = quiesce.end(group, reason)     # before the board's stop: navpy stopped, endpoint closed
             try:

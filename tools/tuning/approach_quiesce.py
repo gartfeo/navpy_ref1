@@ -43,19 +43,28 @@ _ALLOWED_IDS = frozenset(cls.id for cls in mavlink2.mavlink_map.values() if cls.
 _COMMAND_IDS = frozenset(cls.id for cls in mavlink2.mavlink_map.values() if cls.msgname in COMMAND_MESSAGES)
 
 
+# SIGHUP (POSIX: the WSL session or terminal went away) would otherwise end the runner at once, with no stop at all.
+ABORT_SIGNALS = tuple(getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name))
+
+
 class Aborted(BaseException):
-    """SIGTERM during a run: ends it like Ctrl+C (an abort), so the quiesce and every stop still run."""
+    """SIGTERM or SIGHUP during a run: ends it like Ctrl+C (an abort), so the quiesce and every stop still run."""
 
 
 def raise_aborted(signum: int, frame: object) -> None:
-    """The runner's SIGTERM handler while a run is in progress."""
+    """The runner's SIGTERM and SIGHUP handler while a run is in progress."""
     raise Aborted(f"signal {signum}")
 
 
+def arm() -> dict:
+    """While a run is in progress SIGTERM and SIGHUP raise Aborted; returns the handlers to restore."""
+    return {signum: signal.signal(signum, raise_aborted) for signum in ABORT_SIGNALS}
+
+
 def shield() -> dict:
-    """Ignore Ctrl+C and SIGTERM while the run's cleanup runs, so a second signal cannot cut its stops short; returns
-    the handlers to restore."""
-    return {signum: signal.signal(signum, signal.SIG_IGN) for signum in (signal.SIGINT, signal.SIGTERM)}
+    """Ignore Ctrl+C, SIGTERM and SIGHUP while the run's cleanup runs, so a second signal cannot cut its stops short;
+    returns the handlers to restore."""
+    return {signum: signal.signal(signum, signal.SIG_IGN) for signum in (signal.SIGINT, *ABORT_SIGNALS)}
 
 
 def restore(handlers: dict) -> None:
