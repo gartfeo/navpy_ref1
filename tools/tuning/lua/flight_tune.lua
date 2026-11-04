@@ -104,7 +104,7 @@ K.REPS_EXTRA = 2     -- extra records when the response scatter is high
 K.SPREAD_MAX = 0.35  -- median record-to-record scatter of ln G at 3-20 rad/s
 K.SIGMA_FLOOR = 0.05
 K.EXC_MIN_FRAC = 1e-3  -- frequencies with less input than this fraction are not used
-K.POLE_SEP = 0.01     -- relative: controller filters closer than this are moved apart (M.ctl_modes)
+K.POLE_SEP = 0.001    -- relative: controller filters closer than this are moved apart (M.ctl_modes)
 K.FIT_RMS_MAX = 0.3   -- RMS of the fit error in ln G (about 30 % or 17 deg)
 K.LM_MAX_ITER = 30
 K.LM_STARTS = 3
@@ -278,8 +278,8 @@ end
 -- target, P and D on the FLTE error, D through FLTD) for a demand held between calls:
 -- u_d = k0 d + ks d' + sum r_k z_k with z_k' = d - lam_k z_k. Poles are kept apart by
 -- K.POLE_SEP so the partial fractions stay finite when two filters share a cutoff.
--- The FF path (gain scaler / EAS2TAS) and the P and D paths (scaler^2) are kept apart
--- in m.f and m.p, so M.ctl_scale can follow the speed scaler as airspeed changes.
+-- The FF path and the P and D paths are kept apart in m.f and m.p, so M.ctl_scale can
+-- follow the speed scaler as airspeed changes.
 function M.ctl_modes(ctl, g)
     local m = {k0 = 0, ks = 0, lam = {}, r = {}, f = {k0 = 0, ks = 0, r = {}}, p = {k0 = 0, ks = 0, r = {}}}
     local function pole(hz)
@@ -324,11 +324,14 @@ function M.ctl_modes(ctl, g)
     return m
 end
 
--- sets the modes' gains for speed scaler sc and EAS2TAS e2t, as AC_PID applies them now
+-- sets the modes for speed scaler sc and EAS2TAS e2t as ArduPlane applies them: the
+-- demand enters AC_PID times sc^2 (m.din, before the filters), and the filtered FF
+-- term leaves divided by sc * e2t
 function M.ctl_scale(m, sc, e2t)
-    local a, b = sc / e2t, sc * sc
-    m.k0, m.ks = a * m.f.k0 + b * m.p.k0, a * m.f.ks + b * m.p.ks
-    for k = 1, #m.lam do m.r[k] = a * m.f.r[k] + b * m.p.r[k] end
+    local a = 1 / (sc * e2t)
+    m.din = sc * sc
+    m.k0, m.ks = a * m.f.k0 + m.p.k0, a * m.f.ks + m.p.ks
+    for k = 1, #m.lam do m.r[k] = a * m.f.r[k] + m.p.r[k] end
     return m
 end
 
@@ -1502,7 +1505,7 @@ local function manoeuvre_tick(s, now)
                     coord_rate(s.roll, s.pitch, s.asp, s.e2t, ac))
     if ax.id == 1 then rr = rr + exc else pr = pr + exc end
     vehicle:set_target_throttle_rate_rpy(man.thr, rr, pr, 0)
-    if man.cm then man.cm.dem = ax.id == 1 and rr or pr end
+    if man.cm then man.cm.dem = (ax.id == 1 and rr or pr) * man.cm.m.din end
     log_tick(ax.id, ph_code, ax.id == 1 and rr or pr, exc, rate_meas, u, ang,
              ax.id == 1 and man.ref_roll or man.ref_pitch, s.asp)
 end

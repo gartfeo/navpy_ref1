@@ -67,7 +67,7 @@ by both versions; the firmware differences are listed in the firmware section.
    Fourier sums integrate between the script's samples: the rate and the rest of the
    output as straight lines, with the straight line's amplitude loss over each record
    divided out, and the output's response to each new demand (FF, P and D through
-   FLTT, FLTE and FLTD, with the speed scaler read at each call) exactly. A straight line alone reads that bend as an output
+   FLTT, FLTE and FLTD, with the speed scaler read at each call; SMAX is not modelled, todo 269) exactly. A straight line alone reads that bend as an output
    delay that grows with the square of the call interval (todo 268). The record-to-record
    scatter weights each frequency.
 3. **Model fit** (Levenberg-Marquardt, from several starts). Roll: gain, pole, lag and

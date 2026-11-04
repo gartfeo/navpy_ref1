@@ -535,77 +535,91 @@ def test_controller_modes_match_the_ac_pid_demand_response(case):
     out = run(f"""
 local m = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}},
                                   {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), 1.2, 1.05)
-h.dump({{k0 = m.k0, ks = m.ks, lam = m.lam, r = m.r}})
+h.dump({{k0 = m.k0, ks = m.ks, lam = m.lam, r = m.r, din = m.din}})
 DUMPED = true
 """, export=True)
     m = out["extra"]
     s = 1j * ID_W
-    got = m["k0"] + m["ks"] * s + sum(r / (s + lam) for r, lam in zip(m["r"], m["lam"]))
-    # equal cutoffs are moved apart by K.POLE_SEP (1 %), which changes the response by less
-    assert got == pytest.approx(_ac_pid_demand_response(ctl, g, 1.2, 1.05, s), rel=0.01)
+    got = m["din"] * (m["k0"] + m["ks"] * s + sum(r / (s + lam) for r, lam in zip(m["r"], m["lam"])))
+    # equal cutoffs are moved apart by K.POLE_SEP (0.1 %), which changes the response by less
+    assert got == pytest.approx(_ac_pid_demand_response(ctl, g, 1.2, 1.05, s), rel=1e-3)
 
 
-def test_output_sums_integrate_the_controller_bend_between_calls_exactly():
-    # u is exactly the controller model's response to demands held over uneven call
-    # intervals (20-60 ms), read just before each new demand, with the speed scaler
-    # changing between calls (airspeed 25 % up and down). With the model the record's
-    # output sum is the exact Fourier integral of u; the straight line alone is not, nor
-    # is a model whose gains stay at the first call's scaler.
+@pytest.mark.parametrize("case", CTL_CASES)
+def test_output_sums_integrate_the_controller_bend_between_calls_exactly(case):
+    # u is the output of the ArduPlane 4.6 rate controller port (tools/tuning/ap_controller.py,
+    # rate held at 0, 4 kHz) for rate demands held over uneven call intervals (20-60 ms),
+    # read just before each new demand, with the speed scaler changing at each call
+    # (airspeed 25 % up and down). With the model the record's output sum is the Fourier
+    # integral of u; the straight line alone is not, nor a model whose scaler stays at
+    # the first call's.
+    from tools.tuning.ap_controller import RateController
+    ctl, g = CTL_CASES[case]
     rng = np.random.default_rng(3)
     hs = 0.02 + 0.04 * rng.random(80)
     dem = rng.normal(0, 20, 81)
     sc = 1 + 0.25 * np.sin(np.arange(81) / 8)         # scaler set at each call
-    ctl, g = CTL_CASES["harness roll"]
+    e2t = 1.05
+    # firmware output on a fine grid; the reading is the last loop's output of an interval
+    dt = 2.5e-4
+    one = lambda v: np.full(1, float(v))
+    gains = Gains(P=one(g["P"]), I=one(0), D=one(g["D"]), FF=one(g["FF"]), IMAX=one(0.666),
+                  FLTT=one(ctl["fltt"]), FLTE=one(ctl["flte"]), FLTD=one(ctl["fltd"]), SMAX=one(0),
+                  TCONST=one(0.5), RMAX_POS=one(0), RMAX_NEG=one(0))
+    rc = RateController("roll", gains, 1, airspeed_min=5, airspeed_max=40)
+    rc.rate_out(0.0, np.zeros(1), sc[0], e2t, np.full(1, 20.0), dt, 0)      # filters start at 0
+    exact = np.zeros(len(ID_W), complex)
+    reads, t0, step = [0.0], 0.0, 0
+    for h, d, s in zip(hs, dem[:-1], sc[:-1]):
+        n = int(round(h / dt))
+        u = np.empty(n + 1)
+        u[0] = reads[-1]
+        for k in range(1, n + 1):
+            step += 1
+            rc.rate_out(d, np.zeros(1), s, e2t, np.full(1, 20.0), dt, int(step * dt * 1000))
+            u[k] = rc.info.out[0]                 # before the +-45 clip, which the model leaves out
+        tau = np.arange(n + 1) * dt
+        # the loop's output holds over each step: integrate the steps exactly
+        w = ID_W
+        seg = (np.exp(-1j * np.outer(t0 + tau[:-1], w)) - np.exp(-1j * np.outer(t0 + tau[1:], w))) / (1j * w)
+        exact += u[1:] @ seg
+        reads.append(u[-1])
+        t0 += n * dt
+    hs_q = np.diff(np.concatenate([[0], np.cumsum([int(round(h / dt)) * dt for h in hs])]))
     lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
+    modes = (f"X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}}, "
+             f"{{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}})")
     out = run(f"""
-local hs, dem, sc = {lua_list(hs)}, {lua_list(dem)}, {lua_list(sc)}
-local m = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
-                                  {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), sc[1], 1)
-local fm = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = 0, fltd = {ctl['fltd']}}},
-                                   {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), sc[1], 1)
+local hs, dem, sc, u = {lua_list(hs_q)}, {lua_list(dem)}, {lua_list(sc)}, {lua_list(reads)}
+local m = X.ctl_scale({modes}, sc[1], {e2t})
+local fm = X.ctl_scale({modes}, sc[1], {e2t})
 local cm, fc, d, plain, frozen = X.cm_new(m), X.cm_new(fm), X.dft_new(), X.dft_new(), X.dft_new()
 X.dft_add(d, 0, 0, 0, 0, cm)
 X.dft_add(plain, 0, 0, 0, 0)
 X.dft_add(frozen, 0, 0, 0, 0, fc)
-cm.dem, fc.dem = dem[1], dem[1]
+cm.dem, fc.dem = dem[1] * m.din, dem[1] * fm.din
 local t = 0
 for k = 1, #hs do
     t = t + hs[k]
     X.cm_step(cm, hs[k])
     X.cm_step(fc, hs[k])
-    X.dft_add(d, t, 0, cm.ud1, 0, cm)
-    X.dft_add(plain, t, 0, cm.ud1, 0)
-    X.dft_add(frozen, t, 0, cm.ud1, 0, fc)
-    X.ctl_scale(m, sc[k + 1], 1)
-    cm.dem, fc.dem = dem[k + 1], dem[k + 1]
+    X.dft_add(d, t, 0, u[k + 1], 0, cm)
+    X.dft_add(plain, t, 0, u[k + 1], 0)
+    X.dft_add(frozen, t, 0, u[k + 1], 0, fc)
+    X.ctl_scale(m, sc[k + 1], {e2t})
+    cm.dem, fc.dem = dem[k + 1] * m.din, dem[k + 1] * fm.din
 end
-h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui, lam = m.lam,
-        fk0 = m.f.k0, fr = m.f.r, pk0 = m.p.k0, pr = m.p.r,
+h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui,
         zr = frozen.ur, zi = frozen.ui, zvr = frozen.vr, zvi = frozen.vi}})
 DUMPED = true
 """, export=True)
     e = out["extra"]
-    # independent: u(t) from the modes' exponentials on a fine grid, with FF scaled by
-    # sc and P, D by sc^2 over each interval, trapezoid integral
-    lam = np.array(e["lam"])
-    z = np.zeros(len(lam))
-    exact = np.zeros(len(ID_W), complex)
-    t0 = 0.0
-    for h, d, s in zip(hs, dem[:-1], sc[:-1]):
-        k0 = s * e["fk0"] + s * s * e["pk0"]
-        r = s * np.array(e["fr"]) + s * s * np.array(e["pr"])
-        tau = np.linspace(0, h, 2001)
-        zt = d / lam + (z - d / lam) * np.exp(-np.outer(tau, lam))
-        u = k0 * d + zt @ r
-        f = u[:, None] * np.exp(-1j * np.outer(t0 + tau, ID_W))
-        exact += np.trapezoid(f, tau, axis=0)
-        z, t0 = zt[-1], t0 + h
-    with_model = np.array(e["ur"]) + 1j * np.array(e["ui"]) + np.array(e["vr"]) + 1j * np.array(e["vi"])
-    plain = np.array(e["lr"]) + 1j * np.array(e["li"])
-    frozen = np.array(e["zr"]) + 1j * np.array(e["zi"]) + np.array(e["zvr"]) + 1j * np.array(e["zvi"])
+    c = lambda *k: np.array(e[k[0]]) + 1j * np.array(e[k[1]])
+    with_model = c("ur", "ui") + c("vr", "vi")
+    plain, frozen = c("lr", "li"), c("zr", "zi") + c("zvr", "zvi")
     scale = np.abs(exact).max()
-    assert np.abs(np.array(e["ur"]) + 1j * np.array(e["ui"])).max() < 1e-9 * scale   # nothing left to interpolate
-    assert np.abs(with_model - exact).max() < 1e-4 * scale
+    # left: the 4 kHz loop's steps against the model's continuous filters, and K.POLE_SEP
+    assert np.abs(with_model - exact).max() < 2e-3 * scale
     assert np.abs(plain - exact).max() > 0.02 * scale                                # the bend matters
     assert np.abs(frozen - exact).max() > 0.02 * scale                               # so does the scaler
 
