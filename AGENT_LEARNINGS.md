@@ -572,6 +572,8 @@
   spy on it once to confirm it really ran on the baton.
 - **Run codex exec with stdin closed.** In a background shell it waits on
   "Reading additional input from stdin..." until the timeout. Add < /dev/null.
+  Missed again in HITL step 17 (2026-11-04): round 3 sat 3 hours at 0.6 s CPU.
+  Check the log's last line before suspecting login or the app-server.
 - **Keep scratch scripts out of shared temp folders.** A stray dis.py in the
   temp folder shadowed the stdlib; use a task-specific directory.
 
@@ -1214,6 +1216,9 @@
 - App.jsx hands hooks new vehicleList arrays and param getters on telemetry and param updates, so an effect keyed on
   a memo built from them refired the backend check about once a second. Unit tests missed it; the live test caught it.
   Key such effects on the request content (a JSON key) and test a rerender with equal but new inputs.
+  Same cause, todo 273: a "fetch once per new sys_id" effect marked the id only when the answer came back, so each
+  update during the pending fetch sent another. Claim the id when the fetch starts. To count requests live, patch
+  fetch in a same-origin iframe and record stacks: the network log's "dropped unread" total (1209) is all requests.
 - When `codex exec` cannot start its shell ("helper_unknown_error: setup refresh had errors"), inline the full patch
   (tracked diff plus `git diff --no-index /dev/null <new file>`) in the prompt; it then reviews statically.
 
@@ -1624,6 +1629,9 @@
   still served by the old worker. Test the upgrade path before claiming "next load".
 - The full tests/gcs run failed two event-loop stall tests while a Codex review ran beside it;
   alone they passed. Run the full suite with nothing heavy alongside.
+  But `test_auto_heal_does_not_block_the_event_loop` failed alone every time (2026-11-04): its
+  clock started before `patch()`, which imports the target module (0.6 s cold), so it passed
+  only after another test on the worker had imported it. Start a timing clock after the patches.
 - At a 375 px viewport the main map is a 55x716 strip, so "canvas larger than 300x150" fails
   there by layout. Size criteria must name the layout's map box per size.
 
@@ -2354,6 +2362,8 @@
 
 - Editing frontend files while a live tester runs hot-reloads them into its app, so the run mixes
   versions. Finish edits (and mutation scripts) before starting a live run, or run it again.
+  Repeated twice in todo 264 (fixing review findings during live runs): while a live tester runs, put
+  review fixes on hold or draft them in the scratchpad (see todo 261 below), then edit after it ends.
 - I stripped CRLF with msys sed twice more despite the entry above. For any repo file, edit with the
   Edit tool or Python with newline=""; check with `file` before the diff.
 - A test helper that keyed drawn points by lon in a Map hid two heights for one shared point. Make
@@ -2403,3 +2413,111 @@
   test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
   run under load failed two such checks too. Rerun alone before calling it a
   regression.
+- **CI on a fresh runner finds host dependencies.** The first Windows CI runs
+  failed on tests that read real WSL, on `perf_counter` (Windows: time since
+  boot, under 1000 s on a new runner) and on Lua 5.3 `math.random` (the C
+  library's generator: one seed draws differently in WSL and on Windows).
+  Stub host inputs; don't skip. Try other seeds before trusting a seeded
+  tolerance: seed 7 hid the todo 268 gap.
+- **One concurrency group for main cancels main's checks.** Two pushes 6 min
+  apart left 3e4ceef3 and e1928be2 with cancelled runs; each main push now
+  gets its own group by run id, not commit, since a commit can be pushed twice (PR runs still cancel older ones).
+## Live trail segment, todo 264 (2026-11-04)
+
+- The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
+  is drawn only when something requests a render. Motion that goes on after telemetry stops (a model
+  easing back) is never shown unless a `scene.preUpdate` listener requests renders; preUpdate fires
+  every frame, before Cesium decides to render. Codex took three rounds to make me act on this.
+- A model that glides across a gap makes any line drawn to it bridge the gap: fix the gap rule in
+  the model (start a new motion), not in the line.
+- `find /` from Git Bash runs for an hour and outlives the agent that started it; tell live testers
+  not to search the whole disk, and check for leftover shells after they finish.
+
+## Elevon sweep and hitl5 design (2026-10-16)
+
+- **When the owner points to an earlier chat, read its transcript first.** The
+  owner's "archived" chats are in ~/.claude/projects/<project>/*.jsonl (the
+  customTitle field names them). I first answered from a later file and missed
+  the chat's own measurement list.
+- **Check a reading's definition before calling it inconsistent.** I flagged
+  the sweep's full-throw angles against "24 deg full throw"; that 24 deg was
+  pitch stick only, which is half throw at MIXING_GAIN 0.5. Read the stored
+  measurement note (it said so) before doubting new data.
+- **A zigzag in per-interval slopes is not the linkage until a repeat shows it.**
+  Fit a smooth curve and label it an approximation; ask for an up/down repeat.
+
+## Fixed zoom policy, HITL step 18 (2026-11-04)
+
+- **The CRLF note was missed a third time.** A Python `str.replace` edit
+  matched nothing on a CRLF worktree file and reported no error. Use the
+  Edit tool on tracked files, or assert the match count in an edit script.
+- **ReadingIntrinsicsTable.readings() returns labels, not numbers.** Passing
+  the label ("3.8") back to settings()/optics() found no row, so no zoom
+  step was built. Convert with float() first. A run of the builder on the
+  real profile showed it before any test did.
+
+## Smooth UAV models by playout, todo 267 (2026-11-04)
+
+- When the owner says the map looks bad, first ask which page (port, branch) they watch. Here
+  they watched another chat's stack on :3000 with the old code while my fix ran on :3001.
+- The built-in Browser pane draws at 0-2 fps when the session is not on screen; numbers from it
+  measure the throttle. Use the owner's Chrome for frame-level checks.
+- One WebSocket (TCP) delivers in order: a jitter test with reordered messages tests a case that
+  cannot happen and fails for the wrong reason. Model holds and bursts, keep the order.
+- `long-animation-frame` entries (PerformanceObserver) split a slow page into Cesium render and
+  telemetry handler time per script; strip query strings from the output, or Claude in Chrome
+  blocks it.
+
+## Parent merges with renumbering (2026-11-04)
+
+- A merge script that runs `git merge --no-commit`, edits, then `git add -A; git commit` commits
+  conflict markers when the merge also conflicted. Check `git diff --name-only --diff-filter=U`
+  is empty before the commit; caught here before the push and amended.
+- Sessions that move GCS frontend code must run tests/gcs too: its source-string tests (for
+  example test_confirm_card_hosts_js) are not in npm test or the default pytest suite.
+
+## AIRSPEED decode on the bus (HITL step 19, 2026-11-04)
+
+- **An unknown packet has source system 0.** pymavlink returns `MAVLink_unknown`
+  before it sets the header, so `get_srcSystem()` is 0 and the bus fallback
+  (`receivers_for`) fans it out to every receiver. Read the id and source from
+  the original bytes, and route a decoded packet by exact source
+  (`receivers_of`); Codex caught the fallback in round 1.
+- **Run the guards before the review.** The SOLID field limit and the reviewed
+  import list (`tests/guards/runtime_time_lint.py`) both failed on a new import
+  and one new reader field; run `tests/guards` with the first targeted tests.
+- **Python in a Bash heredoc reads repo files as cp1252.** Open docs with
+  `encoding="utf-8"`; my first Built-record insert crashed on a byte the doc
+  holds, after the code commit had already gone in alone.
+- **`python -I` drops PYTHONPATH.** A scratch script run isolated must put
+  `src` on `sys.path` itself (pass the path as an argument).
+
+## Eligible airspeed (HITL step 20, 2026-11-05)
+
+- **Split a new module before the guards, not after.** One 371-line state machine broke
+  the 300-line module limit and the 15-method and 12-field class limits at once. Group
+  state into small dataclasses (setup, latest, window), keep the event sink a module
+  function, and put profile constants and vehicle wiring in their own modules.
+- **Wait on an event, not a poll.** The claim's ack wait first polled the source every
+  50 ms; an `rt.Event` set by the ack callback is simpler and has no named poll period.
+- **Do not pipe a background xdist run into `grep | head`.** The first `tests/guards -n 8`
+  run sat for minutes with 8 workers at 0 CPU and no output; the same run redirected to a
+  file finished in 93 s. Write xdist output to a file, and kill only your own PIDs.
+- **Do not clone the repo into WSL from /mnt/c.** `git clone` of the Windows checkout ran
+  for minutes; `git archive <commit> src tests tools pyproject.toml` into a tar, then
+  `tar -x` on the WSL side, is the copy. Put it under `~/hitl`, not `/tmp`: a `nohup ... &`
+  started from `wsl -e` died with the session, and `/tmp` was empty a minute later.
+  Run the live script as a background task of this chat so its WSL session stays open.
+- **Two test failures are not this branch's.** `test_reviewed_modules_host_members_...`
+  in `test_runtime_time_lint.py` and `test_valid_airspeed_reaches_only_its_own_system_unchanged`
+  (about 1 in 3 runs; `test_corrupt_airspeed_reaches_no_receiver` the same way) also fail
+  on `main` with the shared venv, and `test_board_detector.py` fails under its OpenCV 5.0.0;
+  check `main` before blaming the change.
+- **Run the full suite before the review, not only the step's tests.** Adding a field that
+  composition reads (`vision.law_airspeed`) broke `SimpleNamespace` fakes in
+  `test_approach_quiesce.py` and `test_vehicle_logger_runtime_solid_regressions.py`, and
+  `approach.py` crossed the 300-line guard; the targeted runs missed all three.
+- **A guard's check and its write are one step, under the writer's own lock first.** Codex
+  found a revoke could fall between check and send (fixed by sending inside the source's
+  lock), then that the send could wait on the link's send lock after the check (`goto` holds
+  it across `set_mode`): take the re-entrant send lock first, then read the clock and check.

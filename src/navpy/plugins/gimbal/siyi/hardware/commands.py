@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -63,16 +64,23 @@ class SiyiHardwareCommands:
             level = float(zoom)
         except (TypeError, ValueError):
             return False
+        # The wire carries the command in tenths (siyi_message.absoluteZoomMsg rounds it).
+        tenths = round(level * 10.0) if math.isfinite(level) else None
+        self._store.record_zoom_command(tenths)
         result = self._send(lambda sdk: sdk.requestAbsoluteZoom(level))
         return result is True
 
+    # A manual zoom start or stop leaves the lens set by no known setting.
     def zoom_in(self) -> bool:
+        self._store.record_zoom_command(None)
         return self._send(lambda sdk: sdk.requestZoomIn()) is True
 
     def zoom_out(self) -> bool:
+        self._store.record_zoom_command(None)
         return self._send(lambda sdk: sdk.requestZoomOut()) is True
 
     def zoom_hold(self) -> bool:
+        self._store.record_zoom_command(None)
         return self._send(lambda sdk: sdk.requestZoomHold()) is True
 
     def request_autofocus(self) -> None:

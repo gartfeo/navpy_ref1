@@ -13,9 +13,10 @@ render race, owned by ``test_viewer_ready_polygon_hooks_js.py``), including
 ``useAvailableTaskMarkers``: its data is event-driven and largely unexposed to
 the race, but PR #105's "close the class fully" pass gated it on ``viewerReady``
 anyway for consistency, so its shipped 4th param is ``viewerReady`` — not the
-``terrainReady`` the stale test expected. Only ``useDeliveryHubLayer`` gates on
-``terrainReady`` here, because its assignment polylines consume terrain-sampled
-zone-track heights.
+``terrainReady`` the stale test expected. Only ``useDeliveryHubLayer`` reads
+``terrainReady`` here: it draws its ground-clamped hubs at once and redraws
+when terrain arrives, because its assignment polylines consume terrain-sampled
+zone-track heights (todo 86 c).
 
 An earlier partially-landed refactor tried to gate all five hooks on
 ``terrainReady``; that was superseded by the ``viewerReady`` fix.
@@ -108,10 +109,13 @@ class TestTerrainReadyMarkerHooks(unittest.TestCase):
             "useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, deliveryHubAssignments, plan, viewerReady, terrainReady, trackPosRef, terrainBaseRef, showTracks)",
             compact,
         )
-        # DOCK consumes terrain-sampled zone-track heights for its assignment
-        # polylines, so it — and only it, among these five hooks — waits for terrainReady.
-        self.assertIn("if (!terrainReady) { entitiesRef.current = []; return; }", compact)
-        self.assertIn("[deliveryHubs, deliveryHubAssignments, plan, showTracks, terrainReady]", compact)
+        # Hubs are ground-clamped, so they draw without terrain (it never comes
+        # without an Ion token, todo 86 c). Its assignment polylines use
+        # terrain-sampled zone-track heights, so it — and only it, among these
+        # five hooks — redraws when terrainReady changes; viewerReady draws
+        # hubs known before the viewer existed.
+        self.assertNotIn("if (!terrainReady)", _DOCK_SRC)
+        self.assertIn("[deliveryHubs, deliveryHubAssignments, plan, showTracks, viewerReady, terrainReady]", compact)
 
     def test_cesium_map_call_sites(self):
         compact = _compact(_MAP_SRC)

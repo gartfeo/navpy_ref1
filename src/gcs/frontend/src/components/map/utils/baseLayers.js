@@ -15,11 +15,23 @@
 export const BASE_LAYER_KEY = 'gcs-base-layer';
 export const DEFAULT_BASE_LAYER = 'terrain';
 
+/**
+ * `oneView`: the layer can show in one Cesium view only. Satellite is Bing
+ * through Ion: Cesium shares each Bing attribution's Credit (one DOM element)
+ * across provider instances, so a second view takes the credits away from the
+ * main map (seen live 2026-11-04, todo 275), and its imagery did not draw there.
+ */
 export const BASE_LAYERS = [
   { id: 'terrain', labelKey: 'mapLayers.terrain', needsIon: false },
-  { id: 'satellite', labelKey: 'mapLayers.satellite', needsIon: true },
+  { id: 'satellite', labelKey: 'mapLayers.satellite', needsIon: true, oneView: true },
   { id: 'street', labelKey: 'mapLayers.street', needsIon: false },
 ];
+
+/** A second view's layer (the vehicle window's Synthetic): the map's, or terrain for a one-view layer. */
+export const SECOND_VIEW_FALLBACK_LAYER = 'terrain';
+export function secondViewLayer(id) {
+  return BASE_LAYERS.find((l) => l.id === id)?.oneView ? SECOND_VIEW_FALLBACK_LAYER : id;
+}
 
 const OSM_CREDIT = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const OPENTOPOMAP_CREDIT = `Map data: ${OSM_CREDIT}, SRTM | Map style: © `

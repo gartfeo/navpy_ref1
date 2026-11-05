@@ -1,0 +1,58 @@
+# Full default suite (it skips tests/gcs) on every pull request and push to
+# main. Local runs use `pytest --testmon` (affected tests only, see AGENTS.md),
+# which misses changes in non-Python files, so this run is the merge gate.
+name: tests
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+# A new push to a PR cancels its older run. Each push to main gets its own
+# group (its run id), so every main push keeps a finished check; one shared
+# group would cancel queued or running main runs when pushes land close together.
+concurrency:
+  group: tests-${{ github.event_name == 'pull_request' && github.ref || github.run_id }}
+  cancel-in-progress: true
+
+jobs:
+  pytest:
+    # Windows, like the development PCs: many tests use Windows paths and WSL.
+    runs-on: windows-latest
+    timeout-minutes: 40
+    steps:
+      # Full history: guards read pinned base commits.
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+      # The Lua script tests need lua5.3; without it they try WSL, which has
+      # no distro here.
+      - uses: ilammy/msvc-dev-cmd@v1
+      # gh-actions-lua's own cache fails ("Cache service responded with 400"),
+      # so every run downloaded Lua from lua.org and failed when that timed out.
+      # A restored .lua makes the action skip the download and only add it to PATH.
+      # Save right after the build, so a failing test run still keeps it.
+      - id: lua-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .lua
+          key: lua-5.3.6-${{ runner.os }}-${{ runner.arch }}
+      - uses: leafo/gh-actions-lua@v11
+        with:
+          luaVersion: "5.3.6"
+          buildCache: false
+      - if: steps.lua-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .lua
+          key: ${{ steps.lua-cache.outputs.cache-primary-key }}
+      # The default suite imports the GCS backend too.
+      - run: pip install -e ".[test]" -r src/gcs/requirements.txt
+      # A public-repo runner has 4 cores.
+      - run: python -m pytest tests -n 4 -q
+        env:
+          PYTHONPATH: ${{ github.workspace }}/src

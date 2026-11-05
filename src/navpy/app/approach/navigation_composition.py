@@ -58,6 +58,7 @@ from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
 )
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.app.approach.law_airspeed import LawAirspeed
 
 
 @dataclass(frozen=True)
@@ -120,14 +121,18 @@ def _vision_runtime_factory(
     logger: ILogger,
     wall_period_s: Callable[[float], float],
     on_terminal: Optional[TerminalObserver],
+    law_airspeed: Optional[LawAirspeed] = None,
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         law = cast(VisionNavLaw, selected_law)
+        actuator = FinalApproachVehicleActuator(vehicle.set_attitude)
+        # HITL step 20: no write without an admitted, fresh airspeed source.
+        guarded = actuator if law_airspeed is None else law_airspeed.guard(actuator)
         built = compose_final_approach_runtime(
             lock=lock,
             slot=command_slot,
             sys_id=vehicle.target_system,
-            actuator=FinalApproachVehicleActuator(vehicle.set_attitude),
+            actuator=guarded,
             diagnostic_reader=FinalApproachVehicleDiagnosticReader(
                 lambda: vehicle.attitude,
                 lambda: vehicle.location(False),
@@ -165,6 +170,7 @@ def compose_navigation(
     args: NavigationArgs,
     scheduler_cadence: Optional[SchedulerCadence] = None,
     on_terminal: Optional[TerminalObserver] = None,
+    law_airspeed: Optional[LawAirspeed] = None,
 ) -> NavigationComposition:
     """Build Navigation without passing the root object into collaborators."""
     command_lock = rt.RLock()
@@ -209,6 +215,7 @@ def compose_navigation(
         logger=logger,
         wall_period_s=wall_period,
         on_terminal=on_terminal,
+        law_airspeed=law_airspeed,
     )
 
     mode_state = NavigationModeState()

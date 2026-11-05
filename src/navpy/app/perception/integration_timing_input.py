@@ -9,7 +9,7 @@ one cut off at a line boundary.
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +17,8 @@ from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
 from navpy.core.perception.pipeline.integration_log import EVENT_LOG_END
 from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
+from navpy.app.approach.law_airspeed import LawAirspeed
+from navpy.plugins.vehicle.ardupilot.airspeed_attach import AirspeedVehicle
 
 
 def load_integration_timing(path: str | Path) -> IntegrationTimingConfig:
@@ -70,6 +72,9 @@ class IntegrationTimingInput:
     # A commissioning launcher's capture wrapper (tools/hitl/media_fault_injector.py): only with integration timing,
     # whose config admits only pc-sitl, so never in flight or Qualification.
     capture_wrapper: CaptureBackendWrapper | None = None
+    # HITL step 20: the law's only airspeed input (app/approach/law_airspeed.py), attached to the vehicle for the
+    # config's mode by the vision composition; never VFR_HUD.
+    airspeed: LawAirspeed | None = None
 
 
 def open_integration_input(timing_path: str, log_path: str, detector_type: str,
@@ -88,4 +93,14 @@ def open_integration_input(timing_path: str, log_path: str, detector_type: str,
     return IntegrationTimingInput(config, JsonlTimingLog(log_path, config.run_id), capture_wrapper)
 
 
-__all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input"]
+def with_law_airspeed(integration: IntegrationTimingInput | None, vehicle: AirspeedVehicle,
+                      ) -> IntegrationTimingInput | None:
+    """HITL step 20: attach the eligible airspeed source for the config's mode. A mode without a simulated pitot
+    profile (flight, Qualification) refuses before any claim."""
+    if integration is None:
+        return None
+    return replace(integration, airspeed=LawAirspeed.attach(vehicle, integration.config.mode))
+
+
+__all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input",
+           "with_law_airspeed"]

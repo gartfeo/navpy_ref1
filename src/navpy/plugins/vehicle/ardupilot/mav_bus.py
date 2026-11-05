@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pymavlink import mavutil
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.airspeed_decode import AirspeedDecoder
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusLifecycle
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import (
@@ -132,6 +133,8 @@ class MavBus:
             membership,
             lambda: _registry.remove(device, membership),
         )
+        # Public plain attribute, like ``device``: the reader's AIRSPEED decode counts.
+        self.airspeed = AirspeedDecoder()
         reader = MavBusReader(
             connection,
             device,
@@ -140,6 +143,7 @@ class MavBus:
             self._lifecycle.stop_event,
             on_exit=self._lifecycle.reader_exited,
             batch_budget_s=self.reader_budgets.current_s,
+            airspeed=self.airspeed,
         )
         self._lifecycle.bind_reader(reader)
         reader.start()

@@ -350,7 +350,7 @@ def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(m
         return SimpleNamespace(stop=stops("controller"), set_network=MagicMock())
 
     vision = SimpleNamespace(stop=stops("vision"), geo_ref=object(), coordination=object(), approach_kind=object(),
-                             dock_contact=None, profile=object(), is_quiescent=True)
+                             dock_contact=None, profile=object(), is_quiescent=True, law_airspeed=None)
     foundation = SimpleNamespace(vehicle=MagicMock(), vision_args=object(), logger=MagicMock(), zc_util=None,
                                  navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
                                  vehicle_close_gate=SimpleNamespace(stop_vision=lambda stop, _q: stop()),
@@ -477,7 +477,7 @@ class RecordingQuiesce(stop.Quiesce):
         return self._handoff.record
 
 
-def _runner(tmp_path, monkeypatch, fly):
+def _runner(tmp_path, monkeypatch, fly, census=None):
     log: list = []
 
     class FakeBoard:
@@ -509,6 +509,8 @@ def _runner(tmp_path, monkeypatch, fly):
                         lambda record, run_dir: runner_rig._written(run_dir / "approach_record.json"))
     monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
     monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
+    passing = {"ok": True, "roles": {}, "problems": []}
+    monkeypatch.setattr(approach.owners, "census", census or (lambda *a, **k: passing))
     monkeypatch.setattr(approach.handles, "windows_udp_in_use", lambda ports: None)
     monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
     monkeypatch.setattr(approach.chain, "win_path", lambda path: "C:/x")
@@ -569,6 +571,38 @@ def test_a_deadline_quiesces_once_and_the_exit_only_repeats_it(tmp_path, monkeyp
     assert run["outcome"]["outcome"] is None and run["outcome"]["ended_by"] == "deadline"
     assert log.index("quiesce deadline") < log.index("board stop")
     assert code == 1 and not run["observation"]["ok"]      # no write log here: the audit cannot pass
+
+
+def _census(bad_phase: str):
+    """A census that finds a foreign owner of the emulator at *bad_phase* (preflight: running is False)."""
+    calls = []
+
+    def census(group, tables, own_pid, running):
+        calls.append(running)
+        phase = "preflight" if not running else ("ready" if len(calls) == 2 else "end")
+        if phase != bad_phase:
+            return {"ok": True, "roles": {}, "problems": []}
+        return {"ok": False, "roles": {}, "problems": ["emulator: exactly 1 owner (emulator), found emulator, foreign"]}
+    return census
+
+
+def test_a_foreign_owner_before_the_run_refuses_before_anything_starts(tmp_path, monkeypatch):
+    code, log, run = _runner(tmp_path, monkeypatch, _raises(AssertionError("not reached")), _census("preflight"))
+    assert code == 1 and "owner census (preflight)" in run["error"]
+    assert not [entry for entry in log if entry.startswith("start ") or entry == "board start"]
+
+
+def test_a_foreign_owner_at_the_end_fails_the_run_and_every_process_still_stops(tmp_path, monkeypatch):
+    def fly(board, group, run, quiesce):
+        run["flight"] = {"ended_by": stop.ENDED_BY_DEADLINE}
+        quiesce.run(stop.DEADLINE)
+
+    code, log, run = _runner(tmp_path, monkeypatch, fly, _census("end"))
+    assert code == 1 and "error" not in run and not run["owners"]["end"]["ok"]
+    assert any(p.startswith("owners end: emulator") for p in approach.owners.verdicts(run)[1])
+    assert "board stop" in log and not run["orphans"]
+    started = [entry.split()[1] for entry in log if entry.startswith("start ")]
+    assert started and all(f"{role} stop" in log for role in started)
 
 
 def test_sigterm_raises_an_abort():

@@ -646,11 +646,23 @@ export default function useVehicleConnection({
     return result;
   }, [api.discoverVehicles, polygon, downloadScannedMissions, rememberPending, disableStartupMissionReconciliation]);
 
-  // Auto-fetch per-vehicle targ_wps / nav_last_wp when new vehicles appear
-  const fetchedTargWpsRef = useRef(new Set());
+  // Auto-fetch per-vehicle targ_wps / nav_last_wp once per connect.
+  // vehicleList is a new array on every telemetry update (~5 Hz), so a sys_id
+  // is claimed when its fetch starts, not when it answers: otherwise every
+  // update during the pending fetch sends another one. A sys_id that leaves
+  // the list (disconnect) is forgotten, so a reconnect fetches again, and an
+  // answer from before that is dropped.
+  const targWpsFetchByIdRef = useRef(new Map());
   useEffect(() => {
-    const newIds = vehicleList.filter((v) => !fetchedTargWpsRef.current.has(v.sys_id));
+    const claims = targWpsFetchByIdRef.current;
+    const live = new Set(vehicleList.map((v) => v.sys_id));
+    for (const sid of [...claims.keys()]) {
+      if (!live.has(sid)) claims.delete(sid);
+    }
+    const newIds = vehicleList.filter((v) => !claims.has(v.sys_id));
     if (newIds.length === 0) return;
+    const claim = {};
+    newIds.forEach((v) => claims.set(v.sys_id, claim));
     Promise.all(
       newIds.map((v) =>
         fetch(`/api/vehicles/${v.sys_id}/params`).then((r) => r.ok ? r.json() : null).catch(() => null)
@@ -660,7 +672,7 @@ export default function useVehicleConnection({
       const nlUpdates = {};
       results.forEach((r, i) => {
         const sid = newIds[i].sys_id;
-        fetchedTargWpsRef.current.add(sid);
+        if (claims.get(sid) !== claim) return;
         const tw = parseInt(r?.params?.targ_wps) || 0;
         const nl = parseInt(r?.params?.nav_last_wp) || 0;
         if (tw > 0) twUpdates[sid] = tw;

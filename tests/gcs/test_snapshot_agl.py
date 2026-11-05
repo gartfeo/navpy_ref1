@@ -54,3 +54,15 @@ class TestSnapshotThrottle:
         v.throttle_pct = 75.0
         snap = VehicleEntry(1, v, "uav1").snapshot()
         assert snap["throttle"] == 75.0
+
+
+class TestSnapshotDevice:
+    def test_device_is_the_connection_string(self):
+        v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
+        snap = VehicleEntry(1, v, "uav1", device="udp:0.0.0.0:14551").snapshot()
+        assert snap["device"] == "udp:0.0.0.0:14551"
+
+    def test_device_survives_the_vehicle_status_model(self):
+        from gcs.backend.models import VehicleStatus
+        status = VehicleStatus(sys_id=1, name="uav1", device="tcp:127.0.0.1:5762")
+        assert status.model_dump()["device"] == "tcp:127.0.0.1:5762"

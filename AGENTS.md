@@ -106,15 +106,15 @@ Runtime behavior changes include or update tests. Never delete, skip, weaken, or
 
 For safety-critical navigation, mission, or operator-facing behavior, prefer both a mechanism-level regression test and a simulation/log/integration check when feasible.
 
-Run the smallest relevant targeted test first, then broader tests when shared behavior, interfaces, or safety-relevant paths changed. Run the default suite (it skips `tests/gcs`) on 8 workers (`-n 8`, pytest-xdist from the `test` extra): about 6 min instead of 20 (11,000 tests, 2026-11-04). More workers were no faster and 20 ran the PC out of memory. Keep targeted runs serial; workers add about 8 s of start-up. Run live tests (`DRONEMAV_CONN` set) serially: they share the vehicles. A real-clock check that fails only under parallel load (for example in `test_mission_transfer.py`) is a load failure until it also fails alone.
+Run the smallest relevant targeted test first. For everyday changes, run only the tests the change affects with `--testmon` (pytest-testmon, from the `test` extra; Python 3.11+). It tracks the Python code each test runs. It does not see changes in non-Python files (Lua, JSON, data, configs) or code that tests run in subprocesses, so after such a change run the affected test files by name. The first `--testmon` run in a checkout builds its data (`.testmondata`) and is as slow as a full run. GitHub CI (`.github/workflows/tests.yml`) runs the whole default suite (it skips `tests/gcs`) on every pull request and push to `main`; it is the merge gate. Run the whole suite locally only when CI cannot answer the question: on 8 workers (`-n 8`, pytest-xdist) it takes about 6 min instead of 20 (11,000 tests, 2026-11-04); more workers were no faster and 20 ran the PC out of memory. Keep targeted runs serial; workers add about 8 s of start-up. Run live tests (`DRONEMAV_CONN` set) serially: they share the vehicles. A real-clock check that fails only under parallel load (for example in `test_mission_transfer.py`) is a load failure until it also fails alone.
 
 ```powershell
 $env:PYTHONPATH="$PWD\src"
-python -m pytest tests -n 8
+python -m pytest tests --testmon
 ```
 
 ```bash
-PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ -n 8
+PYTHONPATH="$PWD/src" .venv/Scripts/python.exe -m pytest tests/ --testmon
 ```
 
 ## Design Rules

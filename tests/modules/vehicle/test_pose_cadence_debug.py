@@ -240,9 +240,14 @@ def test_flushes_racing_recorders_lose_reorder_and_duplicate_nothing(monkeypatch
     mod.stop_flusher()
     count, threads = 40_000, 3
     flushes = []
+    # Writers wait halfway until two flushes ran, so flushes always land
+    # between appends, however the host schedules the threads.
+    flushed_twice = threading.Event()
 
     def record(thread):
         for i in range(count):
+            if i == count // 2:
+                flushed_twice.wait()
             mod.record_attitude_arrival(9, float(thread), i)
 
     writers = [threading.Thread(target=record, args=(t,)) for t in range(threads)]
@@ -255,7 +260,10 @@ def test_flushes_racing_recorders_lose_reorder_and_duplicate_nothing(monkeypatch
         while any(writer.is_alive() for writer in writers):
             mod.dump_all()
             flushes.append(len(mod._buffers.get((9, "attitude_arrival"), ())))
+            if len(flushes) >= 2:
+                flushed_twice.set()
     finally:
+        flushed_twice.set()  # never leave a writer waiting
         sys.setswitchinterval(previous)
     mod.dump_all()
 

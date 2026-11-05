@@ -153,7 +153,9 @@ class TestRcHost(unittest.TestCase):
         self.assertIn("const TAPE_Z_INDEX = 7;", hud)
         tape = hud[hud.index("Speed tape"):]
         self.assertIn("zIndex: TAPE_Z_INDEX,", tape[:tape.index("<SpeedTape")])
-        self.assertIn("speedBox={speedTapeBox({", self.src)
+        # RC control passes its tape boxes through rcHudLayout (todo 275).
+        self.assertIn("layout={rcHudLayout({", self.src)
+        self.assertIn("speedBox: speedTapeBox({", self.src)
         # Over a list only while one is raised above the sticks on a phone.
         self.assertIn("listRaised={rcConfirmShown && rcList.raised}", self.src)
 

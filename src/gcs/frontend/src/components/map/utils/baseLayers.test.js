@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { ImageryLayer } from 'cesium';
 import {
   BASE_LAYER_KEY, DEFAULT_BASE_LAYER, loadBaseLayer, saveBaseLayer,
-  createBaseLayer, applyBaseLayer, watchBaseLayer, layerAfterFailure,
+  createBaseLayer, applyBaseLayer, watchBaseLayer, layerAfterFailure, secondViewLayer, SECOND_VIEW_FALLBACK_LAYER,
 } from './baseLayers';
 
 const memoryStorage = (init = {}) => {
@@ -149,5 +149,14 @@ describe('applyBaseLayer', () => {
     expect(stack[0].opts.opts.url).toBe('https://tile.openstreetmap.org/');
     expect(stack[1]).toBe('overlay');
     expect(viewer.scene.requestRender).toHaveBeenCalled();
+  });
+});
+
+describe("secondViewLayer (the vehicle window's Synthetic)", () => {
+  it('follows the map, except Satellite, whose Bing credits show in one view only: terrain there', () => {
+    expect(secondViewLayer('terrain')).toBe('terrain');
+    expect(secondViewLayer('street')).toBe('street');
+    expect(secondViewLayer('satellite')).toBe(SECOND_VIEW_FALLBACK_LAYER);
+    expect(SECOND_VIEW_FALLBACK_LAYER).toBe('terrain');
   });
 });

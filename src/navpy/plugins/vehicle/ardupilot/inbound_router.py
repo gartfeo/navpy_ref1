@@ -44,8 +44,10 @@ AUTOPILOT_TELEMETRY_TYPES = frozenset({
 # component. A GCS-mode router otherwise publishes other systems' messages
 # (an unregistered sysid reaches every receiver on the bus), so a peer's
 # healthy EKF report could pass another vehicle's launch gate
-# (docs/design/ekf_launch_gate.md).
-OWN_AUTOPILOT_ONLY_TYPES = frozenset({"EKF_STATUS_REPORT"})
+# (docs/design/ekf_launch_gate.md). AIRSPEED and SYS_STATUS feed the eligible
+# airspeed source (airspeed_eligibility.py, HITL step 20): a peer's or another
+# component's healthy pitot must never stand in for the own autopilot's.
+OWN_AUTOPILOT_ONLY_TYPES = frozenset({"EKF_STATUS_REPORT", "AIRSPEED", "SYS_STATUS"})
 
 BOOT_TIME_REBOOT_JUMP_MS = 60_000
 FRESH_BOOT_WINDOW_MS = 3_000
