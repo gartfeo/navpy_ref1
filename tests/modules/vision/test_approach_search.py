@@ -463,12 +463,13 @@ class PlantGimbal:
     policy), and the fence's own stop goes out (``quiesce_and_stop``)."""
 
     def __init__(self, plant: GimbalAngularPlant) -> None:
-        self.plant, self.pending, self.now, self.closed = plant, [], 0.0, False
+        self.plant, self.pending, self.now, self.closed, self.rates = plant, [], 0.0, False, []
 
     def _queue(self, command) -> None:
         self.pending.append((self.now + COMMAND_LAG_S, command))
 
     def set_rate(self, yaw: float, pitch: float) -> None:
+        self.rates.append((round(yaw), round(pitch)))
         if not self.closed or (round(yaw), round(pitch)) == (0, 0):
             self._queue(lambda: self.plant.set_speed(round(yaw), round(pitch)))
 
@@ -503,6 +504,8 @@ class ReplayRecord:
     seen_while_moving: int = 0
     stops_on_detection: list[float] = field(default_factory=list)
     plant_moving_after_stop: int = 0          # scan-only window: no tracker command can explain motion
+    stop_window_ticks: int = 0
+    stop_tick_rates: list[list[tuple[int, int]]] = field(default_factory=list)   # rates sent on each stop tick
     lock_while_tracking: bool = False
     revoke_s: float | None = None
     scanning_at_revoke: bool = False
@@ -581,7 +584,7 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
                     make_detected_poi(obj_id=7, x_error=pixel[0], y_error=pixel[1], k=K, timestamp=clock.now,
                                       frame_width_px=WIDTH_PX, frame_height_px=HEIGHT_PX)]
             seen = any(clock.now - p.timing.detection_timestamp_s <= 0.25 for p in pois)
-            moving_before = search.scanning
+            moving_before, sent = search.scanning, len(plant.rates)
             sink.update(pois, new_frame=new_frame)
             if search.scanning and record.first_detection_s is None:
                 record.scanned_before_detection = True
@@ -591,11 +594,13 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
                     start_at = None if record.armed_early else clock.now + start_delay_s
                 if moving_before and not search.scanning:
                     record.stops_on_detection.append(clock.now)
+                    record.stop_tick_rates.append(plant.rates[sent:])
                 record.seen_while_moving += int(search.scanning)
             last_stop = record.stops_on_detection[-1] if record.stops_on_detection else None
             if (not record.armed_early and last_stop is not None and tracking_at is None
                     and last_stop + settle_s <= clock.now < start_at):
                 record.plant_moving_after_stop += int(moving)
+                record.stop_window_ticks += 1
             if start_at is not None and tracking_at is None and clock.now >= start_at:
                 nav.start_tracking(7)
                 tracking_at = clock.now
@@ -627,7 +632,11 @@ def test_seeded_replay_stops_the_search_on_detection_and_revoke(index):
     assert record.scanned_before_detection and record.first_detection_s is not None, record
     assert record.seen_while_moving == 0, record        # never moving on a tick with a fresh detection
     assert record.stops_on_detection, record
-    assert record.plant_moving_after_stop == 0, record  # the plant itself stopped, not only the flag
+    # The scan's zero goes out before any tracker rate on the stop tick (the actuator is FIFO, so the plant applies
+    # it first); with no session yet, the plant itself holds still until tracking starts.
+    assert all(rates and rates[0] == (0, 0) for rates in record.stop_tick_rates), record
+    if not record.armed_early:
+        assert record.stop_window_ticks > 0 and record.plant_moving_after_stop == 0, record
     assert record.lock_while_tracking, record           # tracking runs in LOCK, armed early or not
     assert record.resumed_in_loss, record                # the vision loss returned to search
     assert record.scanning_at_revoke or index % 2 == 1, record
