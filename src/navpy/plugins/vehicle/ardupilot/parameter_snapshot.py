@@ -1,15 +1,31 @@
 """Lazy MAVFTP parameter snapshot fetcher."""
 from __future__ import annotations
 
+import logging
+
 from collections.abc import Callable
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import parse_param_pck
+from navpy.plugins.vehicle.ardupilot._mavftp.param_pck import (
+    ParamPck,
+    ParamPckError,
+    parse_param_pck,
+)
 from navpy.plugins.vehicle.ardupilot._mavftp.vehicle_ftp import VehicleFtp
 from navpy.plugins.vehicle.ardupilot.full_param_snapshot import FullParamSnapshot
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_subscriptions import CallbackRegistry
 from navpy.plugins.vehicle.ardupilot.vehicle_identity import VehicleIdentity
+
+log = logging.getLogger(__name__)
+
+# ArduPilot builds param.pck again for each read (AP_Filesystem_Param.cpp).
+# With defaults, a record holds its default only while the value differs
+# from it, so a value that crosses its default during a lossy read moves
+# every later record. Gap reads then join bytes from two layouts and the
+# blob is torn. Fetch the whole file again, a bounded number of times.
+# The root fix, a snapshot per read, is todo 272.
+TORN_PCK_FETCHES = 3
 
 
 class ParameterSnapshotClient:
@@ -40,7 +56,7 @@ class ParameterSnapshotClient:
                 self._ftp = VehicleFtp(
                     self._transport, self._identity, self._callbacks,
                 )
-            data = self._ftp.fetch_param_pck(
+            pck = self._fetch_whole(
                 with_defaults=with_defaults,
                 timeout=timeout,
                 progress_callback=progress_callback,
@@ -49,8 +65,36 @@ class ParameterSnapshotClient:
             target_system=self._identity.target_system,
             fetched_at_unix_s=rt.time(),
             with_defaults=with_defaults,
-            pck=parse_param_pck(data, defaults_requested=with_defaults),
+            pck=pck,
         )
+
+    def _fetch_whole(
+        self,
+        *,
+        with_defaults: bool,
+        timeout: float,
+        progress_callback: Callable[[dict[str, object] | None], None] | None,
+    ) -> ParamPck:
+        # Each fetch gets the caller's timeout whole: one read of the file
+        # needs it (stress seed 40: 14-18 s of 30 s), so the refetches cannot
+        # share it. The read is bounded at TORN_PCK_FETCHES x timeout.
+        for attempt in range(1, TORN_PCK_FETCHES + 1):
+            data = self._ftp.fetch_param_pck(
+                with_defaults=with_defaults,
+                timeout=timeout,
+                progress_callback=progress_callback,
+            )
+            try:
+                return parse_param_pck(data, defaults_requested=with_defaults)
+            except ParamPckError as exc:
+                if attempt == TORN_PCK_FETCHES:
+                    raise
+                log.warning(
+                    "param.pck for sys_id=%d is torn (%s); fetching again "
+                    "(%d of %d)", self._identity.target_system, exc,
+                    attempt + 1, TORN_PCK_FETCHES,
+                )
+        raise AssertionError("unreachable")
 
     def close(self) -> None:
         with self._lock:

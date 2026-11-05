@@ -123,7 +123,7 @@ def test_relay_items_wait_until_their_target_is_ready():
 
 def test_a_refused_request_is_answered_journaled_and_never_delivered():
     admission, relay, _ids = _admission(refuse=app_refusals.refusal)
-    relay.inbox.submit(RelayRequest(1, _http("/api/vehicles/2/parameters?refresh=1")))
+    relay.inbox.submit(RelayRequest(1, _http("/api/logs/download/2?full=1")))
     relay.inbox.submit(RelayCancel(1))
     deliveries, note = admission.admit(1, [], lambda ordinal: True)
     assert deliveries == []
@@ -140,25 +140,76 @@ def test_no_relay_traffic_adds_no_journal_note():
 
 
 @pytest.mark.parametrize(("method", "target", "refused"), [
-    ("GET", "/api/vehicles/1/parameters", True),
-    ("GET", "/api/vehicles/1/parameters?force=1", True),
+    # Step 13: the full-parameter read (MAVFTP) and NavPy-sim start and stop run in the sim.
+    ("GET", "/api/vehicles/1/parameters", False),
+    ("GET", "/api/vehicles/1/parameters?refresh=true", False),
     ("PUT", "/api/vehicles/1/parameters", False),
     ("POST", "/api/vehicles/1/parameters/arm-token", False),
     ("GET", "/api/vehicles/1/params", False),
     ("GET", "/api/diagnostics/export", True),
     ("GET", "/api/logs/download/3", True),
-    ("POST", "/api/control/navpy-sim/start", True),
-    ("POST", "/api/control/navpy-sim/stop/2", True),
+    ("GET", "/api/logs/download/3?x=1", True),
+    ("POST", "/api/control/navpy-sim/start", False),
+    ("POST", "/api/control/navpy-sim/stop/2", False),
     ("POST", "/api/control/navpy-sim/restart-ready", False),
     ("GET", "/api/settings", False),
+    ("GET", "/api/vision-profiles", False),
+    # The profile edits write the source tree's vision_profiles.json (todo 269).
+    ("PUT", "/api/vision-profiles/default/sim", True),
+    ("PUT", "/api/vision-profiles/sim", True),
+    ("PUT", "/api/vision-profiles/sim/devices/zr10", True),
     # Decoded once, as the backend decodes it.
-    ("GET", "/api/vehicles/1/%70arameters", True),
-    ("GET", "/api/vehicles/1/%2570arameters", False),  # the backend sees "%70arameters": no route
-    ("HEAD", "/api/vehicles/1/parameters", True),  # Starlette serves HEAD from the GET route
+    ("GET", "/api/%64iagnostics/export", True),
+    ("GET", "/api/%2564iagnostics/export", False),  # the backend sees "%64iagnostics": no route
+    ("HEAD", "/api/diagnostics/export", True),  # Starlette serves HEAD from the GET route
     ("GET", "/api/vehicles/1/pärameters", True),  # not ASCII: never sent
 ])
 def test_app_refusals(method, target, refused):
     assert (app_refusals.refusal(_http(target, method)) is not None) is refused
+
+
+@pytest.mark.parametrize(("command", "refused"), [
+    # Step 13 live probe: a gyro calibration stepped the clock 2.1 s in one tick (a grid
+    # fault), and a reboot closed the SITL's relay; every preflight calibration blocks.
+    ("preflight_cal", True),
+    ("accel_level", True),
+    ("accel_cal_start", True),
+    ("accel_cal_pos", True),
+    ("reboot", True),
+    ("compass_cal_reboot", True),
+    ("set_mode", False),
+    ("estop", False),
+    ("compass_cal_start", False),
+    ("rc_cal_save", False),
+])
+def test_commands_that_block_or_restart_the_firmware_are_refused(command, refused):
+    payload = {**_http("/api/control/command", "POST"), "json": {"command": command, "sys_ids": [1]}}
+    assert (app_refusals.refusal(payload) is not None) is refused
+
+
+def test_a_command_refusal_needs_the_command_route_and_a_string_command():
+    body = {"command": "reboot", "sys_ids": [1]}
+    assert app_refusals.refusal({**_http("/api/control/commands", "POST"), "json": body}) is None
+    assert app_refusals.refusal({**_http("/api/control/command", "PUT"), "json": body}) is None
+    assert app_refusals.refusal({**_http("/api/control/command?x=1", "POST"), "json": body}) is not None
+    assert app_refusals.refusal({**_http("/api/control/command", "POST"), "json": ["reboot"]}) is None
+    assert app_refusals.refusal({**_http("/api/control/command", "POST")}) is None
+
+
+@pytest.mark.parametrize(("launch", "refused"), [
+    ({"auto_preflight_cal": True}, True),
+    ({"auto_preflight_cal": 1}, True),
+    ({"auto_preflight_cal": "true"}, True),
+    ({"auto_preflight_cal": False}, False),
+    ({"pitot_covered": True}, False),
+])
+def test_settings_that_turn_on_the_launch_calibration_are_refused(launch, refused):
+    """The launch sends a preflight calibration itself when ``launch.auto_preflight_cal``
+    is on (``control_preflight``): turning it on is refused like the calibration command."""
+    payload = {**_http("/api/settings", "PUT"), "json": {"launch": launch}}
+    assert (app_refusals.refusal(payload) is not None) is refused
+    assert app_refusals.refusal({**_http("/api/settings", "PUT"), "json": {"flight": {}}}) is None
+    assert app_refusals.refusal({**_http("/api/settings", "GET")}) is None
 
 
 def test_a_payload_that_is_not_http_is_refused():

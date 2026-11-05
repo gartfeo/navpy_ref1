@@ -90,7 +90,8 @@ def source_options(source: Path, pace: bool) -> LockstepOptions:
     if run.get("lockstep") is not True:
         raise RegressionError(f"{source} is not a lockstep run")
     return LockstepOptions(run["seed"], run["timeout_s"], run["confirmation_delay_s"],
-                           sim_profile=run["sim_profile"]["profile"], pace=pace)
+                           sim_profile=run["sim_profile"]["profile"], pace=pace,
+                           app_session_s=run.get("app_session_s"))
 
 
 def prefix(records: Sequence[dict[str, Any]], stop_at: int | None) -> list[dict[str, Any]]:

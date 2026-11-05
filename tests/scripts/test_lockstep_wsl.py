@@ -100,7 +100,7 @@ def test_the_root_is_created_once_and_each_instance_refuses_an_existing_director
 
 def test_the_firmware_lock_pins_a_binary():
     lock = lockstep_wsl.load_firmware_lock()
-    assert len(lock["binary_sha256"]) == 64 and lock["branch"] == "feat/navpy-serial-step"
+    assert len(lock["binary_sha256"]) == 64 and lock["branch"] == "feat/navpy-serial-step-ftp"  # step 13: MAVFTP firmware branch
 
 
 def test_stop_refuses_a_record_outside_the_run_root(tmp_path, monkeypatch):

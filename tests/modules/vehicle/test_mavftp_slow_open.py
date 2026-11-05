@@ -193,7 +193,7 @@ class TestMavFtpSlowOpen(unittest.TestCase):
     def _fetch(self, **autopilot_kwargs):
         clock = _Clock()
         autopilot = _FakeAutopilot(clock, **autopilot_kwargs)
-        with patch.object(upstream, "time", clock):
+        with patch.object(upstream, "rt", clock):  # its clock is runtime_time
             adapter = VehicleFtp.__new__(VehicleFtp)
             adapter.ftp = MAVFTP(autopilot, target_system=1, target_component=1)
             start = clock.now

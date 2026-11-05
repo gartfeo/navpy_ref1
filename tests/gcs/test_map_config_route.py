@@ -48,6 +48,20 @@ def test_file_added_later_needs_no_restart(client, token_file):
     assert client.get("/api/map-config").json()["cesium_ion_token"] == "later"
 
 
+def test_no_home_directory_means_no_token(client, monkeypatch):
+    """A lockstep participant's environment has no home: the route answers, with no token."""
+    monkeypatch.delenv(map_config.CESIUM_ION_TOKEN_ENV, raising=False)
+    monkeypatch.delenv(map_config.CESIUM_ION_TOKEN_FILE_ENV, raising=False)
+
+    def no_home():
+        raise RuntimeError("Could not determine home directory.")
+
+    monkeypatch.setattr(map_config.Path, "home", no_home)
+    resp = client.get("/api/map-config")
+    assert resp.status_code == 200
+    assert resp.json() == {"cesium_ion_token": None}
+
+
 def test_default_path_is_machine_level(monkeypatch, tmp_path):
     monkeypatch.delenv(map_config.CESIUM_ION_TOKEN_FILE_ENV, raising=False)
     monkeypatch.setattr(map_config.Path, "home", lambda: tmp_path)

@@ -11,6 +11,7 @@ from navpy.sim.lockstep.coordinator_types import HostFault, ParticipantFault
 from scripts import eval_gcs_demo_cli as cli
 from scripts import eval_gcs_demo_lockstep as lockstep_eval
 from scripts import eval_gcs_demo_lockstep_app as app_side
+from scripts import eval_gcs_demo_lockstep_session as session
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run, manifest
 from scripts.eval_gcs_demo_lockstep_wiring import WIRING, fleet_layout, require_wired
 from scripts.eval_gcs_demo_constants import PARAM_REQUEST_BUDGET_S
@@ -610,3 +611,99 @@ def test_a_failed_app_stop_is_raised_and_the_fleet_still_stops_and_releases(tmp_
         execute_lockstep_run(tmp_path / "run", SLICE, dataclasses.replace(OPTIONS, app=True))
     assert type(raised.value) is RuntimeError  # not scored as a RegressionError
     assert events == ["run", "app stop failed", "fleet stopped", "released"]
+
+
+class _SessionClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def monotonic(self) -> float:
+        return self.now
+
+    def sleep(self, seconds: float) -> None:
+        self.now += seconds
+
+
+@pytest.mark.parametrize(("snap_at", "slept"), [(5.0, 5.0), (None, 10.0)])
+def test_an_app_session_script_waits_for_the_snap_ends_or_its_length_then_stops_the_companions(
+        tmp_path, monkeypatch, snap_at, slept):
+    """Step 13: with ``app_session_s`` the app drives the run; the script runs no
+    mission. It returns once every UAV reached its SNAP end (the coordinator's
+    finalization then waits for it), or when the session ends."""
+    calls, clock = [], _SessionClock()
+    context = SimpleNamespace(clock=clock)
+    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: context)
+    monkeypatch.setattr(session, "all_have_snap",
+                        lambda ctx: ctx is context and snap_at is not None and clock.now >= snap_at)
+    monkeypatch.setattr(session, "run_mission", lambda *a: pytest.fail("ran the scripted mission"))
+    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: calls.append(("stop", clock.now)))
+    operator = SimpleNamespace(wait_ready=lambda ordinal: calls.append(("ready", ordinal)))
+    options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=10.0)
+    outcome = lockstep_eval.operator_script(SLICE, tmp_path, options)(operator)
+    assert outcome == {"approvals": [], "error": None}
+    assert calls == [("ready", fleet_layout(SLICE).backend), ("stop", slept)]
+
+
+def test_the_app_session_is_a_recorded_run_option_the_replay_reads_back(tmp_path, monkeypatch, no_claim):
+    import json
+
+    from scripts.eval_gcs_demo_lockstep_replay import source_options
+
+    monkeypatch.setattr(lockstep_eval.lockstep_wsl, "merged_defaults", lambda _parameters: "X 1\n")
+    for name, session in (("scripted", None), ("app", 900.0)):
+        options = LockstepOptions(seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=session)
+        with pytest.raises(AssertionError, match="must not claim"):
+            execute_lockstep_run(tmp_path / name, SLICE, options)
+        run = json.loads((tmp_path / name / "input_manifest.json").read_text(encoding="utf-8"))["run_options"]
+        assert run.get("app_session_s") == session and ("app_session_s" in run) is (session is not None)
+        assert source_options(tmp_path / name, pace=False).app_session_s == session
+    with pytest.raises(RegressionError, match="--app-session-s must be within"):
+        execute_lockstep_run(tmp_path / "long", SLICE, LockstepOptions(
+            seed=1, timeout_s=600.0, confirmation_delay_s=15.0, app_session_s=lockstep_eval.MISSION_BUDGET_S))
+
+
+def test_cli_passes_the_app_session_and_refuses_it_without_the_app(tmp_path, monkeypatch):
+    seen = []
+
+    def run(_run_dir, _scenario, options):
+        seen.append((options.app, options.app_session_s))
+        return lockstep_eval.LockstepRun("d" * 64, "ok", [], None)
+
+    import json
+
+    analyzed = []
+    monkeypatch.setattr(cli, "execute_lockstep_run", run)
+    monkeypatch.setattr(cli, "analyze_run", lambda *a, **k: analyzed.append(a))
+    (tmp_path / "a").mkdir()
+    base = ["--lockstep", "--scenario", str(SLICE_PATH), "--run-dir", str(tmp_path / "a")]
+    with pytest.raises(RegressionError, match="--app-session-s needs --app"):
+        cli.main([*base, "--app-session-s", "600"])
+    assert cli.main([*base, "--app", "--app-session-s", "600"]) == 0
+    assert seen == [(True, 600.0)]
+    # The app flew its own plan: the scripted mission's gates do not score it.
+    assert analyzed == []
+    report = json.loads((tmp_path / "a" / "report.json").read_text(encoding="utf-8"))
+    assert report["passed"] is True and report["errors"] == []
+
+
+def test_a_scripted_lockstep_run_reads_each_full_parameter_table_after_connect(tmp_path, monkeypatch):
+    """Step 13: as the app's prewarm does, so every matrix cell runs MAVFTP."""
+    seen = []
+    monkeypatch.setattr(lockstep_eval, "stack_context", lambda *a, **k: SimpleNamespace())
+    monkeypatch.setattr(lockstep_eval, "stop_companions", lambda _context: None)
+    monkeypatch.setattr(session, "run_mission",
+                        lambda *a, after_connect=None: seen.append(after_connect) or SimpleNamespace(approvals=[]))
+    lockstep_eval.operator_script(SLICE, tmp_path, OPTIONS)(SimpleNamespace(wait_ready=lambda _o: None))
+    assert seen == [session.read_full_parameters]
+
+    reads = []
+
+    def get_json(path, *, timeout):
+        reads.append((path, timeout))
+        return {"params": [{"name": "A", "value": 1.0}]} if path.startswith("/api/vehicles/1/") else {"params": []}
+
+    context = SimpleNamespace(sys_ids=(1, 2), api=SimpleNamespace(get_json=get_json))
+    with pytest.raises(RegressionError, match="full parameter read of 2"):
+        session.read_full_parameters(context)
+    timeout = session.FULL_PARAMETERS_TIMEOUT_S
+    assert reads == [("/api/vehicles/1/parameters", timeout), ("/api/vehicles/2/parameters", timeout)]

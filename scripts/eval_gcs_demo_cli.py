@@ -109,6 +109,9 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--app", action="store_true",
                         help="lockstep only: serve the GCS app on this run's slot, paced at 1x; "
                         "the app's requests are run inputs (deterministic_dev_sim.md step 11)")
+    parser.add_argument("--app-session-s", type=float, default=None, metavar="SECONDS",
+                        help="with --app: the app drives the run (connect, upload, launch, approvals); "
+                        "the script only waits SECONDS sim seconds, then stops the companions (step 13)")
     return parser.parse_args(argv)
 
 
@@ -131,7 +134,7 @@ def run_lockstep(
     print(f"GCS demo lockstep artifacts: {run_dir.resolve()}", flush=True)
     options = LockstepOptions(args.seed, args.timeout_s, args.confirmation_delay_s,
                               args.host_delay_seed, args.sim_profile or DEFAULT_PROFILE,
-                              pace=args.pace, app=args.app)
+                              pace=args.pace, app=args.app, app_session_s=args.app_session_s)
     run = execute_lockstep_run(run_dir, scenario, options)
     errors = [f"lockstep outcome {run.outcome!r}, not 'ok'"] if run.outcome != "ok" else []
     if run.product_failure is not None:
@@ -139,7 +142,12 @@ def run_lockstep(
     if run.operator_error is not None:
         errors.append(f"operator: {run.operator_error}")
     try:
-        report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
+        if args.app_session_s is not None:
+            # The app flew its own plan: the gates score the scripted mission's resolved
+            # plan only, so an app session passes on its run (outcome, faults, operator).
+            report = RunReport(True, ".", [], 1.0, 0.0, run.approvals, {}, [])
+        else:
+            report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
     except (OSError, ValueError, TypeError, RegressionError) as error:
         report = RunReport(False, ".", [], 1.0, 0.0, run.approvals, {}, [],
                            [f"analysis: {type(error).__name__}: {error}"])
@@ -183,6 +191,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise RegressionError("--sim-profile is lockstep only")
     if (args.pace or args.app) and not args.lockstep:
         raise RegressionError("--pace and --app are lockstep only")
+    if args.app_session_s is not None and not args.app:
+        raise RegressionError("--app-session-s needs --app")
     if args.lockstep and scenario.gate_profile == DELIVERY_PROFILE:
         raise RegressionError("the delivery scenario has no lockstep run")
     if args.lockstep:

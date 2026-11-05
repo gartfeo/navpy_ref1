@@ -80,6 +80,8 @@ def write_lockstep_input_manifest(run_dir: Path, scenario: DemoScenario, plan: M
         "sim_profile": realization.to_json(),
         "radio_loss_pct": radio_loss_pct(realization),
     }
+    if options.app_session_s is not None:  # the app drives the run (step 13)
+        run_options["app_session_s"] = options.app_session_s
     # A participant's whole environment besides its record and host start
     # variables (``coordinator_spawn.hermetic_environment``).
     environment = {"PYTHONHASHSEED": PYTHON_HASH_SEED}

@@ -2505,3 +2505,24 @@
   found a revoke could fall between check and send (fixed by sending inside the source's
   lock), then that the send could wait on the link's send lock after the check (`goto` holds
   it across `set_mode`): take the re-entrant send lock first, then read the clock and check.
+## Dev sim step 13: MAVFTP on lockstep (2026-11-05)
+
+- Two runs of one commit gave two digests because SITL's board id came from the host's
+  machine-id plus the slot's instance. Before calling a digest change a determinism bug, diff the
+  journals record by record; field 5 of a journal record is the MAVLink msgid.
+- Test lockstep firmware under host delay and helper jitter, not only plain runs: three helper
+  races (a new thread reading the clock, an early return from helper_sleep, a clock-only check
+  after registering) passed plain cells. A small C++ harness with a shimmed clock and a forced
+  pause at the suspect point (tests/navpy_step_helpers) shows such a race in seconds.
+- A shared deadline across refetches looked safer but failed stress seed 40: one whole MAVFTP
+  read takes 14-18 s of 30 s on a lossy link. Check what one attempt really needs before sharing
+  a timeout.
+- Check the CPU for other chats' pytest before a live lockstep run; a busy host ends it in a
+  HostFault. Never edit the tree while a matrix, stress run or live run and its replay are going:
+  they hash it.
+- The request inventory test scans literal fetch, fetchWithRetry, new WebSocket and
+  sendWsMessage calls only; keep those literal at the call site when wrapping replies.
+- A lockstep participant's hermetic environment has no home directory: Path.home() raises
+  RuntimeError, so code that reads a home file must treat that as no file.
+- Main's todo numbers moved twice during this step; check origin/main's highest number right
+  before each commit that adds a todo.
