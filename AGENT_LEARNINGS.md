@@ -12,7 +12,8 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note; twice more in HITL step 14, even with "\\n" in a quoted 'PYEOF' heredoc). Insert or
-  change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  change code with the Edit tool, never a heredoc; check with `ast.parse`. Once more in
+  todo 290 (2026-11-05): a `"\\n".join` in a heredoc replacement string broke a gate file.
   A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
   (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
