@@ -12,8 +12,9 @@ The scan stops (one zero rate, only if its own last command moved the gimbal) on
 within ``clear_s``; a session that tracks or a geo session; the final-approach zoom freeze; frames older than
 ``frame_max_age_s``; readback older than ``readback_max_age_s`` or missing; and revoke (the command fence closed),
 which latches and writes nothing more: the fence's own stop covers the gimbal. A detection or geo session start
-yields first (``yield_to``), so its commands never follow a moving scan. On each (re)start it selects FOLLOW mode,
-so the readback is body-relative, and commands the widest zoom step, as step 18's loss policy does.
+yields first (``yield_to``), so its commands never follow a moving scan. Each (re)start first commands the widest
+zoom step, as step 18's loss policy does, and moves only once that command went out (a failed start is retried every
+``START_RETRY_S``); then it selects FOLLOW mode, so the readback is body-relative.
 """
 
 from __future__ import annotations
@@ -31,6 +32,8 @@ from navpy.core.ports.gimbal_hardware_ports import GimbalActuatorPort
 
 # The SIYI speed command is whole percent of the slew rate; a smaller nonzero rate would round to a stop.
 MIN_COMMAND_UNITS = 1.0
+# A start whose widest-zoom or FOLLOW command failed is retried at this interval, not on every frame.
+START_RETRY_S = 1.0
 
 
 @dataclass(frozen=True)
@@ -48,6 +51,7 @@ class _ScanState:
     command: tuple[float, float] = (0.0, 0.0)    # the scan's own last rate; (0, 0) when it holds nothing
     last_frame_s: float | None = None
     last_seen_s: float | None = None
+    last_start_s: float | None = None
     revoked: bool = False
     reason: str = "idle"
     writes: int = 0
@@ -107,7 +111,7 @@ class GimbalSearch:
         if sample is None:
             self._halt("readback_stale")
             return
-        if not state.scanning and not self._start():
+        if not state.scanning and not self._start(now):
             return
         if new_frame:
             self._steer(sample)
@@ -138,15 +142,20 @@ class GimbalSearch:
         yaw, pitch = float(sample.att.yaw), float(sample.att.pitch)
         return (yaw, pitch) if math.isfinite(yaw) and math.isfinite(pitch) else None
 
-    def _start(self) -> bool:
+    def _start(self, now: float) -> bool:
         state = self._state
+        if state.last_start_s is not None and now - state.last_start_s < START_RETRY_S:
+            return False
+        state.last_start_s = now
+        if not self._widest_zoom():
+            self._halt("zoom_failed")
+            return False
         try:
             self._gimbal.set_motion_mode(MODE_FOLLOW)
         except GIMBAL_COMMAND_ERRORS as exc:
             self._warn(f"search FOLLOW failed: {exc}")
             return False
-        if not self._widest_zoom():
-            self._warn("search could not set the widest zoom step; scanning on the current lens")
+        state.last_start_s = None
         state.scanning, state.target, state.reason = True, 0, "scanning"
         self._info(f"search start ({len(self._targets)} targets)")
         return True
@@ -208,4 +217,4 @@ def _axis_units(dps: float, error: float, max_slew_dps: float, tolerance_deg: fl
     return units
 
 
-__all__ = ["GimbalSearch", "GimbalSearchSetup", "MIN_COMMAND_UNITS"]
+__all__ = ["GimbalSearch", "GimbalSearchSetup", "MIN_COMMAND_UNITS", "START_RETRY_S"]

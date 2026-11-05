@@ -62,15 +62,17 @@ class GimbalVisualTracking:
         self._geo = geo
 
     def search(self, seen: bool, new_frame: bool) -> None:
-        """One search tick (HITL step 21), before this tick's visual update: the scan moves only while no session
-        tracks (none, armed and never tracked, or returned to search after a loss), no geo session points and
-        nothing is detected."""
+        """One search tick (HITL step 21) before the visual update; the scan moves only while no session tracks
+        (none, armed and never tracked, or back to search after a loss), no geo session points, nothing is seen."""
         if self._search is None:
             return
         with self._gate.lock:
             with self._fence.lock:
                 blocked = _search_blocked(self._detection, self._geo)
             self._search.tick(blocked, seen, new_frame)
+            if self._search.scanning:
+                with self._fence.lock:  # the scan left the session's LOCK: the first acquisition restores it
+                    self._detection.recentered |= self._detection.tracking_obj_id is not None
 
     def update(
         self,
@@ -213,11 +215,7 @@ def _search_blocked(
         return "geo"
     if detection.final_approach_zoom_frozen_at_min:
         return "final_approach"
-    if (
-        detection.tracking_obj_id is not None
-        and detection.last_track_time is not None
-        and not detection.recentered
-    ):
+    if detection.tracking_obj_id is not None and detection.last_track_time is not None and not detection.recentered:
         return "tracking"
     return None
 

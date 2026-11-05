@@ -271,6 +271,17 @@ def test_a_failed_rate_write_is_stopped_with_a_zero_next():
     assert actuator.rates() == [(0.0, 0.0)]
 
 
+def test_a_failed_widest_zoom_holds_the_scan_and_is_retried_each_start_interval():
+    search, clock, actuator, _, zoom = make_search()
+    zoom.return_value = False
+    with patch(CLOCK, clock):
+        frames(search, clock, 29)                       # 0.93 s: one try only
+        assert zoom.call_count == 1 and actuator.calls == [] and search.reason == "zoom_failed"
+        zoom.return_value = True
+        frames(search, clock, 3)
+    assert zoom.call_count == 2 and search.scanning and actuator.calls[0] == ("mode", MODE_FOLLOW)
+
+
 def test_a_failed_follow_command_starts_no_scan():
     search, clock, actuator, _, _ = make_search()
     actuator.set_motion_mode = Mock(side_effect=OSError("no gimbal"))
@@ -340,12 +351,28 @@ def test_armed_but_never_tracked_scans_and_a_tracking_session_blocks():
         clock.now += 1 / 30
         nav.search_tick(False, True)
         assert search.scanning
-        nav._parts.status  # noqa: B018  (status stays readable)
-        with nav._parts.visual._fence.lock:
-            nav._parts.visual._detection.last_track_time = clock.now
+        clock.now += 1 / 30
+        nav.search_tick(True, True)                     # the first detection: an accepted observation tracks
+        nav.update(make_detected_poi(obj_id=7, x_error=1000.0, y_error=600.0, k=K, timestamp=clock.now,
+                                     frame_width_px=WIDTH_PX, frame_height_px=HEIGHT_PX))
+        clock.now += 2.5                                # past clear_s: only the tracking session blocks now
+        nav.search_tick(False, True)
+    assert search.reason == "tracking" and not search.scanning     # the tracker's own rates own the gimbal now
+
+
+def test_a_first_acquisition_after_a_scan_in_an_armed_session_restores_lock():
+    nav, clock, actuator, _, _ = navigation()
+    with patch(CLOCK, clock):
+        nav.start_tracking(7)
         clock.now += 1 / 30
         nav.search_tick(False, True)
-    assert search.reason == "tracking" and actuator.rates()[-1] == (0.0, 0.0)
+        assert actuator.calls[-2:][0] == ("mode", MODE_FOLLOW)
+        actuator.calls.clear()
+        clock.now += 1 / 30
+        nav.search_tick(True, True)
+        nav.update(make_detected_poi(obj_id=7, x_error=1000.0, y_error=600.0, k=K, timestamp=clock.now,
+                                     frame_width_px=WIDTH_PX, frame_height_px=HEIGHT_PX))
+    assert actuator.calls[0] == ("rate", 0.0, 0.0) and ("mode", MODE_LOCK) in actuator.calls[1:]
 
 
 def test_the_sink_ticks_the_search_first_with_any_fresh_detection():
@@ -431,20 +458,31 @@ REPLAY_SEEDS = tuple(range(2101, 2111))
 
 
 class PlantGimbal:
-    """navpy's simulated SIYI plant behind the actuator port, with command latency."""
+    """navpy's simulated SIYI plant behind the actuator port, with command latency and the run's command fence:
+    once ``close`` runs, every rate but a stop and every mode or angle command is dropped (the SiyiCommandFence's
+    policy), and the fence's own stop goes out (``quiesce_and_stop``)."""
 
     def __init__(self, plant: GimbalAngularPlant) -> None:
-        self.plant, self.pending, self.now = plant, [], 0.0
+        self.plant, self.pending, self.now, self.closed = plant, [], 0.0, False
+
+    def _queue(self, command) -> None:
+        self.pending.append((self.now + COMMAND_LAG_S, command))
 
     def set_rate(self, yaw: float, pitch: float) -> None:
-        self.pending.append((self.now + COMMAND_LAG_S, lambda: self.plant.set_speed(round(yaw), round(pitch))))
+        if not self.closed or (round(yaw), round(pitch)) == (0, 0):
+            self._queue(lambda: self.plant.set_speed(round(yaw), round(pitch)))
 
     def set_motion_mode(self, mode: int) -> None:
-        self.pending.append((self.now + COMMAND_LAG_S, lambda: self.plant.set_motion_mode(mode)))
+        if not self.closed:
+            self._queue(lambda: self.plant.set_motion_mode(mode))
 
     def set_att(self, attitude: Attitude) -> None:
-        self.pending.append((self.now + COMMAND_LAG_S,
-                             lambda: self.plant.set_target_angles(attitude.yaw, attitude.pitch)))
+        if not self.closed:
+            self._queue(lambda: self.plant.set_target_angles(attitude.yaw, attitude.pitch))
+
+    def close(self) -> None:
+        self.closed = True
+        self._queue(lambda: self.plant.set_speed(0, 0))
 
     def advance(self, now: float, dt: float) -> None:
         self.now = now
@@ -458,14 +496,19 @@ class PlantGimbal:
 @dataclass
 class ReplayRecord:
     seed: int
+    armed_early: bool = False
     first_detection_s: float | None = None
     scanned_before_detection: bool = False
     resumed_in_loss: bool = False
     seen_while_moving: int = 0
-    stopped_on_detection: int = 0
+    stops_on_detection: list[float] = field(default_factory=list)
+    plant_moving_after_stop: int = 0          # scan-only window: no tracker command can explain motion
+    lock_while_tracking: bool = False
     revoke_s: float | None = None
+    scanning_at_revoke: bool = False
     writes_at_revoke: int = 0
     writes_after_revoke: int = 0
+    plant_moving_after_revoke: int = 0
     search_writes: int = 0
     forbidden_reads: list[str] = field(default_factory=list)
     stops: list[str] = field(default_factory=list)
@@ -491,7 +534,9 @@ def _pixel(dock_ned, aircraft_ned, yaw_deg, pitch_deg):
 
 
 def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
-    rng, record = random.Random(seed), ReplayRecord(seed)
+    """Odd indexes arm the detection session before any detection (the scan runs while it is armed); even indexes
+    revoke while the scan runs in the vision loss, odd ones 2 s or more after it, scanning or not."""
+    rng, record = random.Random(seed), ReplayRecord(seed, armed_early=index % 2 == 1)
     offset = draw_dock(seed, 30.0)
     dock = (LEVEL_DOCK_NORTH_M + offset["north_mm"] / 1000.0, LATERAL_M[index] + offset["east_mm"] / 1000.0, 0.0)
     miss_p, start_delay_s = 0.1, 0.3
@@ -499,7 +544,6 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
     plant = PlantGimbal(GimbalAngularPlant(initial_pitch=-14.0, initial_yaw=0.0))
     plant.plant.set_motion_mode(MODE_FOLLOW)
     clock, samples = Clock(0.0), []
-    revoked = [False]
 
     def history():
         lagged = [s for s in samples if s[0] <= clock.now - READBACK_LAG_S]
@@ -512,17 +556,22 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
     mount = StrictMount(plant, history)
     nav = GimbalNavigation(mount, Mock(), GimbalTrackingSetup(GimbalRateTrackerConfig()), neutral_pitch_deg=-14.0,
                            search=GimbalSearchSetup(GimbalSearchPattern.from_profile(PROFILE),
-                                                    lambda: revoked[0]))
+                                                    lambda: plant.closed))
     search = nav._parts.visual._search
     sink = TrackingNavigationSink(GimbalMeasurementAdapter(nav), FreshnessPolicy(1.0 / TICK_HZ))
-    pois, start_at, tracking_at, loss = [], None, None, None
+    pois, start_at, loss = [], None, None
+    tracking_at = 0.0 if record.armed_early else None
     dt, ticks = 1.0 / TICK_HZ, int(duration_s * TICK_HZ)
+    settle_s = COMMAND_LAG_S + 2 * dt                  # a stop reaches the plant within the command latency
     with patch(CLOCK, clock):
+        if record.armed_early:
+            nav.start_tracking(7)
         for tick in range(ticks):
             clock.now = tick * dt
             plant.advance(clock.now, dt)
             snap = plant.plant.snapshot()
             samples.append((clock.now, Attitude(snap.pitch, snap.yaw, 0.0)))
+            moving = (snap.yaw_command, snap.pitch_command) != (0.0, 0.0)
             new_frame = tick % int(TICK_HZ / FRAME_HZ) == 0
             if new_frame:
                 aircraft = (AIRSPEED_M_S * clock.now, 0.0, -LANE_HEIGHT_M)
@@ -534,22 +583,37 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
             seen = any(clock.now - p.timing.detection_timestamp_s <= 0.25 for p in pois)
             moving_before = search.scanning
             sink.update(pois, new_frame=new_frame)
-            if search.scanning and not moving_before and record.first_detection_s is None:
+            if search.scanning and record.first_detection_s is None:
                 record.scanned_before_detection = True
             if seen:
-                record.first_detection_s = record.first_detection_s or clock.now
-                record.stopped_on_detection += int(not search.scanning and moving_before)
+                if record.first_detection_s is None:
+                    record.first_detection_s = clock.now
+                    start_at = None if record.armed_early else clock.now + start_delay_s
+                if moving_before and not search.scanning:
+                    record.stops_on_detection.append(clock.now)
                 record.seen_while_moving += int(search.scanning)
-                start_at = start_at or clock.now + start_delay_s
+            last_stop = record.stops_on_detection[-1] if record.stops_on_detection else None
+            if (not record.armed_early and last_stop is not None and tracking_at is None
+                    and last_stop + settle_s <= clock.now < start_at):
+                record.plant_moving_after_stop += int(moving)
             if start_at is not None and tracking_at is None and clock.now >= start_at:
                 nav.start_tracking(7)
                 tracking_at = clock.now
-            if tracking_at is not None and loss is None and clock.now >= tracking_at + loss_after_s:
+            first = record.first_detection_s
+            if first is not None and loss is None and clock.now >= first + start_delay_s + 0.5:
+                record.lock_while_tracking = snap.motion_mode == MODE_LOCK
+            if first is not None and loss is None and clock.now >= first + start_delay_s + loss_after_s:
                 loss = clock.now
             if loss is not None and loss + 2.5 <= clock.now < loss + loss_len_s and search.scanning:
                 record.resumed_in_loss = True
-            if loss is not None and record.revoke_s is None and clock.now >= loss + loss_len_s + 2.0 + index * 0.5:
-                revoked[0], record.revoke_s, record.writes_at_revoke = True, clock.now, search.writes
+            revoke_at = None if loss is None else (
+                loss + 3.0 + 0.1 * index if index % 2 == 0 else loss + loss_len_s + 2.0 + index * 0.5)
+            if revoke_at is not None and record.revoke_s is None and clock.now >= revoke_at:
+                record.scanning_at_revoke, record.writes_at_revoke = search.scanning, search.writes
+                record.revoke_s = clock.now
+                plant.close()                          # the terminal path: fence closed, its stop sent
+            if record.revoke_s is not None and clock.now >= record.revoke_s + settle_s:
+                record.plant_moving_after_revoke += int(moving)
     record.search_writes = search.writes
     record.writes_after_revoke = search.writes - record.writes_at_revoke
     record.forbidden_reads = list(mount.forbidden)
@@ -560,10 +624,13 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
 @pytest.mark.parametrize("index", range(len(REPLAY_SEEDS)))
 def test_seeded_replay_stops_the_search_on_detection_and_revoke(index):
     record = replay(REPLAY_SEEDS[index], index)
-    assert record.scanned_before_detection, record
-    assert record.first_detection_s is not None, record
+    assert record.scanned_before_detection and record.first_detection_s is not None, record
     assert record.seen_while_moving == 0, record        # never moving on a tick with a fresh detection
-    assert record.stopped_on_detection >= 1, record
+    assert record.stops_on_detection, record
+    assert record.plant_moving_after_stop == 0, record  # the plant itself stopped, not only the flag
+    assert record.lock_while_tracking, record           # tracking runs in LOCK, armed early or not
     assert record.resumed_in_loss, record                # the vision loss returned to search
+    assert record.scanning_at_revoke or index % 2 == 1, record
     assert record.revoke_s is not None and record.writes_after_revoke == 0, record
+    assert record.plant_moving_after_revoke == 0, record
     assert "revoked" in record.stops and record.forbidden_reads == [], record
