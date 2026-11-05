@@ -119,3 +119,58 @@ def test_poisoned_board_pose_and_capture_location_leave_the_record_unchanged():
     assert clean is not None and math.isfinite(clean.body_x)
     poi.geo = replace(poi.geo, board_pose=_Poison(), capture_camera_location=_Poison())
     assert _frame(poi) == clean
+
+
+class _PoisonSolver:
+    """A solver whose every result fails the test when anything reads it."""
+
+    def __init__(self) -> None:
+        self.calls = 0
+
+    def solve(self, corners, intrinsic, distortion):
+        self.calls += 1
+        return _Poison()
+
+
+def test_poisoned_metric_inputs_upstream_leave_the_command_frame_unchanged():
+    """Codex review: poison the metric inputs BEFORE mapping, through the real
+    association and mapper, so a producer that bent the pixel observation or
+    camera pose with them would fail here, not only the law-side projector."""
+    from navpy.core.perception.pipeline.real_detection_mapper import (
+        DetectedObjectMapper,
+        DetectionMappingConfig,
+    )
+    from navpy.core.perception.pipeline.real_detector_state import ConfirmationFrameStore
+    from navpy.core.ports.detection import BoardCorners, Detection
+    from navpy.core.ports.tracks import TrackedObject
+    from tests.modules.vision.test_capture_time_association_e2e import (
+        BASE_S,
+        _associate,
+        _calibration,
+    )
+
+    exposure = BASE_S + 1.0
+    association = _associate(exposure, calibration=_calibration())
+    assert association.pose_is_frame_atomic
+    track = TrackedObject(
+        id=7, cx=320.0, cy=240.0, w=80.0, h=40.0, confidence=0.9,
+        class_id=3, age=1, hits=1, missed=0, is_confirmed=True,
+        timestamp=exposure, vx=0.0, vy=0.0,
+    )
+    board = Detection(cx=320.0, cy=240.0, w=80.0, h=40.0, confidence=1.0, class_id=3,
+                      board=BoardCorners((0, 1), ((300.0, 230.0), (340.0, 250.0))))
+
+    def frame(solver, boards, frame_association):
+        mapper = DetectedObjectMapper(
+            DetectionMappingConfig(reference_height_m=2.0, output_mode="locked"),
+            ConfirmationFrameStore(maximum_frames=4), board_pose=solver,
+        )
+        poi = mapper.convert([track], track, frame_association, boards)[0]
+        return poi, _frame(poi)
+
+    clean_poi, clean = frame(None, (), replace(association, capture_location=None))
+    solver = _PoisonSolver()
+    poisoned_poi, poisoned = frame(solver, (board,), replace(association, capture_location=_Poison()))
+    assert solver.calls == 1
+    assert clean is not None and poisoned == clean
+    assert poisoned_poi.visual_detection() == clean_poi.visual_detection()

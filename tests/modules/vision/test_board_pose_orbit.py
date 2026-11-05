@@ -71,6 +71,7 @@ CORNER_NOISE_PX = 0.45      # measured ChArUco corner RMS (module docstring)
 DIST = np.array([-0.05, 0.02, 0.0005, -0.0003, 0.0])
 GEO = GeoRefCalc(UasArgs())
 CAMERA = Location(40.15, 44.40, 1180.0, is_absolute=True)
+HOME = Location(40.149, 44.401, 1100.0, is_absolute=True)  # 80 m below the camera
 ATTITUDE = Attitude(pitch=3.0, yaw=30.0, roll=-8.0)
 GIMBAL = GimbalData(att=Attitude(pitch=-25.0, yaw=12.0, roll=0.0))
 
@@ -136,8 +137,10 @@ def _corners(image, ids=None) -> BoardCorners:
 
 
 def _error_m(location: Location, centre_ned: np.ndarray, origin: Location = CAMERA) -> float:
+    # An orbit centre is home-relative (like the ground ray); a camera fix is absolute.
+    alt = location.alt if location.is_absolute else location.alt + HOME.alt
     north, east, down = pymap3d.geodetic2ned(
-        location.lat, location.lng, location.alt, origin.lat, origin.lng, origin.alt,
+        location.lat, location.lng, alt, origin.lat, origin.lng, origin.alt,
     )
     return float(np.linalg.norm(np.array([north, east, down]) - centre_ned))
 
@@ -160,7 +163,7 @@ def test_projected_corners_give_the_centre_within_limits(slant_m, k):
     for _ in range(40):
         fit = SOLVER.solve(_corners(_pixels(camera_points, k, rng)), k, DIST)
         assert isinstance(fit, BoardPoseFit), fit
-        centre = board_orbit_centre(_poi(fit), GEO.camera_point_to_ned)
+        centre = board_orbit_centre(_poi(fit), GEO.camera_point_to_ned, HOME)
         errors.append(_error_m(centre.location, centre_ned))
         p95s.append(fit.reprojection_p95_px)
     assert np.percentile(errors, 95) <= CENTRE_ERROR_LIMIT_M
@@ -170,7 +173,7 @@ def test_projected_corners_give_the_centre_within_limits(slant_m, k):
 def test_noise_free_corners_recover_the_centre_exactly():
     centre_ned, camera_points = _scene(70.0)
     fit = SOLVER.solve(_corners(_pixels(camera_points, K10)), K10, DIST)
-    centre = board_orbit_centre(_poi(fit), GEO.camera_point_to_ned)
+    centre = board_orbit_centre(_poi(fit), GEO.camera_point_to_ned, HOME)
     assert _error_m(centre.location, centre_ned) < 0.01
     assert fit.reprojection_p95_px < 0.01
 
@@ -275,18 +278,18 @@ def test_delayed_frame_uses_the_camera_position_and_pose_at_capture():
     fit = SOLVER.solve(_corners(_pixels(camera_points, K10)), K10, DIST)
     fix = _fix_after(CAMERA, FRAME_DELAY_S, capture_boot_s)
     at_capture = capture_location(fix, capture_boot_s)
-    centre = board_orbit_centre(_poi(fit, camera=at_capture), GEO.camera_point_to_ned)
+    centre = board_orbit_centre(_poi(fit, camera=at_capture), GEO.camera_point_to_ned, HOME)
     assert _error_m(centre.location, centre_ned) < 0.05
 
     # Mutation: the newest fix instead of the capture-time position.
     latest = Location(fix.lat, fix.lon, fix.alt, is_absolute=True)
-    stale = board_orbit_centre(_poi(fit, camera=latest), GEO.camera_point_to_ned)
+    stale = board_orbit_centre(_poi(fit, camera=latest), GEO.camera_point_to_ned, HOME)
     assert _error_m(stale.location, centre_ned) > SPEED_MPS * FRAME_DELAY_S - 0.1
 
     # Mutation: the newest attitude (the aircraft rolled 6 degrees since).
     turned = Attitude(pitch=ATTITUDE.pitch, yaw=ATTITUDE.yaw, roll=ATTITUDE.roll + 6.0)
     late_pose = board_orbit_centre(_poi(fit, camera=at_capture, attitude=turned),
-                                   GEO.camera_point_to_ned)
+                                   GEO.camera_point_to_ned, HOME)
     assert _error_m(late_pose.location, centre_ned) > CENTRE_ERROR_LIMIT_M
 
 
@@ -371,16 +374,34 @@ def _fit():
     ({"camera": Location(40.15, 44.40, 30.0, is_absolute=False)}, "no_capture_location"),
 ])
 def test_centre_needs_capture_time_state(poi_kwargs, reason):
-    centre = board_orbit_centre(_poi(_fit(), **poi_kwargs), GEO.camera_point_to_ned)
+    centre = board_orbit_centre(_poi(_fit(), **poi_kwargs), GEO.camera_point_to_ned, HOME)
     assert centre == BoardOrbitCentre(None, reason)
+
+
+@pytest.mark.parametrize("home", [None, Location(40.15, 44.40, 0.0, is_absolute=False),
+                                  Location(40.15, 44.40, math.nan, is_absolute=True)])
+def test_centre_needs_an_absolute_home(home):
+    centre = board_orbit_centre(_poi(_fit()), GEO.camera_point_to_ned, home)
+    assert centre == BoardOrbitCentre(None, "no_home")
+
+
+def test_centre_is_home_relative_for_the_orbit_planner():
+    """Codex review: the planner's fallback path subtracts the POI height from
+    the aircraft's home-relative height, so the centre must be home-relative."""
+    centre_ned, camera_points = _scene(60.0)
+    fit = SOLVER.solve(_corners(_pixels(camera_points, K5)), K5, DIST)
+    centre = board_orbit_centre(_poi(fit), GEO.camera_point_to_ned, HOME).location
+    aircraft_rel = CAMERA.alt - HOME.alt
+    assert centre.is_absolute is False
+    assert aircraft_rel - centre.alt == pytest.approx(centre_ned[2], abs=0.05)
 
 
 def test_centre_passes_on_refusals_and_absent_poses():
     rejection = BoardPoseRejection("reprojection", 12)
-    assert board_orbit_centre(_poi(rejection), GEO.camera_point_to_ned) == BoardOrbitCentre(
+    assert board_orbit_centre(_poi(rejection), GEO.camera_point_to_ned, HOME) == BoardOrbitCentre(
         None, "reprojection")
-    assert board_orbit_centre(_poi(None), GEO.camera_point_to_ned) is None
-    bad = board_orbit_centre(_poi(_fit()), lambda *args: np.array([math.nan, 0.0, 0.0]))
+    assert board_orbit_centre(_poi(None), GEO.camera_point_to_ned, HOME) is None
+    bad = board_orbit_centre(_poi(_fit()), lambda *args: np.array([math.nan, 0.0, 0.0]), HOME)
     assert bad == BoardOrbitCentre(None, "non_finite_centre")
 
 

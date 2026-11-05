@@ -266,6 +266,7 @@ def _self_detected_approach(
             needs_own_orbit=home_dock.needs_own_orbit,
             board_centre=lambda poi: board_orbit_centre(
                 poi, navigation.legacy_pois.geo_ref.camera_point_to_ned,
+                vehicle.home_location,
             ),
         ),
         state.navigation_task,
