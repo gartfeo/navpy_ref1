@@ -195,7 +195,9 @@ FACADE_METHOD_ALLOWANCES = {
     (
         "src/navpy/core/command/gimbal/gimbal_navigation.py",
         "GimbalNavigation",
-    ): FacadeMethodAllowance(1, 20, frozenset({"_parts"})),
+    # 21 = 20 + search_tick, the search sweep's tick from the tracking sink
+    # (HITL lean plan step 21, plan revision 25edd29c) -- a ratchet, not headroom.
+    ): FacadeMethodAllowance(1, 21, frozenset({"_parts"})),
     # 82 = 80 + the two capture-pose accessors (attitude_history,
     # link_identity) added by the approved capture-time association design
     # (§4 plumbing) -- a documented ratchet, not headroom.

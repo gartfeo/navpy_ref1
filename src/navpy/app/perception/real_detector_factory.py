@@ -19,6 +19,7 @@ from navpy.core.kernel.config.detector_backend import (
     validate_detector_backend,
 )
 from navpy.app.perception.fixed_zoom_profile import build_fixed_zoom
+from navpy.app.perception.gimbal_search_profile import build_gimbal_search
 from navpy.app.perception.integration_timing_input import IntegrationTimingInput
 from navpy.app.perception.vision_detector_factory_ports import VisionDetectorNode
 from navpy.core.perception.profile.vision_detector_profile import validate_detector_settings_keys
@@ -185,7 +186,14 @@ class RealDetectorFactory:
                     show=self._debug_show,
                     window_name=f"navpy-detector-{mount_index}",
                 ),
-                gimbal=DetectorGimbalConfig(tracking_config, zoom_config),
+                gimbal=DetectorGimbalConfig(
+                    tracking_config,
+                    zoom_config,
+                    search=(
+                        None if integration is None
+                        else build_gimbal_search(mount_spec.device, integration.gimbal_revoked)
+                    ),
+                ),
             ),
         )
         self._logger.info(

@@ -50,6 +50,8 @@ class VisualOwner(Protocol):
         principal_point: tuple[float, float] | None = None,
     ) -> None: ...
 
+    def search(self, seen: bool, new_frame: bool) -> None: ...
+
 
 class GimbalVisualParts(Protocol):
     visual: VisualOwner
@@ -148,6 +150,10 @@ class GimbalVisualFacet:
         principal_point: tuple[float, float] | None = None,
     ) -> None:
         self._parts.visual.update(poi, now, principal_point)
+
+    def search_tick(self, seen: bool, new_frame: bool) -> None:
+        """HITL step 21's search sweep; a no-op without a search profile."""
+        self._parts.visual.search(seen, new_frame)
 
 
 class GimbalZoomFacet:

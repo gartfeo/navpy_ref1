@@ -50,7 +50,7 @@ class TrackingRecoveryPort(Protocol):
 
 
 class TrackingNavigationPort(Protocol):
-    def update(self, pois: Sequence[DetectedObject]) -> None: ...
+    def update(self, pois: Sequence[DetectedObject], new_frame: bool = False) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -177,7 +177,7 @@ class TrackingResultPublisher:
         )
         self._publications.results.publish(pois, primary)
         self._publications.overlays.publish(result.tracks, result.locked)
-        self._navigation.update(pois)
+        self._navigation.update(pois, new_frame=True)
 
 
 class TrackingBatchProcessor:
