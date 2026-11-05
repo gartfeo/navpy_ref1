@@ -6,8 +6,8 @@ from __future__ import annotations
 import pytest
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
-from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, UdpClient, decode, heartbeat, set_interval,
-                                                wait_until)
+from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, UdpClient, decode, heartbeat, receivers_current,
+                                                set_interval, wait_until)
 from tests.tools.tuning.test_mav_router import GatedBoard
 from tools.tuning import approach_chain as chain
 from tools.tuning.approach_quiesce import allowed, audit
@@ -83,6 +83,7 @@ def observing(tmp_path):
                        announce=lambda line: None, control_port=0, write_log=log).start()
     ports = {name: c.sock.getsockname() for name, c in router.clients.items()}
     navpy.peer, runner.peer = ports["navpy"], ports["runner"]
+    wait_until(lambda: receivers_current(router))
     yield board, navpy, runner, router, log_path
     board.gate.set()
     router.close()

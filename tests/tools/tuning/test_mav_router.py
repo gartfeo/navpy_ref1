@@ -208,6 +208,7 @@ def rig():
                        [Client("runner", runner.port, False), Client("navpy", navpy.port, False),
                         Client("mp", mp.port, True)], announce=lambda line: None).start()
     board.accept()
+    wait_until(lambda: receivers_current(router))       # a packet read across the link-up is dropped (fail closed)
     board.send(heartbeat())                    # every client learns the router's address from it
     for client in (runner, navpy, mp):
         assert client.receive().get_type() == "HEARTBEAT"
@@ -366,6 +367,7 @@ def gated():
                        announce=lambda line: None, control_port=0).start()
     router_ports = {name: c.sock.getsockname() for name, c in router.clients.items()}
     navpy.peer, runner.peer = router_ports["navpy"], router_ports["runner"]
+    wait_until(lambda: receivers_current(router))
     yield board, navpy, runner, router
     board.gate.set()
     router.close()
@@ -387,6 +389,13 @@ def send_across_transition(client: UdpClient, router: MavRouter, name: str, land
         assert stale() == before + 1
         client.send(heartbeat())
         wait_until(landed)
+
+
+def receivers_current(router: MavRouter) -> bool:
+    """The board link is up and every receiver took it: a datagram a client sends now is not dropped as read across
+    the link-up (fail closed), until the next transition."""
+    with router._lock:
+        return router._link_up.is_set() and all(c.taken == (router._link_gen, c.epoch) for c in router.clients.values())
 
 
 def wait_until(predicate, seconds: float = WAIT_S) -> None:
@@ -652,7 +661,7 @@ def test_a_failed_open_releases_the_handle_before_the_retry():
     router = MavRouter(board, [Client("navpy", navpy.port, False)], announce=lambda line: None).start()
     navpy.peer = router.clients["navpy"].sock.getsockname()
     try:
-        wait_until(lambda: router._link_up.is_set())
+        wait_until(lambda: receivers_current(router))
         navpy.send(heartbeat())
         wait_until(lambda: len(board.written) == 1)
     finally:
@@ -668,6 +677,7 @@ def test_write_log_names_the_source_of_every_board_packet():
                        write_log=log).start()
     navpy.peer = router.clients["navpy"].sock.getsockname()
     try:
+        wait_until(lambda: receivers_current(router))
         navpy.send(heartbeat())
         navpy.send(M.MAVLink_command_long_message(1, 1, M.MAV_CMD_DO_SET_MODE, 0, 1, 10, 0, 0, 0, 0, 0))
         wait_until(lambda: len(board.written) == 2)
@@ -678,3 +688,45 @@ def test_write_log_names_the_source_of_every_board_packet():
     (stamp, source, message, command), command_line = lines
     assert source == "navpy" and int(message) == M.MAVLINK_MSG_ID_HEARTBEAT and float(stamp) > 0 and command == ""
     assert command_line[1:] == ["navpy", str(M.MAVLINK_MSG_ID_COMMAND_LONG), str(M.MAV_CMD_DO_SET_MODE)]
+
+
+class HeldFirstRead:
+    """A client socket whose receiver thread is held at its first read (a starved thread under CI load)."""
+
+    def __init__(self, sock: socket.socket) -> None:
+        self._sock = sock
+        self.release = threading.Event()
+
+    def recvfrom(self, size: int):
+        self.release.wait(WAIT_S)
+        return self._sock.recvfrom(size)
+
+    def __getattr__(self, name: str):
+        return getattr(self._sock, name)
+
+
+def test_receivers_are_current_only_once_each_took_the_link_up():
+    """A receiver late to its link-up wake-up drops what waits behind it; receivers_current says when it took it."""
+    board, navpy, board_present = GatedBoard(), UdpClient(NAVPY), threading.Event()
+    open_board = board.open
+    board.open = lambda: (board_present.wait(WAIT_S), open_board())
+    client = Client("navpy", navpy.port, False)
+    held = client.sock = HeldFirstRead(client.sock)
+    router = MavRouter(board, [client], announce=lambda line: None).start()
+    navpy.peer = held.getsockname()
+    try:
+        wait_until(lambda: client.taken is not None)   # the receiver took the link down, then the board appears
+        board_present.set()
+        wait_until(lambda: router._link_up.is_set())
+        assert not receivers_current(router)     # its wake-up is still waiting in the socket
+        navpy.send(heartbeat())                    # sent after the link came up, read after the wake-up
+        held.release.set()
+        wait_until(lambda: receivers_current(router))
+        assert router.report()["stats"]["dropped_stale_navpy"] == 1 and board.written == []
+        navpy.send(heartbeat())
+        wait_until(lambda: len(board.written) == 1)
+    finally:
+        board_present.set()
+        held.release.set()
+        router.close()
+        navpy.sock.close()

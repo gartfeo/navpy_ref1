@@ -2522,3 +2522,15 @@
   (drop the stop) to prove the check bites.
 - `vision_profiles.json` is CRLF; `cat -A` in Git Bash did not show it. Edit by exact
   replace that keeps the file's own line endings.
+
+## CI load failures: router link-up race and a runner stall (2026-11-05)
+
+- tests/tools/tuning/test_mav_router.py failed in CI with an empty board: the router's receiver read its link-up
+  wake-up late, so its fail-closed drain dropped the client packet queued behind it (stats showed
+  dropped_stale_navpy == 1). Fixtures that start a MavRouter must wait for receivers_current(router), not only
+  for _link_up, before a client sends. Holding the client socket's first read reproduces it every time.
+- Check progress-line timestamps before calling a CI failure a tight budget: run 41887204752 had two 63 s gaps
+  (other runs: at most 20 s). Its three failures (2 s cache close, 7 s relay stop, 60 s node) had 200x, 3x and
+  600x headroom under 2x CPU oversubscription locally, so the cause was a runner-wide stall, not the budgets.
+- Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
+  PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.
