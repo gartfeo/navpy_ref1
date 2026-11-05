@@ -249,7 +249,7 @@ def test_valid_airspeed_reaches_only_its_own_system_unchanged(chain):
         assert (m.get_srcSystem(), m.get_srcComponent(), m.get_seq(), m.id, m.flags) == tuple(
             fields(raw)[k] for k in ("src", "comp", "seq", "id", "flags"))
     assert (bus.airspeed.decoded, bus.airspeed.refused) == (len(VALID), 0)
-    assert router.stats["to_navpy"] == len(VALID) + 2
+    assert router.report()["stats"]["to_navpy"] == len(VALID) + 2
 
 
 def test_corrupt_airspeed_reaches_no_receiver(chain):
@@ -259,7 +259,7 @@ def test_corrupt_airspeed_reaches_no_receiver(chain):
     assert [bytes(m.get_msgbuf()) for m in airspeeds(got_own)] == [VALID[2]]
     assert airspeeds(got_peer) == []
     assert not any(isinstance(m, M.MAVLink_unknown) for m in got_own + got_peer)
-    assert router.stats["to_navpy"] == len(CORRUPT) + 3          # the router forwards them: only navpy refuses
+    assert router.report()["stats"]["to_navpy"] == len(CORRUPT) + 3          # the router forwards them: only navpy refuses
     assert (bus.airspeed.decoded, bus.airspeed.refused) == (1, len(CORRUPT))
 
 
