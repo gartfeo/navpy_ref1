@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from contextlib import AbstractContextManager
+
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.ports.flight_mode import FlightMode
@@ -90,6 +92,9 @@ class VehicleCommandFacet:
 
     def disarm(self) -> None:
         return self._parts.commands.disarm()
+
+    def exclusive_send(self) -> AbstractContextManager[None]:
+        return self._parts.commands.exclusive_send()
 
 
 class VehicleLifetimeFacet:

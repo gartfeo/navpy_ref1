@@ -352,7 +352,7 @@ def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(m
         return SimpleNamespace(stop=stops("controller"), set_network=MagicMock())
 
     vision = SimpleNamespace(stop=stops("vision"), geo_ref=object(), coordination=object(), approach_kind=object(),
-                             dock_contact=None, profile=object(), is_quiescent=True)
+                             dock_contact=None, profile=object(), is_quiescent=True, law_airspeed=None)
     foundation = SimpleNamespace(vehicle=MagicMock(), vision_args=object(), logger=MagicMock(), zc_util=None,
                                  navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
                                  vehicle_close_gate=SimpleNamespace(stop_vision=lambda stop, _q: stop()),

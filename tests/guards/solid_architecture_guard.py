@@ -157,6 +157,13 @@ PASSIVE_RECORD_FIELD_LIMITS = {
         "src/navpy/core/approach/vision_nav/command_transaction.py",
         "FinalApproachLawEvidence",
     ): 16,
+    # 13 = the default 12 + law_airspeed, the eligible airspeed reader that
+    # goes with integration timing (HITL step 20; __post_init__ refuses one
+    # without the other) -- a ratchet, not headroom.
+    (
+        "src/navpy/core/perception/pipeline/real_detector_config.py",
+        "DetectorPipelineConfig",
+    ): 13,
 }
 
 
@@ -208,10 +215,13 @@ FACADE_METHOD_ALLOWANCES = {
     # from a failed download so the GCS mission route answers an empty vehicle
     # with 200 (mission download outcome design, Codex-reviewed 2026-10-25)
     # -- a ratchet.
+    # 89 = 88 + exclusive_send, the send lock the HITL airspeed guard holds so
+    # its freshness check and its attitude write are one step (HITL step 20,
+    # Codex round 2) -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 88, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 89, frozenset({"_parts"})),
     # 45 = 44 + gimbal_capture_history, the gimbal readback history that
     # integration timing brackets at the capture instant (HITL stage 1
     # step 11, hitl_final_approach.md section 9) -- a ratchet, not headroom.
@@ -247,10 +257,13 @@ FACADE_METHOD_ALLOWANCES = {
     ): FacadeMethodAllowance(1, 17, frozenset({"_parts"})),
     # 17: + dock_contact, the sim net stand-in handed to navigation
     # (physical_docking.md); None in a real build.
+    # 18 = 17 + law_airspeed, the eligible airspeed source and write guard
+    # handed to navigation (HITL step 20); None outside HITL -- a ratchet,
+    # not headroom.
     (
         "src/navpy/app/perception/vision_controller.py",
         "VisionController",
-    ): FacadeMethodAllowance(17, 17, frozenset({"_ports"})),
+    ): FacadeMethodAllowance(18, 18, frozenset({"_ports"})),
     # 23 = 22 + get_capture_history, the session- and sequence-ordered
     # readback history (HITL stage 1 step 11) -- a ratchet, not headroom.
     (
