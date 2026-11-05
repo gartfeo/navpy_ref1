@@ -66,6 +66,11 @@ class CharucoBoardPoseSolver:
         centre_mm = np.array([0.5 * width_mm, 0.5 * height_mm, 0.0])
         self._object_m = (corners_mm - centre_mm) / _MM_PER_M
 
+    @property
+    def board_points_m(self) -> np.ndarray:
+        """The interior corners by id, board-centred, in metres (a copy)."""
+        return self._object_m.copy()
+
     def solve(
         self,
         corners: BoardCorners,

@@ -7,9 +7,12 @@ cannot read. Nothing here reaches navpy: navpy gets only the profile radius, and
 no seed (only the scenario's public lane and limits, scenario_public.py).
 
 Geometry: the aircraft circles at radius r, h = lane height - board height above home. The circle's centre is
-navpy's own geolocation of the board; at this range step 22's pose fit may be refused, so the centre can be the
-height-zero ground ray, which lies r * board_height / h beyond the board. The board is then between r - e and r + e
-away horizontally, e = max(that error, step 22's 0.5 m pose limit).
+navpy's own geolocation of the board from the first frame that finds it. Step 22's pose fit places it within
+POSE_CENTRE_LIMIT_M (step 22's 0.5 m) when the fit is accepted; a refused fit leaves the
+height-zero ground ray, r * board_height / h beyond the board. The check runs the product's solver on seeded noisy
+corners (POSE_DRAWS draws, CORNER_NOISE_FLOOR_PX) at the farthest slant the board can be read from at the planned
+zoom and height, sqrt(fy * square * h / reader limit); only if every draw is accepted is the centre error the
+accepted limit, else the ground ray. The board is then between r - e and r + e away horizontally.
 
 Checks, each using the model speed (the run's commanded airspeed, inside the model's declared airspeed band) and
 the profile's measured optics at the planned zoom step:
@@ -41,13 +44,22 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Optional
 
+import cv2
+import numpy as np
+
 from navpy.app.perception.fixed_zoom_profile import build_fixed_zoom
 from navpy.core.perception.profile.vision_profile_loader import load_profiles
 from navpy.core.perception.zoom.fixed_step_zoom_policy import ContainmentMargins
 from navpy.core.perception.zoom.fixed_zoom_steps import FixedZoomSteps, ZoomStep
+from navpy.core.ports.board_pose import BoardPoseFit
+from navpy.core.ports.detection import BoardCorners
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 from navpy.core.skills.acquire.orbit_radius_setting import final_approach_orbit_setting
-from navpy.plugins.detection.charuco.charuco_board import charuco_board_spec_from_settings
+from navpy.plugins.detection.charuco.board_pose import (
+    CORNER_NOISE_FLOOR_PX,
+    CharucoBoardPoseSolver,
+)
+from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec, charuco_board_spec_from_settings
 from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
 from tools.hitl import scenario_public as sp
 from tools.hitl.json_checks import read_json
@@ -63,6 +75,11 @@ READER_MIN_SQUARE_PX = 11.5
 PULL_OUT_ALLOWANCE_M = 9.0
 # Step 22's done limit on the own-detected centre when its pose fit is accepted.
 POSE_CENTRE_LIMIT_M = 0.5
+# My value: seeded draws of the pose prediction (deterministic; every one must be accepted).
+POSE_DRAWS = 40
+POSE_SEED = 23
+# Board yaws the prediction tries, relative to the line of sight (the scene's yaw is drawn per seed).
+POSE_YAWS_DEG = (0.0, 45.0, 90.0)
 MODEL_AIRSPEED_BAND = "airspeed_m_s"
 MIN_PITCH_PARAM = "PTCH_LIM_MIN_DEG"
 CRUISE_PARAM = "AIRSPEED_CRUISE"
@@ -70,10 +87,20 @@ CRUISE_PARAM = "AIRSPEED_CRUISE"
 
 @dataclass(frozen=True)
 class Board:
-    """The ChArUco grid the detector boxes, in metres."""
-    width_m: float
-    length_m: float
-    square_m: float
+    """The ChArUco board the detector boxes and the pose fit uses (the profile's detector.charuco)."""
+    spec: CharucoBoardSpec
+
+    @property
+    def width_m(self) -> float:
+        return self.spec.squares_x * self.spec.square_mm / 1000.0
+
+    @property
+    def length_m(self) -> float:
+        return self.spec.squares_y * self.spec.square_mm / 1000.0
+
+    @property
+    def square_m(self) -> float:
+        return self.spec.square_mm / 1000.0
 
     @property
     def diagonal_m(self) -> float:
@@ -112,10 +139,48 @@ def height_above_board(plan: OrbitPlan) -> float:
     return plan.lane_height_m - plan.board_height_m
 
 
+def reading_slant_m(plan: OrbitPlan, step: ZoomStep) -> float:
+    """The farthest slant the board's squares are read from at this step and height (px = fy s h / R^2)."""
+    return math.sqrt(step.optics.fy * plan.board.square_m * height_above_board(plan) / plan.reader_min_square_px)
+
+
+def _board_in_camera(points_m: np.ndarray, slant_m: float, h: float, yaw_deg: float) -> np.ndarray:
+    """The flat board's corners in the camera frame (x right, y down, z forward), centred on the optical axis and
+    seen from depression asin(h / slant), turned yaw_deg about its own normal."""
+    sin_d = h / slant_m
+    cos_d = math.sqrt(max(0.0, 1.0 - sin_d * sin_d))
+    normal = np.array([0.0, cos_d, sin_d])          # into the printed face: down, away from the camera
+    along = np.array([0.0, sin_d, -cos_d])
+    yaw = math.radians(yaw_deg)
+    x_axis = math.cos(yaw) * np.array([1.0, 0.0, 0.0]) + math.sin(yaw) * along
+    y_axis = np.cross(normal, x_axis)
+    return np.array([0.0, 0.0, slant_m]) + points_m[:, :1] * x_axis + points_m[:, 1:2] * y_axis         + points_m[:, 2:3] * normal
+
+
+def pose_accepted_at(plan: OrbitPlan, step: ZoomStep, slant_m: float) -> bool:
+    """Whether the product's solver accepts every seeded noisy fit of the board at this slant and step."""
+    solver = CharucoBoardPoseSolver(plan.board.spec)
+    points = solver.board_points_m
+    k, dist = step.optics.k(), step.optics.dist_coeffs()
+    rng = np.random.default_rng(POSE_SEED)
+    for yaw in POSE_YAWS_DEG:
+        image, _ = cv2.projectPoints(_board_in_camera(points, slant_m, height_above_board(plan), yaw),
+                                     np.zeros(3), np.zeros(3), k, dist)
+        image = image.reshape(-1, 2)
+        for _ in range(POSE_DRAWS):
+            noisy = image + rng.normal(0.0, CORNER_NOISE_FLOOR_PX, image.shape)
+            corners = BoardCorners(tuple(range(len(noisy))), tuple((float(u), float(v)) for u, v in noisy))
+            if not isinstance(solver.solve(corners, k, dist), BoardPoseFit):
+                return False
+    return True
+
+
 def centre_error_m(plan: OrbitPlan) -> float:
-    """The worst horizontal error of the orbit centre: the height-zero ground ray, or the pose limit."""
-    h = height_above_board(plan)
-    return max(abs(plan.radius_m * plan.board_height_m / h), POSE_CENTRE_LIMIT_M)
+    """The worst horizontal error of the orbit centre: the accepted pose limit, or the height-zero ground ray."""
+    step = _planned_step(plan)
+    if step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step)):
+        return POSE_CENTRE_LIMIT_M
+    return abs(plan.radius_m * plan.board_height_m / height_above_board(plan))
 
 
 def _slant(horizontal_m: float, h: float) -> float:
@@ -230,8 +295,7 @@ def _zoom_steps(profile: Mapping[str, Any]) -> FixedZoomSteps:
 
 def _board(profile: Mapping[str, Any]) -> Board:
     spec = charuco_board_spec_from_settings(profile.get("detector", {}))
-    return Board(spec.squares_x * spec.square_mm / 1000.0, spec.squares_y * spec.square_mm / 1000.0,
-                 spec.square_mm / 1000.0)
+    return Board(spec)
 
 
 def _airspeed_band(model_input: Mapping[str, Any]) -> Optional[tuple[float, float]]:

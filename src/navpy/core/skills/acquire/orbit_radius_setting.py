@@ -3,7 +3,7 @@
 Without the setting the floor is ``MIN_APPROACH_STANDOFF_M`` (500 m), unchanged. A HITL profile (its name holds
 "hitl"; ``tests/modules/navigation/test_approach_geometry.py`` keeps it so) may replace it::
 
-    "final_approach_orbit": {"radius_m": 170.0}
+    "final_approach_orbit": {"radius_m": 300.0}
 
 The setting replaces only the floor: ``r_nav_min``'s turn and descent terms still apply on top, so the planner
 never flies an orbit its own envelope check calls infeasible. The HITL tools' pre-series orbit check refuses a

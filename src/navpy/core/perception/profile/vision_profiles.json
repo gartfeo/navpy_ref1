@@ -760,7 +760,7 @@
     "siyi_zr10_hitl_encoded": {
       "extends": "siyi_zr10",
       "final_approach_orbit": {
-        "radius_m": 170.0
+        "radius_m": 300.0
       },
       "device_overrides": {
         "siyi_zr10": {
