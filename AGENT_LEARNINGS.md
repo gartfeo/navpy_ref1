@@ -2657,3 +2657,16 @@
   is NAV_FAIL source_command_stale. Check the logs for a real exit before hunting a crash.
 - **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
   stops on BaseException; tests use a BaseException subclass to pin that.
+
+## Trail blink, todo 293 (2026-11-06)
+
+- A Cesium entity polyline whose positions change often blinks or lags: static entity geometry is built
+  asynchronously, the old primitive stays until the new one is ready, and a change during a build drops it.
+  Draw such lines with a `PolylineCollection` (synchronous) or a CallbackProperty, and call
+  `scene.requestRender()` after a primitive change under requestRenderMode.
+- To prove it live: wrap `StaticGeometryColorBatch.prototype.update`, snapshot the positions each new
+  primitive is built from, and compare per frame with what should be drawn. On this branch Cesium loads from
+  `/node_modules/cesium/Source/Cesium.js` (not `/deps/`), and the resource-timing buffer can be full: import
+  that path directly.
+- I ran `git stash` to test the old hook, against the session rule (stashes are shared by every worktree).
+  It was popped at once. To test old code, copy `git show HEAD:<file>` to the scratchpad and swap the file.
