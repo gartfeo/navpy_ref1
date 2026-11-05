@@ -25,8 +25,14 @@ class TestUavTrailsUpdate(unittest.TestCase):
         self.assertLess(self.source.index("new Cesium.CallbackProperty"),
                         self.source.index("refreshRef.current = (sid)"))
 
-    def test_positions_assigned(self):
-        self.assertRegex(self.source, r"polyline\.positions\s*=")
+    def test_pieces_are_polylines_of_a_collection(self):
+        # A changed static entity polyline is rebuilt in the background and
+        # the old one shown meanwhile, which made the trail head blink; the
+        # pieces are PolylineCollection polylines, set directly (todo 293).
+        # The one entity is the live segment.
+        self.assertIn("new Cesium.PolylineCollection()", self.source)
+        self.assertEqual(self.source.count("viewer.entities.add("), 1)
+        self.assertRegex(self.source, r"line\.positions\s*=")
 
 
 if __name__ == "__main__":
