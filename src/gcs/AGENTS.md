@@ -153,8 +153,8 @@ Frontend:
 - `Connect` should discover vehicles after a short wait; buttons should then
   say `Stop NavPy`, not `Start NavPy`.
 - Container launch: hold `HOLD TO LAUNCH` for 1 s, then confirm; a single
-  stray click never launches. Bungee `START MISSION` starts with a short
-  click. When not ready (for example low battery), holding `START` then
+  stray click never launches. Bungee `START MISSION` works the same way:
+  hold `HOLD TO START` for 1 s, then confirm. When not ready (for example low battery), holding `START` then
   confirming is the force-start override.
 - `E-STOP` requires confirmation.
 - Right panel (`docs/design/gcs_handheld_layout.md`): docked and open at 695 px

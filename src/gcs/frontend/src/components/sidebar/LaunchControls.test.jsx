@@ -13,8 +13,8 @@ beforeEach(() => {
 const advance = (ms) => act(() => { vi.advanceTimersByTime(ms); });
 const renderBtn = (props) => render(<ForceStartButton label="START" disabled={false} {...props} />);
 
-describe('ForceStartButton — bungee (armReady false)', () => {
-  // #4 — the bungee START MISSION button keeps single-click behaviour.
+describe('ForceStartButton — armReady false', () => {
+  // #4 — without armReady the button is a plain single-click start.
   it('fires onStart on a single click when ready', () => {
     const onStart = vi.fn();
     const { getByRole } = renderBtn({ ready: true, onStart });
