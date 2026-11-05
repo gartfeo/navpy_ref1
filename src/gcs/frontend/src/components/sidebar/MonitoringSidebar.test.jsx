@@ -18,8 +18,10 @@ vi.mock('../../hooks/useContainerLauncher', () => ({ default: () => launcher }))
 vi.mock('./VehicleStatusCard', () => ({ default: ({ vehicle }) => <div>card {vehicle.sys_id}</div> }));
 vi.mock('../../utils/prearmChecks', async (importOriginal) => ({
   ...(await importOriginal()),
-  computeLaunchReadiness: () => ({ ready: true, issues: [], advisories: [] }),
+  computeLaunchReadiness: () => readiness.current,
 }));
+const READY = { ready: true, issues: [], advisories: [] };
+const readiness = { current: READY };
 
 const UAV = { sys_id: 7, name: 's1-u7', armed: false, mission_total: 3 };
 const PLAN = { zones: [{ track: [] }] };
@@ -49,13 +51,14 @@ const inSlot = (view) => within(view.getByTestId('slot'));
 
 beforeEach(() => {
   launcher.containerLaunching = false;
+  readiness.current = READY;
   vi.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
 });
 
 describe('MonitoringSidebar footer', () => {
-  it('bungee with a plan: START MISSION is in the slot', () => {
+  it('bungee with a plan: HOLD TO START is in the slot', () => {
     const view = render(<Host />);
-    expect(inSlot(view).getByRole('button', { name: 'monitor.startMission' })).toBeInTheDocument();
+    expect(inSlot(view).getByRole('button', { name: 'monitor.holdToStart' })).toBeInTheDocument();
   });
 
   it('with no GCS plan: the download button is in the slot, for each launch type', () => {
@@ -96,7 +99,7 @@ describe('MonitoringSidebar footer', () => {
 
   it('with no slot the action renders in the flow', () => {
     const view = render(<Host withSlot={false} />);
-    expect(view.getByRole('button', { name: 'monitor.startMission' })).toBeInTheDocument();
+    expect(view.getByRole('button', { name: 'monitor.holdToStart' })).toBeInTheDocument();
   });
 
   it('takes back the sidebar padding: same width and gap as in the flow', () => {
@@ -116,7 +119,7 @@ describe('MonitoringSidebar footer pinning', () => {
   const PINNED = { position: 'sticky', bottom: '0px' };
   const IN_FLOW = { position: '', bottom: '' };
   const START_ACTIONS = [
-    ['bungee START MISSION', { settings: SETTINGS('bungee') }],
+    ['bungee HOLD TO START', { settings: SETTINGS('bungee') }],
     ['container HOLD TO LAUNCH', { settings: SETTINGS('container') }],
     ['download with no plan, bungee', { settings: SETTINGS('bungee'), plan: null }],
     ['download with no plan, container', { settings: SETTINGS('container'), plan: null }],
@@ -136,12 +139,12 @@ describe('MonitoringSidebar footer pinning', () => {
     const fleet = [{ ...UAV, airspeed_present: true }];
     const view = render(<Host settings={settings} vehicleList={fleet} />);
     const box = inSlot(view).getByRole('checkbox');
-    const start = inSlot(view).getByRole('button', { name: 'monitor.startMission' });
+    const start = inSlot(view).getByRole('button', { name: 'monitor.holdToStart' });
     fireEvent.click(box);
     view.rerender(<Host settings={settings} vehicleList={fleet} startPinned={false} />);
     // The same elements: a remount would lose a running hold, which lives in the button.
     expect(inSlot(view).getByRole('checkbox')).toBe(box);
-    expect(inSlot(view).getByRole('button', { name: 'monitor.startMission' })).toBe(start);
+    expect(inSlot(view).getByRole('button', { name: 'monitor.holdToStart' })).toBe(start);
     expect(box.checked).toBe(true);
   });
 
@@ -177,6 +180,83 @@ describe('MonitoringSidebar footer pinning', () => {
     );
     expect(inSlot(view).getByRole('button', { name: 'launch.abortLaunch' })).toBeInTheDocument();
     expect(pinning(view)).toEqual(PINNED);
+  });
+});
+
+describe('MonitoringSidebar bungee START MISSION: hold, then confirm', () => {
+  const hold = (button) => {
+    fireEvent.mouseDown(button);
+    act(() => { vi.advanceTimersByTime(LONG_PRESS_MS + 32); });
+    fireEvent.mouseUp(button);
+  };
+  const goButton = (view) => view.queryByRole('button', { name: 'monitor.startMissionGo' });
+
+  it('a single click starts nothing and opens no confirmation', () => {
+    const onRestart = vi.fn(async () => {});
+    const view = render(<Host onRestart={onRestart} />);
+    fireEvent.click(inSlot(view).getByRole('button', { name: 'monitor.holdToStart' }));
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it('a hold shorter than the arm time opens no confirmation', () => {
+    const onRestart = vi.fn(async () => {});
+    const view = render(<Host onRestart={onRestart} />);
+    const button = inSlot(view).getByRole('button', { name: 'monitor.holdToStart' });
+    fireEvent.mouseDown(button);
+    act(() => { vi.advanceTimersByTime(LONG_PRESS_MS / 2); });
+    fireEvent.mouseUp(button);
+    act(() => { vi.advanceTimersByTime(LONG_PRESS_MS); });
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it('a full hold opens the confirmation; Cancel starts nothing; Confirm starts once', async () => {
+    const onRestart = vi.fn(async () => {});
+    const view = render(<Host onRestart={onRestart} />);
+    const button = inSlot(view).getByRole('button', { name: 'monitor.holdToStart' });
+
+    hold(button);
+    expect(goButton(view)).not.toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+    fireEvent.click(view.getByRole('button', { name: 'confirm.cancel' }));
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+
+    hold(button);
+    await act(async () => { fireEvent.click(goButton(view)); });
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).toHaveBeenCalledTimes(1);
+    expect(onRestart).toHaveBeenCalledWith([7], { pitotCovered: false });
+  });
+
+  it('collapsing closes an open start confirmation', () => {
+    const onRestart = vi.fn(async () => {});
+    const view = render(<Host onRestart={onRestart} />);
+    hold(inSlot(view).getByRole('button', { name: 'monitor.holdToStart' }));
+    expect(goButton(view)).not.toBeNull();
+    view.rerender(<Host onRestart={onRestart} hidden />);
+    view.rerender(<Host onRestart={onRestart} hidden={false} />);
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
+  });
+
+  it('not ready: the force override is unchanged (hold, browser confirm, force start)', async () => {
+    readiness.current = { ready: false, issues: ['low battery'], advisories: [] };
+    const onRestart = vi.fn(async () => {});
+    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
+    try {
+      const view = render(<Host onRestart={onRestart} />);
+      const button = inSlot(view).getByRole('button', { name: 'monitor.startMission' });
+      fireEvent.click(button);
+      expect(onRestart).not.toHaveBeenCalled();
+      await act(async () => { hold(button); });
+      expect(confirm).toHaveBeenCalledWith('monitor.forceStartConfirm');
+      expect(goButton(view)).toBeNull();
+      expect(onRestart).toHaveBeenCalledWith([7], { force: true, pitotCovered: false });
+    } finally {
+      confirm.mockRestore();
+    }
   });
 });
 

@@ -77,8 +77,19 @@ class FinalApproachCommandFreshness:
     def __init__(self, wall_period_s: Callable[[float], float]) -> None:
         self._wall_period_s = wall_period_s
 
-    def is_fresh(self, timing: FinalApproachCommandTiming) -> bool:
-        return self.check(timing).fresh
+    def is_fresh(
+        self,
+        timing: FinalApproachCommandTiming,
+        on_stale: Callable[[FinalApproachFreshnessCheck], None] | None = None,
+    ) -> bool:
+        """``on_stale`` names the failed bound (todo 230); it never decides."""
+        check = self.check(timing)
+        if not check.fresh and on_stale is not None:
+            try:
+                on_stale(check)
+            except Exception:  # noqa: BLE001 - a diagnostic sink must not decide
+                pass
+        return check.fresh
 
     def check(
         self,

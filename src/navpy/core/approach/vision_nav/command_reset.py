@@ -56,6 +56,8 @@ class FinalApproachCommandReset:
     def reset_phase(self) -> None:
         """RESET or the next episode: the only reset of the episode latch."""
         with self._ports.lock:
+            # A failed drain keeps the episode (its terminal is the NAV exit's
+            # evidence); the exit retries next cycle and resets it then.
             self._retire_and_flush_locked()
             self._ports.liveness.reset()
             self._ports.episode.reset()
@@ -69,11 +71,12 @@ class FinalApproachCommandReset:
     def _retire_and_flush_locked(self) -> None:
         self._invalidate_locked()
         staged = self._ports.docked_evidence.take_staged()
-        self._ports.postprocess_fence.drain()
         try:
+            self._ports.postprocess_fence.drain()
             # Earlier command evidence has drained; a DOCKED row the worker
             # never took is written now, before the phase's SNAP. A failure
-            # propagates like a failed drain, never silently.
+            # propagates like a failed drain, never silently, and control
+            # state is reset either way.
             if staged is not None:
                 self._ports.docked_evidence.record_now(staged)
         finally:

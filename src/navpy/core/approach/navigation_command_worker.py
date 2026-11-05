@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from contextlib import suppress
 from typing import Any, Callable, ContextManager, Protocol
 
 from navpy.core.kernel import runtime_time as rt
@@ -95,6 +96,15 @@ class NavigationCommandWorker:
     def __init__(self, ports: NavigationCommandWorkerPorts) -> None:
         self._ports = ports
 
+    def run_until_stopped(self) -> None:
+        while not self._ports.stop_event.is_set():
+            try:
+                self.run()
+            except Exception as exc:  # noqa: BLE001 - a dead worker stalls every later approach
+                with suppress(Exception):
+                    self._ports.logger.error(f"Command worker restarting after: {exc}", exc)
+                self._ports.stop_event.wait(self._ports.scheduler_period_s)
+
     def run(self) -> None:
         ports = self._ports
         period_s = self._wall_period_s()
@@ -152,18 +162,17 @@ class NavigationCommandWorker:
                             try:
                                 postprocess_job = runtime.postprocess_job(work)
                             except Exception as exc:
-                                ports.logger.error(
-                                    "Error preparing final-approach postprocess: "
-                                    f"{exc}",
-                                    exc,
-                                )
+                                with suppress(Exception):
+                                    ports.logger.error(
+                                        f"Error preparing final-approach postprocess: {exc}", exc,
+                                    )
                             try:
                                 runtime.finish_work(work)
                             except Exception as exc:
-                                ports.logger.error(
-                                    f"Error finishing final-approach work: {exc}",
-                                    exc,
-                                )
+                                with suppress(Exception):
+                                    ports.logger.error(
+                                        f"Error finishing final-approach work: {exc}", exc,
+                                    )
                     continuing_work = (
                         runtime.has_command_pending_or_in_flight()
                     )
@@ -228,9 +237,8 @@ class NavigationCommandWorker:
         try:
             self._ports.command_loop.note_iteration(iteration)
         except Exception as exc:  # noqa: BLE001
-            self._ports.logger.error(
-                f"Error observing command iteration: {exc}", exc
-            )
+            with suppress(Exception):  # a failing logger must not skip cleanup
+                self._ports.logger.error(f"Error observing command iteration: {exc}", exc)
 
     def _note_command(
         self, iteration: int, command: Any, raised: bool
@@ -240,9 +248,8 @@ class NavigationCommandWorker:
                 iteration, command, raised
             )
         except Exception as exc:  # noqa: BLE001
-            self._ports.logger.error(
-                f"Error observing issued command: {exc}", exc
-            )
+            with suppress(Exception):  # a failing logger must not strand the fence
+                self._ports.logger.error(f"Error observing issued command: {exc}", exc)
 
     def _wait_for_deadline(self, deadline_s: float) -> tuple[bool, bool]:
         """Sleep to the AP deadline without Windows Event timeout quantization."""

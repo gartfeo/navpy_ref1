@@ -28,6 +28,7 @@ from navpy.app.flow.nav_composition_types import (
 )
 from navpy.core.flow.nav_display import NavDisplayBuilder, NavOutcomeLatch
 from navpy.core.flow.nav_state import NavState
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.app.flow.nav_delivery_composition import compose_sortie_finish
 from navpy.products.delivery.flow import restart_search
 from navpy.core.flow.nav_task_availability import is_approaching
@@ -228,7 +229,8 @@ def compose_nav_application(
         decision.decision,
         actions,
     )
-    loop = NavigationLoop(cycle, state.clock, logger)
+    loop = NavigationLoop(cycle, state.clock, logger, on_cycle_error=(
+        lambda error: _fail_active_approach(state, error)))
     shutdown = NavShutdown(
         final_approach_nav.close_source_admission,
         navigation.reset,
@@ -237,6 +239,12 @@ def compose_nav_application(
         logger,
     )
     return NavApplication(loop, observation.network, shutdown, state.overrides)
+
+
+def _fail_active_approach(state: NavStateOwnership, _error: Exception) -> None:
+    """Fail an active approach closed after a NAV cycle error; else nothing."""
+    if state.phase.is_current(NavState.NAV):
+        state.navigation_failures.mark_failed(fail_reason.INTERNAL_ERROR)
 
 
 def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:

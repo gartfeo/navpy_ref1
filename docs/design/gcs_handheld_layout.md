@@ -195,7 +195,7 @@ by itself when its time ends. So while any round exists, pending or decided, the
 start action is not pinned: it lies after the sidebar, where it is today. It is
 not pinned again the moment a card is decided, because it would then come back
 under the finger that just tapped Approve, and a short click on START MISSION
-starts the mission. The abort stays pinned in every state. The footer holds:
+started the mission (since todo 289 it needs a 1 s hold and a confirm). The abort stays pinned in every state. The footer holds:
 
 - bungee: the pitot acknowledgement and `ForceStartButton` (START MISSION), or
   the download or start planning button when there is no GCS plan;
@@ -360,7 +360,8 @@ ends above the sticks. Otherwise RC stays as it is. A selected UAV with held vid
 - When the last round leaves (a denied or cancelled row ends after 8 s, an approved one
   when its UAV disarms), the start
   action pins again with no operator action, over the panel's bottom. A tap at that
-  moment can land on it, and START MISSION fires on a short click. On origin/main the
+  moment can land on it; START MISSION fired on a short click (since todo 289 it needs a
+  1 s hold and a confirm). On origin/main the
   same row leaving moves START MISSION up wherever it is on screen, so the hazard is
   not new, but it now also applies on short screens. No guard timer was added: the
   rest of the app has none.

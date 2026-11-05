@@ -682,6 +682,11 @@
     "start": "ՍԿՍԵԼ",
     "holdToLaunch": "ՍԵՂՄԱԾ ՊԱՀԵՔ՝ ԱՐՁԱԿԵԼ",
     "startMission": "ՍԿՍԵԼ ԱՌԱՔԵԼՈՒԹՅՈՒՆԸ",
+    "holdToStart": "ՍԵՂՄԱԾ ՊԱՀԵՔ՝ ՍԿՍԵԼ",
+    "startMissionTitle": "ՍԿՍԵԼ ԱՌԱՔԵԼՈՒԹՅՈՒՆԸ",
+    "startMissionConfirm_one": "Զինե՞լ {{count}} ԱԹՍ-ն և սկսել առաքելությունը։",
+    "startMissionConfirm_other": "Զինե՞լ բոլոր {{count}} ԱԹՍ-ները և սկսել առաքելությունը։",
+    "startMissionGo": "ՍԿՍԵԼ",
     "launchSequence": "Արձակման հաջորդականություն",
     "starting": "Սկսվում է...",
     "restartMission": "ՎԵՐԱՍԿՍԵԼ",
@@ -1217,6 +1222,7 @@
       "final_approach_record_unavailable": "մոտեցման գրառումը հասանելի չէ",
       "source_event_active_poi_missing": "POI-ն բացակայում է",
       "source_event_pump": "տեսողական աղբյուրը ձախողվեց",
+      "internal_error": "NavPy-ի ներքին սխալ",
       "unknown": "այլ, տե՛ս NavPy-ի մատյանը"
     }
   },

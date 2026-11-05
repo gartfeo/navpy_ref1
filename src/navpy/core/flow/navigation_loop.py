@@ -139,10 +139,13 @@ class NavigationLoop:
         logger: ILogger,
         monotonic_s: Callable[[], float] = rt.perf_counter,
         sleep_s: Callable[[float], None] = rt.sleep,
+        on_cycle_error: Callable[[Exception], None] = lambda error: None,
     ) -> None:
         self._cycle = cycle
         self._clock = clock
         self._logger = logger
+        self._on_cycle_error = on_cycle_error
+        self._last_reported_error: tuple[str, str] | None = None
         self._monotonic_s = monotonic_s
         self._sleep_s = sleep_s
         self.period_s = NAV_LOOP_PERIOD_S
@@ -198,6 +201,8 @@ class NavigationLoop:
                 # stop_event wait below still makes shutdown deterministic.
                 self._logger.error(f"nav loop error: {error}")
                 traceback.print_exc()
+            except Exception as error:  # noqa: BLE001 - fail closed, keep flying
+                self._recover(error)
             elapsed = self._monotonic_s() - started
             wall_period = self._clock.scheduler_wall_period(self.period_s)
             if elapsed - wall_period > 0.5:
@@ -214,6 +219,37 @@ class NavigationLoop:
                     monotonic_s=self._monotonic_s,
                     sleep_s=self._sleep_s,
                 )
+
+
+    def _recover(self, error: Exception) -> None:
+        """Log and report a cycle failure, then fail the episode closed.
+
+        A cycle error never ends the loop (2026-11-05 owner ruling: no
+        scenario may crash NavPy). ``on_cycle_error`` fails an active final
+        approach, so the next cycle takes the normal NAV_FAIL -> RESET path;
+        outside NAV the next cycle simply runs again. A repeating error is
+        reported once until a different one occurs.
+        """
+        key = (type(error).__name__, str(error))
+        repeated = key == self._last_reported_error
+        self._last_reported_error = key
+        try:
+            if not repeated:
+                self._logger.error(
+                    f"nav loop internal error: {key[0]}: {key[1]}\n"
+                    + "".join(traceback.format_exception(error))
+                )
+                self._logger.warning(
+                    f"NavPy internal error: {key[0]}",
+                    key="nav",
+                    dest=LogStatusDest.DRONE,
+                )
+        except Exception:  # noqa: BLE001 - a failing logger must not end the loop
+            traceback.print_exc()
+        try:
+            self._on_cycle_error(error)
+        except Exception:  # noqa: BLE001 - recovery is best effort; the loop runs on
+            traceback.print_exc()
 
 
 __all__ = [

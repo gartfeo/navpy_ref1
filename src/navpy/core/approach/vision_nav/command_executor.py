@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass, field
 
 from navpy.core.kernel import runtime_time as rt
@@ -23,6 +24,7 @@ from navpy.core.approach.vision_nav.command_hold import (
 from navpy.core.approach.vision_nav.command_freshness import (
     FinalApproachCommandFreshness,
     FinalApproachCommandTiming,
+    FinalApproachFreshnessCheck,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
     FinalApproachCommandFailureSink,
@@ -109,6 +111,7 @@ class FinalApproachExecutorPorts:
     failures: FinalApproachCommandFailureSink
     freshness: FinalApproachCommandFreshness
     postprocess_fence: FinalApproachPostprocessFence
+    report_stale: Callable[[FinalApproachFreshnessCheck], None] = lambda check: None
 
 
 class FinalApproachCommandExecutor:
@@ -229,7 +232,7 @@ class FinalApproachCommandExecutor:
         terminal = ports.transaction.terminal_result()
         if terminal is not None:
             return terminal
-        if timing is None or not ports.freshness.is_fresh(timing):
+        if timing is None or not ports.freshness.is_fresh(timing, ports.report_stale):
             ports.failures.mark_failed()
             return None
         try:
