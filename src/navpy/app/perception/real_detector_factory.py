@@ -172,6 +172,10 @@ class RealDetectorFactory:
                     capture_wrapper=(
                         None if integration is None else integration.capture_wrapper
                     ),
+                    law_airspeed=(
+                        None if integration is None or integration.airspeed is None
+                        else integration.airspeed.read
+                    ),
                     fixed_zoom=(
                         None if integration is None
                         else build_fixed_zoom(mount_spec.device)

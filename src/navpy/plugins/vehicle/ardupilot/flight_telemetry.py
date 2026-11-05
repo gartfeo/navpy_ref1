@@ -39,6 +39,8 @@ class FlightTelemetry:
 
     @property
     def air_speed(self) -> float | None:
+        """VFR_HUD's flight-summary airspeed: ArduPilot's estimate, synthetic when no sensor is used. Never a HITL
+        law input; HITL reads only the eligible source (airspeed_eligibility.py)."""
         hud = self._messages.message("VFR_HUD")
         return hud.airspeed if hud else None
 

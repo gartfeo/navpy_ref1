@@ -2397,6 +2397,15 @@
   test_mission_transfer took 0.56 s at `-n 8`; it passes alone. The serial
   run under load failed two such checks too. Rerun alone before calling it a
   regression.
+- **CI on a fresh runner finds host dependencies.** The first Windows CI runs
+  failed on tests that read real WSL, on `perf_counter` (Windows: time since
+  boot, under 1000 s on a new runner) and on Lua 5.3 `math.random` (the C
+  library's generator: one seed draws differently in WSL and on Windows).
+  Stub host inputs; don't skip. Try other seeds before trusting a seeded
+  tolerance: seed 7 hid the todo 268 gap.
+- **One concurrency group for main cancels main's checks.** Two pushes 6 min
+  apart left 3e4ceef3 and e1928be2 with cancelled runs; each main push now
+  gets its own group by run id, not commit, since a commit can be pushed twice (PR runs still cancel older ones).
 ## Live trail segment, todo 264 (2026-11-04)
 
 - The GCS viewer runs requestRenderMode with maximumRenderTimeChange Infinity, so a CallbackProperty
@@ -2483,3 +2492,33 @@
 - **Local venv had OpenCV 5.0.0;** `test_runtime_time_lint.py::
   test_reviewed_modules_host_members_dynamic_imports_and_held_modules` fails
   on main with it. Unrelated to the change; CI is the judge.
+
+## Eligible airspeed (HITL step 20, 2026-11-05)
+
+- **Split a new module before the guards, not after.** One 371-line state machine broke
+  the 300-line module limit and the 15-method and 12-field class limits at once. Group
+  state into small dataclasses (setup, latest, window), keep the event sink a module
+  function, and put profile constants and vehicle wiring in their own modules.
+- **Wait on an event, not a poll.** The claim's ack wait first polled the source every
+  50 ms; an `rt.Event` set by the ack callback is simpler and has no named poll period.
+- **Do not pipe a background xdist run into `grep | head`.** The first `tests/guards -n 8`
+  run sat for minutes with 8 workers at 0 CPU and no output; the same run redirected to a
+  file finished in 93 s. Write xdist output to a file, and kill only your own PIDs.
+- **Do not clone the repo into WSL from /mnt/c.** `git clone` of the Windows checkout ran
+  for minutes; `git archive <commit> src tests tools pyproject.toml` into a tar, then
+  `tar -x` on the WSL side, is the copy. Put it under `~/hitl`, not `/tmp`: a `nohup ... &`
+  started from `wsl -e` died with the session, and `/tmp` was empty a minute later.
+  Run the live script as a background task of this chat so its WSL session stays open.
+- **Two test failures are not this branch's.** `test_reviewed_modules_host_members_...`
+  in `test_runtime_time_lint.py` and `test_valid_airspeed_reaches_only_its_own_system_unchanged`
+  (about 1 in 3 runs; `test_corrupt_airspeed_reaches_no_receiver` the same way) also fail
+  on `main` with the shared venv, and `test_board_detector.py` fails under its OpenCV 5.0.0;
+  check `main` before blaming the change.
+- **Run the full suite before the review, not only the step's tests.** Adding a field that
+  composition reads (`vision.law_airspeed`) broke `SimpleNamespace` fakes in
+  `test_approach_quiesce.py` and `test_vehicle_logger_runtime_solid_regressions.py`, and
+  `approach.py` crossed the 300-line guard; the targeted runs missed all three.
+- **A guard's check and its write are one step, under the writer's own lock first.** Codex
+  found a revoke could fall between check and send (fixed by sending inside the source's
+  lock), then that the send could wait on the link's send lock after the check (`goto` holds
+  it across `set_mode`): take the re-entrant send lock first, then read the clock and check.

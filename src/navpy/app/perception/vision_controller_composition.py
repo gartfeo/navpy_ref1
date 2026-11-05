@@ -21,7 +21,7 @@ from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import (
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
-from navpy.app.perception.integration_timing_input import open_integration_input
+from navpy.app.perception.integration_timing_input import open_integration_input, with_law_airspeed
 from navpy.app.perception.vision_controller_ports import VisionControllerPorts
 from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.sim.debug_view.vision_debug_hud import SimTrackerHudRenderer
@@ -87,6 +87,7 @@ def build_vision_controller(
                 vision_args.detector_type,
                 vision_args.capture_wrapper,
             )
+            integration = with_law_airspeed(integration, vehicle)
 
             factory = RealDetectorFactory(
                 vehicle,
@@ -177,6 +178,7 @@ def build_vision_controller(
             ui=ui,
             dock_contact=factory.dock_contact,
             integration_log=None if integration is None else integration.log,
+            law_airspeed=None if integration is None else integration.airspeed,
         )
     except Exception as construction_error:
         cleanup_errors = cleanup_detector_nodes(nodes)

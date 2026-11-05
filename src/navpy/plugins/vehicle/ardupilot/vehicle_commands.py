@@ -1,6 +1,8 @@
 """Vehicle command transmission with no telemetry or lifecycle ownership."""
 from __future__ import annotations
 
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Union
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM
@@ -22,6 +24,13 @@ class VehicleCommands:
 
     def disarm(self) -> None:
         self.send_command_long(MAV_CMD_COMPONENT_ARM_DISARM, p1=0, p2=21196)
+
+    @contextmanager
+    def exclusive_send(self) -> Iterator[None]:
+        """Hold the link's send lock (re-entrant): no other sender writes until the block ends, so a check made
+        inside it still holds when this thread's own send inside it goes out (HITL step 20's airspeed guard)."""
+        with self._transport.transaction():
+            yield
 
     def send_command_long(
         self,

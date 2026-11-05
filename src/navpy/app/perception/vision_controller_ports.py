@@ -13,6 +13,7 @@ from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.core.perception.vision_lifecycle import VisionLifecycle
 from navpy.core.perception.profile.vision_profile_types import VisionProfile
 from navpy.core.ports.dock_contact import DockContactSensor
+from navpy.app.approach.law_airspeed import LawAirspeed
 
 
 class VisionUiStepPort(Protocol):
@@ -37,6 +38,8 @@ class VisionControllerPorts:
     dock_contact: DockContactSensor | None = None
     # HITL only: closed once vision has stopped quiescent, never before.
     integration_log: ClosingLogPort | None = None
+    # HITL only (step 20): the eligible airspeed and its write guard, for navigation.
+    law_airspeed: LawAirspeed | None = None
 
 
 __all__ = ["ClosingLogPort", "VisionControllerPorts", "VisionUiStepPort"]
