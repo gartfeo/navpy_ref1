@@ -18,6 +18,7 @@ from navpy.core.approach.navigation_source_dispatch import SourceDispatch
 from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.app.approach.law_airspeed import LawAirspeed
 from navpy.core.ports.detect_data import DetectedObject
 
 
@@ -34,6 +35,7 @@ class Navigation:
         args: NavigationArgs,
         scheduler_cadence: Optional[SchedulerCadence] = None,
         on_terminal: Optional[TerminalObserver] = None,
+        law_airspeed: Optional[LawAirspeed] = None,
     ) -> None:
         if zc_util is None and getattr(args, "use_terrain", True):
             raise ValueError(
@@ -48,6 +50,7 @@ class Navigation:
             args,
             scheduler_cadence,
             on_terminal,
+            law_airspeed,
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
@@ -89,6 +90,11 @@ def build_state(config: RealDetectorConfig) -> RealDetectorState:
     )
 
 
+def _vehicle_air_speed(vehicle: object) -> Callable[[], float | None]:
+    """Outside HITL only: the vehicle's own airspeed."""
+    return lambda: vehicle.air_speed
+
+
 def build_association(
     dependencies: DetectorDependencies,
     pipeline: DetectorPipelineConfig | None = None,
@@ -99,7 +105,12 @@ def build_association(
     calibration = None if pipeline is None else pipeline.capture_calibration
     source = "" if pipeline is None else str(pipeline.frame_source)
     integration = None
+    air_speed_reader = _vehicle_air_speed(vehicle)
     if integration_source is not None:
+        if pipeline is None or pipeline.law_airspeed is None:
+            raise ValueError("integration timing needs the eligible airspeed reader")
+        # HITL step 20: the eligible pitot source only, never VFR_HUD.
+        air_speed_reader = pipeline.law_airspeed
         integration = IntegrationAssociation(
             integration_source,
             mount.gimbal_capture_history,
@@ -110,7 +121,7 @@ def build_association(
         attitude_sample_reader=lambda: vehicle.attitude_sample,
         mount_state_reader=mount.capture_frame_state,
         location_reader=lambda: vehicle.location(False),
-        air_speed_reader=lambda: vehicle.air_speed,
+        air_speed_reader=air_speed_reader,
         attitude_history_reader=vehicle.attitude_history,
         # From the LIVE connection (vehicle facet), never from configuration.
         link_identity_reader=lambda: vehicle.link_identity,
