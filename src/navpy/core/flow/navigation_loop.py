@@ -240,7 +240,7 @@ class NavigationLoop:
                     + "".join(traceback.format_exception(error))
                 )
                 self._logger.warning(
-                    f"NavPy internal error: {key[0]}; failing safe",
+                    f"NavPy internal error: {key[0]}",
                     key="nav",
                     dest=LogStatusDest.DRONE,
                 )

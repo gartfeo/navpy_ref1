@@ -116,7 +116,7 @@ def test_failure_after_docking_is_still_dropped() -> None:
 # --- reset with a failing drain ---------------------------------------------
 
 
-def test_failed_drain_still_resets_control_and_the_episode() -> None:
+def test_failed_drain_resets_control_but_keeps_the_episode_evidence() -> None:
     ports = Mock()
     ports.slot.invalidate.return_value = None
     ports.docked_evidence.take_staged.return_value = None
@@ -139,9 +139,11 @@ def test_failed_drain_still_resets_control_and_the_episode() -> None:
         reset.reset_phase()
 
     ports.hold.clear.assert_called_once_with()
-    for owner in (ports.law, ports.visual_pass, ports.status,
-                  ports.liveness, ports.episode):
+    for owner in (ports.law, ports.visual_pass, ports.status):
         owner.reset.assert_called_once_with()
+    # The terminal is the NAV exit's evidence; the retried exit resets it.
+    ports.liveness.reset.assert_not_called()
+    ports.episode.reset.assert_not_called()
 
 
 # --- command worker -----------------------------------------------------------
@@ -197,6 +199,41 @@ def test_command_worker_restart_survives_a_raising_logger() -> None:
     worker.run_until_stopped()
 
     assert runs == [0, 1]
+
+
+def test_raising_observer_and_logger_still_release_the_work() -> None:
+    stop = threading.Event()
+    runtime = Mock()
+    runtime.has_command_pending_or_in_flight.return_value = False
+    runtime.take_work.return_value = work = object()
+    session = Mock()
+    session.return_value.__enter__ = Mock(return_value=runtime)
+    session.return_value.__exit__ = Mock(return_value=False)
+    observer = Mock()
+    observer.note_command.side_effect = RuntimeError("observer down")
+    command_event = threading.Event()
+    command_event.set()
+    job = Mock()
+    runtime.postprocess_job.return_value = job
+
+    def submit(submitted) -> None:
+        assert submitted is job
+        stop.set()
+
+    worker = _worker(
+        stop,
+        command_event=command_event,
+        runtime_session=session,
+        logger=Mock(error=Mock(side_effect=OSError("log down"))),
+        command_loop=observer,
+        postprocess_submit=submit,
+        source_dispatch=Mock(return_value=False),
+        scheduler_period_s=0.0,
+    )
+
+    worker.run()
+
+    runtime.finish_work.assert_called_once_with(work)
 
 
 def test_command_worker_stops_without_running_once_stopped() -> None:
