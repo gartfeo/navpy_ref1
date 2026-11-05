@@ -57,6 +57,14 @@
 - A plain sum of samples as a Fourier integral breaks when samples are unevenly spaced.
   With up to 40 ms late calls the fit error rose from 0.03 to 0.6; integrating the straight
   line between samples exactly brought it back to 0.06.
+  That still left a bias (todo 268, 2026-11-04): a straight line is exact only for
+  signals that are straight between samples, and the controller output bends right
+  after each call (the new demand through FLTT), so its line acts as a delay the
+  smooth rate does not share. One seed hid it. Compare a sampled estimate against
+  the same run's full-rate signals before trusting it, and sweep seeds.
+- `{a, nil, b}` with `ipairs` stops at the nil, so a list of optional entries silently
+  drops the rest (M.ctl_modes lost its D pole when FLTE was 0). Build such lists by
+  appending the non-nil entries.
 
 ## ArduPilot firmware work in the gartfeo fork (2026-10-12)
 
