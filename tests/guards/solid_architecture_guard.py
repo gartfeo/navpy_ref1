@@ -141,10 +141,13 @@ PASSIVE_RECORD_FIELD_LIMITS = {
     # (HITL stage 1 step 11). It stays outside CaptureTiming because refused
     # frames carry no CaptureTiming yet still need the PTS axis, so a rate
     # tracker never mixes it with publication time -- a ratchet, not headroom.
+    # 19 = 18 + capture_location, the camera position at the capture instant
+    # for the own-detection orbit centre (HITL step 22, plan revision
+    # 25edd29c); acquisition only, never in the command record -- a ratchet.
     (
         "src/navpy/core/perception/pipeline/real_frame_association.py",
         "RealFrameAssociation",
-    ): 18,
+    ): 19,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
     # 16 = 15 + interval_timestamp_s, the PTS axis visual rates use on
     # integration timing (HITL stage 1 step 11, hitl_final_approach.md

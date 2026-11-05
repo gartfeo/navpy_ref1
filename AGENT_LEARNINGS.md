@@ -2601,6 +2601,26 @@
 - Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
   PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.
 
+## Own-detection orbit centre (HITL step 22, 2026-11-05)
+
+- **Measure the input noise before choosing a precision gate.** A back-of-envelope said a 2 m board at
+  188 m and 10x gives sub-0.5 m PnP depth; a sweep at 0.3 px gave 0.95 m p95, and the detector's real
+  corner noise on rendered, blurred, JPEG boards was 0.46 px. Render the target, run the real detector,
+  compare with truth, then sweep range. `generateImage(size, marginSize)` puts the margin inside `size`:
+  the first noise run was off by one square until the size included the margins.
+- **A covariance gate can be checked against truth.** The fit's largest one-sigma axis (J^T J with a noise
+  floor) tracked the true centre error (p95 about 1.5 sigma), so the gate can be set from the done limit
+  instead of guessed; my first guess (0.15 m) refused fits that met the limit.
+- **Capture-time position from the boot clock.** GLOBAL_POSITION_INT's `time_boot_ms` and the bracketed
+  ATTITUDE interpolation share the autopilot clock; shifting the fix by its own velocity to the capture
+  boot time leaves link delay out. `c_g_loc` is the newest fix, not the capture-time one.
+- **Plan module splits before the 300-line guard.** One more reader pushed `real_frame_association.py`
+  from 299 to 322 lines; moving an unrelated helper out was the fix.
+- **Match the altitude reference of the value you replace.** My board centre was absolute (AMSL) but
+  the ground ray it replaced, and the aircraft position the orbit planner compares it with, are
+  home-relative; a mocked planner in my test hid it and Codex found it. Check `is_absolute` on both
+  sides of every subtraction, and test a replacement through the real consumer.
+
 ## Map frame rate, todo 287 (2026-11-05)
 
 - Mistake: an early A/B (footprints hidden, 1.6 to 22 fps) was read as a cause, but the outside load ended at the same moment. Use same-flight ABAB toggles and log the load beside each bin.

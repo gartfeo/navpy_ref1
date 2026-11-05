@@ -10,6 +10,7 @@ from navpy.core.swarm.peer_poi_notification import (
     PeerPoiNotifier,
     PeerPoiNotifierPorts,
 )
+from navpy.core.skills.geo_approach.board_orbit_centre import board_orbit_centre
 from navpy.core.skills.geo_approach.self_detected_approach import (
     SelfDetectedApproach,
     SelfDetectedApproachPorts,
@@ -20,6 +21,7 @@ from navpy.app.flow.nav_delivery_composition import (
     compose_home_dock_rules,
     compose_work_source,
 )
+from navpy.products.delivery.home_dock import HomeDockRules
 from navpy.products.delivery.fallback_mission_navigation import (
     FallbackMissionNavigation,
     FallbackMissionPorts,
@@ -197,25 +199,8 @@ def compose_navigation_task_workflows(
     )
     focus = _task_focus(detection, state, navigation, peer_task_priority)
     home_dock = compose_home_dock_rules(focus, poi)
-    self_approach = SelfDetectedApproach(
-        SelfDetectedApproachPorts(
-            final_approach_active=lambda: navigation.final_approach.is_active,
-            detector_is_simulation=lambda: detection.simulation.is_simulation,
-            ground_location=navigation.legacy_pois.ground_location,
-            current_relative=lambda: vehicle.location(True),
-            plan_orbit=lambda *pos, **kw: (
-                approach.planner.plan_orbit_approach(*pos, **kw)
-            ),
-            absolute_location=approach.commands.absolute_location,
-            save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
-            request_guided=lambda: approach.commands.request_guided(),
-            loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
-            needs_own_orbit=home_dock.needs_own_orbit,
-        ),
-        state.navigation_task,
-        approach_kind,
-        logger,
-    )
+    self_approach = _self_detected_approach(
+        vehicle, detection, state, approach, navigation, home_dock, approach_kind, logger)
     selector = PoiSelector(
         poi.confirmation_manager,
         observation.retry,
@@ -252,6 +237,41 @@ def compose_navigation_task_workflows(
             state, peer_task_priority, peer_navigation,
             mission_navigation.fallback_navigation, navigation_task_action,
         ),
+    )
+
+
+def _self_detected_approach(
+    vehicle: IVehicle,
+    detection: DetectionCoordination,
+    state: NavStateOwnership,
+    approach: VehicleApproachOwnership,
+    navigation: NavCapabilities,
+    home_dock: HomeDockRules,
+    approach_kind: ApproachKind,
+    logger: ILogger,
+) -> SelfDetectedApproach:
+    return SelfDetectedApproach(
+        SelfDetectedApproachPorts(
+            final_approach_active=lambda: navigation.final_approach.is_active,
+            detector_is_simulation=lambda: detection.simulation.is_simulation,
+            ground_location=navigation.legacy_pois.ground_location,
+            current_relative=lambda: vehicle.location(True),
+            plan_orbit=lambda *pos, **kw: (
+                approach.planner.plan_orbit_approach(*pos, **kw)
+            ),
+            absolute_location=approach.commands.absolute_location,
+            save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
+            request_guided=lambda: approach.commands.request_guided(),
+            loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
+            needs_own_orbit=home_dock.needs_own_orbit,
+            board_centre=lambda poi: board_orbit_centre(
+                poi, navigation.legacy_pois.geo_ref.camera_point_to_ned,
+                vehicle.home_location,
+            ),
+        ),
+        state.navigation_task,
+        approach_kind,
+        logger,
     )
 
 

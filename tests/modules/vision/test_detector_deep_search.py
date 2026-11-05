@@ -292,7 +292,8 @@ class TestDetectionBatchSequencing(unittest.TestCase):
         )
 
         tracker.update.assert_called_once_with([], 64, 48, frame=frame)
-        mapper.convert.assert_called_once_with([track], track, association)
+        # The frame's board detections ride along (none here; HITL step 22).
+        mapper.convert.assert_called_once_with([track], track, association, ())
 
     def test_tracking_loop_honors_injected_batch_source(self):
         run_state = DetectorRunState()

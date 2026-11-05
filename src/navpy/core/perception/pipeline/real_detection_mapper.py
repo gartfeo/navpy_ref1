@@ -5,7 +5,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Optional, Sequence
 
+from navpy.core.ports.board_pose import BoardPoseSolver
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection import Detection
 from navpy.core.perception.pipeline.real_confirmation_frame_selector import (
     ConfirmationFrameSelector,
 )
@@ -14,6 +16,7 @@ from navpy.core.perception.pipeline.real_detected_object_builder import (
     DetectedObjectBuilder,
     visual_attitude_components,
 )
+from navpy.core.perception.pipeline.real_board_pose import TrackBoardPose
 from navpy.core.perception.pipeline.real_detector_state import ConfirmationFrameStore
 from navpy.core.perception.pipeline.real_frame_association import RealFrameAssociation
 from navpy.core.perception.pipeline.real_track_observation import map_track_observation
@@ -38,18 +41,21 @@ class DetectedObjectMapper:
             self,
             config: DetectionMappingConfig,
             confirmation_frames: ConfirmationFrameStore,
+            board_pose: BoardPoseSolver | None = None,
     ) -> None:
         self._config = config
         self._confirmation_frames = ConfirmationFrameSelector(
             confirmation_frames,
         )
         self._poi_builder = DetectedObjectBuilder(config.reference_height_m)
+        self._board_pose = TrackBoardPose(board_pose)
 
     def convert(
             self,
             tracks: Sequence[TrackedObject],
             locked: Optional[TrackedObject],
             association: RealFrameAssociation,
+            boards: Sequence[Detection] = (),
     ) -> list[DetectedObject]:
         mount_state = association.mount_state
         if mount_state is None:
@@ -87,6 +93,7 @@ class DetectedObjectMapper:
                 association,
                 mount_state,
                 visual_attitude,
+                self._board_pose.for_track(track, boards, mount_state),
             ))
 
         self._confirmation_frames.evict_except({track.id for track in tracks})

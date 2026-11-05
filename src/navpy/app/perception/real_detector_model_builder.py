@@ -16,6 +16,7 @@ from navpy.core.perception.detection.deep_search import (
     deep_search_config_from_settings,
 )
 from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
+from navpy.plugins.detection.charuco.board_pose import CharucoBoardPoseSolver
 from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
@@ -142,6 +143,11 @@ def build_models(
             bridge=LostPoiBridge(),
             deep_config=deep_config,
             deep_search=deep_search,
+            board_pose=(
+                CharucoBoardPoseSolver(model.charuco_board)
+                if model.backend == CHARUCO_BACKEND
+                else None
+            ),
         )
     except Exception as creation_error:
         cleanup_errors = close_model_resources(

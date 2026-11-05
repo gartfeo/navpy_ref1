@@ -10,6 +10,7 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
+from navpy.core.ports.board_pose import BoardPoseResult
 from navpy.core.ports.pixel_observation import PixelCalibration
 from navpy.core.ports.gimbal_abc import GimbalData
 
@@ -114,6 +115,11 @@ class DetectionGeoDiagnostics:
     projected_poi_location: Location | None = None
     truth_poi_location: Location | None = None
     is_simulation: bool = False
+    # Acquisition only (HITL step 22): the board pose from this frame's
+    # corners and the camera location at its capture instant. Neither may
+    # reach the final-approach command record.
+    board_pose: BoardPoseResult | None = None
+    capture_camera_location: Location | None = None
 
 
 __all__ = [
