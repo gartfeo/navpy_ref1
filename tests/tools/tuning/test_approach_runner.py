@@ -316,7 +316,7 @@ def approach_args(tmp_path):
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas",
                               "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe",
-                              "--scenario-series", "series.json", "--seed-index", "0", "--board-height-m", "16"])
+                              "--scenario-series", "series.json", "--seed-index", "0", "--board-height-m", "10"])
 
 
 PUBLIC = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
@@ -654,7 +654,7 @@ def _orbit_inputs(tmp_path, monkeypatch, pitch_line="PTCH_LIM_MIN_DEG -45\n"):
 
 
 def test_the_runner_refuses_an_infeasible_orbit_before_its_run_folder_exists(tmp_path, monkeypatch):
-    """The owner's 300 m radius over the series default (80 m lane, 30 m floor, a 16 m board) fails the check:
+    """The owner's 300 m radius over the series default (80 m lane, 30 m floor, a 10 m board) fails the check:
     the run is refused before the scenario folder, the record or any process."""
     args = _orbit_inputs(tmp_path, monkeypatch)
     monkeypatch.setattr(approach.scenario_run, "service", fake_service)
@@ -666,9 +666,9 @@ def test_the_runner_refuses_an_infeasible_orbit_before_its_run_folder_exists(tmp
 
 def test_a_feasible_orbit_passes_and_is_kept_for_the_run(tmp_path, monkeypatch):
     args = _orbit_inputs(tmp_path, monkeypatch)
-    monkeypatch.setattr(approach.orbit, "final_approach_orbit_setting", lambda profile: 170.0)
-    scenario = {**PUBLIC, "lane": {**PUBLIC["lane"], "height_m": 106.0}, "limits": {**PUBLIC["limits"],
-                                                                                    "min_height_m": 7.0}}
+    monkeypatch.setattr(approach.orbit, "final_approach_orbit_setting", lambda profile: 180.0)
+    scenario = {**PUBLIC, "lane": {**PUBLIC["lane"], "height_m": 100.0}, "limits": {**PUBLIC["limits"],
+                                                                                    "min_height_m": 1.0}}
     result = approach._orbit_check(args, scenario)
     assert result["feasible"] is True and len(result["checks"]) == len(approach.orbit.CHECKS)
 

@@ -22,7 +22,8 @@ the profile's measured optics at the planned zoom step:
 - model_speed: the commanded airspeed lies in the model input's ``envelope.airspeed_m_s`` band;
 - turn_radius: r >= kappa v^2 / (g tan 35 deg), the planner's turn term (orbit_geometry.py, kappa 2) at the NAV
   law's bank cap (command_anchor.ROLL_LIMIT_CAP_DEG);
-- descent: r >= h / tan(eta |PTCH_LIM_MIN_DEG|), the planner's descent term (eta 0.65);
+- descent: r >= H / tan(eta |PTCH_LIM_MIN_DEG|), the planner's descent term (eta 0.65), H the lane over the
+  orbit centre (the board for an accepted pose; the ground ray's height zero otherwise, so H is the lane height);
 - reader: at the farthest slant R the board's squares along the line of sight are fy * square * sin(d) / R pixels,
   sin(d) = h / R, at least the reader limit;
 - containment: the board's box (its ChArUco grid at any yaw: the diagonal across, the diagonal times sin(d) along),
@@ -57,6 +58,7 @@ from navpy.core.ports.board_pose import BoardPoseFit
 from navpy.core.ports.detection import BoardCorners
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 from navpy.core.skills.acquire.orbit_radius_setting import final_approach_orbit_setting
+from navpy.core.skills.geo_approach.self_detected_approach import WAITING_CIRCLE_REFERENCE_HEIGHT_M
 from navpy.plugins.detection.charuco.board_pose import (
     CORNER_NOISE_FLOOR_PX,
     CharucoBoardPoseSolver,
@@ -177,12 +179,24 @@ def pose_accepted_at(plan: OrbitPlan, step: ZoomStep, slant_m: float) -> bool:
     return True
 
 
+def pose_accepted(plan: OrbitPlan) -> bool:
+    """Whether the orbit centre is the board pose (accepted at the reading slant), else the ground ray."""
+    step = _planned_step(plan)
+    return step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step))
+
+
 def centre_error_m(plan: OrbitPlan) -> float:
     """The worst horizontal error of the orbit centre: the accepted pose limit, or the height-zero ground ray."""
-    step = _planned_step(plan)
-    if step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step)):
+    if pose_accepted(plan):
         return POSE_CENTRE_LIMIT_M
-    return abs(detection_distance_m(plan, step) * plan.board_height_m / height_above_board(plan))
+    return abs(detection_distance_m(plan, _planned_step(plan)) * plan.board_height_m / height_above_board(plan))
+
+
+def descent_height_m(plan: OrbitPlan) -> float:
+    """The height the planner sizes the descent from: the lane over the orbit centre's height, the board's for an
+    accepted pose, the ground ray's (self_detected_approach.WAITING_CIRCLE_REFERENCE_HEIGHT_M) otherwise."""
+    centre = plan.board_height_m if pose_accepted(plan) else WAITING_CIRCLE_REFERENCE_HEIGHT_M
+    return plan.lane_height_m - centre
 
 
 def detection_distance_m(plan: OrbitPlan, step: ZoomStep | None) -> float:
@@ -226,10 +240,10 @@ def check_turn_radius(plan: OrbitPlan) -> CheckResult:
 def check_descent(plan: OrbitPlan) -> CheckResult:
     eta = OrbitNavigationLimits(plan.airspeed_m_s, ROLL_LIMIT_CAP_DEG, plan.min_pitch_deg).eta
     gamma = eta * abs(plan.min_pitch_deg)
-    h = height_above_board(plan)
+    h = descent_height_m(plan)
     passed = 0.0 < gamma < 90.0 and plan.radius_m >= h / math.tan(math.radians(gamma))
     need = h / math.tan(math.radians(gamma)) if 0.0 < gamma < 90.0 else None
-    return CheckResult("descent", passed, {"height_above_board_m": h, "min_pitch_deg": plan.min_pitch_deg,
+    return CheckResult("descent", passed, {"descent_height_m": h, "min_pitch_deg": plan.min_pitch_deg,
                                            "eta": eta, "required_m": None if need is None else round(need, 2)})
 
 
