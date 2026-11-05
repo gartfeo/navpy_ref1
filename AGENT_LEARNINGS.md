@@ -2584,3 +2584,15 @@
   600x headroom under 2x CPU oversubscription locally, so the cause was a runner-wide stall, not the budgets.
 - Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
   PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.
+
+## Merging dev sim step 13 into a busy main (2026-11-05)
+
+- **Check todo numbers again right before each push.** Main took 269 and 279 while I merged; step 13's
+  todos moved twice (to 280-286). Renumber code comments and refusal texts too, not only the docs.
+- **The SOLID guard's vendored pins are CRLF hashes** (a Windows checkout with autocrlf). Step 13 pinned
+  its MAVFTP file by the LF hash, which fails on main and in CI. Check pins in a checkout with main's
+  line endings.
+- **Attribute a moved digest before blaming the step.** The branch tip still gave its own digest on this
+  host, and the merge gave its new digest twice, so main's commits moved it.
+- **CI has no WSL.** A test that reaches execute_lockstep_run needs the pinned_run_swarm fixture.
+- **Stage named paths after an npm build.** git add -A on src picked up src/gcs/frontend/dist (82 files).
