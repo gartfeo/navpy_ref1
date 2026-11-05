@@ -5,6 +5,8 @@ from __future__ import annotations
 
 import threading
 import time
+from contextlib import contextmanager
+from dataclasses import dataclass
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -25,6 +27,7 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 from navpy.plugins.vehicle.ardupilot.mission_download import MissionDownloader
 from navpy.plugins.vehicle.ardupilot.mission_inbox import MissionInbox
 from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
+from navpy.plugins.vehicle.ardupilot.mission_timing import MISSION_ITEM_TIMEOUT_S
 from navpy.plugins.vehicle.ardupilot.mission_upload import MissionUploader
 from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
@@ -45,6 +48,43 @@ class Clock:
 
     def __call__(self) -> float:
         return self.now
+
+
+@dataclass(frozen=True)
+class Wait:
+    called_at: float
+    deadline: float
+    timed_out: bool
+
+    @property
+    def requested_s(self) -> float:
+        return self.deadline - self.called_at
+
+
+@contextmanager
+def recorded_waits():
+    """Every protocol reply wait the test thread makes: its deadline, the time it
+    asked for, and whether it ran out. Replies here are published during the send,
+    before the wait, so a wait that ends at once never times out, however loaded
+    the host is; a check on these is a check on the code, not the wall clock."""
+    waits: list[Wait] = []
+    caller = threading.get_ident()
+
+    def spy(original):
+        def wait_after(self, *args, deadline, **kwargs):
+            called_at = time.monotonic()
+            result = original(self, *args, deadline=deadline, **kwargs)
+            if threading.get_ident() == caller:
+                waits.append(Wait(called_at, deadline, result is None))
+            return result
+        return wait_after
+
+    with patch.object(MessageStore, "wait_after", spy(MessageStore.wait_after)),             patch.object(MissionInbox, "wait_after", spy(MissionInbox.wait_after)):
+        yield waits
+
+
+def _timed_out(waits: list[Wait]) -> list[Wait]:
+    return [wait for wait in waits if wait.timed_out]
 
 
 class Autopilot:
@@ -98,9 +138,10 @@ class Autopilot:
 def test_a_lost_item_reply_is_requested_again_after_a_quarter_second():
     autopilot = Autopilot(3)
     autopilot.drop = [1]
-    started = time.monotonic()
-    assert autopilot.downloader().download() == 3
-    assert time.monotonic() - started < 1.0  # one 0.25 s item wait, not a 10 s one
+    with recorded_waits() as waits:
+        assert autopilot.downloader().download() == 3
+    timed_out = _timed_out(waits)  # one 0.25 s item wait, not a 10 s one
+    assert len(timed_out) == 1 and timed_out[0].requested_s <= MISSION_ITEM_TIMEOUT_S
     assert [autopilot.item_requests(seq) for seq in range(3)] == [1, 2, 1]
 
 
@@ -131,11 +172,12 @@ def test_one_deadline_spans_every_step_of_a_download():
     autopilot = Autopilot(4)
     autopilot.on_item_request = lambda seq: time.sleep(0.04) if seq < 3 else None
     autopilot.drop = [3] * 100
-    started = time.monotonic()
-    count = autopilot.downloader().download(
-        policy=ExchangePolicy(attempts=100, deadline_s=time.monotonic() + 0.3), item_timeout=0.05)
+    deadline_s = time.monotonic() + 0.3
+    with recorded_waits() as waits:
+        count = autopilot.downloader().download(
+            policy=ExchangePolicy(attempts=100, deadline_s=deadline_s), item_timeout=0.05)
     assert count == 0
-    assert time.monotonic() - started < 0.6
+    assert waits and max(wait.deadline for wait in waits) <= deadline_s  # no wait outlived it
     # Items 0-2 used up part of the budget; item 3 got only what was left of it.
     assert autopilot.item_requests(3) < 6
 
@@ -162,9 +204,11 @@ def test_a_stop_ends_a_download_within_one_wait():
     autopilot = Autopilot(3)
     autopilot.answer_items = False
     autopilot.on_item_request = lambda _seq: stopped.set()
-    started = time.monotonic()
-    assert autopilot.downloader(cancelled=stopped.is_set).download() == 0
-    assert time.monotonic() - started < 0.5  # one 0.25 s item wait, then the cancel
+    with recorded_waits() as waits:
+        assert autopilot.downloader(cancelled=stopped.is_set).download() == 0
+    # The count came; one 0.25 s item wait ran out, then the cancel ended it.
+    assert [wait.timed_out for wait in waits] == [False, True]
+    assert waits[1].requested_s <= MISSION_ITEM_TIMEOUT_S
     assert autopilot.item_requests(0) == 1
 
 
@@ -310,9 +354,9 @@ def test_the_upload_ignores_an_invalid_sequence_ack_from_a_late_duplicate():
 def test_any_other_refusal_ends_the_upload_at_once():
     receiver = Receiver(2)
     receiver.script = {(0, 1): [_ack(MAV_MISSION_ERROR)]}
-    started = time.monotonic()
-    assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
-    assert time.monotonic() - started < 0.5
+    with recorded_waits() as waits:
+        assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
+    assert waits and not _timed_out(waits)  # the refusal ended it, no wait ran out
     assert receiver.items == [0]
 
 
@@ -320,9 +364,9 @@ def test_a_refusal_of_the_count_ends_the_upload_after_one_send():
     receiver = Receiver(2)
     receiver.connection.mav.mission_count_send.side_effect = lambda *_args: receiver.publish(
         _ack(MAV_MISSION_ERROR))
-    started = time.monotonic()
-    assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
-    assert time.monotonic() - started < 0.5
+    with recorded_waits() as waits:
+        assert not receiver.uploader().upload(ack_timeout=0.1, abandon_s=5.0)
+    assert waits and not _timed_out(waits)  # the refusal ended it, no wait ran out
     assert receiver.connection.mav.mission_count_send.call_count == 1
     assert receiver.items == []
 
@@ -330,8 +374,12 @@ def test_a_refusal_of_the_count_ends_the_upload_after_one_send():
 def test_an_upload_the_autopilot_dropped_ends_at_the_abandon_bound():
     receiver = Receiver(2)
     started = time.monotonic()
-    assert not receiver.uploader().upload(ack_timeout=0.05, abandon_s=0.3)
-    assert 0.3 <= time.monotonic() - started < 1.0
+    with recorded_waits() as waits:
+        assert not receiver.uploader().upload(ack_timeout=0.05, abandon_s=0.3)
+    assert time.monotonic() - started >= 0.3
+    # The waits after item 0 stop at the abandon bound, not at the default 8 s.
+    after_item = waits[1:]
+    assert after_item and max(wait.deadline for wait in after_item) <= after_item[0].called_at + 0.3
     assert receiver.items == [0]
 
 
@@ -339,9 +387,9 @@ def test_a_stop_ends_an_upload_within_one_ack_wait():
     stopped = threading.Event()
     receiver = Receiver(2)
     receiver.connection.mav.mission_item_int_send.side_effect = lambda *_args: stopped.set()
-    started = time.monotonic()
-    assert not receiver.uploader(stopped.is_set).upload(ack_timeout=0.2)  # abandon stays 8 s
-    assert time.monotonic() - started < 1.0
+    with recorded_waits() as waits:
+        assert not receiver.uploader(stopped.is_set).upload(ack_timeout=0.2)  # abandon stays 8 s
+    assert waits and not _timed_out(waits)  # the stop came with item 0, before its ACK wait
 
 
 def test_after_a_stop_the_vehicle_ends_reads_and_transfers_at_once_but_still_writes():
@@ -356,12 +404,12 @@ def test_after_a_stop_the_vehicle_ends_reads_and_transfers_at_once_but_still_wri
                              wait_heartbeat=False, stop_requested=stopped.is_set)
         try:
             stopped.set()
-            started = time.monotonic()
-            assert vehicle.get_parameter_fresh("WP_LOITER_RAD", timeout=5.0) is None
-            assert vehicle.download_mission() == 0
-            vehicle.load_mission_items(_loader(2))
-            assert vehicle.upload_mission() is False
-            assert time.monotonic() - started < 0.5
+            with recorded_waits() as waits:
+                assert vehicle.get_parameter_fresh("WP_LOITER_RAD", timeout=5.0) is None
+                assert vehicle.download_mission() == 0
+                vehicle.load_mission_items(_loader(2))
+                assert vehicle.upload_mission() is False
+            assert waits == []  # each ended before its first wait
             connection.mav.param_request_read_send.assert_not_called()
             connection.mav.mission_request_list_send.assert_not_called()
             connection.mav.mission_count_send.assert_not_called()
