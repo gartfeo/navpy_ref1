@@ -25,16 +25,16 @@ These are about the requests the relay forwards into the run (the backend's rout
 | PUT | /api/settings | `hooks/useSettings.js:70` | user | no | files, NavPy (lifecycle change restarts) | probed (the run's own `gcs_settings.json`) |
 | GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | probed (no Ion token on lockstep, todo 280) |
 | GET | /api/vision-profiles | `hooks/useSettings.js:40,81`, `settings/ProfileSelector.jsx:45` | startup | yes | files | probed |
-| PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | refused (todo 269) |
-| PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | refused (todo 269) |
-| PUT | /api/vision-profiles/{profile_name}/devices/{device_name} | `settings/ProfileSelector.jsx:87` | user | no | files, NavPy (as above) | refused (todo 269) |
+| PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | refused (todo 283) |
+| PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | refused (todo 283) |
+| PUT | /api/vision-profiles/{profile_name}/devices/{device_name} | `settings/ProfileSelector.jsx:87` | user | no | files, NavPy (as above) | refused (todo 283) |
 | POST | /api/vehicles/scan | `hooks/usePlanningApi.js:232` | never: `scanVehicles` has no caller | dead | MAVLink | probed |
 | POST | /api/vehicles/discover | `hooks/usePlanningApi.js:246` via `handleScan` (`hooks/useVehicleConnection.js:632-634`) | startup, timer (auto-connect retry 3 s, 20 tries, `App.jsx:487-492`), user (Scan) | yes | MAVLink, NavPy, ESP32 (starts companions and the ESP32 sim, `routes/vehicles.py:87-93`) | probed |
 | POST | /api/vehicles/connect | `hooks/usePlanningApi.js:210` | user (20 s abort) | no | MAVLink, NavPy (auto lifecycle), ESP32 (starts the ESP32 sim, `routes/vehicles.py:37-39`) | eval |
 | POST | /api/vehicles/disconnect | `hooks/usePlanningApi.js:259` | user | no | MAVLink, NavPy | probed |
 | GET | /api/vehicles/{sys_id}/params | `hooks/useVehicleConnection.js:188,653`, `hooks/useAasParams.js:135` | connect, user (10 s abort) | yes | MAVLink | eval |
 | PUT | /api/vehicles/{sys_id}/params | `hooks/useAasParams.js:362`, `hooks/usePlanningApi.js:130` | user (upload writes `targ_wps`, `nav_last_wp`) | yes | MAVLink | eval |
-| GET | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:158,165` | connect (prewarm, `App.jsx:396-398`), user | sent | MAVLink (MAVFTP) | eval (step 13; a torn file is fetched again, todo 272) |
+| GET | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:158,165` | connect (prewarm, `App.jsx:396-398`), user | sent | MAVLink (MAVFTP) | eval (step 13; a torn file is fetched again, todo 286) |
 | PUT | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:465` | user | no | MAVLink | eval |
 | POST | /api/vehicles/{sys_id}/parameters/arm-token | `hooks/useFullParams.js:386` | user (long press) | no | local | probed |
 | GET | /api/vehicles/{sys_id}/mission | `hooks/usePlanningApi.js:272`, `settings/AasTab.jsx:86,213` | connect, user (45 s abort, retries) | yes | MAVLink | eval |
@@ -46,7 +46,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 | POST | /api/control/navpy-sim/start | `sidebar/MonitoringSidebar.jsx:151` | user | no | NavPy | probed (launcher port) |
 | POST | /api/control/navpy-sim/stop/{sys_id} | `sidebar/MonitoringSidebar.jsx:148` | user | no | NavPy | probed (launcher port) |
 | POST | /api/control/navpy-sim/restart-ready | `hooks/usePlanningApi.js:143` | user (after upload) | yes | NavPy | eval |
-| POST | /api/control/command | `hooks/usePlanningApi.js:157`, `hooks/useCompassCal.js:17`, `PreflightReadiness.jsx:140` | user | yes (mode, E-stop) | MAVLink | probed; calibrations and reboots refused (todo 271) |
+| POST | /api/control/command | `hooks/usePlanningApi.js:157`, `hooks/useCompassCal.js:17`, `PreflightReadiness.jsx:140` | user | yes (mode, E-stop) | MAVLink | probed; calibrations and reboots refused (todo 285) |
 | POST | /api/control/launch | `hooks/usePlanningApi.js:171` | user | yes | MAVLink, ESP32 | eval |
 | POST | /api/control/launch/trigger | `hooks/usePlanningApi.js:191` | user | yes | MAVLink, ESP32 | eval |
 | POST | /api/control/launch/abort | `hooks/useVehicleCommands.js:81` | user | yes | MAVLink, ESP32 | probed |

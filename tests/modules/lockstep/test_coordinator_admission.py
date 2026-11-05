@@ -154,7 +154,7 @@ def test_no_relay_traffic_adds_no_journal_note():
     ("POST", "/api/control/navpy-sim/restart-ready", False),
     ("GET", "/api/settings", False),
     ("GET", "/api/vision-profiles", False),
-    # The profile edits write the source tree's vision_profiles.json (todo 269).
+    # The profile edits write the source tree's vision_profiles.json (todo 283).
     ("PUT", "/api/vision-profiles/default/sim", True),
     ("PUT", "/api/vision-profiles/sim", True),
     ("PUT", "/api/vision-profiles/sim/devices/zr10", True),

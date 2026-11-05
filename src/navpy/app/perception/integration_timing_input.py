@@ -9,9 +9,10 @@ one cut off at a line boundary.
 from __future__ import annotations
 
 import json
+from collections.abc import Callable
 from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any
+from typing import Any, Protocol
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig, IntegrationTimingLimits
@@ -75,6 +76,8 @@ class IntegrationTimingInput:
     # HITL step 20: the law's only airspeed input (app/approach/law_airspeed.py), attached to the vehicle for the
     # config's mode by the vision composition; never VFR_HUD.
     airspeed: LawAirspeed | None = None
+    # HITL step 21: the SIYI command fence's ``closed``, the search sweep's revoke source.
+    gimbal_revoked: Callable[[], bool] | None = None
 
 
 def open_integration_input(timing_path: str, log_path: str, detector_type: str,
@@ -102,5 +105,19 @@ def with_law_airspeed(integration: IntegrationTimingInput | None, vehicle: Airsp
     return replace(integration, airspeed=LawAirspeed.attach(vehicle, integration.config.mode))
 
 
+class _ClosableFence(Protocol):
+    @property
+    def closed(self) -> bool: ...
+
+
+def with_gimbal_revoke(integration: IntegrationTimingInput | None, fence: _ClosableFence | None,
+                       ) -> IntegrationTimingInput | None:
+    """HITL step 21: the search sweep stops for good once the SIYI command fence closes (terminal, deadline,
+    abort); no fence, no revoke source, and a profile search is then refused."""
+    if integration is None:
+        return None
+    return replace(integration, gimbal_revoked=None if fence is None else lambda: fence.closed)
+
+
 __all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input",
-           "with_law_airspeed"]
+           "with_gimbal_revoke", "with_law_airspeed"]

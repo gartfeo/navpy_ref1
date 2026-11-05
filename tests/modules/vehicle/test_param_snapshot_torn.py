@@ -111,7 +111,7 @@ class TestTornParamPck(unittest.TestCase):
     def test_every_head_tail_join_is_refused_or_one_whole_table(self):
         # One layout's head joined to the other's tail at any cut. An interior
         # gap (old head, new middle, old tail) can parse as a mixed table:
-        # todo 272 keeps that open.
+        # todo 286 keeps that open.
         a, b = _pck(2.0), _pck(2.5)
         wholes = {parse_param_pck(x, defaults_requested=True).records for x in (a, b)}
         for before, after in ((a, b), (b, a)):

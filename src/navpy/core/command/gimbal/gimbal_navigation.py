@@ -14,6 +14,7 @@ from navpy.core.command.gimbal.gimbal_navigation_facets import (
     GimbalZoomFacet,
 )
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_search import GimbalSearchSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
 from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom
@@ -41,6 +42,7 @@ class GimbalNavigation(
         zoom_tracker: PoiZoomTracker | None = None,
         neutral_pitch_deg: float | None = None,
         fixed_zoom: FixedStepZoom | None = None,
+        search: GimbalSearchSetup | None = None,
     ) -> None:
         self._parts = build_gimbal_navigation(
             mount,
@@ -51,6 +53,7 @@ class GimbalNavigation(
             zoom_tracker=zoom_tracker,
             neutral_pitch_deg=neutral_pitch_deg,
             fixed_zoom=fixed_zoom,
+            search=search,
         )
 
 __all__ = ["GimbalNavigation", ]

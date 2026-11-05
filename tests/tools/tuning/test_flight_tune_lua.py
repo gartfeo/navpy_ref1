@@ -191,7 +191,7 @@ TRUE_PLANT = {"roll": {"K": 4.0, "a": 6.0, "b": 40.0},
               "pitch": {"K": 1.0, "z": 3.0, "wn": 9.0, "zeta": 0.5, "b": 40.0}}
 
 
-def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0):
+def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0, flte_hz=0.0):
     """Exact discrete rate-loop response of the simulator in flight_tune_harness.lua.
 
     rate_ctl computes out_k from the rate of the previous step, the plant uses out
@@ -213,6 +213,9 @@ def _harness_rate_loop(axis, P, I, D, fltd_hz, sc=1.0):
         g = pl["K"] * (x1 + x2 / pl["z"])
     alpha_d = T / (T + 1 / (2 * np.pi * fltd_hz))
     c = sc * sc * (P + I * T / (1 - zi) + D * alpha_d * (1 - zi) / (T * (1 - (1 - alpha_d) * zi)))
+    if flte_hz > 0:                                # the error through FLTE first
+        alpha_e = T / (T + 1 / (2 * np.pi * flte_hz))
+        c = c * alpha_e / (1 - (1 - alpha_e) * zi)
     return (c * zi * g)[None, :], w
 
 
@@ -291,20 +294,58 @@ def test_full_tune_prediction_agrees_with_measured_checks(full_tune):
         assert dc["MAEb"] == pytest.approx(pred["MAEb"], rel=0.5, abs=0.2)
 
 
-@pytest.mark.parametrize(("late_s", "seed"), [
-    (0.01, 7),
-    (0.04, 7),
-    # Known gap: most other jitter draws move the model past these tolerances.
-    pytest.param(0.04, 1, marks=pytest.mark.xfail(strict=True, reason="todo 268")),
+ID_W = 1.5 * (38 / 1.5) ** (np.arange(15) / 14)     # flight_tune.lua ID_W, rad/s
+
+
+def _plant_response(axis, w):
+    """Exact simulator plant, controller output to rate, at w (from _harness_rate_loop)."""
+    L, ww = _harness_rate_loop(axis, 1.0, 0.0, 0.0, fltd_hz=10.0)
+    g = L[0] / np.exp(-1j * ww * HARNESS_DT)
+    return np.interp(w, ww, g.real) + 1j * np.interp(w, ww, g.imag)
+
+
+def _model_response(row, w):
+    """The FTMD model (flight_tune.lua M.model_logresp at the test speed)."""
+    s = 1j * w
+    if row["Ax"] == 1:
+        return row["K"] * np.exp(-s * row["P3"]) / ((1 + s / row["P1"]) * (1 + s / row["P2"]))
+    return (row["K"] * (1 + s / row["P1"]) * np.exp(-s * row["P5"])
+            / ((1 + 2 * row["P3"] * s / row["P2"] + (s / row["P2"]) ** 2) * (1 + s / row["P4"])))
+
+
+@pytest.mark.parametrize(("late_s", "seed", "base_d", "flte", "rms_max"), [
+    (0.01, 7, 0, 0, 0.1),
+    (0.01, 9, 0, 0, 0.1),
+    (0.04, 1, 0, 0, 0.15),
+    (0.04, 5, 0, 0, 0.15),        # the largest RMS and lowest exact PM of seeds 1-20
+    (0.04, 7, 0, 0, 0.15),
+    (0.04, 2, 0.005, 0, 0.15),    # D in the flown gains: the largest phase error of seeds 1-20
+    (0.04, 16, 0, 8, 0.15),       # error filter: the old sums failed the model checks on both axes
 ])
-def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed):
-    # The old timer-based script needed exact timing. Here each sample is time-stamped,
-    # output and rate are read together, and the Fourier sums integrate exactly between
-    # samples, so calls that start up to late_s late (every call) still give the same
-    # model and gains that keep their margins on the exact simulator loop.
+def test_late_script_calls_keep_the_model_and_safe_gains(full_tune, late_s, seed, base_d, flte, rms_max):
+    # Every call starts up to late_s late, so samples are 20 to 20 + late_s ms apart.
+    # The Fourier sums integrate the controller's bend after each call exactly and divide
+    # out the straight line's loss (M.dft_add), so the model still matches the exact
+    # simulator plant, the predicted margins stay below the exact ones, and the gains keep
+    # their margins on the exact loop. Seeds 1-20 at 10 and 40 ms, flown D 0 and 0.005
+    # (2026-11-04): model error at most 0.05 in ln|G| and 2.5 deg up to 20 rad/s, 0.19 and
+    # 6.5 deg up to 38 rad/s; exact PM at least 56 deg, GM at least 8.6 dB; the prediction
+    # at least 11 deg and 0.5 dB below the exact margins. Before, 40 ms gave up to 9.2 deg
+    # and 22 deg of phase error and a GM prediction up to 3.4 dB above the exact one.
+    # The roll lag pole (40 rad/s) is not checked on its own: it sits at the top of the
+    # measured band, where its phase is nearly a delay's, so the fit trades it against
+    # the delay (30 to 110 rad/s over the seeds) while the response stays as above.
+    # The unweighted fit RMS grows with the record-to-record scatter at the top
+    # frequencies (0.5 to 1.0 with 60 ms gaps); the fit weights those down.
+    # FLTE 8 Hz, seeds 1-20 at 40 ms: model error at most 0.05 and 1.9 deg up to 20 rad/s,
+    # 4.2 deg up to 38 rad/s, the prediction at least 11 deg and 2 dB below the exact
+    # margins (before: 13.5 deg, and 0.02 dB). Seed 5 there has RMS 0.156, its other
+    # checks pass.
     out = run(START + f"""
 math.randomseed({seed})
 S.jitter_s = {late_s}
+S.params.RLL_RATE_D, S.params.PTCH_RATE_D = {base_d}, {base_d}
+S.params.RLL_RATE_FLTE, S.params.PTCH_RATE_FLTE = {flte}, {flte}
 S.params.FTUN_AXES = 3
 h.run(500)
 """)
@@ -312,14 +353,22 @@ h.run(500)
     for calm, late in zip(full_tune["rows"]["FTMD"], out["rows"]["FTMD"]):
         assert late["K"] == pytest.approx(calm["K"], rel=0.05)
         assert late["P1"] == pytest.approx(calm["P1"], rel=0.1)
-        assert late["P2"] == pytest.approx(calm["P2"], rel=0.15)
-        assert late["Rms"] < 0.1
-    for axis, prefix in (("roll", "RLL_RATE_"), ("pitch", "PTCH_RATE_")):
+        assert late["Rms"] < rms_max
+        axis = "roll" if late["Ax"] == 1 else "pitch"
+        err = _model_response(late, ID_W) / _plant_response(axis, ID_W)
+        lm, ph = np.abs(np.log(np.abs(err))), np.abs(np.degrees(np.angle(err)))
+        band = ID_W <= 20
+        assert lm[band].max() < 0.1 and ph[band].max() < 3, (axis, lm, ph)
+        assert lm.max() < 0.3 and ph.max() < 8, (axis, lm, ph)
+    pred = {r["Ax"]: r for r in out["rows"]["FTGN"] if r["Set"] == 1}
+    for ax, axis, prefix in ((1, "roll", "RLL_RATE_"), (2, "pitch", "PTCH_RATE_")):
         g = out["saved"]
         assert g[prefix + "FF"] == pytest.approx(full_tune["saved"][prefix + "FF"], rel=0.05)
-        L, w = _harness_rate_loop(axis, g[prefix + "P"], g[prefix + "I"], g[prefix + "D"], fltd_hz=10.0)
+        L, w = _harness_rate_loop(axis, g[prefix + "P"], g[prefix + "I"], g[prefix + "D"], fltd_hz=10.0,
+                                  flte_hz=flte)
         pm, gm = design._pm_gm(L, w)
         assert pm[0] >= 42 and gm[0] >= 5.5, (axis, pm[0], gm[0])
+        assert pred[ax]["PMr"] <= pm[0] and pred[ax]["GMr"] <= gm[0], (axis, pred[ax], pm[0], gm[0])
 
 
 # ---------- stops ----------
@@ -462,6 +511,144 @@ DUMPED = true
 
 
 # ---------- calculation pieces ----------
+def _ac_pid_demand_response(ctl, g, sc, e2t, s):
+    """AC_PID output per unit target at s with the rate held at 0: FF and P on the FLTT
+    target, P and D on the FLTE error, D through FLTD."""
+    lp = lambda hz: 1 if hz <= 0 else (2 * np.pi * hz) / (s + 2 * np.pi * hz)
+    T, E, D = lp(ctl["fltt"]), lp(ctl["flte"]), lp(ctl["fltd"])
+    return g["FF"] * sc / e2t * T + sc * sc * (g["P"] * T * E + g["D"] * s * T * E * D)
+
+
+CTL_CASES = {
+    "harness roll": ({"fltt": 3.18, "flte": 0, "fltd": 10}, {"FF": 0.15, "P": 0.05, "D": 0.01}),
+    "error filter, no target filter": ({"fltt": 0, "flte": 5, "fltd": 12}, {"FF": 0.3, "P": 0.1, "D": 0.004}),
+    "no filters": ({"fltt": 0, "flte": 0, "fltd": 0}, {"FF": 0.3, "P": 0.1, "D": 0.004}),
+    "target and D filter equal": ({"fltt": 10, "flte": 0, "fltd": 10}, {"FF": 0.6, "P": 0.08, "D": 0.01}),
+}
+
+
+@pytest.mark.parametrize("case", CTL_CASES)
+def test_controller_modes_match_the_ac_pid_demand_response(case):
+    # M.ctl_modes splits AC_PID's response to the demand into k0 + ks s + sum r/(s + lam);
+    # rebuilt here at the identification frequencies it must equal the filter chain
+    ctl, g = CTL_CASES[case]
+    out = run(f"""
+local m = X.ctl_scale(X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}},
+                                  {{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}}), 1.2, 1.05)
+h.dump({{k0 = m.k0, ks = m.ks, lam = m.lam, r = m.r, din = m.din}})
+DUMPED = true
+""", export=True)
+    m = out["extra"]
+    s = 1j * ID_W
+    got = m["din"] * (m["k0"] + m["ks"] * s + sum(r / (s + lam) for r, lam in zip(m["r"], m["lam"])))
+    # equal cutoffs are moved apart by K.POLE_SEP (0.1 %), which changes the response by less
+    assert got == pytest.approx(_ac_pid_demand_response(ctl, g, 1.2, 1.05, s), rel=1e-3)
+
+
+@pytest.mark.parametrize("case", CTL_CASES)
+def test_output_sums_integrate_the_controller_bend_between_calls_exactly(case):
+    # u is the output of the ArduPlane 4.6 rate controller port (tools/tuning/ap_controller.py,
+    # rate held at 0, 4 kHz) for rate demands held over uneven call intervals (20-60 ms),
+    # read just before each new demand, with the speed scaler changing at each call
+    # (airspeed 25 % up and down). With the model the record's output sum is the Fourier
+    # integral of u; the straight line alone is not, nor a model whose scaler stays at
+    # the first call's.
+    from tools.tuning.ap_controller import RateController
+    ctl, g = CTL_CASES[case]
+    rng = np.random.default_rng(3)
+    hs = 0.02 + 0.04 * rng.random(80)
+    dem = rng.normal(0, 20, 81)
+    sc = 1 + 0.25 * np.sin(np.arange(81) / 8)         # scaler set at each call
+    e2t = 1.05
+    # firmware output on a fine grid; the reading is the last loop's output of an interval
+    dt = 2.5e-4
+    one = lambda v: np.full(1, float(v))
+    gains = Gains(P=one(g["P"]), I=one(0), D=one(g["D"]), FF=one(g["FF"]), IMAX=one(0.666),
+                  FLTT=one(ctl["fltt"]), FLTE=one(ctl["flte"]), FLTD=one(ctl["fltd"]), SMAX=one(0),
+                  TCONST=one(0.5), RMAX_POS=one(0), RMAX_NEG=one(0))
+    rc = RateController("roll", gains, 1, airspeed_min=5, airspeed_max=40)
+    rc.rate_out(0.0, np.zeros(1), sc[0], e2t, np.full(1, 20.0), dt, 0)      # filters start at 0
+    exact = np.zeros(len(ID_W), complex)
+    reads, t0, step = [0.0], 0.0, 0
+    for h, d, s in zip(hs, dem[:-1], sc[:-1]):
+        n = int(round(h / dt))
+        u = np.empty(n + 1)
+        u[0] = reads[-1]
+        for k in range(1, n + 1):
+            step += 1
+            rc.rate_out(d, np.zeros(1), s, e2t, np.full(1, 20.0), dt, int(step * dt * 1000))
+            u[k] = rc.info.out[0]                 # before the +-45 clip, which the model leaves out
+        tau = np.arange(n + 1) * dt
+        # the loop's output holds over each step: integrate the steps exactly
+        w = ID_W
+        seg = (np.exp(-1j * np.outer(t0 + tau[:-1], w)) - np.exp(-1j * np.outer(t0 + tau[1:], w))) / (1j * w)
+        exact += u[1:] @ seg
+        reads.append(u[-1])
+        t0 += n * dt
+    hs_q = np.diff(np.concatenate([[0], np.cumsum([int(round(h / dt)) * dt for h in hs])]))
+    lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
+    modes = (f"X.ctl_modes({{fltt = {ctl['fltt']}, flte = {ctl['flte']}, fltd = {ctl['fltd']}}}, "
+             f"{{FF = {g['FF']}, P = {g['P']}, I = 0, D = {g['D']}}})")
+    out = run(f"""
+local hs, dem, sc, u = {lua_list(hs_q)}, {lua_list(dem)}, {lua_list(sc)}, {lua_list(reads)}
+local m = X.ctl_scale({modes}, sc[1], {e2t})
+local fm = X.ctl_scale({modes}, sc[1], {e2t})
+local cm, fc, d, plain, frozen = X.cm_new(m), X.cm_new(fm), X.dft_new(), X.dft_new(), X.dft_new()
+X.dft_add(d, 0, 0, 0, 0, cm)
+X.dft_add(plain, 0, 0, 0, 0)
+X.dft_add(frozen, 0, 0, 0, 0, fc)
+cm.dem, fc.dem = dem[1] * m.din, dem[1] * fm.din
+local t = 0
+for k = 1, #hs do
+    t = t + hs[k]
+    X.cm_step(cm, hs[k])
+    X.cm_step(fc, hs[k])
+    X.dft_add(d, t, 0, u[k + 1], 0, cm)
+    X.dft_add(plain, t, 0, u[k + 1], 0)
+    X.dft_add(frozen, t, 0, u[k + 1], 0, fc)
+    X.ctl_scale(m, sc[k + 1], {e2t})
+    cm.dem, fc.dem = dem[k + 1] * m.din, dem[k + 1] * fm.din
+end
+h.dump({{ur = d.ur, ui = d.ui, vr = d.vr, vi = d.vi, lr = plain.ur, li = plain.ui,
+        zr = frozen.ur, zi = frozen.ui, zvr = frozen.vr, zvi = frozen.vi}})
+DUMPED = true
+""", export=True)
+    e = out["extra"]
+    c = lambda *k: np.array(e[k[0]]) + 1j * np.array(e[k[1]])
+    with_model = c("ur", "ui") + c("vr", "vi")
+    plain, frozen = c("lr", "li"), c("zr", "zi") + c("zvr", "zvi")
+    scale = np.abs(exact).max()
+    # left: the 4 kHz loop's steps against the model's continuous filters, and K.POLE_SEP
+    assert np.abs(with_model - exact).max() < 2e-3 * scale
+    assert np.abs(plain - exact).max() > 0.02 * scale                                # the bend matters
+    assert np.abs(frozen - exact).max() > 0.02 * scale                               # so does the scaler
+
+
+def test_record_divides_out_the_straight_line_loss_of_a_smooth_signal():
+    # p = cos(w t) at the top identification frequency, sampled 20-60 ms apart: straight
+    # lines lose about 2 (1 - cos wh) / (wh)^2 of it; fh / fa restores the integral
+    rng = np.random.default_rng(5)
+    hs = 0.02 + 0.04 * rng.random(100)
+    t = np.concatenate([[0], np.cumsum(hs)])
+    w = ID_W[-1]
+    p = np.cos(w * t + 0.3)
+    lua_list = lambda a: "{" + ",".join(f"{v:.12g}" for v in a) + "}"
+    out = run(f"""
+local t, p = {lua_list(t)}, {lua_list(p)}
+local d = X.dft_new()
+for k = 1, #t do X.dft_add(d, t[k], p[k], 0, 0) end
+h.dump({{pr = d.pr[15], pi = d.pi[15], fa = d.fa[15], fh = d.fh}})
+DUMPED = true
+""", export=True)
+    e = out["extra"]
+    tt = np.linspace(0, t[-1], 400001)
+    exact = np.trapezoid(np.cos(w * tt + 0.3) * np.exp(-1j * w * tt), tt)
+    lin = e["pr"] + 1j * e["pi"]
+    assert e["fh"] == pytest.approx(t[-1])
+    assert abs(lin - exact) > 0.15 * abs(exact)
+    assert abs(lin * e["fh"] / e["fa"] - exact) < 0.05 * abs(exact)
+
+
 def test_margins_of_delayed_integrator_match_theory():
     # L = K e^(-s tau) / s: PM = 90 - K tau (deg); GM at w = pi / (2 tau)
     out = run("""

@@ -64,8 +64,12 @@ by both versions; the firmware differences are listed in the firmware section.
 2. **Frequency response** from controller output to body rate at 15 frequencies,
    1.5-38 rad/s: G = sum(P X*) / sum(U X*) with the test signal X as reference, so noise
    and turbulence that are not correlated with the test signal do not bias it. The
-   Fourier sums integrate exactly between samples, so uneven script timing does not
-   bias them either. The record-to-record scatter weights each frequency.
+   Fourier sums integrate between the script's samples: the rate and the rest of the
+   output as straight lines, with the straight line's amplitude loss over each record
+   divided out, and the output's response to each new demand (FF, P and D through
+   FLTT, FLTE and FLTD, with the speed scaler read at each call; SMAX is not modelled, todo 269) exactly. A straight line alone reads that bend as an output
+   delay that grows with the square of the call interval (todo 268). The record-to-record
+   scatter weights each frequency.
 3. **Model fit** (Levenberg-Marquardt, from several starts). Roll: gain, pole, lag and
    delay. Pitch: gain, zero, short-period frequency and damping, lag and delay. The fit
    must match the measured response within 0.3 RMS in ln G.
@@ -109,7 +113,9 @@ by both versions; the firmware differences are listed in the firmware section.
   - A full roll and pitch tune: models within 1-10 % of the simulated aircraft, tracking
     error down about 70 % in the checks, as predicted.
   - The saved gains are checked on the simulator's exact discrete loop by independent
-    Python code: margins are kept even with script calls up to 40 ms late on every call.
+    Python code: margins are kept even with script calls up to 40 ms late on every call,
+    the model stays within 2.5 deg of the simulator plant up to 20 rad/s and the
+    predicted margins stay below the exact ones (seeds 1-20, also with FLTE 8 Hz).
   - A test checks ArduPilot's Lua compiler limits (100 active locals, 127 upvalues).
 - **ArduPlane SITL** (python3 -m tools.tuning.sitl_driver inflight-tune, plane-elevon model, SITL's default
   gains, TCONST 0.25):

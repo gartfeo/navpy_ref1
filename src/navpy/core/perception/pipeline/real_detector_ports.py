@@ -127,6 +127,8 @@ class GimbalMeasurementPort(Protocol):
 
     def update(self, poi: DetectedObject | None) -> None: ...
 
+    def search_tick(self, seen: bool, new_frame: bool) -> None: ...
+
 
 class AttitudeSampleView(Protocol):
     attitude: Attitude

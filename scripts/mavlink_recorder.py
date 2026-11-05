@@ -47,6 +47,12 @@ DATAGRAM_MAX = 65535
 #: write through (the last one, with the stop reason, has no next second).
 STATUS_REPLACE_ATTEMPTS = 10
 STATUS_REPLACE_PAUSE_S = 0.02
+#: A read can meet a replace on Windows: open fails with PermissionError, and
+#: in rare bursts the name is missing (seen up to about 0.2 s, also with no
+#: reader open, so an outside handle such as a scanner is the likely cause).
+#: 25 pauses of STATUS_REPLACE_PAUSE_S wait out twice that; then the error
+#: is real (todo 279).
+STATUS_READ_ATTEMPTS = 25
 
 _STAMP = struct.Struct(">Q")
 _V1_MAGIC, _V2_MAGIC = 0xFE, 0xFD
@@ -57,6 +63,21 @@ _SIGNATURE_LEN = 13
 def status_path(tlog: Path) -> Path:
     """The status file kept beside *tlog*."""
     return tlog.with_name(tlog.stem + ".status.json")
+
+
+def read_status(tlog: Path) -> dict[str, Any]:
+    """The status file beside *tlog*, read while the recorder may replace it.
+
+    Raises FileNotFoundError once the file has stayed missing through the
+    retries, so a recorder that never wrote one still reads as absent.
+    """
+    path = status_path(tlog)
+    for _attempt in range(STATUS_READ_ATTEMPTS - 1):
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except (PermissionError, FileNotFoundError):  # Windows: mid-replace
+            time.sleep(STATUS_REPLACE_PAUSE_S)
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def tlog_stamp(now_s: float) -> bytes:

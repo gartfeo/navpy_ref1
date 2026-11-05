@@ -57,6 +57,14 @@
 - A plain sum of samples as a Fourier integral breaks when samples are unevenly spaced.
   With up to 40 ms late calls the fit error rose from 0.03 to 0.6; integrating the straight
   line between samples exactly brought it back to 0.06.
+  That still left a bias (todo 268, 2026-11-04): a straight line is exact only for
+  signals that are straight between samples, and the controller output bends right
+  after each call (the new demand through FLTT), so its line acts as a delay the
+  smooth rate does not share. One seed hid it. Compare a sampled estimate against
+  the same run's full-rate signals before trusting it, and sweep seeds.
+- `{a, nil, b}` with `ipairs` stops at the nil, so a list of optional entries silently
+  drops the rest (M.ctl_modes lost its D pole when FLTE was 0). Build such lists by
+  appending the non-nil entries.
 
 ## ArduPilot firmware work in the gartfeo fork (2026-10-12)
 
@@ -2085,6 +2093,10 @@
 - On Windows `os.replace` onto a file another process has open fails. A status file replaced
   once a second lost its last write, the one with the stop reason, while a test polled it.
   Retry a replace briefly, and test the final write with a reader polling.
+- The reader needs the same retry: opening a file mid-replace raises PermissionError, and the
+  name can be missing for up to ~0.2 s even with no reader open (todo 279). Give a replaced
+  file one read helper that every reader uses, and prove a race with a stress loop that runs
+  the real writer against the old and new reader before and after the fix.
 - `test_new_production_definitions_are_fully_annotated` wants every new parameter annotated,
   `**options` and file objects too. Run `tests/guards/test_solid_architecture.py` first: with
   `-x` at the end of a 10-minute suite it was the only failure.
@@ -2526,3 +2538,32 @@
   RuntimeError, so code that reads a home file must treat that as no file.
 - Main's todo numbers moved twice during this step; check origin/main's highest number right
   before each commit that adds a todo.
+
+## Search sweep (HITL step 21, 2026-11-05)
+
+- **Check scan coverage against the band, not the footprint.** My first pattern (two rows,
+  ±60 deg, 20 deg/s) looked fine on ground footprints but missed the dock in every replay:
+  its 14 s cycle revisits a bearing slower than the ~6.5 s the dock stays between the
+  detector's size limit and the image bottom. A closed-loop replay with a truth-side
+  detector found it at once; compute revisit time against band time before choosing values.
+- **A state poke in a test can stop standing for the real state.** Setting
+  `last_track_time` by hand stood for "tracking" until the fix also set `recentered`; drive
+  the real path (an accepted observation through `update`) instead.
+- **A plant check is only real if its window runs.** Codex round 2 found the plant-stop
+  check never ran for early-armed sessions, where the tracker takes over in the same tick;
+  count the window's ticks and check the command order on the stop tick. Mutate the code
+  (drop the stop) to prove the check bites.
+- `vision_profiles.json` is CRLF; `cat -A` in Git Bash did not show it. Edit by exact
+  replace that keeps the file's own line endings.
+
+## CI load failures: router link-up race and a runner stall (2026-11-05)
+
+- tests/tools/tuning/test_mav_router.py failed in CI with an empty board: the router's receiver read its link-up
+  wake-up late, so its fail-closed drain dropped the client packet queued behind it (stats showed
+  dropped_stale_navpy == 1). Fixtures that start a MavRouter must wait for receivers_current(router), not only
+  for _link_up, before a client sends. Holding the client socket's first read reproduces it every time.
+- Check progress-line timestamps before calling a CI failure a tight budget: run 41887204752 had two 63 s gaps
+  (other runs: at most 20 s). Its three failures (2 s cache close, 7 s relay stop, 60 s node) had 200x, 3x and
+  600x headroom under 2x CPU oversubscription locally, so the cause was a runner-wide stall, not the budgets.
+- Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
+  PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.

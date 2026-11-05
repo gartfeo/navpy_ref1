@@ -24,7 +24,7 @@ log = logging.getLogger(__name__)
 # from it, so a value that crosses its default during a lossy read moves
 # every later record. Gap reads then join bytes from two layouts and the
 # blob is torn. Fetch the whole file again, a bounded number of times.
-# The root fix, a snapshot per read, is todo 272.
+# The root fix, a snapshot per read, is todo 286.
 TORN_PCK_FETCHES = 3
 
 
