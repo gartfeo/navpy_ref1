@@ -2604,6 +2604,9 @@
   port; the log showed SUCCESS read intact and the second packet sent, just after the 1 s deadline. The real
   cause: the send loop sleeps a random 0.1-0.3 s of real time per packet, and the test assumed SUCCESS gates
   sends, which it never did. Fix: zero SEND_DELAY_MIN/MAX in the test and assert what the code does.
+- test_thread_guard compared threading.enumerate() to a snapshot for equality. test_scripted_fleet left an
+  operator-blocked thread sleeping 2 s past its end; it exited mid-guard-test on the same xdist worker. A test
+  must end the threads it starts, and a thread check should be "no thread beyond the baseline".
 
 ## Own-detection orbit centre (HITL step 22, 2026-11-05)
 

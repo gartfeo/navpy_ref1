@@ -17,6 +17,8 @@ TICK_US = 20_000
 @pytest.fixture
 def guarded():
     runtime = LockstepRuntime.create(BatonRuntime(), epoch_us=0, seed=1, ordinal=1)
+    # Threads alive now. An earlier test's thread may still end during this one, so
+    # the checks are "no thread beyond these", not "exactly these".
     baseline = set(threading.enumerate())
     uninstall = install_thread_guard(runtime.baton)
     try:
@@ -40,7 +42,7 @@ def test_a_thread_that_would_finish_within_the_tick_is_a_fault_at_creation(guard
     ran = []
     stray = threading.Thread(target=ran.append, args=("ran",), name="quick")
     assert "unmanaged thread started: quick" in _fault_from(runtime, stray.start)
-    assert ran == [] and set(threading.enumerate()) == baseline
+    assert ran == [] and set(threading.enumerate()) <= baseline
 
 
 def test_a_thread_that_would_outlive_the_tick_is_a_fault_at_creation(guarded):
@@ -55,7 +57,7 @@ def test_a_thread_that_would_outlive_the_tick_is_a_fault_at_creation(guarded):
             pass  # swallowed by the product: still latched
 
     assert "unmanaged thread started: lingering" in _fault_from(runtime, start_and_swallow)
-    assert set(threading.enumerate()) == baseline
+    assert set(threading.enumerate()) <= baseline
 
 
 def test_a_raw_start_new_thread_is_a_fault(guarded):
@@ -63,7 +65,7 @@ def test_a_raw_start_new_thread_is_a_fault(guarded):
     ran = []
     fault = _fault_from(runtime, lambda: _thread.start_new_thread(ran.append, ("ran",)))
     assert "_thread.start_new_thread" in fault
-    assert ran == [] and set(threading.enumerate()) == baseline
+    assert ran == [] and set(threading.enumerate()) <= baseline
 
 
 def test_the_start_alias_threading_cached_is_a_fault(guarded):
@@ -72,7 +74,7 @@ def test_the_start_alias_threading_cached_is_a_fault(guarded):
     start = threading._start_new_thread  # the alias ``Thread.start`` itself calls
     fault = _fault_from(runtime, lambda: start(ran.append, ("ran",)))
     assert "threading._start_new_thread" in fault
-    assert ran == [] and set(threading.enumerate()) == baseline
+    assert ran == [] and set(threading.enumerate()) <= baseline
 
 
 def test_a_look_alike_of_the_baton_os_thread_is_a_fault(guarded):
@@ -81,7 +83,7 @@ def test_a_look_alike_of_the_baton_os_thread_is_a_fault(guarded):
     ran = []
     fake = threading.Thread(target=ran.append, args=("ran",), name="lockstep-product", daemon=True)
     assert "unmanaged thread started: lockstep-product" in _fault_from(runtime, fake.start)
-    assert ran == [] and set(threading.enumerate()) == baseline
+    assert ran == [] and set(threading.enumerate()) <= baseline
 
 
 def test_a_subclass_bypassing_thread_start_is_a_fault(guarded):
@@ -95,7 +97,7 @@ def test_a_subclass_bypassing_thread_start_is_a_fault(guarded):
 
     stray = Bypass(target=ran.append, args=("ran",), name="bypass", daemon=True)
     assert "threading._start_new_thread" in _fault_from(runtime, stray.start)
-    assert ran == [] and set(threading.enumerate()) == baseline
+    assert ran == [] and set(threading.enumerate()) <= baseline
 
 
 def test_the_coordinator_cannot_start_one_either(guarded):
