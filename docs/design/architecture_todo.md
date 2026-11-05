@@ -4,9 +4,9 @@ These tasks were suggested during the mission-module design review. None is star
 return to them later. Paths are under `src/navpy/` (step-1 layout) unless noted. The design is in
 `mission_modules.md` and `architecture_split.md` (same folder).
 
-Triaged 2026-11-04 against main `c0673a7e` (evidence: `.logs/todo-triage-20261104.md` in the main
-checkout). Item numbers never change; done items moved to `architecture_todo_done.md`. Log a new
-item at the end of "New, not triaged" with the next free number.
+Triaged 2026-11-04 against main `c0673a7e`. Item numbers never change; done items moved to
+`architecture_todo_done.md`. Log a new item at the end of "New, not triaged" with the next free
+number.
 
 ## Actual now
 Verified open on `c0673a7e`, except: partly done 78, 139, 186; needs a run to settle 141, 165,
