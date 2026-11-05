@@ -61,9 +61,9 @@ from scripts.eval_gcs_demo_constants import ROOT, SRC
 from scripts.eval_gcs_demo_inputs import dem_tiles, scenario_points
 from scripts.eval_gcs_demo_lifecycle import stop_companions
 from scripts.eval_gcs_demo_lockstep_app import ACTIONS_FILE, operator_side, write_actions
+from scripts.eval_gcs_demo_lockstep_session import drive
 from scripts.eval_gcs_demo_lockstep_inputs import write_lockstep_input_manifest
 from scripts.eval_gcs_demo_lockstep_wiring import WIRING, fleet_layout, require_wired
-from scripts.eval_gcs_demo_mission import run_mission
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoScenario
@@ -115,6 +115,9 @@ class LockstepOptions:
     app: bool = False
     #: With ``app``: also start the frontend (off: the relay only, for tools and tests).
     frontend: bool = True
+    #: Step 13: the app drives the run. The script only waits this many sim seconds
+    #: after the backend is ready, then stops the companions; None: the scripted mission.
+    app_session_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -168,8 +171,8 @@ def operator_script(scenario: DemoScenario, run_dir: Path,
         context = stack_context(operator, scenario, layout, epoch_us=EPOCH_US)
         outcome: dict = {"approvals": [], "error": None}
         try:
-            mission = run_mission(context, run_dir, options.timeout_s, options.confirmation_delay_s)
-            outcome["approvals"] = mission.approvals
+            outcome["approvals"] = drive(context, run_dir, options.app_session_s,
+                                         options.timeout_s, options.confirmation_delay_s)
         except Exception as error:  # noqa: BLE001 - the workflow's outcome, reported and gated
             outcome["error"] = scrub(f"{type(error).__name__}: {error}")
             if isinstance(error, ConfirmationTimeout):
@@ -209,6 +212,8 @@ def execute_lockstep_run(run_dir: Path, scenario: DemoScenario, options: Lockste
     realization = sim_realization(options)
     if not 0.0 < options.timeout_s < MISSION_BUDGET_S:
         raise RegressionError(f"--timeout-s must be within (0, {MISSION_BUDGET_S}) sim seconds")
+    if options.app_session_s is not None and not 0.0 < options.app_session_s < MISSION_BUDGET_S:
+        raise RegressionError(f"--app-session-s must be within (0, {MISSION_BUDGET_S}) sim seconds")
     if run_dir.exists() and any(run_dir.iterdir()):
         raise RegressionError(f"lockstep run directory is not empty: {run_dir}")
     run_dir.mkdir(parents=True, exist_ok=True)

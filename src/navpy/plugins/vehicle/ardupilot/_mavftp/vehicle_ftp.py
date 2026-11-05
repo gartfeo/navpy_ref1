@@ -1,10 +1,15 @@
-"""MAVFTP adapter over explicit locked transport and subscriptions."""
+"""MAVFTP adapter over explicit locked transport and subscriptions.
+
+Its inbox and every MAVFTP clock run on ``runtime_time``, so under lockstep a
+transfer waits in sim time on the baton (``deterministic_dev_sim.md`` step 13).
+"""
 from __future__ import annotations
 
-import queue
 from typing import Callable, Optional
 
 from pymavlink.dialects.v20.ardupilotmega import MAV_COMP_ID_AUTOPILOT1
+
+from navpy.core.kernel import runtime_time as rt
 
 from ._upstream_mavftp import MAVFTP
 
@@ -36,7 +41,7 @@ class _BridgeMaster:
         )
         self.source_component = transport.source_component or 0
         self.mav = _BridgeMav(transport)
-        self._inbox = queue.Queue()
+        self._inbox = rt.Queue()
 
     def feed(self, message) -> None:
         try:
@@ -49,7 +54,7 @@ class _BridgeMaster:
     def recv_match(self, *, type=None, timeout: float = 0.1, **_kwargs):
         try:
             return self._inbox.get(timeout=max(0.0, timeout))
-        except queue.Empty:
+        except rt.Empty:
             return None
 
 

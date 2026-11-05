@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from pathlib import Path
 
 from scripts.eval_gcs_demo_command_bounds import persist_command_bounds
@@ -256,9 +257,13 @@ def run_mission(
     log_dir: Path,
     timeout_s: float,
     confirmation_delay_s: float,
+    after_connect: Callable[[StackContext], None] | None = None,
 ) -> MissionArtifacts:
+    """``after_connect`` runs once every vehicle is connected (lockstep: the app's prewarm)."""
     connect_vehicles(context)
     wait_for_vehicles(context, timeout_s)
+    if after_connect is not None:
+        after_connect(context)
     command_bounds = configure_vehicle_params(context, timeout_s)
     upload_scenario_missions(context)
     verify_aas_profile(context)
@@ -267,20 +272,11 @@ def run_mission(
     start_esp32_simulator(context)
     wait_for_missions(context, timeout_s)
     plan = resolve_live_plan(context, log_dir)
-    persist_command_bounds(
-        command_bounds,
-        log_dir / "demo_command_bounds.json",
-    )
+    persist_command_bounds(command_bounds, log_dir / "demo_command_bounds.json")
     if plan.sys_ids != context.sys_ids:
         raise RegressionError("resolved plan sysids changed before launch")
     prepare_container_launch(context, min(timeout_s, 180.0))
-    approvals = approve_requests_until_snap(
-        context,
-        plan,
-        log_dir,
-        timeout_s,
-        confirmation_delay_s,
-    )
+    approvals = approve_requests_until_snap(context, plan, log_dir, timeout_s, confirmation_delay_s)
     return MissionArtifacts(
         context.sys_ids,
         approvals,

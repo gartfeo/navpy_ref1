@@ -15,13 +15,10 @@ SPDX-License-Identifier: GPL-3.0-or-later
 
 import logging
 import os
-import random
 import struct
 import sys
-import time
 from argparse import ArgumentParser
 from dataclasses import dataclass
-from datetime import datetime
 from enum import IntEnum
 from io import BufferedRandom, BufferedReader, BufferedWriter
 from io import BytesIO as SIO  # noqa: N814
@@ -42,6 +39,8 @@ except ImportError:
 
 
 from pymavlink import mavutil
+
+from navpy.core.kernel import runtime_time as rt
 
 # pylint: disable=too-many-lines
 # mypy: disable-error-code="union-attr,arg-type"
@@ -351,8 +350,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.last_burst_read: Union[None, float] = None
         self.op_start: Union[None, float] = None
         self.dir_offset = 0
-        self.last_op_time = time.time()
-        self.last_send_time = time.time()
+        self.last_op_time = rt.time()
+        self.last_send_time = rt.time()
         self.rtt = 0.5
         self.reached_eof = False
         self.backlog = 0
@@ -428,10 +427,10 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         )
         self.seq = (self.seq + 1) % 256
         self.last_op = op
-        now = time.time()
+        now = rt.time()
         if self.ftp_settings.debug > 1:
             logging.info("FTP: > %s dt=%.2f", op, now - self.last_op_time)
-        self.last_op_time = time.time()
+        self.last_op_time = rt.time()
         self.last_send_time = now
 
     def __resend(self, op: FTP_OP) -> None:
@@ -443,7 +442,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.master.mav.file_transfer_protocol_send(
             self.network, self.target_system, self.target_component, payload
         )
-        self.last_send_time = time.time()
+        self.last_send_time = rt.time()
 
     def __terminate_session(self) -> None:
         """Terminate current session."""
@@ -577,7 +576,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.requested_size,
         )
 
-        self.op_start = time.time()
+        self.op_start = rt.time()
         self.read_total = 0
         self.reached_eof = False
         self.burst_size = int(self.ftp_settings.burst_read_size)
@@ -589,8 +588,8 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.seq, self.session, OP_OpenFileRO, len(enc_fname), 0, 0, 0, enc_fname
         )
         self.__send(op)
-        timeout = time.time() + 5
-        while not self.done and time.time() < timeout:
+        timeout = rt.time() + 5
+        while not self.done and rt.time() < timeout:
             try:
                 m = self.master.recv_match(
                     type="FILE_TRANSFER_PROTOCOL",
@@ -600,12 +599,12 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                 if m is None:
                     self.__idle_task()
                     continue
-                timeout = time.time() + 5
+                timeout = rt.time() + 5
                 self.__mavlink_packet(m)
             except TypeError as e:
                 logging.error(e)
             self.__idle_task()
-            time.sleep(0.0001)
+            rt.sleep(0.0001)
         logging.info("loop closed, gaps:%u, done: %u", self.read_gaps, self.done)
         if len(self.read_gaps) == 0:
             return self.get_result
@@ -650,7 +649,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.filename = os.path.basename(fname)
         if callback is None or self.ftp_settings.debug > 1:
             logging.info("Getting %s to %s", fname, self.filename)
-        self.op_start = time.time()
+        self.op_start = rt.time()
         self.callback = callback
         self.callback_progress = progress_callback
         self.callback_progress_bytes = progress_callback_bytes
@@ -715,7 +714,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             read = FTP_OP(
                 self.seq, self.session, OP_BurstReadFile, self.burst_size, 0, 0, 0, None
             )
-            self.last_burst_read = time.time()
+            self.last_burst_read = rt.time()
             self.__send(read)
             return MAVFTPReturn("OpenFileRO", FtpError.Success)
 
@@ -735,7 +734,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.reached_eof or self.read_total >= self.requested_size
         ):
             ofs = self.fh.tell()
-            dt = time.time() - self.op_start
+            dt = rt.time() - self.op_start
             rate = (ofs / dt) / 1024.0
             callback_used = self.callback is not None
             if callback_used:
@@ -825,7 +824,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         """Handle OP_BurstReadFile reply."""
         if (
             self.ftp_settings.pkt_loss_tx > 0
-            and random.uniform(0, 100) < self.ftp_settings.pkt_loss_tx
+            and rt.rng().uniform(0, 100) < self.ftp_settings.pkt_loss_tx
         ):  # noqa: S311
             if self.ftp_settings.debug > 0:
                 logging.warning("FTP: dropping TX")
@@ -837,7 +836,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             logging.warning("FTP: Unexpected burst read reply. Will be discarded")
             logging.info(op)
             return MAVFTPReturn("BurstReadFile", FtpError.Fail)
-        self.last_burst_read = time.time()
+        self.last_burst_read = rt.time()
         size = len(op.payload) if op.payload is not None else 0
         if size > self.burst_size:
             # this server doesn't handle the burst size argument
@@ -909,7 +908,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                             "FTP: EOF at %u with %u gaps t=%.2f",
                             self.fh.tell(),
                             len(self.read_gaps),
-                            time.time() - self.op_start,
+                            rt.time() - self.op_start,
                         )
                     self.reached_eof = True
                     if self.__check_read_finished():
@@ -946,7 +945,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                         "FTP: EOF at %u with %u gaps t=%.2f",
                         self.fh.tell(),
                         len(self.read_gaps),
-                        time.time() - self.op_start,
+                        rt.time() - self.op_start,
                     )
                 eof_size = self.fh.tell()
                 if eof_size < self.requested_size:
@@ -1059,7 +1058,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.put_callback = callback
         self.put_callback_progress = progress_callback
         self.read_retries = 0
-        self.op_start = time.time()
+        self.op_start = rt.time()
         enc_fname = bytearray(self.filename, "ascii")
         op = FTP_OP(
             self.seq, self.session, OP_CreateFile, len(enc_fname), 0, 0, 0, enc_fname
@@ -1076,7 +1075,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.put_callback(flen)
             self.put_callback = None
         elif self.op_start:
-            dt = time.time() - self.op_start
+            dt = rt.time() - self.op_start
             rate = (flen / dt) / 1024.0
             logging.info(
                 "Put %u bytes to %s file in %.2fs %.1fkByte/s",
@@ -1107,7 +1106,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             self.__terminate_session()
             return
 
-        now = time.time()
+        now = rt.time()
         if self.write_last_send is not None and now - self.write_last_send > max(
             min(10 * self.rtt, 1), 0.2
         ):
@@ -1248,7 +1247,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return MAVFTPReturn("CalcFileCRC32", FtpError.InvalidArguments)
         name = args[0]
         self.filename = name
-        self.op_start = time.time()
+        self.op_start = rt.time()
         logging.info("Getting CRC for %s", name)
         enc_name = bytearray(name, "ascii")
         op = FTP_OP(
@@ -1268,7 +1267,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         """Handle crc reply."""
         if op.opcode == OP_Ack and op.size == 4:
             (crc,) = struct.unpack("<I", op.payload)
-            now = time.time()
+            now = rt.time()
             if self.op_start:
                 logging.info(
                     "crc: %s 0x%08x in %.1fs", self.filename, crc, now - self.op_start
@@ -1287,7 +1286,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         else:
             ofs = self.fh.tell()
             if self.op_start:
-                dt = time.time() - self.op_start
+                dt = rt.time() - self.op_start
                 rate = (ofs / dt) / 1024.0
                 logging.info(
                     "Transfer at offset %u with %u gaps %u retries %.1f kByte/sec",
@@ -1329,7 +1328,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             return MAVFTPReturn(operation_name, FtpError.Fail)
 
         op = self.__op_parse(m)
-        now = time.time()
+        now = rt.time()
         dt = now - self.last_op_time
         if self.ftp_settings.debug > 1:
             logging.info("FTP: < %s dt=%.2f", op, dt)
@@ -1344,7 +1343,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.last_op_time = now
         if (
             self.ftp_settings.pkt_loss_rx > 0
-            and random.uniform(0, 100) < self.ftp_settings.pkt_loss_rx
+            and rt.rng().uniform(0, 100) < self.ftp_settings.pkt_loss_rx
         ):  # noqa: S311
             if self.ftp_settings.debug > 1:
                 logging.warning("FTP: dropping packet RX")
@@ -1399,7 +1398,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self.__send(read)
         self.read_gaps.remove(g)
         self.read_gaps.append(g)
-        self.last_gap_send = time.time()
+        self.last_gap_send = rt.time()
         self.read_gap_times[g] = self.last_gap_send
         self.backlog += 1
 
@@ -1408,7 +1407,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         if len(self.read_gaps) == 0:
             return
         g = self.read_gaps[0]
-        now = time.time()
+        now = rt.time()
         dt = now - self.read_gap_times[g]
         if not self.reached_eof:
             # send gap reads once
@@ -1434,7 +1433,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
 
     def __idle_task(self) -> bool:
         """Check for file gaps and lost requests."""
-        now = time.time()
+        now = rt.time()
         assert (  # noqa: S101
             self.ftp_settings.idle_detection_time > self.ftp_settings.read_retry_time
         ), "settings.idle_detection_time must be > settings.read_retry_time"
@@ -1522,7 +1521,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
         self, operation_name: str, timeout: float = 5
     ) -> MAVFTPReturn:
         """Execute an FTP operation that requires processing a MAVLink response."""
-        start_time = time.time()
+        start_time = rt.time()
         ret = MAVFTPReturn(operation_name, FtpError.Fail)
         recv_timeout = 0.1
         assert (  # noqa: S101
@@ -1544,9 +1543,9 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
                     ret = self.__mavlink_packet(m)
             if self.__idle_task():
                 break
-            if timeout > 0 and time.time() - start_time > timeout:  # pylint: disable=chained-comparison
+            if timeout > 0 and rt.time() - start_time > timeout:  # pylint: disable=chained-comparison
                 logging.error(
-                    "FTP: timed out after %f seconds", time.time() - start_time
+                    "FTP: timed out after %f seconds", rt.time() - start_time
                 )
                 ret = MAVFTPReturn(operation_name, FtpError.RemoteReplyTimeout)
                 break
@@ -1752,7 +1751,7 @@ class MAVFTP:  # pylint: disable=too-many-instance-attributes
             }
             if add_timestamp_comment:
                 f.write(
-                    f"# Parameters saved at {datetime.now(tz=None).strftime('%Y-%m-%d %H:%M:%S')}\n"
+                    f"# Parameters saved at {rt.now(tz=None).strftime('%Y-%m-%d %H:%M:%S')}\n"
                 )
             for name, (value, datatype) in pdict.items():
                 if sort_type == "missionplanner":

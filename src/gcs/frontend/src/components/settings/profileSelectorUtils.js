@@ -92,3 +92,15 @@ export function buildDiagramDevices(
     };
   });
 }
+
+/**
+ * The catalog a vision-profile edit's answer carries. A refusal (a lockstep run
+ * answers 501, "not supported in simulation") or an error is thrown with the
+ * backend's detail, so its body never becomes the catalog. The callers keep
+ * their literal fetch calls, which the request inventory test reads.
+ */
+export async function visionProfileReply(r) {
+  const data = await r.json().catch(() => null);
+  if (!r.ok) throw new Error(data?.detail || `HTTP ${r.status}`);
+  return data;
+}

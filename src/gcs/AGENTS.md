@@ -100,7 +100,9 @@ Frontend:
   artifacts, summary in `<dir>\matrix.json`; about 10 wall minutes; other chats' wall
   stacks may start and stop meanwhile, todo 51); to watch and drive a lockstep run in the
   app, add `--app` (relay and Vite on the slot's ports, paced to 1x; it prints the page
-  URL; requests go through the coordinator and land in `lockstep_actions.jsonl`), or
+  URL; requests go through the coordinator and land in `lockstep_actions.jsonl`; with
+  `--app-session-s N` the app drives the run: connect on device `lockstep:router`,
+  upload, launch, approve, and the script only stops the companions after N sim seconds), or
   `--pace` for 1x without the app; `gcs_stop.py --eval` stops it, and it is the one
   exception to "no `gcs_launch` for eval-only runs": `gcs_launch.lockstep_claim`
   claims an eval-band `lockstep` slot in-process with the full owner identity

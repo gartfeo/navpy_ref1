@@ -8,7 +8,7 @@ import {
   getDockDetectSize,
   isDetectorClassDimensionsConfigured,
 } from '../../utils/plannerConfig.js';
-import { buildCatalogDeviceInfos, buildDiagramDevices } from './profileSelectorUtils.js';
+import { buildCatalogDeviceInfos, buildDiagramDevices, visionProfileReply } from './profileSelectorUtils.js';
 
 import { SettingsSection, inputStyle, NumericInput } from './SettingsField.jsx';
 import DetectionRangeDiagram, { DEVICE_COLORS } from './DetectionRangeDiagram.jsx';
@@ -37,6 +37,7 @@ export default function ProfileSelector({
   const slotOrderRef = useRef({ profile: null, names: [] });
   const [localOverrides, setLocalOverrides] = useState({ profile: {}, devices: {}, zooms: {} });
   const [optimizeMsg, setOptimizeMsg] = useState(null);
+  const [saveError, setSaveError] = useState(null);
   // Per-camera selected zoom (modal-local: the settings model persists only one
   // vision_zoom, so non-primary fixed-camera zoom lives here and feeds the diagram).
   const [deviceZooms, setDeviceZooms] = useState({});
@@ -82,15 +83,15 @@ export default function ProfileSelector({
       const edits = pendingEditsRef.current;
       pendingEditsRef.current = {};
       let latest = null;
+      let failure = null;
       for (const { profile, devName, zoom, ...fields } of Object.values(edits)) {
         try {
-          const r = await fetch(`/api/vision-profiles/${encodeURIComponent(profile)}/devices/${encodeURIComponent(devName)}`, {
+          latest = await visionProfileReply(await fetch(`/api/vision-profiles/${encodeURIComponent(profile)}/devices/${encodeURIComponent(devName)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ zoom, ...fields }),
-          });
-          latest = await r.json();
-        } catch { /* ignore */ }
+          }));
+        } catch (e) { failure = e.message; }
       }
       // Flush profile-level overrides (envelope + optimized_altitude) and the
       // edited dock_presets together. Presets are owned by the profile JSON
@@ -102,14 +103,14 @@ export default function ProfileSelector({
       }
       if (Object.keys(profBody).length > 0) {
         try {
-          const r = await fetch(`/api/vision-profiles/${encodeURIComponent(profileName)}`, {
+          latest = await visionProfileReply(await fetch(`/api/vision-profiles/${encodeURIComponent(profileName)}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(profBody),
-          });
-          latest = await r.json();
-        } catch { /* ignore */ }
+          }));
+        } catch (e) { failure = e.message; }
       }
+      setSaveError(failure);
       if (latest) {
         setCatalog(latest);
         // Reconfigure planner with updated profile catalog so coverage/footprint
@@ -569,8 +570,9 @@ export default function ProfileSelector({
             setDeviceZooms({});
             setOptimizeMsg(null);
             applyProfile(v, dev?.name ?? '', zl);
+            setSaveError(null);
             fetch(`/api/vision-profiles/default/${encodeURIComponent(v)}`, { method: 'PUT' })
-              .then((r) => r.json()).then(setCatalog).catch(() => {});
+              .then(visionProfileReply).then(setCatalog).catch((e) => setSaveError(e.message));
           }}
           style={{ ...inputStyle, cursor: 'pointer' }}
         >
@@ -609,6 +611,9 @@ export default function ProfileSelector({
         />
         {/* Optimize button hidden for now — revisit later (joint pitch/zoom/altitude optimizer) */}
       </div>
+      {saveError && (
+        <div style={{ color: '#d08770', fontSize: 11, marginTop: 2 }}>{saveError}</div>
+      )}
       {optimizeMsg && (
         <div style={{ color: '#d08770', fontSize: 11, marginTop: 2 }}>{optimizeMsg}</div>
       )}
