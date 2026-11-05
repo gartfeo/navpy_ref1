@@ -3,13 +3,15 @@
 Before a ten-run series, pure arithmetic on the HITL profile, the series' public half and the aircraft's inputs
 decides whether the explicit HITL orbit (``final_approach_orbit.radius_m``, core/skills/acquire/
 orbit_radius_setting.py) can be flown and read. Any failed check refuses the series (exit 1); so does any input it
-cannot read. Nothing here reaches navpy: navpy gets only the profile radius, and this check reads no dock pose and
-no seed (only the scenario's public lane and limits, scenario_public.py).
+cannot read. The approach runner (tools/tuning/approach.py) runs it before each run's folder exists and refuses
+the run on any failure. Nothing here reaches navpy: navpy gets only the profile radius, and this check reads no dock
+pose and no seed (only the scenario's public lane and limits, scenario_public.py).
 
 Geometry: the aircraft circles at radius r, h = lane height - board height above home. The circle's centre is
 navpy's own geolocation of the board from the first frame that finds it. Step 22's pose fit places it within
 POSE_CENTRE_LIMIT_M (step 22's 0.5 m) when the fit is accepted; a refused fit leaves the
-height-zero ground ray, r * board_height / h beyond the board. The check runs the product's solver on seeded noisy
+height-zero ground ray, D * board_height / h beyond the board, D the first detection's horizontal distance
+(the reading slant's reach, never less than r). The check runs the product's solver on seeded noisy
 corners (POSE_DRAWS draws, CORNER_NOISE_FLOOR_PX) at the farthest slant the board can be read from at the planned
 zoom and height, sqrt(fy * square * h / reader limit); only if every draw is accepted is the centre error the
 accepted limit, else the ground ray. The board is then between r - e and r + e away horizontally.
@@ -180,7 +182,17 @@ def centre_error_m(plan: OrbitPlan) -> float:
     step = _planned_step(plan)
     if step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step)):
         return POSE_CENTRE_LIMIT_M
-    return abs(plan.radius_m * plan.board_height_m / height_above_board(plan))
+    return abs(detection_distance_m(plan, step) * plan.board_height_m / height_above_board(plan))
+
+
+def detection_distance_m(plan: OrbitPlan, step: ZoomStep | None) -> float:
+    """The worst horizontal distance of the first detection: the board is first found as soon as it can be read,
+    at the reading slant's horizontal reach, which may lie beyond the orbit radius."""
+    h = height_above_board(plan)
+    if step is None:
+        return plan.radius_m
+    reach = math.sqrt(max(0.0, reading_slant_m(plan, step) ** 2 - h * h))
+    return max(plan.radius_m, reach)
 
 
 def _slant(horizontal_m: float, h: float) -> float:
@@ -305,26 +317,38 @@ def _airspeed_band(model_input: Mapping[str, Any]) -> Optional[tuple[float, floa
     return float(band["min"]), float(band["max"])
 
 
-def load_plan(args: argparse.Namespace) -> OrbitPlan:
+def plan_for(public: Mapping[str, Any], params: Mapping[str, float], model_input: Mapping[str, Any],
+             board_height_m: float, *, profile_name: str = HITL_PROFILE, zoom: float = 10.0,
+             reader_min_square_px: float = READER_MIN_SQUARE_PX) -> OrbitPlan:
+    """The plan from the scenario's public half, the run's merged parameters and the model input's envelope."""
     profiles, _, _ = load_profiles()
-    if args.profile not in profiles:
-        raise ValueError(f"vision profile {args.profile!r} not found")
-    profile = profiles[args.profile]
+    if profile_name not in profiles:
+        raise ValueError(f"vision profile {profile_name!r} not found")
+    profile = profiles[profile_name]
     radius = final_approach_orbit_setting(profile)
     if radius is None:
-        raise ValueError(f"vision profile {args.profile!r} sets no final_approach_orbit.radius_m")
-    public = sp.read_public(Path(args.scenario))
-    params = read_param_file(Path(args.params_file))
+        raise ValueError(f"vision profile {profile_name!r} sets no final_approach_orbit.radius_m")
     if MIN_PITCH_PARAM not in params:
-        raise ValueError(f"{args.params_file} sets no {MIN_PITCH_PARAM}")
+        raise ValueError(f"the run's parameters set no {MIN_PITCH_PARAM}")
     # The lane commands PASS_AIRSPEED_M_S (DO_CHANGE_SPEED); the faster of it and the cruise is the worst case.
     airspeed = max(PASS_AIRSPEED_M_S, params.get(CRUISE_PARAM, 0.0))
     return OrbitPlan(
-        radius_m=radius, lane_height_m=float(public["lane"]["height_m"]), board_height_m=float(args.board_height_m),
+        radius_m=radius, lane_height_m=float(public["lane"]["height_m"]), board_height_m=float(board_height_m),
         floor_m=float(public["limits"]["min_height_m"]), airspeed_m_s=airspeed,
-        airspeed_band=_airspeed_band(read_json(Path(args.model_input))), min_pitch_deg=params[MIN_PITCH_PARAM],
-        steps=_zoom_steps(profile), zoom_command_tenths=round(float(args.zoom) * 10.0), board=_board(profile),
-        reader_min_square_px=float(args.reader_min_square_px))
+        airspeed_band=_airspeed_band(model_input), min_pitch_deg=params[MIN_PITCH_PARAM],
+        steps=_zoom_steps(profile), zoom_command_tenths=round(float(zoom) * 10.0), board=_board(profile),
+        reader_min_square_px=float(reader_min_square_px))
+
+
+def load_plan(args: argparse.Namespace) -> OrbitPlan:
+    return plan_for(sp.read_public(Path(args.scenario)), read_param_file(Path(args.params_file)),
+                    read_json(Path(args.model_input)), args.board_height_m, profile_name=args.profile,
+                    zoom=args.zoom, reader_min_square_px=args.reader_min_square_px)
+
+
+def report(results: Sequence[CheckResult]) -> dict[str, Any]:
+    return {"feasible": feasible(results), "checks": [{"name": r.name, "passed": r.passed, **r.detail}
+                                                      for r in results]}
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -348,11 +372,9 @@ def main(argv: list[str] | None = None) -> int:
     except (OSError, ValueError, KeyError, TypeError) as error:
         print(json.dumps({"feasible": False, "refused": str(error)}, indent=2))
         return 1
-    results = run_checks(plan)
-    ok = feasible(results)
-    print(json.dumps({"feasible": ok, "checks": [{"name": r.name, "passed": r.passed, **r.detail}
-                                                 for r in results]}, indent=2))
-    return 0 if ok else 1
+    out = report(run_checks(plan))
+    print(json.dumps(out, indent=2))
+    return 0 if out["feasible"] else 1
 
 
 if __name__ == "__main__":

@@ -348,6 +348,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
     monkeypatch.setattr(approach, "_addresses", lambda: ("172.0.0.2", "172.0.0.1"))
     monkeypatch.setattr(approach, "_board_scripts", lambda repo, run_dir: None)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
+    monkeypatch.setattr(approach, "_orbit_check", lambda args, scenario: {"feasible": True})
     monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
     monkeypatch.setattr(approach.owners, "census", lambda *a, **k: {"ok": True, "roles": {}, "problems": []})
     monkeypatch.setattr(approach.chain, "win_path", lambda path: str(path))
@@ -358,7 +359,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas",
                               "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe",
-                              "--scenario-series", str(series), "--seed-index", "0"])
+                              "--scenario-series", str(series), "--seed-index", "0", "--board-height-m", "16"])
     seen["exit"] = approach.approach(args)
     run_dir = next((tmp_path / root).iterdir())
     seen["run_dir"], seen["run"] = run_dir, json.loads((run_dir / "approach_run.json").read_text(encoding="utf-8"))

@@ -504,7 +504,8 @@ def _runner(tmp_path, monkeypatch, fly, census=None):
 
     for name, value in [("_record", lambda *a: {"run": {}, "commissioning": runner_rig.NO_FAULT.record()}),
                         ("_addresses", lambda: ("172.0.0.2", "172.0.0.1")), ("Board", FakeBoard),
-                        ("board_param_files", lambda *a: []), ("_board_scripts", lambda *a: None), ("_fly", fly)]:
+                        ("board_param_files", lambda *a: []), ("_orbit_check", lambda *a: {"feasible": True}),
+                        ("_board_scripts", lambda *a: None), ("_fly", fly)]:
         monkeypatch.setattr(approach, name, value)
     monkeypatch.setattr(approach.scenario_run, "service", runner_rig.fake_service)
     monkeypatch.setattr(approach.approach_records, "write_record",

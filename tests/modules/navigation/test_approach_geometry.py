@@ -120,8 +120,8 @@ def test_a_malformed_setting_is_refused_when_the_planner_is_built(block):
 # --- the pre-series check ------------------------------------------------------------------------------------------
 
 def _plan(**changes) -> sc.OrbitPlan:
-    """A feasible plan: 170 m circle, 90 m above a board on a 20 m mast, zoom 10, floor 7 m, 24 m/s."""
-    base = sc.OrbitPlan(radius_m=170.0, lane_height_m=110.0, board_height_m=20.0, floor_m=7.0, airspeed_m_s=24.0,
+    """A feasible plan: 170 m circle, 90 m above a board on a 16 m mast, zoom 10, floor 7 m, 24 m/s."""
+    base = sc.OrbitPlan(radius_m=170.0, lane_height_m=106.0, board_height_m=16.0, floor_m=7.0, airspeed_m_s=24.0,
                         airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, steps=STEPS, zoom_command_tenths=100,
                         board=BOARD)
     return dataclasses.replace(base, **changes)
@@ -159,7 +159,7 @@ def test_the_turn_term_is_the_planners_at_the_nav_bank_cap():
     ({"airspeed_m_s": 25.0}, {"turn_radius"}),              # 2 v^2 / (g tan 35) = 182 m
     ({"min_pitch_deg": -35.0}, {"descent"}),                 # 90 / tan(22.75) = 214 m
     ({"min_pitch_deg": 0.0}, {"descent"}),
-    ({"lane_height_m": 100.0}, {"reader"}),                  # the owner's 80 m above the mast: 10.4 px
+    ({"lane_height_m": 96.0}, {"reader"}),                   # the owner's 80 m above the mast
     ({"reader_min_square_px": 12.0}, {"reader"}),
     ({"zoom_command_tenths": 90}, {"reader", "containment"}),  # 10 still fits: the policy zooms past 9
     ({"zoom_command_tenths": 55}, {"reader", "containment"}),  # not a measured step
@@ -173,11 +173,19 @@ def test_a_plan_failing_a_check_is_refused(changes, failing):
     assert not sc.feasible(sc.run_checks(plan))
 
 
-@pytest.mark.parametrize("changes", [{"radius_m": math.nan}, {"lane_height_m": 20.0}, {"radius_m": 0.0},
+@pytest.mark.parametrize("changes", [{"radius_m": math.nan}, {"lane_height_m": 16.0}, {"radius_m": 0.0},
                                      {"airspeed_m_s": -1.0}, {"board_height_m": math.inf}])
 def test_an_unusable_plan_fails_every_check(changes):
     results = sc.run_checks(_plan(**changes))
     assert len(results) == len(sc.CHECKS) and not any(r.passed for r in results)
+
+
+def test_the_first_detection_beyond_the_circle_sets_the_ground_ray_error():
+    """Codex round 1: 170 m circle 90 m above a 20 m board: the board is first found 211 m out, so the ground ray
+    puts the centre 46.9 m off, not 37.8 m, and the far side drops under the reader limit."""
+    plan = _plan(board_height_m=20.0, lane_height_m=110.0)
+    assert sc.centre_error_m(plan) == pytest.approx(46.89, abs=0.01)
+    assert _failed(plan) == {"reader"}
 
 
 def test_the_centre_error_follows_the_product_solvers_verdict_at_the_reading_range():
@@ -186,13 +194,15 @@ def test_the_centre_error_follows_the_product_solvers_verdict_at_the_reading_ran
     assert reading == pytest.approx(math.sqrt(16812.132 * 0.4 * 90.0 / 11.5))      # 229 m
     assert sc.pose_accepted_at(plan, step, 100.0)                                   # step 22 accepts it close in
     assert not sc.pose_accepted_at(plan, step, reading)                             # its 0.3 m gate refuses it there
-    assert sc.centre_error_m(plan) == pytest.approx(170.0 * 20.0 / 90.0)           # so the ground ray's 37.8 m
+    reach = math.sqrt(reading ** 2 - 90.0 ** 2)                                     # first found 211 m out
+    assert sc.detection_distance_m(plan, step) == pytest.approx(reach)
+    assert sc.centre_error_m(plan) == pytest.approx(reach * 16.0 / 90.0)           # so the ground ray's 37.5 m
 
 
 def test_an_accepted_fit_at_the_reading_range_uses_the_pose_limit(monkeypatch):
     monkeypatch.setattr(sc, "pose_accepted_at", lambda *_: True)
     assert sc.centre_error_m(_plan()) == sc.POSE_CENTRE_LIMIT_M == 0.5
-    assert _failed(_plan(lane_height_m=100.0)) == set()          # the owner's 80 m plan would then pass
+    assert _failed(_plan(lane_height_m=96.0)) == set()           # the owner's 80 m plan would then pass
 
 
 def test_the_pose_prediction_is_deterministic():
@@ -208,7 +218,7 @@ def test_no_results_is_not_feasible():
 
 # --- the CLI: refuses on any failed check or unreadable input ------------------------------------------------------
 
-def _inputs(tmp_path, lane_height=110.0, floor=7.0, min_pitch=-45.0, band=(14.0, 35.0)):
+def _inputs(tmp_path, lane_height=106.0, floor=7.0, min_pitch=-45.0, band=(14.0, 35.0)):
     scenario = tmp_path / "scenario"
     (scenario / sp.PRIVATE_DIR).mkdir(parents=True)
     public = {"schema_version": sp.SCHEMA_VERSION, "series_id": "s1", "series_sha256": "a" * 64, "seed_index": 0,
@@ -224,7 +234,7 @@ def _inputs(tmp_path, lane_height=110.0, floor=7.0, min_pitch=-45.0, band=(14.0,
     envelope = {} if band is None else {"airspeed_m_s": {"min": band[0], "max": band[1]}}
     model.write_text(json.dumps({"envelope": envelope}), encoding="utf-8")
     return ["--scenario", str(scenario), "--params-file", str(params), "--model-input", str(model),
-            "--board-height-m", "20"]
+            "--board-height-m", "16"]
 
 
 def _cli(argv, capsys):
@@ -253,7 +263,7 @@ def test_the_cli_passes_a_feasible_series(tmp_path, capsys, radius_170):
 
 
 @pytest.mark.parametrize("inputs, extra", [
-    ({"lane_height": 100.0}, []),
+    ({"lane_height": 96.0}, []),
     ({"lane_height": 140.0}, []),
     ({"floor": 30.0}, []),
     ({"min_pitch": -30.0}, []),
@@ -327,5 +337,5 @@ def test_navpy_names_neither_the_check_nor_its_truth_inputs():
 def test_the_product_radius_does_not_change_with_the_scene():
     """Two scenes the check judges differently give navpy the same radius: the planner has no scene input."""
     planner, _ = _planner(HITL)
-    assert sc.feasible(sc.run_checks(_plan())) != sc.feasible(sc.run_checks(_plan(lane_height_m=100.0)))
+    assert sc.feasible(sc.run_checks(_plan())) != sc.feasible(sc.run_checks(_plan(lane_height_m=96.0)))
     assert _radius(planner, height=80.0) == _radius(planner, height=90.0) == 300.0
