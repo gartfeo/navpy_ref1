@@ -644,7 +644,7 @@ def test_the_frame_consumers_start_below_the_link_roles(tmp_path):
 
 def _orbit_inputs(tmp_path, monkeypatch, pitch_line="PTCH_LIM_MIN_DEG -45\n"):
     params = tmp_path / "aircraft.parm"
-    params.write_text("AIRSPEED_CRUISE 24\n" + pitch_line, encoding="utf-8")
+    params.write_text("AIRSPEED_CRUISE 24\nROLL_LIMIT_DEG 45\n" + pitch_line, encoding="utf-8")
     model = tmp_path / "mi.json"
     model.write_text(json.dumps({"envelope": {"airspeed_m_s": {"min": 14.0, "max": 35.0}}}), encoding="utf-8")
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [ParamFile(params, True)])

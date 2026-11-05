@@ -20,8 +20,8 @@ Checks, each using the model speed (the run's commanded airspeed, inside the mod
 the profile's measured optics at the planned zoom step:
 
 - model_speed: the commanded airspeed lies in the model input's ``envelope.airspeed_m_s`` band;
-- turn_radius: r >= kappa v^2 / (g tan 35 deg), the planner's turn term (orbit_geometry.py, kappa 2) at the NAV
-  law's bank cap (command_anchor.ROLL_LIMIT_CAP_DEG);
+- turn_radius: r >= kappa v^2 / (g tan phi), the planner's turn term (orbit_geometry.py, kappa 2), phi the NAV
+  law's bank cap (command_anchor.ROLL_LIMIT_CAP_DEG, 35 deg) or the aircraft's ROLL_LIMIT_DEG when smaller;
 - descent: r >= H / tan(eta |PTCH_LIM_MIN_DEG|), the planner's descent term (eta 0.65), H the lane over the
   orbit centre (the board for an accepted pose; the ground ray's height zero otherwise, so H is the lane height);
 - reader: at the farthest slant R the board's squares along the line of sight are fy * square * sin(d) / R pixels,
@@ -86,6 +86,7 @@ POSE_SEED = 23
 POSE_YAWS_DEG = (0.0, 45.0, 90.0)
 MODEL_AIRSPEED_BAND = "airspeed_m_s"
 MIN_PITCH_PARAM = "PTCH_LIM_MIN_DEG"
+ROLL_LIMIT_PARAM = "ROLL_LIMIT_DEG"
 CRUISE_PARAM = "AIRSPEED_CRUISE"
 
 
@@ -121,6 +122,7 @@ class OrbitPlan:
     airspeed_m_s: float
     airspeed_band: Optional[tuple[float, float]]
     min_pitch_deg: float
+    roll_limit_deg: float           # the aircraft's ROLL_LIMIT_DEG, which the planner's turn term reads
     steps: FixedZoomSteps
     zoom_command_tenths: int
     board: Board
@@ -228,13 +230,21 @@ def check_model_speed(plan: OrbitPlan) -> CheckResult:
                                                "model_band_m_s": None if band is None else list(band)})
 
 
+def turn_bank_deg(plan: OrbitPlan) -> float:
+    """The bank the orbit can use: the NAV law's cap, or the aircraft's limit (the planner's) when smaller."""
+    return min(ROLL_LIMIT_CAP_DEG, plan.roll_limit_deg)
+
+
 def check_turn_radius(plan: OrbitPlan) -> CheckResult:
-    kappa = OrbitNavigationLimits(plan.airspeed_m_s, ROLL_LIMIT_CAP_DEG, plan.min_pitch_deg).kappa
-    raw = plan.airspeed_m_s ** 2 / (GRAVITY * math.tan(math.radians(ROLL_LIMIT_CAP_DEG)))
-    need = kappa * raw
-    return CheckResult("turn_radius", plan.radius_m >= need,
-                       {"radius_m": plan.radius_m, "turn_radius_m": round(raw, 2), "kappa": kappa,
-                        "required_m": round(need, 2), "bank_cap_deg": ROLL_LIMIT_CAP_DEG})
+    bank = turn_bank_deg(plan)
+    kappa = OrbitNavigationLimits(plan.airspeed_m_s, bank, plan.min_pitch_deg).kappa
+    usable = 0.0 < bank < 90.0
+    raw = plan.airspeed_m_s ** 2 / (GRAVITY * math.tan(math.radians(bank))) if usable else None
+    need = None if raw is None else kappa * raw
+    return CheckResult("turn_radius", need is not None and plan.radius_m >= need,
+                       {"radius_m": plan.radius_m, "turn_radius_m": None if raw is None else round(raw, 2),
+                        "kappa": kappa, "required_m": None if need is None else round(need, 2), "bank_deg": bank,
+                        "bank_cap_deg": ROLL_LIMIT_CAP_DEG, "roll_limit_deg": plan.roll_limit_deg})
 
 
 def check_descent(plan: OrbitPlan) -> CheckResult:
@@ -299,7 +309,7 @@ CHECKS = (check_model_speed, check_turn_radius, check_descent, check_reader, che
 def run_checks(plan: OrbitPlan) -> list[CheckResult]:
     """Every check's result; a plan with a non-finite or non-positive value fails them all."""
     numbers = (plan.radius_m, plan.lane_height_m, plan.board_height_m, plan.floor_m, plan.airspeed_m_s,
-               plan.min_pitch_deg, plan.reader_min_square_px)
+               plan.min_pitch_deg, plan.roll_limit_deg, plan.reader_min_square_px)
     if not _finite(*numbers) or plan.radius_m <= 0.0 or plan.airspeed_m_s <= 0.0 or height_above_board(plan) <= 0.0:
         reason = {"input": "non-finite value, non-positive radius or airspeed, or the lane not above the board"}
         return [CheckResult(check.__name__.removeprefix("check_"), False, reason) for check in CHECKS]
@@ -342,14 +352,16 @@ def plan_for(public: Mapping[str, Any], params: Mapping[str, float], model_input
     radius = final_approach_orbit_setting(profile)
     if radius is None:
         raise ValueError(f"vision profile {profile_name!r} sets no final_approach_orbit.radius_m")
-    if MIN_PITCH_PARAM not in params:
-        raise ValueError(f"the run's parameters set no {MIN_PITCH_PARAM}")
+    for name in (MIN_PITCH_PARAM, ROLL_LIMIT_PARAM):
+        if name not in params:
+            raise ValueError(f"the run's parameters set no {name}")
     # The lane commands PASS_AIRSPEED_M_S (DO_CHANGE_SPEED); the faster of it and the cruise is the worst case.
     airspeed = max(PASS_AIRSPEED_M_S, params.get(CRUISE_PARAM, 0.0))
     return OrbitPlan(
         radius_m=radius, lane_height_m=float(public["lane"]["height_m"]), board_height_m=float(board_height_m),
         floor_m=float(public["limits"]["min_height_m"]), airspeed_m_s=airspeed,
         airspeed_band=_airspeed_band(model_input), min_pitch_deg=params[MIN_PITCH_PARAM],
+        roll_limit_deg=params[ROLL_LIMIT_PARAM],
         steps=_zoom_steps(profile), zoom_command_tenths=round(float(zoom) * 10.0), board=_board(profile),
         reader_min_square_px=float(reader_min_square_px))
 

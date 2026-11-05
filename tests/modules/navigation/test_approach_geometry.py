@@ -124,8 +124,8 @@ def _plan(**changes) -> sc.OrbitPlan:
     gate refusing the pose at the reading slant, the window is narrow: the ground ray's descent (100 m lane over
     height zero) needs 178.6 m and the reader allows at most 187.6 m."""
     base = sc.OrbitPlan(radius_m=180.0, lane_height_m=100.0, board_height_m=10.0, floor_m=1.0, airspeed_m_s=24.0,
-                        airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, steps=STEPS, zoom_command_tenths=100,
-                        board=BOARD)
+                        airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, roll_limit_deg=45.0, steps=STEPS,
+                        zoom_command_tenths=100, board=BOARD)
     return dataclasses.replace(base, **changes)
 
 
@@ -199,13 +199,24 @@ def test_the_descent_check_agrees_with_the_planner_on_the_ground_ray_centre(plan
     its descent from the whole lane height. The check passes descent exactly when the planner flies the setting."""
     plan = _plan(**plan_changes)
     assert not sc.pose_accepted(plan) and sc.descent_height_m(plan) == plan.lane_height_m
-    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=35.0,
+    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=plan.roll_limit_deg,
                             min_pitch=plan.min_pitch_deg, airspeed=plan.airspeed_m_s)
     flown = _radius(planner, height=plan.lane_height_m)           # the POI at height zero, as the ground ray
     descent = next(r for r in sc.run_checks(plan) if r.name == "descent")
     assert descent.passed == (flown == plan.radius_m) == (log.warnings == [])
     if not descent.passed:
         assert flown == pytest.approx(descent.detail["required_m"], abs=0.01) == pytest.approx(189.28, abs=0.01)
+
+
+def test_an_aircraft_bank_limit_under_the_nav_cap_sets_the_turn_term_as_in_the_planner():
+    """Codex round 3: ROLL_LIMIT_DEG 20 makes the planner fly 322.64 m, so the 180 m plan is refused."""
+    plan = _plan(roll_limit_deg=20.0)
+    turn = next(r for r in sc.run_checks(plan) if r.name == "turn_radius")
+    assert not turn.passed and turn.detail["bank_deg"] == 20.0
+    assert turn.detail["required_m"] == pytest.approx(322.64, abs=0.01)
+    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": 180.0}}, lim_roll=20.0)
+    assert _radius(planner, height=plan.lane_height_m) == pytest.approx(322.64, abs=0.01) and len(log.warnings) == 1
+    assert _failed(_plan(roll_limit_deg=0.0)) == {"turn_radius"}
 
 
 def test_an_accepted_pose_sizes_the_descent_from_the_board(monkeypatch):
@@ -254,7 +265,7 @@ def _inputs(tmp_path, lane_height=100.0, floor=1.0, min_pitch=-45.0, band=(14.0,
     (scenario / sp.SCENARIO_FILE).write_text(json.dumps(public), encoding="utf-8")
     (scenario / sp.PRIVATE_DIR / "unreal.json").write_text('{"east_mm": 1}', encoding="utf-8")
     params = tmp_path / "aircraft.parm"
-    params.write_text(f"AIRSPEED_CRUISE 24\nPTCH_LIM_MIN_DEG {min_pitch}\n", encoding="utf-8")
+    params.write_text(f"AIRSPEED_CRUISE 24\nPTCH_LIM_MIN_DEG {min_pitch}\nROLL_LIMIT_DEG 45\n", encoding="utf-8")
     model = tmp_path / "model_input.json"
     envelope = {} if band is None else {"airspeed_m_s": {"min": band[0], "max": band[1]}}
     model.write_text(json.dumps({"envelope": envelope}), encoding="utf-8")
