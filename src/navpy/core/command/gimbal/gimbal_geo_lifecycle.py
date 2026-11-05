@@ -12,6 +12,7 @@ from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalSessionFence,
 )
 from navpy.core.command.gimbal.gimbal_neutral_return import GimbalNeutralReturn
+from navpy.core.command.gimbal.gimbal_search import GimbalSearch
 from navpy.core.command.gimbal.gimbal_tracking_constants import (
     GIMBAL_COMMAND_ERRORS,
     MODE_LOCK,
@@ -31,6 +32,7 @@ class GimbalGeoLifecycle:
         geo: GimbalGeoMemory,
         zoom: GimbalZoomController,
         neutral: GimbalNeutralReturn | None,
+        search: GimbalSearch | None = None,
     ) -> None:
         self._hardware = hardware
         self._gate = gate
@@ -39,6 +41,7 @@ class GimbalGeoLifecycle:
         self._geo = geo
         self._zoom = zoom
         self._neutral = neutral
+        self._search = search
 
     def start(
         self,
@@ -66,6 +69,8 @@ class GimbalGeoLifecycle:
                         f"(obj_id={self._detection.tracking_obj_id})"
                     )
                 previous_poi = self._geo.poi
+            if self._search is not None:
+                self._search.yield_to("geo_session")
             is_swap = previous_poi is not None
             if not is_swap:
                 self._hardware.gimbal.set_motion_mode(MODE_LOCK)

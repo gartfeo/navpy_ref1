@@ -2518,6 +2518,23 @@
   lock), then that the send could wait on the link's send lock after the check (`goto` holds
   it across `set_mode`): take the re-entrant send lock first, then read the clock and check.
 
+## Search sweep (HITL step 21, 2026-11-05)
+
+- **Check scan coverage against the band, not the footprint.** My first pattern (two rows,
+  ±60 deg, 20 deg/s) looked fine on ground footprints but missed the dock in every replay:
+  its 14 s cycle revisits a bearing slower than the ~6.5 s the dock stays between the
+  detector's size limit and the image bottom. A closed-loop replay with a truth-side
+  detector found it at once; compute revisit time against band time before choosing values.
+- **A state poke in a test can stop standing for the real state.** Setting
+  `last_track_time` by hand stood for "tracking" until the fix also set `recentered`; drive
+  the real path (an accepted observation through `update`) instead.
+- **A plant check is only real if its window runs.** Codex round 2 found the plant-stop
+  check never ran for early-armed sessions, where the tracker takes over in the same tick;
+  count the window's ticks and check the command order on the stop tick. Mutate the code
+  (drop the stop) to prove the check bites.
+- `vision_profiles.json` is CRLF; `cat -A` in Git Bash did not show it. Edit by exact
+  replace that keeps the file's own line endings.
+
 ## CI load failures: router link-up race and a runner stall (2026-11-05)
 
 - tests/tools/tuning/test_mav_router.py failed in CI with an empty board: the router's receiver read its link-up

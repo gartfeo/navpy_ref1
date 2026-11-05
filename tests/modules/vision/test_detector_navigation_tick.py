@@ -12,7 +12,12 @@ class _Navigation:
     def __init__(self, tracking_obj_id):
         self.tracking_obj_id = tracking_obj_id
         self.updated = []
+        self.searched = []
         self.fail_next = False
+
+    def search_tick(self, seen, new_frame):
+        # The measurement port's search tick (HITL step 21), recorded only.
+        self.searched.append((seen, new_frame))
 
     def update(self, poi):
         if self.fail_next:

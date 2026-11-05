@@ -159,6 +159,7 @@ def build_runtime(
     if (
         config.gimbal.tracking is not None
         or config.gimbal.zoom is not None
+        or config.gimbal.search is not None
         or pipeline.fixed_zoom is not None
     ):
         navigation = GimbalNavigation(
@@ -167,6 +168,7 @@ def build_runtime(
             tracking=config.gimbal.tracking,
             zoom_config=config.gimbal.zoom,
             fixed_zoom=pipeline.fixed_zoom,
+            search=config.gimbal.search,
         )
     association = build_association(dependencies, pipeline, integration_source)
     return RealDetectorRuntime(

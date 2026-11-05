@@ -102,6 +102,9 @@ class GimbalMeasurementAdapter:
     def update(self, poi: DetectedObject | None) -> None:
         self._navigation.update(poi)
 
+    def search_tick(self, seen: bool, new_frame: bool) -> None:
+        self._navigation.search_tick(seen, new_frame)
+
 
 __all__ = [
     "GimbalGeoAdapter",

@@ -21,7 +21,11 @@ from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import (
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
-from navpy.app.perception.integration_timing_input import open_integration_input, with_law_airspeed
+from navpy.app.perception.integration_timing_input import (
+    open_integration_input,
+    with_gimbal_revoke,
+    with_law_airspeed,
+)
 from navpy.app.perception.vision_controller_ports import VisionControllerPorts
 from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.sim.debug_view.vision_debug_hud import SimTrackerHudRenderer
@@ -88,6 +92,7 @@ def build_vision_controller(
                 vision_args.capture_wrapper,
             )
             integration = with_law_airspeed(integration, vehicle)
+            integration = with_gimbal_revoke(integration, siyi_fence)
 
             factory = RealDetectorFactory(
                 vehicle,

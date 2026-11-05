@@ -9,6 +9,7 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.command.gimbal.gimbal_navigation import GimbalNavigation
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
+from navpy.core.command.gimbal.gimbal_search import GimbalSearchSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
@@ -125,6 +126,8 @@ class DetectorPipelineConfig:
 class DetectorGimbalConfig:
     tracking: GimbalTrackingSetup | None = None
     zoom: PoiZoomTrackerConfig | None = None
+    # HITL step 21: the profile's search sweep, built with integration timing only (app/perception).
+    search: GimbalSearchSetup | None = None
 
 
 @dataclass(frozen=True)

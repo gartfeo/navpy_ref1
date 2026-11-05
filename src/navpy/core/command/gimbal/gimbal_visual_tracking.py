@@ -7,6 +7,7 @@ from dataclasses import dataclass, replace
 
 from navpy.core.command.gimbal.gimbal_navigation_state import (
     GimbalDetectionMemory,
+    GimbalGeoMemory,
     GimbalSessionCommandGate,
     GimbalSessionFence,
     GimbalTrackers,
@@ -15,6 +16,7 @@ from navpy.core.command.gimbal.gimbal_loss_recovery import (
     GimbalLossRecovery,
     LossRecoveryResult,
 )
+from navpy.core.command.gimbal.gimbal_search import GimbalSearch
 from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.pointing.gimbal_rate_types import (
@@ -47,6 +49,8 @@ class GimbalVisualTracking:
         detection: GimbalDetectionMemory,
         zoom: GimbalZoomController,
         loss_recovery: GimbalLossRecovery,
+        search: GimbalSearch | None = None,
+        geo: GimbalGeoMemory | None = None,
     ) -> None:
         self._trackers = trackers
         self._gate = gate
@@ -54,6 +58,21 @@ class GimbalVisualTracking:
         self._detection = detection
         self._zoom = zoom
         self._loss_recovery = loss_recovery
+        self._search = search
+        self._geo = geo
+
+    def search(self, seen: bool, new_frame: bool) -> None:
+        """One search tick (HITL step 21) before the visual update; the scan moves only while no session tracks
+        (none, armed and never tracked, or back to search after a loss), no geo session points, nothing is seen."""
+        if self._search is None:
+            return
+        with self._gate.lock:
+            with self._fence.lock:
+                blocked = _search_blocked(self._detection, self._geo)
+            self._search.tick(blocked, seen, new_frame)
+            if self._search.scanning:
+                with self._fence.lock:  # the scan left the session's LOCK: the first acquisition restores it
+                    self._detection.recentered |= self._detection.tracking_obj_id is not None
 
     def update(
         self,
@@ -186,6 +205,19 @@ class GimbalVisualTracking:
             self._detection.recentered = recovery.recentered
             self._detection.holding = recovery.holding
             self._detection.last_track_time = recovery.last_track_time
+
+
+def _search_blocked(
+    detection: GimbalDetectionMemory,
+    geo: GimbalGeoMemory | None,
+) -> str | None:
+    if geo is not None and geo.poi is not None:
+        return "geo"
+    if detection.final_approach_zoom_frozen_at_min:
+        return "final_approach"
+    if detection.tracking_obj_id is not None and detection.last_track_time is not None and not detection.recentered:
+        return "tracking"
+    return None
 
 
 def _observation_times(

@@ -29,6 +29,7 @@ from navpy.core.command.gimbal.gimbal_detection_lifecycle import (
     GimbalDetectionLifecycle,
 )
 from navpy.core.command.gimbal.gimbal_loss_recovery import GimbalLossRecovery
+from navpy.core.command.gimbal.gimbal_search import GimbalSearch, GimbalSearchSetup
 from navpy.core.command.gimbal.gimbal_visual_tracking import GimbalVisualTracking
 from navpy.core.command.gimbal.gimbal_zoom_control import GimbalZoomController
 from navpy.core.perception.camera.camera_mount import CameraMount
@@ -100,6 +101,7 @@ def _build_geo_tracking(
     geo_memory: GimbalGeoMemory,
     zoom: GimbalZoomController,
     neutral: GimbalNeutralReturn | None,
+    search: GimbalSearch | None = None,
 ) -> GimbalGeoTracking:
     selector = GeoZoomSelector(
         hardware,
@@ -131,6 +133,7 @@ def _build_geo_tracking(
             geo_memory,
             zoom,
             neutral,
+            search,
         ),
         GimbalGeoCommander(
             hardware,
@@ -153,6 +156,7 @@ def build_gimbal_navigation(
     zoom_tracker: PoiZoomTracker | None,
     neutral_pitch_deg: float | None,
     fixed_zoom: FixedStepZoom | None = None,
+    search: GimbalSearchSetup | None = None,
 ) -> GimbalNavigationParts:
     fixed_drive = None
     if fixed_zoom is not None:
@@ -205,6 +209,15 @@ def build_gimbal_navigation(
         )
     )
     loss = GimbalLossRecovery(hardware, active.loss, zoom, neutral)
+    # HITL step 21: the scan writes through the same actuator as rate tracking, at the same slew scale.
+    scan = None if search is None else GimbalSearch(
+        search,
+        hardware.gimbal,
+        mount.gimbal_capture_history,
+        zoom.reset_to_min,
+        active.rate.max_slew_dps,
+        logger,
+    )
     detection = GimbalDetectionLifecycle(
         hardware,
         trackers,
@@ -214,6 +227,7 @@ def build_gimbal_navigation(
         geo_memory,
         zoom,
         neutral,
+        scan,
     )
     visual = GimbalVisualTracking(
         trackers,
@@ -222,6 +236,8 @@ def build_gimbal_navigation(
         detection_memory,
         zoom,
         loss,
+        scan,
+        geo_memory,
     )
     geo = _build_geo_tracking(
         mount,
@@ -234,6 +250,7 @@ def build_gimbal_navigation(
         geo_memory,
         zoom,
         neutral,
+        scan,
     )
     status = GimbalNavigationStatus(
         trackers,
