@@ -6,11 +6,10 @@ the router mirror there after launch verification (``mavlink_recorder``).
 
 from __future__ import annotations
 
-import json
 import sys
 from pathlib import Path
 
-from scripts.mavlink_recorder import TLOG_ENV, status_path
+from scripts.mavlink_recorder import TLOG_ENV, read_status, status_path
 
 TLOG_NAME = "mavlink.tlog"
 #: What the Ready text's read command prints: texts and command answers.
@@ -48,10 +47,11 @@ def ready_text(run_dir: Path) -> str:
 
 def record_lines(run_dir: Path) -> list[str]:
     """The record's status file, for ``delivery_demo_check``."""
-    path = status_path(tlog_path(run_dir))
-    if not path.is_file():
-        return [f"MAVLink record: no {path.name} (a run from before the record, or it never started)"]
-    status = json.loads(path.read_text(encoding="utf-8"))
+    try:
+        status = read_status(tlog_path(run_dir))
+    except FileNotFoundError:
+        name = status_path(tlog_path(run_dir)).name
+        return [f"MAVLink record: no {name} (a run from before the record, or it never started)"]
     stop = status.get("stop_reason") or "none written (a forced stop such as gcs_stop.py, or still recording)"
     lines = [
         f"MAVLink record: started {status.get('started')}, {status.get('bytes')} bytes in "
