@@ -44,6 +44,30 @@ class _Clock:
         return self.now_s
 
 
+class _DeadlineClock:
+    """Disconnect deadline clock the test advances instead of racing real time.
+
+    Until the test expires a deadline, every bounded wait ends on its event,
+    with SDK_DISCONNECT_TIMEOUT_S only as a liveness backstop.
+    """
+
+    _PAST_ANY_DEADLINE_S = 1.0e9
+
+    def __init__(self) -> None:
+        self.now_s = 0.0
+        self.expire_after_next_read = False
+
+    def expire(self) -> None:
+        self.now_s += self._PAST_ANY_DEADLINE_S
+
+    def __call__(self) -> float:
+        now_s = self.now_s
+        if self.expire_after_next_read:
+            self.expire_after_next_read = False
+            self.expire()
+        return now_s
+
+
 class _RetainedPollThread:
     def __init__(self) -> None:
         self.alive = True
@@ -337,7 +361,7 @@ def test_false_lock_ack_fails_setup_before_connected_log() -> None:
 def test_payload_shutdown_retries_zero_rate_before_disconnect() -> None:
     sdk = _sdk()
     sdk.requestGimbalSpeed.side_effect = [False, True]
-    bounded = BoundedSiyiSdk(sdk, timeout_s=0.01)
+    bounded = BoundedSiyiSdk(sdk)
 
     with pytest.raises(RuntimeError, match="zero-rate.*not acknowledged"):
         bounded.shutdown_payload()
@@ -353,17 +377,20 @@ def test_sdk_disconnect_timeout_is_bounded_and_retryable() -> None:
     release = threading.Event()
     sdk = _sdk()
 
+    clock = _DeadlineClock()
+
     def block_disconnect():
+        clock.expire()  # the deadline passes while the SDK call blocks
         entered.set()
-        assert release.wait(timeout=1.0)
+        assert release.wait(timeout=10.0)
 
     sdk.disconnect.side_effect = block_disconnect
-    bounded = BoundedSiyiSdk(sdk, timeout_s=0.01)
+    bounded = BoundedSiyiSdk(sdk, monotonic=clock)
 
-    started_s = time.perf_counter()
+    # Returning while the SDK call is still blocked is the bound.
     assert bounded.disconnect() is False
-    assert time.perf_counter() - started_s < 0.2
     assert entered.is_set()
+    assert not release.is_set()
 
     release.set()
     assert bounded.disconnect() is True
@@ -373,7 +400,7 @@ def test_sdk_disconnect_timeout_is_bounded_and_retryable() -> None:
 def test_sdk_prelaunch_interrupt_allows_fresh_disconnect_retry() -> None:
     interrupt = KeyboardInterrupt()
     sdk = _sdk()
-    bounded = BoundedSiyiSdk(sdk, timeout_s=0.01)
+    bounded = BoundedSiyiSdk(sdk)
 
     with patch.object(threading.Thread, "start", side_effect=interrupt):
         with pytest.raises(KeyboardInterrupt) as raised:
@@ -389,7 +416,8 @@ def test_sdk_delayed_normal_bootstrap_is_cancelled_before_retry() -> None:
     finished = threading.Event()
     original_thread = threading.Thread
     sdk = _sdk()
-    bounded = BoundedSiyiSdk(sdk, timeout_s=0.01)
+    clock = _DeadlineClock()
+    bounded = BoundedSiyiSdk(sdk, monotonic=clock)
 
     class DelayedDisconnectThread:
         def __init__(self, target, args=(), **_kwargs):
@@ -421,6 +449,8 @@ def test_sdk_delayed_normal_bootstrap_is_cancelled_before_retry() -> None:
         return original_thread(*args, **kwargs)
 
     try:
+        # The deadline passes before the delayed bootstrap runs.
+        clock.expire_after_next_read = True
         with patch.object(threading, "Thread", side_effect=thread_factory):
             assert bounded.disconnect() is False
         sdk.disconnect.assert_not_called()
@@ -577,6 +607,11 @@ def test_poll_failure_is_persistent_health_failure() -> None:
         0.01,
     ):
         gimbal.start()
+    # The failure is latched before the poll thread ends; wait for that
+    # instead of racing the 10 ms attitude wait.
+    poll_thread = lifecycle._poll_worker.ownership.thread
+    poll_thread.join(timeout=10.0)
+    assert not poll_thread.is_alive()
 
     for _ in range(2):
         with pytest.raises(RuntimeError) as raised:

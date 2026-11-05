@@ -6,7 +6,10 @@ from typing import Any
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.thread_launch import ThreadLaunchGate
-from navpy.plugins.gimbal.siyi.hardware.ports import SiyiSdkPort
+from navpy.plugins.gimbal.siyi.hardware.ports import (
+    MonotonicClock,
+    SiyiSdkPort,
+)
 
 
 SDK_DISCONNECT_TIMEOUT_S = 2.0
@@ -19,9 +22,11 @@ class BoundedSiyiSdk:
         self,
         sdk: SiyiSdkPort,
         timeout_s: float = SDK_DISCONNECT_TIMEOUT_S,
+        monotonic: MonotonicClock = rt.monotonic,  # disconnect deadline clock
     ) -> None:
         self._sdk = sdk
         self._timeout_s = float(timeout_s)
+        self._monotonic = monotonic
         self._operation_lock = rt.Lock()
         self._lock = rt.Lock()
         self._disconnect_thread: rt.Thread | None = None
@@ -50,7 +55,7 @@ class BoundedSiyiSdk:
             return self._disconnect_serial()
 
     def _disconnect_serial(self) -> bool:
-        deadline_s = rt.monotonic() + max(0.0, self._timeout_s)
+        deadline_s = self._monotonic() + max(0.0, self._timeout_s)
         with self._lock:
             if self._disconnected:
                 return True
@@ -127,9 +132,8 @@ class BoundedSiyiSdk:
         finally:
             finished.set()
 
-    @staticmethod
-    def _remaining_s(deadline_s: float) -> float:
-        return max(0.0, deadline_s - rt.monotonic())
+    def _remaining_s(self, deadline_s: float) -> float:
+        return max(0.0, deadline_s - self._monotonic())
 
     def _clear_generation(
         self,
