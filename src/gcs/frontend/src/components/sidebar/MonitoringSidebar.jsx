@@ -111,9 +111,14 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   // every connected UAV, so the button is gated behind a hold-to-arm; the hold
   // opens this modal and only a confirm here actually triggers the launch.
   const [showLaunchConfirm, setShowLaunchConfirm] = useState(false);
-  // Collapsing the panel closes it: the modal does not trap the keyboard, and
+  // Bungee START MISSION confirmation: same hold-then-confirm gate, so a stray
+  // tap never arms the fleet.
+  const [showStartConfirm, setShowStartConfirm] = useState(false);
+  // Collapsing the panel closes them: the modal does not trap the keyboard, and
   // reopening must not bring back an unfinished confirmation.
-  useEffect(() => { if (hidden) setShowLaunchConfirm(false); }, [hidden]);
+  useEffect(() => {
+    if (hidden) { setShowLaunchConfirm(false); setShowStartConfirm(false); }
+  }, [hidden]);
 
   // Per-vehicle load stage (connecting → downloading → ready), latched at ready.
   const statusVehicleList = React.useMemo(
@@ -570,11 +575,16 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
           {hasGcsPlan ? (
             <>
               {pitotAckEl}
+              {/* Like container: ready = hold, then the modal below; onStart is
+                  only the not-ready force path (opts.force). */}
               <ForceStartButton
                 label={t('monitor.startMission')}
                 busyLabel={t('monitor.starting')}
+                armLabel={t('monitor.holdToStart')}
+                armReady
                 ready={allLaunchReady}
                 disabled={busy || !launchRosterComplete}
+                onArm={() => setShowStartConfirm(true)}
                 onStart={handleStart}
               />
             </>
@@ -642,6 +652,20 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
             setPitotCovered(false);
           }}
           onCancel={() => setShowLaunchConfirm(false)}
+        />
+      )}
+
+      {showStartConfirm && (
+        <ConfirmModal
+          title={t('monitor.startMissionTitle')}
+          message={t('monitor.startMissionConfirm', { count: vehicleList.length })}
+          confirmLabel={t('monitor.startMissionGo')}
+          tone="caution"
+          onConfirm={async () => {
+            setShowStartConfirm(false);
+            await handleStart();
+          }}
+          onCancel={() => setShowStartConfirm(false)}
         />
       )}
     </>

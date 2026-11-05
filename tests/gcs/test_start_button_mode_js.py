@@ -1,9 +1,9 @@
 """Tests for resolveStartButtonMode in startButtonMode.js.
 
-Guards the launch-safety property: a container START (armReady=true) must never
-start on a single click when ready — it is gated behind a hold-to-arm — while the
-bungee START MISSION (armReady=false) keeps its single-click behaviour and the
-not-ready path stays a hold-to-force.
+Guards the launch-safety property: a launch START with armReady=true (container
+HOLD TO LAUNCH and bungee START MISSION both set it) must never start on a single
+click when ready — it is gated behind a hold-to-arm — while armReady=false stays
+a plain single-click start and the not-ready path stays a hold-to-force.
 """
 import json
 import os
@@ -39,8 +39,8 @@ class TestResolveStartButtonMode(unittest.TestCase):
         result = _resolve('{"armReady": true, "ready": true, "disabled": false}')
         self.assertEqual(result, {"clickToStart": False, "holdEnabled": True, "holdMode": "arm"})
 
-    def test_bungee_ready_still_single_click(self):
-        # START MISSION keeps its single-click start (no behaviour change).
+    def test_unarmed_ready_single_click(self):
+        # armReady=false: a plain single-click start.
         result = _resolve('{"armReady": false, "ready": true, "disabled": false}')
         self.assertEqual(result, {"clickToStart": True, "holdEnabled": False, "holdMode": None})
 
@@ -48,7 +48,7 @@ class TestResolveStartButtonMode(unittest.TestCase):
         result = _resolve('{"armReady": true, "ready": false, "disabled": false}')
         self.assertEqual(result, {"clickToStart": False, "holdEnabled": True, "holdMode": "force"})
 
-    def test_bungee_not_ready_holds_to_force(self):
+    def test_unarmed_not_ready_holds_to_force(self):
         result = _resolve('{"armReady": false, "ready": false, "disabled": false}')
         self.assertEqual(result, {"clickToStart": False, "holdEnabled": True, "holdMode": "force"})
 
@@ -61,7 +61,7 @@ class TestResolveStartButtonMode(unittest.TestCase):
         self.assertEqual(result, {"clickToStart": False, "holdEnabled": False, "holdMode": None})
 
     def test_defaults_armReady_and_disabled_optional(self):
-        # ready alone (armReady/disabled default false) behaves like bungee ready.
+        # ready alone (armReady/disabled default false) behaves like an unarmed ready button.
         result = _resolve('{"ready": true}')
         self.assertEqual(result, {"clickToStart": True, "holdEnabled": False, "holdMode": None})
 
