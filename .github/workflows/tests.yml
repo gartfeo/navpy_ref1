@@ -30,11 +30,26 @@ jobs:
           python-version: "3.11"
           cache: pip
       # The Lua script tests need lua5.3; without it they try WSL, which has
-      # no distro here. WSL-only tests carry the `wsl` marker and skip.
+      # no distro here.
       - uses: ilammy/msvc-dev-cmd@v1
+      # gh-actions-lua's own cache fails ("Cache service responded with 400"),
+      # so every run downloaded Lua from lua.org and failed when that timed out.
+      # A restored .lua makes the action skip the download and only add it to PATH.
+      # Save right after the build, so a failing test run still keeps it.
+      - id: lua-cache
+        uses: actions/cache/restore@v4
+        with:
+          path: .lua
+          key: lua-5.3.6-${{ runner.os }}-${{ runner.arch }}
       - uses: leafo/gh-actions-lua@v11
         with:
-          luaVersion: "5.3"
+          luaVersion: "5.3.6"
+          buildCache: false
+      - if: steps.lua-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@v4
+        with:
+          path: .lua
+          key: ${{ steps.lua-cache.outputs.cache-primary-key }}
       # The default suite imports the GCS backend too.
       - run: pip install -e ".[test]" -r src/gcs/requirements.txt
       # A public-repo runner has 4 cores.
