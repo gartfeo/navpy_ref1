@@ -2584,3 +2584,10 @@
   600x headroom under 2x CPU oversubscription locally, so the cause was a runner-wide stall, not the budgets.
 - Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
   PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.
+
+## Map frame rate, todo 287 (2026-11-05)
+
+- Mistake: an early A/B (footprints hidden, 1.6 to 22 fps) was read as a cause, but the outside load ended at the same moment. Use same-flight ABAB toggles and log the load beside each bin.
+- Find render cost by owner: wrap `scene.render` and count `frameState.commandList` by owner type. Here one CAD-exported glTF gave 864 draw commands per UAV (432 meshes plus silhouette); `gltf-transform optimize` merged it to 4 meshes and the page went from 16-19 to 30 fps.
+- A Chrome window hidden or on an inactive screen runs at about 8 rAF/s; have the owner bring it to the front before measuring.
+- Python busy loops did not slow Chrome at all; other chats' pytest `-n 8` and lockstep runs did. A load case is not controlled unless it is measured to slow the page.
