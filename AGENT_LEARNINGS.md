@@ -2600,6 +2600,10 @@
   600x headroom under 2x CPU oversubscription locally, so the cause was a runner-wide stall, not the budgets.
 - Bash: a coreutils timeout wrapper around pytest -n breaks xdist worker start-up (EOFError in bootstrap), and
   PYTHONPATH needs Windows paths (cygpath -w), not /c/... ones.
+- Read the failed test's captured log before naming a cause. I blamed a race in the ebyte test's fake serial
+  port; the log showed SUCCESS read intact and the second packet sent, just after the 1 s deadline. The real
+  cause: the send loop sleeps a random 0.1-0.3 s of real time per packet, and the test assumed SUCCESS gates
+  sends, which it never did. Fix: zero SEND_DELAY_MIN/MAX in the test and assert what the code does.
 
 ## Own-detection orbit centre (HITL step 22, 2026-11-05)
 

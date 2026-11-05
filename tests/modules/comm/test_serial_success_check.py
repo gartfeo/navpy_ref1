@@ -2,6 +2,7 @@ import unittest
 from unittest import mock
 import time
 
+from navpy.plugins.radio.serial import serial_interface_ebyte
 from navpy.plugins.radio.serial.serial_interface_ebyte import SerialInterfaceEbyte, MAX_PACKET_SIZE
 from navpy.plugins.radio.serial.serial_network_args import SerialNetworkArgs
 from navpy.core.kernel.logging.cache_logger import ConsoleLogger
@@ -56,21 +57,29 @@ class TestSerialInterfaceEbyte(unittest.TestCase):
         self.iface.send_thread.join(timeout=1)
         self.iface.receive_thread.join(timeout=1)
 
-    def test_wait_for_success(self):
+    def test_queued_packets_are_written_in_order(self):
+        # The send loop sleeps a random 0.1-0.3 s of real time before each write.
+        # Zero it so the test does not race the wall clock under CI load.
+        self._patch(serial_interface_ebyte, 'SEND_DELAY_MIN', 0)
+        self._patch(serial_interface_ebyte, 'SEND_DELAY_MAX', 0)
         data1 = b'first'
         data2 = b'second'
         self.iface.send_data(data1)
         self.iface.send_data(data2)
 
-        # first packet must appear in write buffer
-        self._wait_for(lambda: self.fake.written == [data1])
+        self._wait_for(lambda: self.fake.written == [data1, data2])
 
-        # inject SUCCESS and let receive thread free the queue
-        self.fake.to_read += b'SUCCESS\r\n'
+    def test_module_response_is_not_routed_to_listener(self):
+        # The send loop never waits for SUCCESS; the receive side only consumes it.
+        self.fake.to_read += b'SUCCESS\r\nHELLO\r\n'
         self.fake.in_waiting = len(self.fake.to_read)
 
-        # second packet must now be written
-        self._wait_for(lambda: self.fake.written == [data1, data2])
+        self._wait_for(lambda: self.listener.received == [b'HELLO'])
+
+    def _patch(self, target, name, value):
+        patcher = mock.patch.object(target, name, value)
+        patcher.start()
+        self.addCleanup(patcher.stop)
 
     def test_frame_parsing(self):
         # Build a frame: type=0xC1, length=3, net=1, src=2, tgt=3, payload=b'XYZ'
