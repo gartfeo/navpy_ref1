@@ -10,6 +10,7 @@ import numpy as np
 
 from navpy.core.perception.detection.deep_search import merge_deep_search_detections
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection import Detection
 from navpy.core.ports.tracks import TrackedObject
 from navpy.core.perception.pipeline.real_detector_inference_state import (
     DetectionBatch,
@@ -71,6 +72,8 @@ class TrackingAssociationResult:
     tracks: tuple[TrackedObject, ...]
     locked: TrackedObject | None
     frame: RealFrameAssociation
+    # This frame's board detections with their corners (HITL step 22).
+    boards: tuple[Detection, ...] = ()
 
 
 class TrackingAssociationProcessor:
@@ -149,7 +152,10 @@ class TrackingAssociationProcessor:
         )
         self._models.identity.pin(pinned)
         self._metrics.bump("track_updates")
-        return TrackingAssociationResult(tuple(tracks), locked, association)
+        boards = tuple(item for item in batch.detections if item.board is not None)
+        return TrackingAssociationResult(
+            tuple(tracks), locked, association, boards,
+        )
 
 
 class TrackingResultPublisher:
@@ -170,6 +176,7 @@ class TrackingResultPublisher:
             list(result.tracks),
             result.locked,
             result.frame,
+            result.boards,
         )
         primary = find_poi_by_id(
             pois,

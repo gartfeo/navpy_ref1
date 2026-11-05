@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-import math
+from collections.abc import Callable
 from dataclasses import dataclass
 
 import numpy as np
@@ -26,6 +26,13 @@ from navpy.core.perception.camera.capture_lookup import (
 from navpy.core.perception.camera.capture_interpolation import interpolate_attitude_at
 from navpy.core.perception.camera.frame_provider import FrameSnapshot
 from navpy.core.perception.camera.integration_timing import NS_PER_S
+from navpy.core.perception.pipeline.capture_position import (
+    PositionSampleView,
+    read_capture_location,
+)
+from navpy.core.perception.pipeline.attitude_sample_pose import (
+    frame_pose_from_sample,
+)
 from navpy.core.perception.pipeline.integration_association import (
     IntegrationAssociation,
 )
@@ -39,45 +46,10 @@ from navpy.core.perception.pipeline.real_detector_ports import (
     AirSpeedReader,
     AttitudeHistoryReader,
     AttitudeSampleReader,
-    AttitudeSampleView,
     LinkIdentityReader,
     LocationReader,
     MountFrameStateReader,
 )
-
-
-def frame_pose_from_sample(
-    attitude_sample: AttitudeSampleView | None,
-) -> tuple[
-    Attitude,
-    tuple[float, float, float] | None,
-    float | None,
-    float | None,
-] | None:
-    """Extract one cached ATTITUDE value and its capture-clock receipt."""
-    if attitude_sample is None:
-        return None
-    uas_att = attitude_sample.attitude
-    rates = attitude_sample.body_rates_rad_s
-    body_rates = None
-    if rates is not None:
-        try:
-            body_rates = (float(rates[0]), float(rates[1]), float(rates[2]))
-        except (IndexError, TypeError, ValueError):
-            body_rates = None
-    pose_time_s = attitude_sample.time_boot_s
-    try:
-        pose_time_s = None if pose_time_s is None else float(pose_time_s)
-    except (TypeError, ValueError):
-        pose_time_s = None
-    receipt_time_s = getattr(attitude_sample, "capture_receipt_s", None)
-    try:
-        receipt_time_s = None if receipt_time_s is None else float(receipt_time_s)
-    except (TypeError, ValueError):
-        receipt_time_s = None
-    if receipt_time_s is not None and not math.isfinite(receipt_time_s):
-        receipt_time_s = None
-    return uas_att, body_rates, pose_time_s, receipt_time_s
 
 
 @dataclass(frozen=True)
@@ -109,6 +81,9 @@ class RealFrameAssociation:
     # The time visual rates difference: on integration timing the frame's PTS
     # (seconds), set for refused frames too so a tracker never mixes axes.
     interval_timestamp_s: float | None = None
+    # Camera location at the capture instant (acquisition only, step 22);
+    # None unless the attitude is bracketed at capture and a fix is near.
+    capture_location: Location | None = None
 
 
 class FrameAssociationBuilder:
@@ -126,6 +101,8 @@ class FrameAssociationBuilder:
             source_id: str = "",
             maximum_skew_s: float = POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
             integration: IntegrationAssociation | None = None,
+            position_sample_reader: Callable[[], PositionSampleView | None]
+            | None = None,
     ) -> None:
         if calibration is not None and integration is not None:
             # One authority per run: integration timing never sits beside,
@@ -143,6 +120,7 @@ class FrameAssociationBuilder:
         self._source_id = source_id
         self._maximum_skew_s = float(maximum_skew_s)
         self._integration = integration
+        self._position_sample_reader = position_sample_reader
 
     def set_maximum_skew(self, maximum_skew_s: float) -> None:
         self._maximum_skew_s = float(maximum_skew_s)
@@ -225,12 +203,16 @@ class FrameAssociationBuilder:
             capture_status = outcome.status
             interpolated = outcome.attitude
             mount_state = outcome.mount_state
+        capture_loc = None
         if interpolated is not None and capture_status == "bracketed":
             # The de-rotating attitude describes the CAPTURE instant.
             uas_att = interpolated.attitude
             body_rates = interpolated.body_rates_rad_s
             attitude_boot_time_s = interpolated.time_boot_s
             attitude_receipt_time_s = capture_timing.lookup_s
+            capture_loc = read_capture_location(
+                self._position_sample_reader, attitude_boot_time_s,
+            )
         else:
             # Display/diagnostics path only: the latest sample keeps the
             # association representable; the gate below refuses atomicity.
@@ -285,6 +267,7 @@ class FrameAssociationBuilder:
             pose_age_s=pose_age_s,
             capture=capture_timing,
             interval_timestamp_s=interval_timestamp_s,
+            capture_location=capture_loc,
         )
 
 
@@ -294,6 +277,5 @@ __all__ = [
     "RealFrameAssociation",
     "finite_body_rates",
     "finite_time",
-    "frame_pose_from_sample",
     "real_frame_association_quality",
 ]

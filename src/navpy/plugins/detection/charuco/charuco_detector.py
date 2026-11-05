@@ -11,6 +11,8 @@ board outline, projected through the corner homography, so its extent stays
 tied to the board's physical size under partial occlusion. When no reliable
 homography exists it falls back to the extent of the detected corners and
 marker corners. The box is clipped to the frame, as a model detector's is.
+The detection also carries the found corners as measured (``board``), for
+the board pose (``board_pose.py``).
 """
 
 from __future__ import annotations
@@ -28,7 +30,7 @@ from navpy.plugins.detection.charuco.charuco_board import (
 )
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.device import DeviceT
-from navpy.core.ports.detection import Detection
+from navpy.core.ports.detection import BoardCorners, Detection
 
 # A plane-to-image homography needs at least four point correspondences.
 MIN_CHARUCO_CORNERS = 4
@@ -136,6 +138,12 @@ class CharucoBoardDetector:
                 h=y2 - y1,
                 confidence=min(1.0, confidence),
                 class_id=CHARUCO_DOCK_CLASS_ID,
+                board=BoardCorners(
+                    ids=tuple(int(i) for i in np.asarray(ids).reshape(-1)),
+                    points_px=tuple(
+                        (float(u), float(v)) for u, v in image_points
+                    ),
+                ),
             )
         ]
 

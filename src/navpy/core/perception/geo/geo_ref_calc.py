@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+import numpy as np
+
 from navpy.core.kernel.config.uas_args import UasArgs
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
@@ -41,6 +43,11 @@ class GeoRefCalc:
 
     def calc_ned(self, u, v, k, g_data: GimbalData, uas_att: Attitude):
         return self._camera_projector.calc_ned(u, v, k, g_data, uas_att)
+
+    def camera_point_to_ned(
+        self, p_camera: np.ndarray, g_data: GimbalData, uas_att: Attitude,
+    ) -> np.ndarray:
+        return self._camera_projector.camera_point_to_ned(p_camera, g_data, uas_att)
 
     def calc_uv(self, p_ned, k, g_data: GimbalData, uas_att: Attitude):
         return self._camera_projector.calc_uv(p_ned, k, g_data, uas_att)

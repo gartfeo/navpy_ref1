@@ -21,6 +21,22 @@ class FrameDetector(Protocol):
 
 
 @dataclass(frozen=True)
+class BoardCorners:
+    """A reference board's found corners in one frame, as measured.
+
+    ``ids`` index the board's interior corners; ``points_px`` are the raw
+    (distorted) pixel positions in the same order.
+    """
+
+    ids: tuple[int, ...]
+    points_px: tuple[tuple[float, float], ...]
+
+    def __post_init__(self) -> None:
+        if len(self.ids) != len(self.points_px):
+            raise ValueError("board corner ids and points differ in length")
+
+
+@dataclass(frozen=True)
 class Detection:
     cx: float
     cy: float
@@ -28,6 +44,8 @@ class Detection:
     h: float
     confidence: float
     class_id: int
+    # Set only by a board detector; a model detector has no corners.
+    board: BoardCorners | None = None
 
     @property
     def xyxy(self) -> np.ndarray:

@@ -783,6 +783,10 @@
         },
         "appearance": {
           "enabled": false
+        },
+        "charuco": {
+          "square_mm": 400.0,
+          "marker_mm": 296.0
         }
       }
     },

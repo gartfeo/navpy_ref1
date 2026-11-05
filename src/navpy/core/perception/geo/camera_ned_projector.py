@@ -45,6 +45,16 @@ class CameraNedProjector:
             self._inv_k = np.linalg.inv(k)
             self._cached_k = k.copy()
         camera_point = self._inv_k @ image
+        return self.camera_point_to_ned(camera_point[:, 0], g_data, uas_att)
+
+    def camera_point_to_ned(
+        self,
+        p_camera: Sequence[float] | np.ndarray,
+        g_data: GimbalData,
+        uas_att: Attitude,
+    ) -> np.ndarray:
+        """Move one camera-frame point through gimbal and aircraft to NED."""
+        camera_point = np.asarray(p_camera, dtype=float).reshape(3, 1)
         self._show("p_c_prime", camera_point)
 
         camera_to_gimbal_translation = np.array([[0], [0], [0]])

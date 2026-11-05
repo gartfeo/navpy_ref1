@@ -10,6 +10,7 @@ from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.skills.geo_approach.board_orbit_centre import BoardOrbitCentre
 
 # The waiting circle takes the POI to sit on the terrain: a few metres of real
 # height move the circle centre by a few metres, well inside the circle.
@@ -28,6 +29,8 @@ class SelfDetectedApproachPorts:
     request_guided: Callable[[], None]
     loiter_poi: Callable[[Location, float, Optional[float]], None]
     needs_own_orbit: Callable[[DetectedObject], bool]
+    # The own board pose's centre (HITL step 22); None without a board pose.
+    board_centre: Callable[[DetectedObject], Optional[BoardOrbitCentre]]
 
 
 class SelfDetectedApproach:
@@ -56,16 +59,12 @@ class SelfDetectedApproach:
             return
         # Circle the POI until it is confirmed (owner, 2026-10-07), so it
         # stays inside the turn and in view. Under the vision law only the
-        # camera's ground estimate centres the circle, and it is not stored
+        # camera's own estimate centres the circle, and it is not stored
         # where the approach could read it. No sim truth: not the POI's
-        # position and not its height (the POI is taken to sit on the ground).
+        # position and not its height.
         final_approach = self._ports.final_approach_active()
         poi_location = (
-            self._ports.ground_location(
-                poi,
-                allow_fallback=False,
-                reference_height_m=WAITING_CIRCLE_REFERENCE_HEIGHT_M,
-            )
+            self._vision_centre(poi)
             if final_approach
             else self.poi_location(poi)
         )
@@ -105,6 +104,24 @@ class SelfDetectedApproach:
             f"Self-detect orbit: poi={poi_location} "
             f"orbit_r={self._navigation_task.orbit_radius_m:.0f}m",
             key="nav",
+        )
+
+    def _vision_centre(self, poi: DetectedObject) -> Optional[Location]:
+        """The board pose's centre; else the ground ray at height zero."""
+        board = self._ports.board_centre(poi)
+        if board is not None and board.location is not None:
+            return board.location
+        if board is not None:
+            # A refused fit falls back to the ground ray, as before step 22.
+            self._logger.warning(
+                f"Self-detect orbit: board pose refused ({board.reason}); "
+                "using the ground ray",
+                key="nav",
+            )
+        return self._ports.ground_location(
+            poi,
+            allow_fallback=False,
+            reference_height_m=WAITING_CIRCLE_REFERENCE_HEIGHT_M,
         )
 
     def poi_location(self, poi: DetectedObject) -> Optional[Location]:

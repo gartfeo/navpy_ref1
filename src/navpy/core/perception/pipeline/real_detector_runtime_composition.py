@@ -121,6 +121,8 @@ def build_association(
         attitude_sample_reader=lambda: vehicle.attitude_sample,
         mount_state_reader=mount.capture_frame_state,
         location_reader=lambda: vehicle.location(False),
+        # Acquisition only (step 22): the capture-time camera position.
+        position_sample_reader=lambda: getattr(vehicle, "position_sample", None),
         air_speed_reader=air_speed_reader,
         attitude_history_reader=vehicle.attitude_history,
         # From the LIVE connection (vehicle facet), never from configuration.
@@ -178,6 +180,7 @@ def build_runtime(
         mapper=DetectedObjectMapper(
             DetectionMappingConfig(pipeline.reference_height_m, pipeline.output_mode),
             state.confirmation_frames,
+            models.board_pose,
         ),
         navigation_sink=TrackingNavigationSink(
             None if navigation is None else GimbalMeasurementAdapter(navigation),

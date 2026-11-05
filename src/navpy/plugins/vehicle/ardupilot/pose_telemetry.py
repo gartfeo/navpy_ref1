@@ -59,6 +59,7 @@ def position_sample_from_message(
 
     ``time_boot_s`` uses the ATTITUDE conversion, so equal integer
     ``time_boot_ms`` gives equal boot times; a non-integer stamp has none.
+    ``vn``/``ve``/``vd`` are the message's NED ground velocity in m/s.
     """
     time_boot_ms = getattr(message, "time_boot_ms", None)
     if isinstance(time_boot_ms, bool) or not isinstance(time_boot_ms, int):
@@ -69,6 +70,9 @@ def position_sample_from_message(
         alt=message.alt / 1e3,
         time_boot_s=float(time_boot_ms) * 1e-3,
         receipt_time_s=float(receipt_time_s),
+        vn=float(getattr(message, "vx", math.nan)) / 100.0,
+        ve=float(getattr(message, "vy", math.nan)) / 100.0,
+        vd=float(getattr(message, "vz", math.nan)) / 100.0,
     )
 
 

@@ -5,6 +5,7 @@ from __future__ import annotations
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.perception.camera.camera_mount_types import CameraMountFrameState
+from navpy.core.ports.board_pose import BoardPoseResult
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import (
     ConfirmationEvidence,
@@ -45,6 +46,7 @@ class DetectedObjectBuilder:
             association: RealFrameAssociation,
             mount_state: CameraMountFrameState,
             visual_attitude: tuple[float, float],
+            board_pose: BoardPoseResult | None = None,
     ) -> DetectedObject:
         calibration = PixelCalibration.from_matrix(mount_state.k)
         identity = DetectionIdentity(track.id, track.id)
@@ -76,6 +78,8 @@ class DetectedObjectBuilder:
         geo = DetectionGeoDiagnostics(
             reference_height_m=self._reference_height_m,
             camera_location=association.c_g_loc,
+            board_pose=board_pose,
+            capture_camera_location=association.capture_location,
         )
         return DetectedObject(
             identity=identity,
