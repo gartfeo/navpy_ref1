@@ -1222,6 +1222,7 @@
       "final_approach_record_unavailable": "մոտեցման գրառումը հասանելի չէ",
       "source_event_active_poi_missing": "POI-ն բացակայում է",
       "source_event_pump": "տեսողական աղբյուրը ձախողվեց",
+      "internal_error": "NavPy-ի ներքին սխալ",
       "unknown": "այլ, տե՛ս NavPy-ի մատյանը"
     }
   },

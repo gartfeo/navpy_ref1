@@ -150,6 +150,10 @@ def _vision_runtime_factory(
                 f"NAV hold stale: {check.describe()}",
                 key="nav",
             ),
+            report_stale_command=lambda check: logger.warning(
+                f"NAV command stale: {check.describe()}",
+                key="nav",
+            ),
         )
         final_approach = NavigationFinalApproachCapabilities(
             status=built.runtime.session,

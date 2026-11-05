@@ -1222,6 +1222,7 @@
       "final_approach_record_unavailable": "approach record unavailable",
       "source_event_active_poi_missing": "POI missing",
       "source_event_pump": "vision source failed",
+      "internal_error": "NavPy internal error",
       "unknown": "other, see the NavPy log"
     }
   },

@@ -639,3 +639,105 @@ def test_execution_composition_gives_the_worker_the_camera_schedule_and_capture(
         )
 
     assert worker_type.call_args.kwargs["camera"] == SimCamera(schedule, pipeline.capture_frame)
+
+
+# --- retained attitude (burst delivery) -------------------------------------
+
+
+def _history_reader(
+    latest_attitude: SimpleNamespace,
+    position: SimpleNamespace,
+    history: object,
+) -> SimPollingPoseReader:
+    def read_history() -> object:
+        if isinstance(history, Exception):
+            raise history
+        return history
+
+    return SimPollingPoseReader(
+        attitude_sample=lambda: latest_attitude,
+        position_sample=lambda: position,
+        air_speed=lambda: 22.0,
+        maximum_receipt_skew_s=lambda: BUDGET_S,
+        attitude_history=read_history,
+    )
+
+
+def test_position_behind_latest_attitude_pairs_the_retained_attitude() -> None:
+    # Mid-burst poll: ATTITUDE 1_060 already arrived, its position not yet.
+    history = [_attitude(1_020), _attitude(1_040), _attitude(1_060)]
+
+    read = _history_reader(history[-1], _position(1_040), history).read()
+
+    assert read.sample is not None
+    assert read.sample.time_boot_s == pytest.approx(1.04)
+    # Source "now" stays the newest attitude: the frame's age is measured.
+    assert read.attitude_time_boot_s == pytest.approx(1.06)
+
+
+@pytest.mark.parametrize(
+    "history",
+    [
+        pytest.param([_attitude(1_020), _attitude(1_060)], id="no_equal_boot"),
+        pytest.param([], id="empty"),
+        pytest.param(RuntimeError("history unreadable"), id="history_raises"),
+        pytest.param([_attitude(1_040, 101.0), _attitude(1_060)], id="receipt_skew"),
+    ],
+)
+def test_retained_attitude_pairs_only_an_exact_associated_instant(
+    history: object,
+) -> None:
+    read = _history_reader(_attitude(1_060), _position(1_040), history).read()
+
+    assert read.sample is None
+    assert read.attitude_time_boot_s == pytest.approx(1.06)
+
+
+def test_position_ahead_of_attitude_is_never_paired_from_history() -> None:
+    history = [_attitude(1_040)]
+
+    read = _history_reader(_attitude(1_040), _position(1_060), history).read()
+
+    assert read.sample is None
+
+
+def test_attitude_leading_every_poll_still_keeps_frames_fresh() -> None:
+    """Mechanism of the 2026-11-05 demo ``source_command_stale``.
+
+    When every poll lands mid-burst (ATTITUDE one 20 ms step ahead of
+    GLOBAL_POSITION_INT), latest-with-latest pairing produced no frame for as
+    long as that lasted; past 1.0 s of source time the held command went
+    stale. With the retained attitude each poll pairs one step behind.
+    """
+    history: list[SimpleNamespace] = []
+    paired_boot_ms: list[int] = []
+    for step in range(60):  # 1.2 s of source time at 50 Hz
+        boot_ms = 10_000 + 20 * step
+        history.append(_attitude(boot_ms + 20))
+        latest_only = _reader(history[-1], _position(boot_ms)).read()
+        assert latest_only.sample is None
+        read = _history_reader(
+            history[-1], _position(boot_ms), list(history[-64:]),
+        ).read()
+        if step > 0:
+            assert read.sample is not None
+            paired_boot_ms.append(whole_boot_ms(read.sample.time_boot_s))
+            age_s = read.attitude_time_boot_s - read.sample.time_boot_s
+            assert age_s < FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S / 10.0
+    assert paired_boot_ms == sorted(paired_boot_ms)
+
+
+def test_polling_reader_reads_the_vehicle_attitude_history() -> None:
+    from navpy.core.ports.pose_stream_rate import ATTITUDE_HISTORY_COUNT
+
+    vehicle = Mock()
+    vehicle.attitude_sample = _attitude(9_020)
+    vehicle.position_sample = _position(9_000)
+    vehicle.attitude_history.return_value = (_attitude(9_000), _attitude(9_020))
+    vehicle.air_speed = 21.0
+
+    read = build_polling_reader(vehicle, lambda: BUDGET_S).read()
+
+    assert read.sample is not None
+    assert read.sample.time_boot_s == pytest.approx(9.0)
+    vehicle.attitude_history.assert_called_once_with(ATTITUDE_HISTORY_COUNT)

@@ -58,8 +58,14 @@ class FinalApproachEpisodeFailures:
 
     def mark_failed(self) -> None:
         with self._lock:
-            if self._episode.latch_failure():
-                self._liveness.mark_failed()
+            latched = True
+            try:
+                latched = self._episode.latch_failure()
+            finally:
+                # A raising terminal observer must not hide the failure from
+                # the NAV tick: the approach would neither command nor end.
+                if latched:
+                    self._liveness.mark_failed()
 
 
 __all__ = [
