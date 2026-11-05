@@ -644,6 +644,7 @@ def test_an_app_session_script_waits_for_the_snap_ends_or_its_length_then_stops_
     assert calls == [("ready", fleet_layout(SLICE).backend), ("stop", slept)]
 
 
+@pytest.mark.usefixtures("pinned_run_swarm")
 def test_the_app_session_is_a_recorded_run_option_the_replay_reads_back(tmp_path, monkeypatch, no_claim):
     import json
 

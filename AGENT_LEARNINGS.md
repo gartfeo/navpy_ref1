@@ -2396,6 +2396,22 @@
 - Smoothing that restarts a fixed multiple of the sample interval towards each new sample settles
   that many intervals behind at constant speed; check the steady-state lag before tuning windows.
 
+## Real-clock "ends at once" bounds under -n 8 (2026-11-04)
+
+- `assert time.monotonic() - started < 0.5` around a call that runs one 0.25 s wait leaves 0.25 s for
+  load; at -n 8 it failed at 0.56 s. Spy on the wait primitive instead (here MessageStore/MissionInbox
+  wait_after): record each wait's call time, deadline and whether it ran out, and assert "no wait ran
+  out" or "one wait of at most X s". Replies the fake publishes during the send then make the check
+  independent of host load. Prove it with a mutation that makes the code wait its timeout.
+- A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s and raised
+  TimeoutError under load, both with 1000 queued rows and with only its own close message queued.
+  Draining first still leaves that message inside the bound. A test that does not test the bound
+  patches CACHE_WORKER_JOIN_TIMEOUT_S to None. Prove it by slowing _handle past 2 s.
+- From Git Bash, PYTHONPATH="$PWD/src" is a POSIX path that the Windows venv ignores, so pytest
+  imported the main checkout's src through the editable install. Use $(cygpath -w "$PWD")\src.
+- I kept only the last 30 lines of a 29-minute loaded suite run and lost the failure details. Keep
+  the whole output (or at least every E line) of a long run.
+
 ## Slow full suite (2026-11-04)
 
 - **The suite ran in one process.** 11,146 tests took 19.5 min serial and
@@ -2487,6 +2503,23 @@
   holds, after the code commit had already gone in alone.
 - **`python -I` drops PYTHONPATH.** A scratch script run isolated must put
   `src` on `sys.path` itself (pass the path as an argument).
+
+## SIYI disconnect tests raced 10 ms (2026-11-04)
+
+- **Prove a load failure by delaying the thread, not by guessing.** A scratch
+  pytest plugin (`-p`) that sleeps 50 ms in `ThreadLaunchGate.enter`
+  reproduced the CI `assert False is True` in four `BoundedSiyiSdk` tests and
+  the poll-failure test; after the fix they pass even at 500 ms.
+- **A constant fake clock cannot expire a deadline computed from it.**
+  Deadline and remaining time read the same clock; the clock must advance
+  between the two reads (`expire_after_next_read`), or the test silently
+  waits the full real timeout.
+- **Inject the deadline clock (`monotonic=`) instead of shrinking the
+  timeout.** Waits then end on their events; the real timeout is only a
+  liveness backstop, and the test expires the deadline when it means to.
+- **Local venv had OpenCV 5.0.0;** `test_runtime_time_lint.py::
+  test_reviewed_modules_host_members_dynamic_imports_and_held_modules` fails
+  on main with it. Unrelated to the change; CI is the judge.
 
 ## Eligible airspeed (HITL step 20, 2026-11-05)
 
@@ -2587,3 +2620,22 @@
   the ground ray it replaced, and the aircraft position the orbit planner compares it with, are
   home-relative; a mocked planner in my test hid it and Codex found it. Check `is_absolute` on both
   sides of every subtraction, and test a replacement through the real consumer.
+
+## Map frame rate, todo 287 (2026-11-05)
+
+- Mistake: an early A/B (footprints hidden, 1.6 to 22 fps) was read as a cause, but the outside load ended at the same moment. Use same-flight ABAB toggles and log the load beside each bin.
+- Find render cost by owner: wrap `scene.render` and count `frameState.commandList` by owner type. Here one CAD-exported glTF gave 864 draw commands per UAV (432 meshes plus silhouette); `gltf-transform optimize` merged it to 4 meshes and the page went from 16-19 to 30 fps.
+- A Chrome window hidden or on an inactive screen runs at about 8 rAF/s; have the owner bring it to the front before measuring.
+- Python busy loops did not slow Chrome at all; other chats' pytest `-n 8` and lockstep runs did. A load case is not controlled unless it is measured to slow the page.
+
+## Merging dev sim step 13 into a busy main (2026-11-05)
+
+- **Check todo numbers again right before each push.** Main took 269 and 279 while I merged; step 13's
+  todos moved twice (to 280-286). Renumber code comments and refusal texts too, not only the docs.
+- **The SOLID guard's vendored pins are CRLF hashes** (a Windows checkout with autocrlf). Step 13 pinned
+  its MAVFTP file by the LF hash, which fails on main and in CI. Check pins in a checkout with main's
+  line endings.
+- **Attribute a moved digest before blaming the step.** The branch tip still gave its own digest on this
+  host, and the merge gave its new digest twice, so main's commits moved it.
+- **CI has no WSL.** A test that reaches execute_lockstep_run needs the pinned_run_swarm fixture.
+- **Stage named paths after an npm build.** git add -A on src picked up src/gcs/frontend/dist (82 files).
