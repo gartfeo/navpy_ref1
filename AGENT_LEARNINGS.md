@@ -2657,3 +2657,14 @@
   is NAV_FAIL source_command_stale. Check the logs for a real exit before hunting a crash.
 - **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
   stops on BaseException; tests use a BaseException subclass to pin that.
+
+## Clock-failure tests for deadline waits (todo 291, 2026-11-05)
+
+- A fake Event that adds each timeout to a fake clock froze on float rounding (0.95 + 4e-17 == 0.95), so
+  the waiter spun forever and hung pytest twice. Advance fake clocks by at least 1e-6 per wait and run new
+  wait tests under `timeout`.
+- "No clock progress" alone cannot mark a frozen clock: an existing worker test models a sleep that returns
+  early with zero progress. Count a clock as frozen only after it steps back, or stays still across an Event
+  wait or across two waits in a row; then spend the wait budget by the time asked.
+- Codex's first pass found the loops still spun on a NaN or 1e300 clock (`max(0, nan)` is 0, `1e300 + 1.0 == 1e300`);
+  bounding only the period was not enough. Test each loop with constant, alternating and stepping-back clocks.

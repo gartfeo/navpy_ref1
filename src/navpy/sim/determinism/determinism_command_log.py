@@ -6,7 +6,7 @@ matter more than the code:
 
 **An iteration index is NOT an autopilot slot index.** ``NavigationCommandWorker``
 counts its own loop passes; it skips a missed deadline outright
-(``_next_fixed_deadline``, "Never replay a missed slot"), so iteration j and
+(``next_fixed_deadline``, "Never replay a missed slot"), so iteration j and
 autopilot slot j diverge the first time the host is late. Nothing here may be
 subtracted from a slot number. Building the common grid that would let it be is
 Landing 2.

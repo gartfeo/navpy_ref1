@@ -16,7 +16,7 @@ What the series ARE:
 W9.2's r(k) is still NOT measured, and the two units above are why. r(k) is the
 first logical COMMAND slot at which input k was completely ready; the worker
 counts its own passes and skips a missed deadline outright
-(``_next_fixed_deadline``: "Never replay a missed slot"), so pass j and
+(``next_fixed_deadline``: "Never replay a missed slot"), so pass j and
 autopilot slot j diverge the first time the host is late. Subtracting an input
 slot from an iteration number would produce a figure in no unit at all. What
 this landing gives W9.2's calibration campaign is the pair -- input slot and the
