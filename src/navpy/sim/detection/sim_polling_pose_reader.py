@@ -1,16 +1,23 @@
 """Narrow polling-pose adapter for finite-FOV simulation.
 
-A frame is rendered only from the latest ATTITUDE and the latest
-GLOBAL_POSITION_INT when both describe the same autopilot instant: equal
-integer ``time_boot_ms`` and receipts within one association budget.
-Position feeds only the simulator's rendering, never the vision law.
+A frame is rendered only from an ATTITUDE and the latest GLOBAL_POSITION_INT
+that describe the same autopilot instant: equal integer ``time_boot_ms`` and
+receipts within one association budget. Position feeds only the simulator's
+rendering, never the vision law.
+
+The attitude is the latest one or, when that is already newer, the retained
+ATTITUDE with the position's boot time. MAVLink delivers both streams in
+bursts with ATTITUDE ahead, so a poll mid-burst sees a newer attitude than
+position; pairing latest-with-latest only then left the newest frame up to
+0.8 s of source time behind at SITL speedup 10 and, under load, past the
+1.0 s command freshness limit (``source_command_stale``).
 """
 
 from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from typing import Callable, Optional, Protocol, Tuple
+from typing import Callable, Optional, Protocol, Sequence, Tuple
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
@@ -117,8 +124,12 @@ class SimPollingPoseReader:
         position_sample: PositionSampleReader,
         air_speed: OptionalFloatReader,
         maximum_receipt_skew_s: Callable[[], float],
+        attitude_history: Optional[
+            Callable[[], Sequence[AttitudeSampleView]]
+        ] = None,
     ) -> None:
         self._attitude_sample = attitude_sample
+        self._attitude_history = attitude_history
         self._position_sample = position_sample
         self._air_speed = air_speed
         self._maximum_receipt_skew_s = maximum_receipt_skew_s
@@ -134,20 +145,42 @@ class SimPollingPoseReader:
         attitude_boot_s = float(attitude_ms) * 1e-3
         if position is None:
             return PollingPoseRead(attitude_boot_s, None)
+        position_ms = whole_boot_ms(position.time_boot_s)
+        if position_ms is not None and position_ms < attitude_ms:
+            attitude = self._retained_attitude(position_ms)
+            if attitude is None:
+                return PollingPoseRead(attitude_boot_s, None)
         return PollingPoseRead(
             attitude_boot_s,
-            self._pair(attitude, attitude_ms, attitude_boot_s, position),
+            self._pair(attitude, position_ms, position),
         )
+
+    def _retained_attitude(self, boot_ms: int) -> Optional[AttitudeSampleView]:
+        """The newest retained ATTITUDE with exactly this boot time, if any."""
+        if self._attitude_history is None:
+            return None
+        try:
+            history = tuple(self._attitude_history())
+        except Exception:  # noqa: BLE001 - an unreadable history pairs nothing
+            return None
+        for sample in reversed(history):
+            sample_ms = whole_boot_ms(getattr(sample, "time_boot_s", None))
+            if sample_ms == boot_ms:
+                return sample
+            if sample_ms is not None and sample_ms < boot_ms:
+                return None
+        return None
 
     def _pair(
         self,
         attitude: AttitudeSampleView,
-        attitude_ms: int,
-        attitude_boot_s: float,
+        position_ms: Optional[int],
         position: PositionSampleView,
     ) -> Optional[PollingPoseSample]:
-        if whole_boot_ms(position.time_boot_s) != attitude_ms:
+        attitude_ms = whole_boot_ms(attitude.time_boot_s)
+        if position_ms is None or position_ms != attitude_ms:
             return None
+        attitude_boot_s = float(attitude_ms) * 1e-3
         attitude_receipt_s = _finite_receipt_s(attitude.receipt_time_s)
         position_receipt_s = _finite_receipt_s(position.receipt_time_s)
         if attitude_receipt_s is None or position_receipt_s is None:

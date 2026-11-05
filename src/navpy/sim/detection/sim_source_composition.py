@@ -8,7 +8,10 @@ from typing import Callable, Optional
 
 from navpy.core.kernel import runtime_time as rt
 import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
-from navpy.core.ports.pose_stream_rate import pose_frame_association_max_skew_s
+from navpy.core.ports.pose_stream_rate import (
+    ATTITUDE_HISTORY_COUNT,
+    pose_frame_association_max_skew_s,
+)
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     request_pose_streams,
     request_simulator_truth_pose_stream,
@@ -142,6 +145,7 @@ def build_polling_reader(
         position_sample=lambda: vehicle.position_sample,
         air_speed=lambda: vehicle.air_speed,
         maximum_receipt_skew_s=maximum_receipt_skew_s,
+        attitude_history=lambda: vehicle.attitude_history(ATTITUDE_HISTORY_COUNT),
     )
 
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
+from contextlib import suppress
 from typing import Any, Callable, ContextManager, Protocol
 
 from navpy.core.kernel import runtime_time as rt
@@ -94,6 +95,15 @@ class NavigationCommandWorker:
 
     def __init__(self, ports: NavigationCommandWorkerPorts) -> None:
         self._ports = ports
+
+    def run_until_stopped(self) -> None:
+        while not self._ports.stop_event.is_set():
+            try:
+                self.run()
+            except Exception as exc:  # noqa: BLE001 - a dead worker stalls every later approach
+                with suppress(Exception):
+                    self._ports.logger.error(f"Command worker restarting after: {exc}", exc)
+                self._ports.stop_event.wait(self._ports.scheduler_period_s)
 
     def run(self) -> None:
         ports = self._ports

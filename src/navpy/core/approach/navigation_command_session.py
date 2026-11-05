@@ -128,7 +128,7 @@ class NavigationCommandSession:
 
     def _run_generation(self, launch: ThreadLaunchGate) -> None:
         if launch.enter():
-            self._worker.run()
+            self._worker.run_until_stopped()
 
 
 def _scheduler_period_s(rate_hz: float) -> float:
