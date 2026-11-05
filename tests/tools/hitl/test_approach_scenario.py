@@ -348,7 +348,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
     monkeypatch.setattr(approach, "_addresses", lambda: ("172.0.0.2", "172.0.0.1"))
     monkeypatch.setattr(approach, "_board_scripts", lambda repo, run_dir: None)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
-    monkeypatch.setattr(approach, "_orbit_check", lambda args, scenario: {"feasible": True})
+    monkeypatch.setattr(approach, "orbit_check", lambda args, scenario: {"feasible": True})
     monkeypatch.setattr(approach.chain, "publisher_profile", lambda paths: tmp_path / "profile.json")
     monkeypatch.setattr(approach.owners, "census", lambda *a, **k: {"ok": True, "roles": {}, "problems": []})
     monkeypatch.setattr(approach.chain, "win_path", lambda path: str(path))

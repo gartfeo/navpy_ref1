@@ -16,6 +16,8 @@ from tools.tuning.approach_lane import FIRST_LANE_SEQ, LANE_REPEATS, build_lane,
 from tools.tuning.approach_procs import STOP_EOF, STOP_SIGINT, ProcessGroup, ProcSpec, RunnerError
 from tools.tuning.dock_pass import M, Point
 from tools.tuning.hitl_params import ParamFile
+from tools.hitl import orbit_plan, scenario_checks
+from tools.tuning import approach_orbit
 
 
 class FakeClock:
@@ -289,7 +291,7 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     monkeypatch.setattr(approach.chain, "win_path", lambda path: "C:/x")
     monkeypatch.setattr(approach, "Board", FakeBoard)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
-    monkeypatch.setattr(approach, "_orbit_check", lambda args, scenario: {"feasible": True})
+    monkeypatch.setattr(approach, "orbit_check", lambda args, scenario: {"feasible": True})
     args = approach_args(tmp_path)
     assert approach.approach(args) == 1
     run_dir = next((tmp_path / "runs").iterdir())
@@ -647,7 +649,7 @@ def _orbit_inputs(tmp_path, monkeypatch, pitch_line="PTCH_LIM_MIN_DEG -45\n"):
     params.write_text("AIRSPEED_CRUISE 24\nROLL_LIMIT_DEG 45\n" + pitch_line, encoding="utf-8")
     model = tmp_path / "mi.json"
     model.write_text(json.dumps({"envelope": {"airspeed_m_s": {"min": 14.0, "max": 35.0}}}), encoding="utf-8")
-    monkeypatch.setattr(approach, "board_param_files", lambda *args: [ParamFile(params, True)])
+    monkeypatch.setattr(approach_orbit, "board_param_files", lambda *args: [ParamFile(params, True)])
     args = approach_args(tmp_path)
     args.model_input = str(model)
     return args
@@ -666,14 +668,14 @@ def test_the_runner_refuses_an_infeasible_orbit_before_its_run_folder_exists(tmp
 
 def test_a_feasible_orbit_passes_and_is_kept_for_the_run(tmp_path, monkeypatch):
     args = _orbit_inputs(tmp_path, monkeypatch)
-    monkeypatch.setattr(approach.orbit, "final_approach_orbit_setting", lambda profile: 180.0)
+    monkeypatch.setattr(orbit_plan, "final_approach_orbit_setting", lambda profile: 180.0)
     scenario = {**PUBLIC, "lane": {**PUBLIC["lane"], "height_m": 100.0}, "limits": {**PUBLIC["limits"],
                                                                                     "min_height_m": 1.0}}
-    result = approach._orbit_check(args, scenario)
-    assert result["feasible"] is True and len(result["checks"]) == len(approach.orbit.CHECKS)
+    result = approach_orbit.orbit_check(args, scenario)
+    assert result["feasible"] is True and len(result["checks"]) == len(scenario_checks.CHECKS)
 
 
 def test_unreadable_orbit_inputs_refuse_the_run(tmp_path, monkeypatch):
     args = _orbit_inputs(tmp_path, monkeypatch, pitch_line="")
     with pytest.raises(SystemExit, match="orbit check cannot run: .*PTCH_LIM_MIN_DEG"):
-        approach._orbit_check(args, PUBLIC)
+        approach_orbit.orbit_check(args, PUBLIC)

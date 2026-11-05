@@ -30,14 +30,16 @@ from navpy.core.skills.acquire.orbit_radius_setting import (
 )
 from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
+from tools.hitl import orbit_centre as oc
+from tools.hitl import orbit_plan as op
 from tools.hitl import scenario_checks as sc
 from tools.hitl import scenario_public as sp
 
 REPO = Path(__file__).resolve().parents[3]
 PROFILES = load_profiles()[0]
-HITL = PROFILES[sc.HITL_PROFILE]
-STEPS = sc._zoom_steps(HITL)
-BOARD = sc._board(HITL)
+HITL = PROFILES[op.HITL_PROFILE]
+STEPS = op._zoom_steps(HITL)
+BOARD = op._board(HITL)
 
 
 # --- product: the setting and the planner --------------------------------------------------------------------------
@@ -75,7 +77,7 @@ def _radius(planner, height=80.0):
 def test_non_hitl_profiles_keep_the_500_m_floor_unchanged():
     assert MIN_APPROACH_STANDOFF_M == 500.0
     for name, profile in PROFILES.items():
-        if name == sc.HITL_PROFILE:
+        if name == op.HITL_PROFILE:
             continue
         assert final_approach_orbit_setting(profile) is None, name
         assert final_approach_orbit_floor(profile) == 500.0
@@ -86,7 +88,7 @@ def test_non_hitl_profiles_keep_the_500_m_floor_unchanged():
 
 def test_only_hitl_profiles_carry_the_setting():
     carriers = [name for name, profile in PROFILES.items() if FINAL_APPROACH_ORBIT_KEY in profile]
-    assert carriers == [sc.HITL_PROFILE]
+    assert carriers == [op.HITL_PROFILE]
     assert all("hitl" in name for name in carriers)
 
 
@@ -119,11 +121,11 @@ def test_a_malformed_setting_is_refused_when_the_planner_is_built(block):
 
 # --- the pre-series check ------------------------------------------------------------------------------------------
 
-def _plan(**changes) -> sc.OrbitPlan:
+def _plan(**changes) -> op.OrbitPlan:
     """A feasible plan: 180 m circle, 90 m above a board on a 10 m mast, zoom 10, floor 1 m, 24 m/s. With step 22's
     gate refusing the pose at the reading slant, the window is narrow: the ground ray's descent (100 m lane over
     height zero) needs 178.6 m and the reader allows at most 187.6 m."""
-    base = sc.OrbitPlan(radius_m=180.0, lane_height_m=100.0, board_height_m=10.0, floor_m=1.0, airspeed_m_s=24.0,
+    base = op.OrbitPlan(radius_m=180.0, lane_height_m=100.0, board_height_m=10.0, floor_m=1.0, airspeed_m_s=24.0,
                         airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, roll_limit_deg=45.0, steps=STEPS,
                         zoom_command_tenths=100, board=BOARD)
     return dataclasses.replace(base, **changes)
@@ -144,7 +146,7 @@ def test_the_check_uses_the_measured_zoom_10_optics_and_the_configured_board():
     step = STEPS.by_command(100)
     assert step.optics.fy == pytest.approx(16812.132)
     assert (STEPS.stream.image_width, STEPS.stream.image_height) == (1920, 1080)
-    assert BOARD == sc.Board(CharucoBoardSpec(square_mm=400.0, marker_mm=296.0))
+    assert BOARD == op.Board(CharucoBoardSpec(square_mm=400.0, marker_mm=296.0))
     assert (BOARD.width_m, BOARD.length_m, BOARD.square_m) == (2.0, 2.8, 0.4)
 
 
@@ -165,7 +167,7 @@ def test_the_turn_term_is_the_planners_at_the_nav_bank_cap():
     ({"reader_min_square_px": 13.0}, {"reader"}),
     ({"zoom_command_tenths": 90}, {"reader", "containment"}),  # 10 still fits: the policy zooms past 9
     ({"zoom_command_tenths": 55}, {"reader", "containment"}),  # not a measured step
-    ({"board": sc.Board(CharucoBoardSpec(square_mm=4000.0, marker_mm=2960.0))}, {"containment"}),
+    ({"board": op.Board(CharucoBoardSpec(square_mm=4000.0, marker_mm=2960.0))}, {"containment"}),
     ({"floor_m": 30.0}, {"recovery_floor"}),                 # the series default floor, above the board
     ({"board_height_m": 9.0, "lane_height_m": 99.0}, {"recovery_floor"}),  # 8 m over the floor: under the pull-out
 ])
@@ -186,7 +188,7 @@ def test_the_first_detection_beyond_the_circle_sets_the_ground_ray_error():
     """Codex round 1: 170 m circle 90 m above a 20 m board: the board is first found 211 m out, so the ground ray
     puts the centre 46.9 m off, not 37.8 m, and the far side drops under the reader limit."""
     plan = _plan(radius_m=170.0, board_height_m=20.0, lane_height_m=110.0, floor_m=7.0)
-    assert sc.centre_error_m(plan) == pytest.approx(46.89, abs=0.01)
+    assert oc.centre_error_m(plan) == pytest.approx(46.89, abs=0.01)
     assert _failed(plan) == {"reader", "descent"}          # descent: the ground ray's 110 m needs 197 m
 
 
@@ -198,7 +200,7 @@ def test_the_descent_check_agrees_with_the_planner_on_the_ground_ray_centre(plan
     """The orbit is centred on the ground ray (height zero) when step 22 refuses the pose, so the real planner sizes
     its descent from the whole lane height. The check passes descent exactly when the planner flies the setting."""
     plan = _plan(**plan_changes)
-    assert not sc.pose_accepted(plan) and sc.descent_height_m(plan) == plan.lane_height_m
+    assert not oc.pose_accepted(plan) and oc.descent_height_m(plan) == plan.lane_height_m
     planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=plan.roll_limit_deg,
                             min_pitch=plan.min_pitch_deg, airspeed=plan.airspeed_m_s)
     flown = _radius(planner, height=plan.lane_height_m)           # the POI at height zero, as the ground ray
@@ -220,32 +222,32 @@ def test_an_aircraft_bank_limit_under_the_nav_cap_sets_the_turn_term_as_in_the_p
 
 
 def test_an_accepted_pose_sizes_the_descent_from_the_board(monkeypatch):
-    monkeypatch.setattr(sc, "pose_accepted_at", lambda *_: True)
-    assert sc.descent_height_m(_plan()) == 90.0
+    monkeypatch.setattr(oc, "pose_accepted_at", lambda *_: True)
+    assert oc.descent_height_m(_plan()) == 90.0
 
 
 def test_the_centre_error_follows_the_product_solvers_verdict_at_the_reading_range():
     plan, step = _plan(), STEPS.by_command(100)
-    reading = sc.reading_slant_m(plan, step)
+    reading = op.reading_slant_m(plan, step)
     assert reading == pytest.approx(math.sqrt(16812.132 * 0.4 * 90.0 / 11.5))      # 229 m
-    assert sc.pose_accepted_at(plan, step, 100.0)                                   # step 22 accepts it close in
-    assert not sc.pose_accepted_at(plan, step, reading)                             # its 0.3 m gate refuses it there
+    assert oc.pose_accepted_at(plan, step, 100.0)                                   # step 22 accepts it close in
+    assert not oc.pose_accepted_at(plan, step, reading)                             # its 0.3 m gate refuses it there
     reach = math.sqrt(reading ** 2 - 90.0 ** 2)                                     # first found 211 m out
-    assert sc.detection_distance_m(plan, step) == pytest.approx(reach)
-    assert sc.centre_error_m(plan) == pytest.approx(reach * 10.0 / 90.0)           # so the ground ray's 23.4 m
+    assert oc.detection_distance_m(plan, step) == pytest.approx(reach)
+    assert oc.centre_error_m(plan) == pytest.approx(reach * 10.0 / 90.0)           # so the ground ray's 23.4 m
 
 
 def test_an_accepted_fit_at_the_reading_range_uses_the_pose_limit(monkeypatch):
-    monkeypatch.setattr(sc, "pose_accepted_at", lambda *_: True)
-    assert sc.centre_error_m(_plan()) == sc.POSE_CENTRE_LIMIT_M == 0.5
+    monkeypatch.setattr(oc, "pose_accepted_at", lambda *_: True)
+    assert oc.centre_error_m(_plan()) == oc.POSE_CENTRE_LIMIT_M == 0.5
     assert _failed(_plan(lane_height_m=90.0)) == set()           # the owner's 80 m plan would then pass
 
 
 def test_the_pose_prediction_is_deterministic():
     plan, step = _plan(), STEPS.by_command(100)
     slants = [205.0 + 5.0 * i for i in range(12)]
-    first = [sc.pose_accepted_at(plan, step, slant) for slant in slants]
-    assert first == [sc.pose_accepted_at(plan, step, slant) for slant in slants]
+    first = [oc.pose_accepted_at(plan, step, slant) for slant in slants]
+    assert first == [oc.pose_accepted_at(plan, step, slant) for slant in slants]
 
 
 def test_no_results_is_not_feasible():

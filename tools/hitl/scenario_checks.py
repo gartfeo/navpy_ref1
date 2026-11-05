@@ -7,14 +7,9 @@ cannot read. The approach runner (tools/tuning/approach.py) runs it before each 
 the run on any failure. Nothing here reaches navpy: navpy gets only the profile radius, and this check reads no dock
 pose and no seed (only the scenario's public lane and limits, scenario_public.py).
 
-Geometry: the aircraft circles at radius r, h = lane height - board height above home. The circle's centre is
-navpy's own geolocation of the board from the first frame that finds it. Step 22's pose fit places it within
-POSE_CENTRE_LIMIT_M (step 22's 0.5 m) when the fit is accepted; a refused fit leaves the
-height-zero ground ray, D * board_height / h beyond the board, D the first detection's horizontal distance
-(the reading slant's reach, never less than r). The check runs the product's solver on seeded noisy
-corners (POSE_DRAWS draws, CORNER_NOISE_FLOOR_PX) at the farthest slant the board can be read from at the planned
-zoom and height, sqrt(fy * square * h / reader limit); only if every draw is accepted is the centre error the
-accepted limit, else the ground ray. The board is then between r - e and r + e away horizontally.
+Geometry: the aircraft circles at radius r, h = lane height - board height above home, round a centre that may be
+off by e (orbit_centre.py); the board is then between r - e and r + e away horizontally. The inputs are in
+orbit_plan.py.
 
 Checks, each using the model speed (the run's commanded airspeed, inside the model's declared airspeed band) and
 the profile's measured optics at the planned zoom step:
@@ -42,92 +37,28 @@ import argparse
 import json
 import math
 import sys
-from collections.abc import Mapping, Sequence
+from collections.abc import Sequence
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
-import cv2
-import numpy as np
-
-from navpy.app.perception.fixed_zoom_profile import build_fixed_zoom
-from navpy.core.perception.profile.vision_profile_loader import load_profiles
-from navpy.core.perception.zoom.fixed_step_zoom_policy import ContainmentMargins
-from navpy.core.perception.zoom.fixed_zoom_steps import FixedZoomSteps, ZoomStep
-from navpy.core.ports.board_pose import BoardPoseFit
-from navpy.core.ports.detection import BoardCorners
+from navpy.core.perception.zoom.fixed_zoom_steps import ZoomStep
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
-from navpy.core.skills.acquire.orbit_radius_setting import final_approach_orbit_setting
-from navpy.core.skills.geo_approach.self_detected_approach import WAITING_CIRCLE_REFERENCE_HEIGHT_M
-from navpy.plugins.detection.charuco.board_pose import (
-    CORNER_NOISE_FLOOR_PX,
-    CharucoBoardPoseSolver,
-)
-from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec, charuco_board_spec_from_settings
 from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
-from tools.hitl import scenario_public as sp
-from tools.hitl.json_checks import read_json
-from tools.tuning.dock_pass import PASS_AIRSPEED_M_S
-from tools.tuning.hitl_params import read_param_file
+from tools.hitl.orbit_centre import centre_error_m, descent_height_m
+from tools.hitl.orbit_plan import (
+    HITL_PROFILE,
+    READER_MIN_SQUARE_PX,
+    Board,
+    OrbitPlan,
+    finite,
+    height_above_board,
+    load_plan,
+    planned_step,
+)
 
 GRAVITY = 9.81
-HITL_PROFILE = "siyi_zr10_hitl_encoded"
-# Plan value (section 4 "Range per zoom", dock4 in hitl_unreal_camera.md): the reader needs about 11.5 px per 40 cm
-# square along the line of sight.
-READER_MIN_SQUARE_PX = 11.5
 # Plan value (section 6, from the pickup plan): a 20-30 deg dive loses 4-9 m in its pull-out; unmeasured (H2).
 PULL_OUT_ALLOWANCE_M = 9.0
-# Step 22's done limit on the own-detected centre when its pose fit is accepted.
-POSE_CENTRE_LIMIT_M = 0.5
-# My value: seeded draws of the pose prediction (deterministic; every one must be accepted).
-POSE_DRAWS = 40
-POSE_SEED = 23
-# Board yaws the prediction tries, relative to the line of sight (the scene's yaw is drawn per seed).
-POSE_YAWS_DEG = (0.0, 45.0, 90.0)
-MODEL_AIRSPEED_BAND = "airspeed_m_s"
-MIN_PITCH_PARAM = "PTCH_LIM_MIN_DEG"
-ROLL_LIMIT_PARAM = "ROLL_LIMIT_DEG"
-CRUISE_PARAM = "AIRSPEED_CRUISE"
-
-
-@dataclass(frozen=True)
-class Board:
-    """The ChArUco board the detector boxes and the pose fit uses (the profile's detector.charuco)."""
-    spec: CharucoBoardSpec
-
-    @property
-    def width_m(self) -> float:
-        return self.spec.squares_x * self.spec.square_mm / 1000.0
-
-    @property
-    def length_m(self) -> float:
-        return self.spec.squares_y * self.spec.square_mm / 1000.0
-
-    @property
-    def square_m(self) -> float:
-        return self.spec.square_mm / 1000.0
-
-    @property
-    def diagonal_m(self) -> float:
-        return math.hypot(self.width_m, self.length_m)
-
-
-@dataclass(frozen=True)
-class OrbitPlan:
-    """Everything the checks use; built from files by ``load_plan``."""
-    radius_m: float
-    lane_height_m: float
-    board_height_m: float           # the board above home: the scene's design height, not a seed's pose
-    floor_m: float
-    airspeed_m_s: float
-    airspeed_band: Optional[tuple[float, float]]
-    min_pitch_deg: float
-    roll_limit_deg: float           # the aircraft's ROLL_LIMIT_DEG, which the planner's turn term reads
-    steps: FixedZoomSteps
-    zoom_command_tenths: int
-    board: Board
-    reader_min_square_px: float = READER_MIN_SQUARE_PX
-    margins: ContainmentMargins = ContainmentMargins()
 
 
 @dataclass(frozen=True)
@@ -135,80 +66,6 @@ class CheckResult:
     name: str
     passed: bool
     detail: dict[str, Any]
-
-
-def _finite(*values: float) -> bool:
-    return all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in values)
-
-
-def height_above_board(plan: OrbitPlan) -> float:
-    return plan.lane_height_m - plan.board_height_m
-
-
-def reading_slant_m(plan: OrbitPlan, step: ZoomStep) -> float:
-    """The farthest slant the board's squares are read from at this step and height (px = fy s h / R^2)."""
-    return math.sqrt(step.optics.fy * plan.board.square_m * height_above_board(plan) / plan.reader_min_square_px)
-
-
-def _board_in_camera(points_m: np.ndarray, slant_m: float, h: float, yaw_deg: float) -> np.ndarray:
-    """The flat board's corners in the camera frame (x right, y down, z forward), centred on the optical axis and
-    seen from depression asin(h / slant), turned yaw_deg about its own normal."""
-    sin_d = h / slant_m
-    cos_d = math.sqrt(max(0.0, 1.0 - sin_d * sin_d))
-    normal = np.array([0.0, cos_d, sin_d])          # into the printed face: down, away from the camera
-    along = np.array([0.0, sin_d, -cos_d])
-    yaw = math.radians(yaw_deg)
-    x_axis = math.cos(yaw) * np.array([1.0, 0.0, 0.0]) + math.sin(yaw) * along
-    y_axis = np.cross(normal, x_axis)
-    return np.array([0.0, 0.0, slant_m]) + points_m[:, :1] * x_axis + points_m[:, 1:2] * y_axis         + points_m[:, 2:3] * normal
-
-
-def pose_accepted_at(plan: OrbitPlan, step: ZoomStep, slant_m: float) -> bool:
-    """Whether the product's solver accepts every seeded noisy fit of the board at this slant and step."""
-    solver = CharucoBoardPoseSolver(plan.board.spec)
-    points = solver.board_points_m
-    k, dist = step.optics.k(), step.optics.dist_coeffs()
-    rng = np.random.default_rng(POSE_SEED)
-    for yaw in POSE_YAWS_DEG:
-        image, _ = cv2.projectPoints(_board_in_camera(points, slant_m, height_above_board(plan), yaw),
-                                     np.zeros(3), np.zeros(3), k, dist)
-        image = image.reshape(-1, 2)
-        for _ in range(POSE_DRAWS):
-            noisy = image + rng.normal(0.0, CORNER_NOISE_FLOOR_PX, image.shape)
-            corners = BoardCorners(tuple(range(len(noisy))), tuple((float(u), float(v)) for u, v in noisy))
-            if not isinstance(solver.solve(corners, k, dist), BoardPoseFit):
-                return False
-    return True
-
-
-def pose_accepted(plan: OrbitPlan) -> bool:
-    """Whether the orbit centre is the board pose (accepted at the reading slant), else the ground ray."""
-    step = _planned_step(plan)
-    return step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step))
-
-
-def centre_error_m(plan: OrbitPlan) -> float:
-    """The worst horizontal error of the orbit centre: the accepted pose limit, or the height-zero ground ray."""
-    if pose_accepted(plan):
-        return POSE_CENTRE_LIMIT_M
-    return abs(detection_distance_m(plan, _planned_step(plan)) * plan.board_height_m / height_above_board(plan))
-
-
-def descent_height_m(plan: OrbitPlan) -> float:
-    """The height the planner sizes the descent from: the lane over the orbit centre's height, the board's for an
-    accepted pose, the ground ray's (self_detected_approach.WAITING_CIRCLE_REFERENCE_HEIGHT_M) otherwise."""
-    centre = plan.board_height_m if pose_accepted(plan) else WAITING_CIRCLE_REFERENCE_HEIGHT_M
-    return plan.lane_height_m - centre
-
-
-def detection_distance_m(plan: OrbitPlan, step: ZoomStep | None) -> float:
-    """The worst horizontal distance of the first detection: the board is first found as soon as it can be read,
-    at the reading slant's horizontal reach, which may lie beyond the orbit radius."""
-    h = height_above_board(plan)
-    if step is None:
-        return plan.radius_m
-    reach = math.sqrt(max(0.0, reading_slant_m(plan, step) ** 2 - h * h))
-    return max(plan.radius_m, reach)
 
 
 def _slant(horizontal_m: float, h: float) -> float:
@@ -257,12 +114,8 @@ def check_descent(plan: OrbitPlan) -> CheckResult:
                                            "eta": eta, "required_m": None if need is None else round(need, 2)})
 
 
-def _planned_step(plan: OrbitPlan) -> Optional[ZoomStep]:
-    return plan.steps.by_command(plan.zoom_command_tenths)
-
-
 def check_reader(plan: OrbitPlan) -> CheckResult:
-    step, h, error = _planned_step(plan), height_above_board(plan), centre_error_m(plan)
+    step, h, error = planned_step(plan), height_above_board(plan), centre_error_m(plan)
     far = _slant(plan.radius_m + error, h)
     if step is None:
         return CheckResult("reader", False, {"zoom_step": "not a measured step"})
@@ -274,7 +127,7 @@ def check_reader(plan: OrbitPlan) -> CheckResult:
 
 
 def check_containment(plan: OrbitPlan) -> CheckResult:
-    step, h, error = _planned_step(plan), height_above_board(plan), centre_error_m(plan)
+    step, h, error = planned_step(plan), height_above_board(plan), centre_error_m(plan)
     if step is None:
         return CheckResult("containment", False, {"zoom_step": "not a measured step"})
     width, height = plan.steps.stream.image_width, plan.steps.stream.image_height
@@ -310,7 +163,7 @@ def run_checks(plan: OrbitPlan) -> list[CheckResult]:
     """Every check's result; a plan with a non-finite or non-positive value fails them all."""
     numbers = (plan.radius_m, plan.lane_height_m, plan.board_height_m, plan.floor_m, plan.airspeed_m_s,
                plan.min_pitch_deg, plan.roll_limit_deg, plan.reader_min_square_px)
-    if not _finite(*numbers) or plan.radius_m <= 0.0 or plan.airspeed_m_s <= 0.0 or height_above_board(plan) <= 0.0:
+    if not finite(*numbers) or plan.radius_m <= 0.0 or plan.airspeed_m_s <= 0.0 or height_above_board(plan) <= 0.0:
         reason = {"input": "non-finite value, non-positive radius or airspeed, or the lane not above the board"}
         return [CheckResult(check.__name__.removeprefix("check_"), False, reason) for check in CHECKS]
     return [check(plan) for check in CHECKS]
@@ -318,58 +171,6 @@ def run_checks(plan: OrbitPlan) -> list[CheckResult]:
 
 def feasible(results: Sequence[CheckResult]) -> bool:
     return bool(results) and all(result.passed for result in results)
-
-
-# --- inputs -----------------------------------------------------------------------------------------------------
-
-def _zoom_steps(profile: Mapping[str, Any]) -> FixedZoomSteps:
-    built = [zoom for zoom in (build_fixed_zoom(device) for device in profile.get("devices", ())) if zoom]
-    if len(built) != 1:
-        raise ValueError(f"the profile needs exactly one mount with measured zoom steps, found {len(built)}")
-    return built[0].steps
-
-
-def _board(profile: Mapping[str, Any]) -> Board:
-    spec = charuco_board_spec_from_settings(profile.get("detector", {}))
-    return Board(spec)
-
-
-def _airspeed_band(model_input: Mapping[str, Any]) -> Optional[tuple[float, float]]:
-    band = model_input.get("envelope", {}).get(MODEL_AIRSPEED_BAND)
-    if not isinstance(band, Mapping) or not _finite(band.get("min"), band.get("max")):
-        return None
-    return float(band["min"]), float(band["max"])
-
-
-def plan_for(public: Mapping[str, Any], params: Mapping[str, float], model_input: Mapping[str, Any],
-             board_height_m: float, *, profile_name: str = HITL_PROFILE, zoom: float = 10.0,
-             reader_min_square_px: float = READER_MIN_SQUARE_PX) -> OrbitPlan:
-    """The plan from the scenario's public half, the run's merged parameters and the model input's envelope."""
-    profiles, _, _ = load_profiles()
-    if profile_name not in profiles:
-        raise ValueError(f"vision profile {profile_name!r} not found")
-    profile = profiles[profile_name]
-    radius = final_approach_orbit_setting(profile)
-    if radius is None:
-        raise ValueError(f"vision profile {profile_name!r} sets no final_approach_orbit.radius_m")
-    for name in (MIN_PITCH_PARAM, ROLL_LIMIT_PARAM):
-        if name not in params:
-            raise ValueError(f"the run's parameters set no {name}")
-    # The lane commands PASS_AIRSPEED_M_S (DO_CHANGE_SPEED); the faster of it and the cruise is the worst case.
-    airspeed = max(PASS_AIRSPEED_M_S, params.get(CRUISE_PARAM, 0.0))
-    return OrbitPlan(
-        radius_m=radius, lane_height_m=float(public["lane"]["height_m"]), board_height_m=float(board_height_m),
-        floor_m=float(public["limits"]["min_height_m"]), airspeed_m_s=airspeed,
-        airspeed_band=_airspeed_band(model_input), min_pitch_deg=params[MIN_PITCH_PARAM],
-        roll_limit_deg=params[ROLL_LIMIT_PARAM],
-        steps=_zoom_steps(profile), zoom_command_tenths=round(float(zoom) * 10.0), board=_board(profile),
-        reader_min_square_px=float(reader_min_square_px))
-
-
-def load_plan(args: argparse.Namespace) -> OrbitPlan:
-    return plan_for(sp.read_public(Path(args.scenario)), read_param_file(Path(args.params_file)),
-                    read_json(Path(args.model_input)), args.board_height_m, profile_name=args.profile,
-                    zoom=args.zoom, reader_min_square_px=args.reader_min_square_px)
 
 
 def report(results: Sequence[CheckResult]) -> dict[str, Any]:
