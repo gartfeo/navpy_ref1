@@ -2583,3 +2583,7 @@
   boot time leaves link delay out. `c_g_loc` is the newest fix, not the capture-time one.
 - **Plan module splits before the 300-line guard.** One more reader pushed `real_frame_association.py`
   from 299 to 322 lines; moving an unrelated helper out was the fix.
+- **Match the altitude reference of the value you replace.** My board centre was absolute (AMSL) but
+  the ground ray it replaced, and the aircraft position the orbit planner compares it with, are
+  home-relative; a mocked planner in my test hid it and Codex found it. Check `is_absolute` on both
+  sides of every subtraction, and test a replacement through the real consumer.
