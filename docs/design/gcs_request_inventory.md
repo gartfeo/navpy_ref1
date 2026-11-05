@@ -23,7 +23,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 | WS-SEND | manual_control_stop | `hooks/useManualControl.js:87` | user | no | MAVLink | none (todo 240) |
 | GET | /api/settings | `hooks/useSettings.js:39,92` | startup | yes | files | probed |
 | PUT | /api/settings | `hooks/useSettings.js:70` | user | no | files, NavPy (lifecycle change restarts) | probed (the run's own `gcs_settings.json`) |
-| GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | probed (no Ion token on lockstep, todo 279) |
+| GET | /api/map-config | `utils/cesiumConfig.js:26` | startup | yes | files (the Ion token, `map_config.py`) | probed (no Ion token on lockstep, todo 280) |
 | GET | /api/vision-profiles | `hooks/useSettings.js:40,81`, `settings/ProfileSelector.jsx:45` | startup | yes | files | probed |
 | PUT | /api/vision-profiles/default/{profile_name} | `settings/ProfileSelector.jsx:572` | user | no | files, NavPy (restarts a running NavPy when the active profile changes, `routes/vision_profiles.py:228-241`) | refused (todo 269) |
 | PUT | /api/vision-profiles/{profile_name} | `settings/ProfileSelector.jsx:105` | user | no | files, NavPy (as above) | refused (todo 269) |
