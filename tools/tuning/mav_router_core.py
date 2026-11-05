@@ -121,13 +121,12 @@ class MavRouter:
             if self._reapply_pending and msg.get_type() == "HEARTBEAT":
                 self._reapply_pending = False
                 self._queue_claims(Identity(msg.get_srcSystem(), msg.get_srcComponent()))
-        for name in names:
-            client = self.clients[name]
-            try:
-                client.sock.sendto(buf, (LOOPBACK, client.port))
-                self.stats[f"to_{name}"] += 1
-            except OSError:
-                with self._lock:
+            for name in names:                      # under the lock: a report() made after a client got the
+                client = self.clients[name]         # packet already counts it (a UDP send does not block)
+                try:
+                    client.sock.sendto(buf, (LOOPBACK, client.port))
+                    self.stats[f"to_{name}"] += 1
+                except OSError:
                     self.stats[f"send_errors_{name}"] += 1
 
     def _write_board(self) -> None:
