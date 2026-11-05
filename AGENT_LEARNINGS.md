@@ -2646,3 +2646,14 @@
   host, and the merge gave its new digest twice, so main's commits moved it.
 - **CI has no WSL.** A test that reaches execute_lockstep_run needs the pinned_run_swarm fixture.
 - **Stage named paths after an npm build.** git add -A on src picked up src/gcs/frontend/dist (82 files).
+
+## Commands went stale: the sim pose pairing gap (2026-11-05)
+
+- **Replay the recorded arrivals before blaming load.** Todos 31, 216 and 258 read `source_command_stale`
+  as CPU load. Replaying a passing eval's `pose_cadence_*` arrival and poll CSVs through the pairing rule
+  showed up to 0.78 s of source time with no frame on a quiet run: ATTITUDE leads each 10x burst, so
+  "newest with newest" never matched mid-burst. Load only had to add the last 0.2 s.
+- **The owner's "crash" was an aborted approach.** No process died; the GCS label "commands went stale"
+  is NAV_FAIL source_command_stale. Check the logs for a real exit before hunting a crash.
+- **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
+  stops on BaseException; tests use a BaseException subclass to pin that.

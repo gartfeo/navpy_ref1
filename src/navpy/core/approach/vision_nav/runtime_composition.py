@@ -144,6 +144,9 @@ def compose_final_approach_runtime(
     report_stale_hold: Callable[[FinalApproachFreshnessCheck], None] = (
         lambda check: None
     ),
+    report_stale_command: Callable[[FinalApproachFreshnessCheck], None] = (
+        lambda check: None
+    ),
 ) -> FinalApproachRuntimeComposition:
     if type(sys_id) is not int:
         raise TypeError("final-approach vehicle target_system must be an integer")
@@ -220,6 +223,7 @@ def compose_final_approach_runtime(
             worker_failures,
             freshness,
             postprocess_fence,
+            report_stale_command,
         )
     )
     runtime = VisionNavRuntime(

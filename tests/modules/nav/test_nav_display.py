@@ -254,6 +254,7 @@ def test_from_code_reads_bit_zero_only(code):
     ("final_approach_record_unavailable", 7),
     ("source_event_active_poi_missing", 8),
     ("source_event_pump", 9),
+    ("internal_error", 10),
 ])
 def test_reason_numbers_are_pinned(name, index):
     assert fail_reason.NAV_FAIL_REASON_INDEX[name] == index
@@ -264,13 +265,13 @@ def test_reason_numbers_are_pinned(name, index):
 
 
 def test_the_reason_table_has_no_other_entries():
-    assert len(fail_reason.NAV_FAIL_REASON_INDEX) == 9
+    assert len(fail_reason.NAV_FAIL_REASON_INDEX) == 10
     assert max(fail_reason.NAV_FAIL_REASON_INDEX.values()) <= (
         fail_reason.MAX_REASON_INDEX
     )
 
 
-@pytest.mark.parametrize("outcome_code", [2, 12, 13, 14, 15])
+@pytest.mark.parametrize("outcome_code", [2, 13, 14, 15])
 def test_index_zero_and_spare_indexes_decode_unknown(outcome_code):
     beat = decode_state_bits(outcome_code << 4)
     assert (beat.outcome, beat.fail_reason) == ("failed", "unknown")
