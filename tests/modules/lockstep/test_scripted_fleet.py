@@ -124,14 +124,22 @@ def test_the_scripted_operators_startup_runs_on_the_exchange_deadline(monkeypatc
     """Codex 10d round 1 P2-3: the operator's first baton round (its threads'
     start) draws on the tick's deadline, not the baton's own 30 s; a handoff
     cut by it is ``exchange_budget`` in the operator wait, and every SITL stops."""
+    import threading
     import time
 
     from navpy.sim.lockstep.scripted_operator import ScriptedFleetOperator
     from navpy.sim.lockstep.scripted_vehicle import ScriptedVehicle
 
     BLOCK_S = 2.0
+    release = threading.Event()
+    ran = []  # the blocked threads that got the baton; the rest stay parked for good
+
+    def block() -> None:
+        ran.append(threading.current_thread())
+        release.wait(BLOCK_S)
+
     def blocked_start(self, runtime):  # a thread that blocks on a host wait at startup
-        runtime.spawn(lambda: time.sleep(BLOCK_S), name=f"operator-blocked-{self.sysid}")
+        runtime.spawn(block, name=f"operator-blocked-{self.sysid}")
 
     monkeypatch.setattr(ScriptedVehicle, "start", blocked_start)
     operator = ScriptedFleetOperator(((1, "40,44,0,0"), (2, "40,44,0,0"), (3, "40,44,0,0")))
@@ -143,6 +151,11 @@ def test_the_scripted_operators_startup_runs_on_the_exchange_deadline(monkeypatc
         elapsed = time.monotonic() - started
     finally:
         operator.close()  # the poisoned baton refuses an abort; close still restores the modules
+        # End the blocked threads here: one exiting later breaks another test's thread snapshot.
+        release.set()
+        for thread in ran:
+            thread.join(BLOCK_S)
+    assert ran and not any(thread.is_alive() for thread in ran)
     assert elapsed < BLOCK_S  # cut at the 0.5 s exchange, not the 30 s baton budget
     assert raised.value.kind == "exchange_budget"
     assert run.journal.records[-1] == {"fault": "HostFault", "kind": "exchange_budget", "tick": 4,
