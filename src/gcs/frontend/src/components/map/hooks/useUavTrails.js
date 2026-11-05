@@ -41,7 +41,20 @@ import { zoneColorsSolid } from '../../../styles';
  * from before a gap (useUavMarkers); then, as with no model, the whole run is
  * drawn. When the UAV stops, the model comes to rest on its newest fix and
  * the segment ends there.
+ *
+ * The recorded pieces are polylines of one PolylineCollection per UAV, not
+ * entities: Cesium builds a changed static entity polyline in the
+ * background and shows the old one for some frames meanwhile, so the live
+ * segment, which moves on at once, left a blinking gap at the trail's head
+ * on every update (todo 293). A collection's polyline shows its new
+ * positions in the next frame; each change requests that frame.
  */
+/** Set a trail piece's positions; one with fewer than two is not drawn. */
+function setPiece(line, positions, visible) {
+  line.positions = positions;
+  line.show = visible && positions.length >= 2;
+}
+
 export default function useUavTrails(
   cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady,
   show = true, resetKey = 0, hiddenSysIds = null, paused = false,
@@ -71,9 +84,10 @@ export default function useUavTrails(
     for (const sid of Object.keys(trailData)) trailData[sid] = newTrail();
     const trailMap = entitiesRef.current?.trailMap || {};
     for (const pool of Object.values(trailMap)) {
-      for (const segEnts of pool.segs) for (const e of segEnts) e.polyline.positions = [];
+      for (const segLines of pool.segs) for (const line of segLines) setPiece(line, [], false);
       pool.head = null;
     }
+    viewerRef.current?.scene?.requestRender?.();
   }, [resetKey]);
 
   // Resume opens a new run for every UAV.
@@ -98,9 +112,10 @@ export default function useUavTrails(
     const trailMap = entitiesRef.current?.trailMap || {};
     for (const [sid, pool] of Object.entries(trailMap)) {
       const vis = visibleFor(Number(sid));
-      for (const segEnts of pool.segs) for (const e of segEnts) e.show = vis;
+      for (const segLines of pool.segs) for (const line of segLines) setPiece(line, line.positions, vis);
       if (pool.live) pool.live.show = vis;
     }
+    viewerRef.current?.scene?.requestRender?.();
   }, [show, hiddenSysIds, viewerReady]);
 
   useEffect(() => {
@@ -108,18 +123,14 @@ export default function useUavTrails(
     const viewer = viewerRef.current;
     if (!Cesium || !viewer) return;
 
-    function addPieceEntity(pool, seg, sid) {
-      const e = viewer.entities.add({
-        show: visibleFor(sid),
-        polyline: {
-          positions: [],
-          width: 2,
-          material: pool.base.withAlpha((seg + 1) / TRAIL_SEGMENTS),
-          clampToGround: false,
-        },
-      });
-      pool.segs[seg].push(e);
-      return e;
+    const pieceMaterial = (pool, seg) => Cesium.Material.fromType('Color', {
+      color: pool.base.withAlpha((seg + 1) / TRAIL_SEGMENTS),
+    });
+
+    function addPiece(pool, seg) {
+      const line = pool.lines.add({ positions: [], show: false, width: 2, material: pieceMaterial(pool, seg) });
+      pool.segs[seg].push(line);
+      return line;
     }
 
     const groundOf = (p) => (terrainReadyRef.current ? p.ground : 0);
@@ -185,15 +196,17 @@ export default function useUavTrails(
       if (clock !== null) while (cut > 0 && run[cut - 1].t > clock) cut--;
       const runs = cut === run.length ? trail.runs : [...trail.runs.slice(0, -1), run.slice(0, cut)];
       const pieces = trailPieces(runs);
+      const vis = visibleFor(sid);
       for (let seg = 0; seg < TRAIL_SEGMENTS; seg++) {
         const segPieces = pieces[seg];
-        const segEnts = pool.segs[seg];
-        while (segEnts.length < segPieces.length) addPieceEntity(pool, seg, sid);
-        for (let k = 0; k < segEnts.length; k++) {
+        const segLines = pool.segs[seg];
+        while (segLines.length < segPieces.length) addPiece(pool, seg);
+        for (let k = 0; k < segLines.length; k++) {
           const flat = segPieces[k] ? trailPieceFlat(segPieces[k], grounds) : [];
-          segEnts[k].polyline.positions = flat.length ? Cesium.Cartesian3.fromDegreesArrayHeights(flat) : [];
+          setPiece(segLines[k], flat.length ? Cesium.Cartesian3.fromDegreesArrayHeights(flat) : [], vis);
         }
       }
+      viewer.scene.requestRender();
       // The live segment starts where the trail is drawn to, and goes on
       // through the fixes after it.
       const at = (p) => {
@@ -301,6 +314,7 @@ export default function useUavTrails(
             trailMap[sid] = {
               colorIdx: -1,
               base: null,
+              lines: viewer.scene.primitives.add(new Cesium.PolylineCollection()),
               segs: Array.from({ length: TRAIL_SEGMENTS }, () => []),
             };
           }
@@ -308,8 +322,8 @@ export default function useUavTrails(
           if (pool.colorIdx !== colorIdx) {
             pool.base = Cesium.Color.fromCssColorString(zoneColorsSolid[colorIdx]);
             pool.colorIdx = colorIdx;
-            pool.segs.forEach((segEnts, seg) => {
-              for (const e of segEnts) e.polyline.material = pool.base.withAlpha((seg + 1) / TRAIL_SEGMENTS);
+            pool.segs.forEach((segLines, seg) => {
+              for (const line of segLines) line.material = pieceMaterial(pool, seg);
             });
             // Solid, as the trail's head piece.
             if (pool.live) pool.live.polyline.material = pool.base;
@@ -325,11 +339,8 @@ export default function useUavTrails(
       // Remove trails for vehicles that left the fleet
       for (const sid of Object.keys(trailMap)) {
         if (!seen.has(Number(sid))) {
-          for (const segEnts of trailMap[sid].segs) {
-            for (const e of segEnts) {
-              try { viewer.entities.remove(e); } catch {}
-            }
-          }
+          // Removing the collection destroys it with its pieces.
+          viewer.scene.primitives.remove(trailMap[sid].lines);
           try { viewer.entities.remove(trailMap[sid].live); } catch {}
           delete trailMap[sid];
           delete trailData[sid];

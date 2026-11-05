@@ -34,6 +34,8 @@ function fakeStore() {
 /** Terrain under a point: 1300 m plus 10 m per 0.001 deg of longitude east of 44. */
 const terrainAt = (lon) => 1300 + Math.round((lon - 44) * 10000);
 
+class CallbackProperty { constructor(fn) { this.fn = fn; } getValue(time, result) { return this.fn(time, result); } }
+
 function setup(props = {}) {
   const store = fakeStore();
   const entities = { add: vi.fn((e) => e), remove: vi.fn() };
@@ -52,12 +54,18 @@ function setup(props = {}) {
       fromDegrees: (lon, lat, h) => ({ lon, lat, h }),
       clone: (src, dst) => Object.assign(dst, src),
     }),
-    CallbackProperty: class { constructor(fn) { this.fn = fn; } getValue(time, result) { return this.fn(time, result); } },
+    CallbackProperty,
+    // Polylines drawn as they are: a frame shows their current positions.
+    PolylineCollection: class { constructor() { this.lines = []; } add(o) { const l = { ...o }; this.lines.push(l); return l; } },
+    Material: { fromType: (type, uniforms) => ({ type, ...uniforms }) },
     Cartographic: { fromDegrees: (lon, lat) => ({ lon, lat }) },
     sampleTerrainMostDetailed,
   } };
   // The rendered globe answers with a coarse tile height, never a trail's ground.
-  const viewer = { current: { entities, terrainProvider: {}, scene: { globe: { getHeight: () => 999 } } } };
+  const primitives = { add: vi.fn((p) => p), remove: vi.fn() };
+  const viewer = { current: { entities, terrainProvider: {}, scene: {
+    globe: { getHeight: () => 999 }, primitives, requestRender: vi.fn(),
+  } } };
   const entitiesRef = { current: { trailMap: {} } };
   const storeRef = { current: store };
   const hook = renderHook(
@@ -70,9 +78,9 @@ function setup(props = {}) {
   const drawn = (sid) => {
     const pool = entitiesRef.current.trailMap[sid];
     if (!pool) return { pieces: [], shown: [] };
-    const ents = pool.segs.flat().filter((e) => e.polyline.positions.length > 0);
+    const ents = pool.segs.flat().filter((e) => e.positions.length > 0);
     return {
-      pieces: ents.map((e) => e.polyline.positions.filter((_, i) => i % 3 === 0)),
+      pieces: ents.map((e) => e.positions.filter((_, i) => i % 3 === 0)),
       shown: ents.map((e) => e.show),
     };
   };
@@ -88,7 +96,7 @@ function setup(props = {}) {
   const heights = (sid) => {
     const out = new Map();
     for (const e of entitiesRef.current.trailMap[sid]?.segs.flat() || []) {
-      const p = e.polyline.positions;
+      const p = e.positions;
       for (let i = 0; i < p.length; i += 3) {
         if (out.has(p[i])) expect(p[i + 2]).toBe(out.get(p[i]));
         out.set(p[i], p[i + 2]);
@@ -114,7 +122,27 @@ function setup(props = {}) {
     const e = entitiesRef.current.trailMap[sid]?.live;
     return e ? e.polyline.positions.getValue(undefined, {}).map((p) => ({ ...p })) : [];
   };
-  return { store, hook, drawn, lons, joins, entities, entitiesRef, heights, flush, settle, sampleTerrainMostDetailed, terrain, placeModel, live };
+  /**
+   * The recorded pieces a frame shows, as lists of lon values. Cesium builds
+   * a changed static entity polyline in the background and shows the old one
+   * meanwhile: an entity shows its positions of the frame before. A
+   * PolylineCollection's polylines show their current positions.
+   */
+  const built = new Map();
+  const frame = () => {
+    const shown = [];
+    for (const { value: e } of entities.add.mock.results) {
+      if (!e.polyline || e.polyline.positions instanceof CallbackProperty) continue;
+      const p = built.get(e) ?? [];
+      if (e.show !== false && p.length) shown.push(p);
+      built.set(e, e.polyline.positions);
+    }
+    for (const { value: c } of primitives.add.mock.results) {
+      for (const l of c.lines) if (l.show && l.positions.length) shown.push(l.positions);
+    }
+    return shown.map((p) => p.filter((_, i) => i % 3 === 0));
+  };
+  return { store, hook, drawn, lons, joins, entities, primitives, entitiesRef, heights, flush, settle, sampleTerrainMostDetailed, terrain, placeModel, live, frame };
 }
 
 describe('useUavTrails', () => {
@@ -235,7 +263,7 @@ describe('useUavTrails', () => {
     t.store.sendPath(2, [45.000]);
     t.store.notify();
     const pool = t.entitiesRef.current.trailMap[1];
-    const positions = pool.segs.flat().map((e) => e.polyline.positions).filter((p) => p.length);
+    const positions = pool.segs.flat().map((e) => e.positions).filter((p) => p.length);
     expect(positions.flat().filter((_, i) => i % 3 === 0)).toEqual([44.000, 44.003]);
   });
 
@@ -413,6 +441,29 @@ describe('useUavTrails', () => {
       expect(pool.live.polyline.material).toBe(pool.base); // the UAV's solid colour
     });
 
+    it('starts the segment where the trail shown in the same frame ends, after every update (todo 293)', () => {
+      // Static entity pieces showed their old positions for some frames while
+      // the segment started at the new head at once: the head blinked.
+      const t = setup();
+      t.placeModel(1, 44.0100, 100);
+      let lon = 44;
+      let joined = 0;
+      for (let k = 0; k < 12; k++) {
+        lon = +(lon + 0.0005).toFixed(4);
+        t.store.send(1, lon);
+        for (let f = 0; f < 3; f++) {
+          tick(70);
+          const shown = t.frame();
+          const seg = t.live(1);
+          // One drawn fix is no piece yet: the segment alone starts there.
+          if (!seg.length || !shown.length) continue;
+          joined += 1;
+          expect(seg[0].lon).toBe(Math.max(...shown.flat()));
+        }
+      }
+      expect(joined).toBeGreaterThan(20);
+    });
+
     it('never draws the trail end backwards over jittery, bursty updates', () => {
       const t = setup();
       // Model and trail at one place: the model comes in through the hook's
@@ -497,8 +548,10 @@ describe('useUavTrails', () => {
       const e = t.entitiesRef.current.trailMap[1].live;
       t.hook.rerender({ show: true, resetKey: 0, hidden: new Set([1]), paused: false });
       expect(e.show).toBe(false);
+      const lines = t.entitiesRef.current.trailMap[1].lines;
       t.store.leave(1);
       expect(t.entities.remove).toHaveBeenCalledWith(e);
+      expect(t.primitives.remove).toHaveBeenCalledWith(lines);
     });
   });
 });
