@@ -58,6 +58,12 @@ class MavBusMembership:
                 return (receiver,)
             return tuple(self._targets.values())
 
+    def receivers_of(self, source_system: int) -> tuple[MavMessageReceiver, ...]:
+        """Only the receiver attached for ``source_system`` (no fallback)."""
+        with self._lock:
+            receiver = self._targets.get(source_system)
+            return () if receiver is None else (receiver,)
+
     @property
     def has_targets(self) -> bool:
         with self._lock:

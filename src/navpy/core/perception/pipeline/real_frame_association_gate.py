@@ -99,7 +99,10 @@ def real_frame_association_quality(
     gimbal_at_capture = (
         mount_state.gimbal_is_static or mount_state.gimbal_capture_relative
     )
-    if not gimbal_at_capture or mount_state.zoom_command is not None:
+    zoom_at_capture = (
+        mount_state.zoom_command is None or mount_state.zoom_capture_relative
+    )
+    if not gimbal_at_capture or not zoom_at_capture:
         # A dynamic MOUNT is a moving gimbal OR a zoom-capable camera: both
         # sample their state at association time
         # (`camera_mount_frame_state.py:55`), which cannot describe the
@@ -109,7 +112,8 @@ def real_frame_association_quality(
         # kind until a capture-relative mount-state contract exists; a truly
         # fixed camera (no zoom command) has timeless optics and is exempt, and
         # so is a fixed-lens gimbal whose angles were bracketed at the capture
-        # instant (integration timing, HITL step 11).
+        # instant (integration timing, HITL step 11), and a zoom settled at a
+        # calibrated step at the capture instant (HITL step 18).
         return False, "real_frame_mount_dynamic_unsupported", frame_age_s
 
     if mount_state.zoom_sample_id is None:

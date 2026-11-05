@@ -6,6 +6,13 @@ correction C places the ATTITUDE and gimbal lookups, both strictly bracketed.
 Everything it admits carries ``AUTHORITY_INTEGRATION``, never certified. Every
 attempt, admitted or refused, writes one timing record naming the samples and
 weights used, and before it every receipt not logged yet (``integration_log.py``).
+
+A zoom-capable mount is admitted only with fixed zoom configured (HITL step 18,
+``zoom/zoom_settle_evidence.py``): the zoom must be settled at a calibrated
+step at the gimbal lookup, and the frame then takes that step's measured row
+(K and distortion) instead of the association-time optics. Travel, unknown,
+unbracketed and aborted zoom states are refused by name; without fixed zoom
+every zoom-capable mount stays refused (``real_frame_zoom_unsettled``).
 """
 
 from __future__ import annotations
@@ -38,6 +45,8 @@ from navpy.core.perception.pipeline.integration_log import (
     mapping_record,
 )
 from navpy.core.perception.pipeline.real_frame_association_gate import CaptureTiming
+from navpy.core.perception.pipeline.integration_zoom import settled_zoom_state, zoom_config_record
+from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom
 from navpy.core.ports.frame_capture_ports import CaptureStamp
 from navpy.core.ports.gimbal_capture_history import (
     GimbalCaptureHistory,
@@ -113,11 +122,15 @@ class IntegrationAssociation:
         source: IntegrationTimingSource,
         gimbal_history_reader: Callable[[], GimbalCaptureHistory | None],
         log: TimingLog | None = None,
+        fixed_zoom: FixedStepZoom | None = None,
     ) -> None:
         self._source = source
         self._gimbal_history_reader = gimbal_history_reader
         self._log = log
         self._receipts = None if log is None else ReceiptLog(log, source.config.run_id)
+        self._fixed_zoom = fixed_zoom
+        if log is not None and fixed_zoom is not None:
+            log(zoom_config_record(source.config.run_id, fixed_zoom))
 
     @property
     def config(self) -> IntegrationTimingConfig:
@@ -133,6 +146,7 @@ class IntegrationAssociation:
         now_s: float,
         attitude_bracket_max_s: float,
         seam_tolerance_s: float,
+        frame_size: tuple[int, int] | None = None,
     ) -> IntegrationOutcome:
         # One gimbal snapshot per attempt: the log and the lookup see the same history.
         gimbal_history = self._gimbal_history_reader()
@@ -148,7 +162,7 @@ class IntegrationAssociation:
         }
         outcome = self._associate(
             record, stamp, source_id, link_id, attitude_history, gimbal_history, mount_state,
-            now_s, attitude_bracket_max_s, seam_tolerance_s,
+            now_s, attitude_bracket_max_s, seam_tolerance_s, frame_size,
         )
         if outcome.status == STATUS_BRACKETED and self._source.aborted is not None:
             # The capture thread aborted the map while this frame was being
@@ -171,6 +185,7 @@ class IntegrationAssociation:
         now_s: float,
         attitude_bracket_max_s: float,
         seam_tolerance_s: float,
+        frame_size: tuple[int, int] | None,
     ) -> IntegrationOutcome:
         config = self.config
         limits = config.limits
@@ -214,9 +229,16 @@ class IntegrationAssociation:
             return IntegrationOutcome(timing, STATUS_BRACKETED, attitude, None)
         record["zoom_sample_id"] = mount_state.zoom_sample_id
         if mount_state.zoom_command is not None:
-            # No settled-zoom evidence exists before step 18: zoom-capable
-            # mounts stay refused.
-            return IntegrationOutcome(timing, STATUS_ZOOM_UNSETTLED, attitude, mount_state)
+            if self._fixed_zoom is None:
+                # No settled-zoom evidence without fixed zoom: zoom-capable mounts stay refused.
+                return IntegrationOutcome(timing, STATUS_ZOOM_UNSETTLED, attitude, mount_state)
+            settled, status = settled_zoom_state(
+                self._fixed_zoom, record, mount_state, gimbal_history,
+                mapped.mapped_s + config.gimbal_correction_s, now_s, frame_size,
+            )
+            if settled is None:
+                return IntegrationOutcome(timing, status, attitude, mount_state)
+            mount_state = settled
         if mount_state.gimbal_is_static:
             return IntegrationOutcome(timing, STATUS_BRACKETED, attitude, mount_state)
         return self._gimbal(record, timing, attitude, mount_state, mapped, gimbal_history, now_s)

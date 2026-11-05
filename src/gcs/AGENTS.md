@@ -34,8 +34,9 @@ Frontend:
   snapshot's `video_streams`. The browser plays it straight from the
   aircraft's MediaMTX. The window starts closed; the video icon at the right
   end of the action bar opens it (fleet not empty) on the UAV picker: a camera icon (the UAV advertises a stream; a pick
-  opens Camera) or a map icon (a pick opens Synthetic: shaded terrain from
-  the UAV's pose, never confirms anything). The map never follows a UAV;
+  opens Camera) or a map icon (a pick opens Synthetic: RC control's
+  first-person view and HUD from the UAV's pose on the map's base layer,
+  without the controls; never confirms anything). The map never follows a UAV;
   only RC takes the map camera (first person). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:

@@ -16,6 +16,7 @@ from navpy.core.command.gimbal.gimbal_navigation_facets import (
 from navpy.core.command.gimbal.gimbal_navigation_state import GimbalTrackingSetup
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
+from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom
 from navpy.core.perception.zoom.poi_zoom_orchestrator import PoiZoomTracker
 from navpy.core.perception.zoom.poi_zoom_types import PoiZoomTrackerConfig
 
@@ -39,6 +40,7 @@ class GimbalNavigation(
         rate_tracker: GimbalRateTracker | None = None,
         zoom_tracker: PoiZoomTracker | None = None,
         neutral_pitch_deg: float | None = None,
+        fixed_zoom: FixedStepZoom | None = None,
     ) -> None:
         self._parts = build_gimbal_navigation(
             mount,
@@ -48,6 +50,7 @@ class GimbalNavigation(
             rate_tracker=rate_tracker,
             zoom_tracker=zoom_tracker,
             neutral_pitch_deg=neutral_pitch_deg,
+            fixed_zoom=fixed_zoom,
         )
 
 __all__ = ["GimbalNavigation", ]

@@ -3,25 +3,28 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import { fpvHoldReason } from '../utils/fpvView';
 import { WINDOW_FONT_PX } from '../utils/vehicleWindowLayout';
+import { pictureHudLayout } from '../utils/hudLayout';
+import useElementSize from '../hooks/useElementSize';
 import { pictureTagStyle } from './windowStyles';
+import TelemetryHud from './TelemetryHud';
 import { ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from './map/constants/icons';
+import { applyBaseLayer } from './map/utils/baseLayers';
 import { createPoseMath, noseOrientation } from './map/utils/fpvPose';
 import { observeHeight } from './map/utils/observeHeight';
 
-/** One ground colour for the shaded terrain: plainly unlike camera video. */
+/** The globe's colour under the imagery, while its tiles load or if they fail. */
 const GROUND_COLOR = '#7d8a68';
-/**
- * Fixed light, not the sun, so shading does not change with the time of day:
- * travelling east-south and down in the UAV's local east-north-up frame, i.e.
- * from the north-west, above.
- */
-const LIGHT_ENU = [0.5, -0.5, -0.7];
+/** The tag's accent border, which its measured (client) height leaves out. */
+const TAG_BORDER_PX = 1;
+const NO_SIZE = { width: 0, height: 0 };
 
 /**
  * The vehicle window's Synthetic source (docs/design/gcs_video_streams.md,
- * section 5 "Synthetic view"): a second public CesiumWidget with shaded
- * terrain, no imagery and no entities, looking through the window UAV's nose.
- * Operator display only; it never confirms anything.
+ * section 5 "Synthetic view"): RC control's first-person view without the
+ * controls. A second public CesiumWidget with the main map's base layer on its
+ * terrain, unlit like the map, and no entities, looking through the window
+ * UAV's nose, under the HUD RC control shows (TelemetryHud). Operator display
+ * only; it never confirms anything.
  *
  * - Pose from the main map's pose source (`poseSourceRef`), applied only when
  *   the shared hold check passes and the copied numbers are finite; otherwise
@@ -41,17 +44,19 @@ const LIGHT_ENU = [0.5, -0.5, -0.7];
  * @param {{ current: { pose: (sysId: number) => object|null } | null }} props.poseSourceRef
  * @param {{ current: object }} props.storeRef - telemetry store.
  * @param {boolean} props.ionTerrain - the main map upgraded to Ion terrain.
+ * @param {string} props.baseLayer - the main map's base layer id (map/utils/baseLayers.js), available.
+ * @param {(id: string, err: unknown) => void} [props.onBaseLayerFailed]
  * @param {() => void} props.onFail
  * @param {(px: number) => void} [props.onCreditsHeight]
  * @param {object} [props.style] - box of the picture.
  * @param {boolean} [props.expanded] - maximized: the waiting state keeps the
  *   large area; at normal size it collapses to one text row.
- * @param {number|null} [props.tagMaxWidth] - the tag wraps at this width (maximized:
- *   left of the small map, so the map never covers "not camera").
+ * @param {{width: number, height: number}|null} [props.smallMap] - maximized: the small
+ *   map in the picture's top-right corner; the tag and the HUD stay clear of it.
  */
 export default function SyntheticView({
-  sysId, label, poseSourceRef, storeRef, ionTerrain, onFail, onCreditsHeight, style, expanded = false,
-  tagMaxWidth = null,
+  sysId, label, poseSourceRef, storeRef, ionTerrain, baseLayer, onBaseLayerFailed, onFail, onCreditsHeight, style,
+  expanded = false, smallMap = null,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
@@ -70,6 +75,14 @@ export default function SyntheticView({
   onFailRef.current = onFail;
   const onCreditsRef = useRef(onCreditsHeight);
   onCreditsRef.current = onCreditsHeight;
+  const onBaseLayerFailedRef = useRef(onBaseLayerFailed);
+  onBaseLayerFailedRef.current = onBaseLayerFailed;
+  const [creditsPx, setCreditsPx] = useState(0);
+  const [statusSize, setStatusSize] = useState(NO_SIZE);
+  const pictureRef = useRef(null);
+  const picture = useElementSize(pictureRef, NO_SIZE);
+  const tagRef = useRef(null);
+  const tag = useElementSize(tagRef, NO_SIZE);
 
   useEffect(() => {
     let cancelled = false;
@@ -88,7 +101,8 @@ export default function SyntheticView({
       let widget;
       try {
         widget = new Cesium.CesiumWidget(containerRef.current, {
-          // Never undefined (that adds Ion world imagery), never imageryProvider.
+          // Never undefined (that adds Ion world imagery), never imageryProvider:
+          // the effect below adds the main map's base layer.
           baseLayer: false,
           // No sky box, so no sun and moon either; sky atmosphere stays (horizon cue).
           skyBox: false,
@@ -114,9 +128,9 @@ export default function SyntheticView({
       });
       const { scene } = widget;
       scene.globe.baseColor = Cesium.Color.fromCssColorString(GROUND_COLOR);
-      scene.globe.enableLighting = true;
-      const light = new Cesium.DirectionalLight({ direction: new Cesium.Cartesian3(0, 0, -1) });
-      scene.light = light;
+      // Unlit, with no ground haze: the imagery shows as on the main map.
+      scene.globe.enableLighting = false;
+      scene.globe.showGroundAtmosphere = false;
       scene.screenSpaceCameraController.enableInputs = false;
 
       const onRenderError = (_scene, e) => fail(e);
@@ -127,8 +141,6 @@ export default function SyntheticView({
       cleanups.push(() => widget.canvas.removeEventListener('webglcontextlost', onContextLost));
 
       const poseMath = createPoseMath(Cesium);
-      const lightEnu = new Cesium.Cartesian3(...LIGHT_ENU);
-      const lightDir = new Cesium.Cartesian3();
       // The window UAV's pose when the shared hold check passes and the copied
       // numbers are finite; else null (the last good pose holds).
       const validPose = (id) => {
@@ -162,8 +174,6 @@ export default function SyntheticView({
           const pose = validPose(id);
           if (!pose) return;
           widget.camera.setView({ destination: pose.position, orientation: pose.orientation });
-          Cesium.Matrix4.multiplyByPointAsVector(poseMath.transform, lightEnu, lightDir);
-          light.direction = Cesium.Cartesian3.normalize(lightDir, new Cesium.Cartesian3());
           appliedFor = id;
         } catch (e) {
           fail(e);
@@ -180,7 +190,10 @@ export default function SyntheticView({
       cleanups.push(storeRef.current.subscribe(checkReady));
       // The credit line itself (CesiumWidget's inner credits element), not the
       // credit container, which is the whole widget by default.
-      cleanups.push(observeHeight(widget.creditDisplay.container, (h) => onCreditsRef.current?.(h)));
+      cleanups.push(observeHeight(widget.creditDisplay.container, (h) => {
+        setCreditsPx(h);
+        onCreditsRef.current?.(h);
+      }));
 
       cesiumRef.current = Cesium;
       widgetRef.current = widget;
@@ -207,12 +220,20 @@ export default function SyntheticView({
     widgetRef.current?.scene.requestRender();
   }, [readyFor]);
 
+  // Its own instance of the main map's base layer, following the operator's pick.
+  useEffect(() => {
+    const Cesium = cesiumRef.current;
+    const widget = widgetRef.current;
+    if (!widgetReady || !Cesium || !widget || widget.isDestroyed()) return;
+    applyBaseLayer(Cesium, widget, baseLayer, (e) => onBaseLayerFailedRef.current?.(baseLayer, e));
+  }, [baseLayer, widgetReady]);
+
   // Its own terrain instance of the main map's source, following the Ion upgrade.
   useEffect(() => {
     const Cesium = cesiumRef.current;
     if (!ionTerrain || !widgetReady || !Cesium) return undefined;
     let cancelled = false;
-    Cesium.CesiumTerrainProvider.fromIonAssetId(ION_TERRAIN_ASSET_ID, { requestVertexNormals: true })
+    Cesium.CesiumTerrainProvider.fromIonAssetId(ION_TERRAIN_ASSET_ID)
       .then((terrain) => {
         const widget = widgetRef.current;
         if (cancelled || !widget || widget.isDestroyed()) return;
@@ -228,6 +249,14 @@ export default function SyntheticView({
   // widget stays mounted, at zero height, so it keeps its state.
   const collapsed = readyFor !== sysId && !expanded;
   const waitingText = t('vehicleWindow.waitingForPose', { name: label });
+  const { hud, tagMaxWidth } = pictureHudLayout({
+    width: picture.width,
+    height: picture.height,
+    tagHeight: tag.height + 2 * TAG_BORDER_PX,
+    status: statusSize,
+    creditsPx,
+    smallMap,
+  });
   return (
     <>
       {collapsed && (
@@ -246,6 +275,7 @@ export default function SyntheticView({
         </div>
       )}
       <div
+        ref={pictureRef}
         style={collapsed
           ? { position: 'relative', height: 0, overflow: 'hidden', flex: '0 0 auto' }
           : { position: 'relative', background: colors.bg, ...style }}
@@ -269,13 +299,23 @@ export default function SyntheticView({
             {waitingText}
           </div>
         )}
+        {/* RC control's HUD without its controls; z-index 0 and before the tag, so the tag stays on top. */}
+        {!waiting && !collapsed && (
+          <div
+            data-testid="synthetic-hud"
+            style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate', pointerEvents: 'none' }}
+          >
+            <TelemetryHud key={sysId} sysId={sysId} layout={hud} onStatusSize={setStatusSize} />
+          </div>
+        )}
         <div
           data-testid="synthetic-frame"
           style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 0 3px ${colors.accent}` }}
         />
         <div
+          ref={tagRef}
           role="note"
-          style={{ ...pictureTagStyle(colors.accent, tagMaxWidth), border: `1px solid ${colors.accent}` }}
+          style={{ ...pictureTagStyle(colors.accent, tagMaxWidth), border: `${TAG_BORDER_PX}px solid ${colors.accent}` }}
         >
           {t('vehicleWindow.syntheticTag')}
         </div>

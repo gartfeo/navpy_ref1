@@ -561,6 +561,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
         coordination=object(),
         approach_kind=object(),
         dock_contact=None,
+        law_airspeed=None,
         profile=object(),
         is_quiescent=True,
         raise_if_failed=MagicMock(),
@@ -630,7 +631,7 @@ def test_a_stop_before_navigation_starts_builds_no_controller(monkeypatch):
     navigation = SimpleNamespace(start=MagicMock(), stop=MagicMock())
     vision = SimpleNamespace(
         stop=MagicMock(), geo_ref=object(), coordination=object(), approach_kind=object(),
-        dock_contact=None, profile=object(),
+        dock_contact=None, profile=object(), law_airspeed=None,
     )
     vehicle = MagicMock()
     vehicle.get_param_or_default.return_value = 50

@@ -320,7 +320,7 @@ def _builder(integration, *, calibration=None, mount=None, history=(), link=LINK
 
 
 def _associate(*, mount=None, gimbal=..., attitude_yaw=0.0, link=LINK_ID, now_after_read_s=0.03,
-               attitude_end_s=None, corrections=(0.0, 0.0), seconds=14.0, limits=LIMITS):
+               attitude_end_s=None, corrections=(0.0, 0.0), seconds=14.0, limits=LIMITS, fixed_zoom=None):
     """Publish a clean trace through the real store, then associate its last frame."""
     source = IntegrationTimingSource(_config(attitude_correction_s=corrections[0],
                                              gimbal_correction_s=corrections[1], limits=limits))
@@ -336,7 +336,7 @@ def _associate(*, mount=None, gimbal=..., attitude_yaw=0.0, link=LINK_ID, now_af
     if gimbal is ...:
         gimbal = _gimbal_history(T0_S - 1.0, now_s)
     records = []
-    integration = IntegrationAssociation(source, lambda: gimbal, records.append)
+    integration = IntegrationAssociation(source, lambda: gimbal, records.append, fixed_zoom)
     builder = _builder(integration, mount=_mount() if mount is None else mount, history=history, link=link)
     with patch("navpy.core.perception.pipeline.real_frame_association.rt.perf_counter",
                return_value=now_s):

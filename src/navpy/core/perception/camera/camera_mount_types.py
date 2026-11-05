@@ -32,6 +32,9 @@ class CameraMountFrameState:
     zoom_sample_age_s: Optional[float]
     # gimbal_data was interpolated at the capture instant, not read at association.
     gimbal_capture_relative: bool = False
+    # k, dist and zoom_command are a calibrated zoom step proven settled at the
+    # capture instant (HITL step 18), not the association-time optics.
+    zoom_capture_relative: bool = False
 
 
 @dataclass(frozen=True)

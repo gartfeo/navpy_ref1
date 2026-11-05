@@ -12,6 +12,8 @@ from navpy.core.ports.gimbal_abc import GimbalData
 from navpy.core.ports.gimbal_capture_history import (
     GimbalCaptureHistory,
     GimbalHistorySample,
+    ZoomCommandSample,
+    ZoomReadingSample,
 )
 from navpy.plugins.gimbal.siyi.siyi_convention import yaw_from_wire
 
@@ -137,6 +139,12 @@ class SiyiReadbackStore:
         self._history: deque[GimbalHistorySample] = deque(
             maxlen=GIMBAL_HISTORY_COUNT,
         )
+        self._zoom_history: deque[ZoomReadingSample] = deque(
+            maxlen=GIMBAL_HISTORY_COUNT,
+        )
+        self._zoom_commands: deque[ZoomCommandSample] = deque(
+            maxlen=GIMBAL_HISTORY_COUNT,
+        )
 
     @property
     def attitude_ready(self) -> rt.Event:
@@ -148,6 +156,17 @@ class SiyiReadbackStore:
             self._attitude_ready.clear()
             self._session += 1
             self._history.clear()
+            self._zoom_history.clear()
+            self._zoom_commands.clear()
+
+    def record_zoom_command(self, absolute_tenths: int | None) -> None:
+        """Log one zoom write, stamped before it is sent, so no reading after it predates it."""
+        with self._lock:
+            self._zoom_commands.append(ZoomCommandSample(
+                session=self._session,
+                sent_s=rt.perf_counter(),
+                absolute_tenths=absolute_tenths,
+            ))
 
     def accept_attitude(self, sample: object) -> bool:
         parsed = _parse_attitude(sample)
@@ -165,6 +184,7 @@ class SiyiReadbackStore:
             updated, accepted = _with_zoom(self._snapshot, parsed)
             if accepted:
                 self._snapshot = updated
+                self._remember_zoom(updated)
             return accepted
 
     def commit_poll(
@@ -187,6 +207,8 @@ class SiyiReadbackStore:
             if attitude_accepted:
                 self._remember_attitude(updated)
                 self._attitude_ready.set()
+            if zoom_accepted:
+                self._remember_zoom(updated)
             return attitude_accepted, zoom_accepted
 
     def set_mount_orientation(self) -> tuple[float, float]:
@@ -206,7 +228,27 @@ class SiyiReadbackStore:
                 session=self._session,
                 samples=tuple(self._history),
                 data=self._snapshot.data,
+                zoom_readings=tuple(self._zoom_history),
+                zoom_commands=tuple(self._zoom_commands),
             )
+
+    def _remember_zoom(self, snapshot: SiyiReadbackSnapshot) -> None:
+        """Keep an accepted zoom reading only when its receipt is later and its sequence newer, like attitude."""
+        receipt = snapshot.zoom_receipt_monotonic_s
+        seq = snapshot.zoom_sample_id
+        if receipt is None or seq is None or snapshot.zoom_level is None:
+            return
+        if self._zoom_history:
+            last = self._zoom_history[-1]
+            ahead = (seq - last.seq) % SIYI_SEQ_MODULUS
+            if not receipt > last.receipt_s or not 0 < ahead < SIYI_SEQ_MODULUS // 2:
+                return
+        self._zoom_history.append(ZoomReadingSample(
+            session=self._session,
+            seq=seq,
+            receipt_s=receipt,
+            reading=snapshot.zoom_level,
+        ))
 
     def _remember_attitude(self, snapshot: SiyiReadbackSnapshot) -> None:
         """Keep an accepted attitude only when it is newer than the last kept one.

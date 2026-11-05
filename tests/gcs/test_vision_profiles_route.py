@@ -83,7 +83,7 @@ class TestVisionProfilesRoute:
         assert siyi["gimbal_device_id"] == 1
         assert siyi["setup_att"] == [90, 0, 90]
         assert siyi["setup_seq"] == "XYZ"
-        assert siyi["gimbal_seq"] == "XYZ"
+        assert siyi["gimbal_seq"] == "ZYX"  # SIYI readback is yaw-outer (siyi_convention.py)
 
     def test_multi_device_ids_use_profile_order(self, client):
         data = client.get("/api/vision-profiles").json()

@@ -8,6 +8,7 @@ from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.airspeed_decode import AirspeedDecoder
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.mav_bus_membership import MavBusMembership
 from navpy.plugins.vehicle.ardupilot.mav_bus_reader_budget import (
@@ -37,6 +38,7 @@ class MavBusReader:
         on_exit: Callable[[], None] = lambda: None,
         batch_budget_s: Callable[[], float] = lambda: DEFAULT_READER_BATCH_BUDGET_S,
         clock: Callable[[], float] = rt.monotonic,
+        airspeed: AirspeedDecoder | None = None,
     ) -> None:
         self._connection = connection
         self._device = device
@@ -47,8 +49,8 @@ class MavBusReader:
         self._on_exit = on_exit
         self._batch_budget_s = batch_budget_s
         self._clock = clock
-        self._is_udp = device.startswith(("udp:", "udpin:"))
         self._last_reset_log_s = 0.0
+        self._airspeed = AirspeedDecoder() if airspeed is None else airspeed
         self._thread = rt.Thread(target=self._run, daemon=True)
 
     def start(self) -> None:
@@ -108,14 +110,25 @@ class MavBusReader:
                 return
 
     def _dispatch(self, message: MAVLink_message) -> None:
-        self._heartbeats.observe(message)
-        for receiver in self._membership.receivers_for(message.get_srcSystem()):
-            receiver.feed_message(message)
+        # AIRSPEED's source identity comes from its own checked bytes, before the
+        # dispatch by source system; a refused 295 reaches no receiver.
+        admitted = self._airspeed.admit(message)
+        if admitted is None:
+            return
+        self._heartbeats.observe(admitted)
+        source_system = admitted.get_srcSystem()
+        receivers = (
+            self._membership.receivers_for(source_system)
+            if admitted is message
+            else self._membership.receivers_of(source_system)  # decoded AIRSPEED: own source only
+        )
+        for receiver in receivers:
+            receiver.feed_message(admitted)
 
     def _handle_reset(self) -> None:
         if self._stop.is_set():
             return
-        if not self._is_udp:
+        if not self._device.startswith(("udp:", "udpin:")):
             log.exception("MavBus %s reader error", self._device)
             return
         now_s = rt.monotonic()

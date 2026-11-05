@@ -14,6 +14,7 @@ from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.camera.camera_mount import CameraMount
 from navpy.core.perception.detection_coordination import DetectionCoordination
 from navpy.core.ports.dock_contact import DockContactSensor
+from navpy.app.approach.law_airspeed import LawAirspeed
 from navpy.core.perception.detection_coordinator import DetectionCoordinator
 from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.app.perception.vision_controller_composition import (
@@ -53,6 +54,11 @@ class VisionController:
     @property
     def dock_contact(self) -> DockContactSensor | None:
         return self._ports.dock_contact
+
+    @property
+    def law_airspeed(self) -> LawAirspeed | None:
+        """HITL only: the eligible airspeed source and its write guard (step 20)."""
+        return self._ports.law_airspeed
 
     @property
     def coordinator(self) -> DetectionCoordinator:
