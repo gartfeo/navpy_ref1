@@ -68,6 +68,7 @@ class Client:
         self.epoch = 0                               # bumped by every barrier: older queued packets never go out
         self.queued = 0                              # its packets in the board queue (router lock)
         self.last_write_s: Optional[float] = None    # time.monotonic() of its last packet written (io lock)
+        self.taken: Optional[tuple[int, int]] = None  # (link state, epoch) its receiver took, set by that thread only
 
     def close_barrier(self) -> tuple[bool, int]:
         """Refuse its packets from now on; every packet queued or received before now is dropped (caller holds the
@@ -85,9 +86,10 @@ class Client:
         self.identities.clear()                      # a new process announces itself again
         return False
 
-    def drain(self) -> int:
-        """Discard every datagram already waiting (a transition's backlog); returns how many carried data. Only the
-        receiver thread calls it, so a ready socket never blocks."""
+    def drain(self, taking: tuple[int, int]) -> int:
+        """Discard every datagram already waiting (a transition's backlog), then mark ``taking`` (link state, epoch)
+        as taken: a datagram sent after that is read in it. Returns how many carried data. Only the receiver thread
+        calls it, so a ready socket never blocks."""
         dropped = 0
         while select.select([self.sock], [], [], 0)[0]:
             try:
@@ -97,6 +99,7 @@ class Client:
             except OSError:
                 break
             dropped += bool(data)
+        self.taken = taking
         return dropped
 
     def wake(self) -> None:
