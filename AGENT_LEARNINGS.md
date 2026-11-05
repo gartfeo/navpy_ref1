@@ -2093,6 +2093,10 @@
 - On Windows `os.replace` onto a file another process has open fails. A status file replaced
   once a second lost its last write, the one with the stop reason, while a test polled it.
   Retry a replace briefly, and test the final write with a reader polling.
+- The reader needs the same retry: opening a file mid-replace raises PermissionError, and the
+  name can be missing for up to ~0.2 s even with no reader open (todo 279). Give a replaced
+  file one read helper that every reader uses, and prove a race with a stress loop that runs
+  the real writer against the old and new reader before and after the fix.
 - `test_new_production_definitions_are_fully_annotated` wants every new parameter annotated,
   `**options` and file objects too. Run `tests/guards/test_solid_architecture.py` first: with
   `-x` at the end of a 10-minute suite it was the only failure.

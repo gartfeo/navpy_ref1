@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-import json
 import socket
 import struct
 import sys
+import threading
+import time
 from pathlib import Path
 
 import pytest
@@ -45,11 +46,10 @@ def _send(port: int, *datagrams: bytes) -> None:
 
 
 def _status(tlog: Path) -> dict:
-    return json.loads(rec.status_path(tlog).read_text(encoding="utf-8"))
+    return rec.read_status(tlog)
 
 
 def _wait_for(predicate, timeout=5.0):
-    import time
     deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         if predicate():
@@ -206,3 +206,66 @@ def test_an_existing_file_counts_toward_the_cap(tmp_path, monkeypatch):
     assert _wait_for(lambda: _status(tlog)["stop_reason"] is not None)
     assert tlog.stat().st_size == _status(tlog)["bytes"] == 2 * record
     assert recorder.stop() is True
+
+
+def test_a_status_read_waits_out_a_replace_in_progress(tmp_path, monkeypatch):
+    tlog = tmp_path / "mavlink.tlog"
+    rec.status_path(tlog).write_text('{"records": 1}', encoding="utf-8")
+    real_read = Path.read_text
+    # What Windows raises mid-replace: a refused open, then the name missing.
+    refusals = iter([PermissionError(13, "Permission denied"), FileNotFoundError(2, "No such file")])
+
+    def read_text(path, *args, **kwargs):
+        error = next(refusals, None)
+        if error is not None:
+            raise error
+        return real_read(path, *args, **kwargs)
+
+    monkeypatch.setattr(Path, "read_text", read_text)
+    assert rec.read_status(tlog) == {"records": 1}
+
+
+@pytest.mark.parametrize("error", [PermissionError, FileNotFoundError])
+def test_a_status_read_still_fails_when_the_error_lasts(tmp_path, monkeypatch, error):
+    tlog = tmp_path / "mavlink.tlog"
+    calls = []
+
+    def refused(path, *args, **kwargs):
+        calls.append(path)
+        raise error()
+
+    monkeypatch.setattr(Path, "read_text", refused)
+    monkeypatch.setattr(rec, "STATUS_REPLACE_PAUSE_S", 0.0)
+    with pytest.raises(error):
+        rec.read_status(tlog)
+    assert len(calls) == rec.STATUS_READ_ATTEMPTS
+
+
+def test_status_reads_and_replaces_in_a_loop_never_fail(tmp_path):
+    """The recorder's real writer replaces the file while a reader polls it.
+
+    Before read_status retried, reads here failed with PermissionError on
+    Windows dozens of times a second.
+    """
+    tlog = tmp_path / "mavlink.tlog"
+    recorder = rec.MavlinkRecorder(tlog, 16550, bind=Bound())
+    recorder._write_status()
+    done = threading.Event()
+
+    def write_forever():
+        while not done.is_set():
+            recorder._status["records"] += 1
+            recorder._write_status()
+
+    writer = threading.Thread(target=write_forever)
+    writer.start()
+    reads = 0
+    try:
+        deadline = time.monotonic() + 1.5
+        while time.monotonic() < deadline:
+            assert rec.read_status(tlog)["stop_reason"] is None
+            reads += 1
+    finally:
+        done.set()
+        writer.join()
+    assert reads > 0 and recorder._status["records"] > 0
