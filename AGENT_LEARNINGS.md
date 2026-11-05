@@ -2488,6 +2488,23 @@
 - **`python -I` drops PYTHONPATH.** A scratch script run isolated must put
   `src` on `sys.path` itself (pass the path as an argument).
 
+## SIYI disconnect tests raced 10 ms (2026-11-04)
+
+- **Prove a load failure by delaying the thread, not by guessing.** A scratch
+  pytest plugin (`-p`) that sleeps 50 ms in `ThreadLaunchGate.enter`
+  reproduced the CI `assert False is True` in four `BoundedSiyiSdk` tests and
+  the poll-failure test; after the fix they pass even at 500 ms.
+- **A constant fake clock cannot expire a deadline computed from it.**
+  Deadline and remaining time read the same clock; the clock must advance
+  between the two reads (`expire_after_next_read`), or the test silently
+  waits the full real timeout.
+- **Inject the deadline clock (`monotonic=`) instead of shrinking the
+  timeout.** Waits then end on their events; the real timeout is only a
+  liveness backstop, and the test expires the deadline when it means to.
+- **Local venv had OpenCV 5.0.0;** `test_runtime_time_lint.py::
+  test_reviewed_modules_host_members_dynamic_imports_and_held_modules` fails
+  on main with it. Unrelated to the change; CI is the judge.
+
 ## Eligible airspeed (HITL step 20, 2026-11-05)
 
 - **Split a new module before the guards, not after.** One 371-line state machine broke
