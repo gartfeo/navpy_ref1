@@ -14,7 +14,7 @@ from navpy.core.review.confirmation_round_transaction import (
     ConfirmationWorkerLease,
 )
 from navpy.core.review.confirmation_worker_state import ConfirmationWorkerState
-from navpy.core.review.confirmation_review_withdrawal import ConfirmationReviewWithdrawal
+from navpy.core.review.confirmation_acquisition_hold import ConfirmationAcquisitionHold
 from navpy.core.review.confirmation_registry_state import ConfirmationRegistryState, ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.perception.detection.poi_identity import get_poi_task_id
@@ -32,8 +32,8 @@ class ConfirmationManagerState:
             self.registry,
             self._workers,
         )
-        # HITL step 25: a review under way is withdrawn when the acquisition gates stop holding.
-        self.withdrawal = ConfirmationReviewWithdrawal(
+        # HITL step 25: the acquisition gates' state, under the same lock as every status write.
+        self.acquisition = ConfirmationAcquisitionHold(
             self._lock, self.registry, self._workers, self._rounds,
         )
 
@@ -64,8 +64,7 @@ class ConfirmationManagerState:
         with self._lock:
             if lease.poi_id is None or not self._workers.is_current(lease):
                 return False
-            self.registry.set_status(lease.poi_id, status)
-            return True
+            return self.registry.set_status(lease.poi_id, status)
 
     def begin_round(
         self,

@@ -95,14 +95,26 @@ def test_a_malformed_block_is_refused(block) -> None:
 
 # --- fresh visual lock ---------------------------------------------------------------------------------------------
 
+class _Clock:
+    """The decision clock; ``_feed`` moves it with the frames."""
+
+    def __init__(self) -> None:
+        self.s = 0.0
+
+    def __call__(self) -> float:
+        return self.s
+
+
 def _lock(fresh=lambda _poi: True, armed=lambda: True) -> FreshVisualLock:
-    return FreshVisualLock(SETTINGS, fresh, armed)
+    lock = FreshVisualLock(SETTINGS, fresh, armed, _Clock())
+    return lock
 
 
 def _feed(lock: FreshVisualLock, start: float, end: float, error: float = 0.5, step: float = 0.1, **kw) -> bool:
     result = False
     for i in range(int(round((end - start) / step)) + 1):
         ts = round(start + i * step, 6)
+        lock._now_s.s = ts
         result = lock.locked(frame(ts, error, lambda: ts, **kw))
     return result
 
@@ -259,9 +271,9 @@ def _sequence(command=OrbitCommand(OWN_CENTRE, 300.0)):
     now, clock = _clock()
     start = _Start(command)
     sequence = AcquisitionSequence(
-        FreshVisualLock(SETTINGS, lambda _p: True, lambda: True),
+        FreshVisualLock(SETTINGS, lambda _p: True, lambda: True, clock),
         OrbitEstablished(SETTINGS, lambda: as_fix(position[0], now[0]), clock),
-        start, Mock(),
+        start, Mock(), lambda _task_id, _held: None,
     )
     return sequence, start, now
 
@@ -383,14 +395,15 @@ def test_invalid_vision_blocks_both_confirm_and_nav() -> None:
     assert _drive(rig, 0.0, 12.1) is None
     assert _drive(rig, 12.2, 40.0, atomic=False) is None  # orbit established, vision invalid
     assert not rig.confirmed()
-    # an operator confirmation does not open NAV while the vision is invalid
+    # an operator confirmation is refused while the vision is invalid, and NAV stays closed
     active = rig.rig.confirmation_manager.active_poi
     rig.rig.confirmation_manager.update_status(active, ConfirmationStatus.CONFIRMED)
+    assert rig.rig.confirmation_manager.get_status(active) is None
     assert _drive(rig, 40.1, 60.0, atomic=False) is None
-    assert rig.phase is NavState.CONFIRM
-    # valid vision again: the lock must dwell again before NAV
-    assert _drive(rig, 60.1, 62.0) is None
-    assert _drive(rig, 62.1, 63.0) == pytest.approx(62.1)
+    assert rig.phase is NavState.CONFIRM and not rig.confirmed()
+    # valid vision again: the lock must dwell again, then confirm, then NAV on the next tick
+    assert _drive(rig, 60.1, 62.0) is None and not rig.confirmed()
+    assert _drive(rig, 62.1, 63.0) == pytest.approx(62.2)
 
 
 def test_a_lock_lost_after_confirmation_blocks_nav() -> None:

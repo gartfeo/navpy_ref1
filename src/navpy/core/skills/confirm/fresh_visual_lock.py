@@ -4,8 +4,9 @@ A lock holds once one track's frames have kept the POI within the image error of
 for the dwell, measured on the frames' own timestamps. The error is the angle between the pixel's
 pinhole ray and the optical axis: frame-local, so no heading, position, range or truth enters it.
 A frame that is not fresh, not a frame-atomic pinhole frame, or not finite breaks the lock, as does
-a gap between new frames longer than the profile's frame gap, a frame from another track, a time
-going back, or the error over its limit.
+a gap between new frames longer than the profile's frame gap (on the frames' timestamps, or on the
+decision clock while the same frame repeats), a frame from another track, a time going back, or the
+error over its limit.
 """
 
 from __future__ import annotations
@@ -53,16 +54,19 @@ class FreshVisualLock:
         settings: AcquisitionGateSettings,
         fresh: Callable[[DetectedObject], bool],
         armed: Callable[[], bool],
+        now_s: Callable[[], float],
     ) -> None:
         self._settings = settings
         self._fresh = fresh
         self._armed = armed
+        self._now_s = now_s
         self.reset()
 
     def reset(self) -> None:
         self._track: tuple[int, int] | None = None
         self._last_s: float | None = None
         self._since_s: float | None = None
+        self._arrived_s: float | None = None  # when the newest frame was first seen (decision clock)
 
     def locked(self, poi: DetectedObject | None) -> bool:
         """Take this tick's detection and say whether the lock holds on it."""
@@ -70,7 +74,7 @@ class FreshVisualLock:
         if sample is None:
             self.reset()
             return False
-        self._observe(sample)
+        self._observe(sample, float(self._now_s()))
         return (
             self._since_s is not None
             and self._last_s - self._since_s >= self._settings.lock_dwell_s
@@ -81,13 +85,17 @@ class FreshVisualLock:
             return None
         return lock_sample(poi)
 
-    def _observe(self, sample: LockSample) -> None:
+    def _observe(self, sample: LockSample, now_s: float) -> None:
         if sample.track != self._track:
             self.reset()
             self._track = sample.track
         last_s = self._last_s
         if last_s is not None and sample.timestamp_s == last_s:
-            return  # the same frame seen again: nothing new
+            # The same frame seen again: nothing new, and no new frame for the frame gap breaks it.
+            if self._arrived_s is None or not 0.0 <= now_s - self._arrived_s <= self._settings.lock_max_frame_gap_s:
+                self._since_s = None
+            return
+        self._arrived_s = now_s
         if last_s is not None and (
             sample.timestamp_s < last_s
             or sample.timestamp_s - last_s > self._settings.lock_max_frame_gap_s

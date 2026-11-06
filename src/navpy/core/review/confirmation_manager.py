@@ -142,9 +142,9 @@ class ConfirmationManager(ListenerAbc):
     def clear_status(self, poi: DetectedObject) -> None:
         self._state.registry.clear_status(poi)
 
-    def withdraw_review(self, poi: DetectedObject) -> bool:
-        """Withdraw the POI's review while still CONFIRMING; True when one was withdrawn."""
-        return self._state.withdrawal.withdraw(poi)
+    def hold_acquisition(self, poi_id: int, held: bool) -> None:
+        """Publish whether the acquisition gates hold on this tick (HITL step 25)."""
+        self._state.acquisition.publish(poi_id, held)
 
     def review(self, pois: List[DetectedObject]) -> None:
         self._coordinator.review(pois)

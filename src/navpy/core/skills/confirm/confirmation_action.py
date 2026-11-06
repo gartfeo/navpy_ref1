@@ -163,10 +163,8 @@ class ConfirmationAction:
         # Asked on every tick, with or without a detection, so the orbit gate sees each tick.
         acquired = self._acquisition.ready(fresh)
         if status is ConfirmationStatus.CONFIRMING:
-            # HITL step 25: an answer may only land while the gates hold; on a lost lock or orbit
-            # the review is withdrawn (a later answer is late) and asked again once they hold.
-            if not acquired and self._confirmation_manager.withdraw_review(active):
-                self._debug.log(f"acquisition_lost_review_withdrawn obj={active.identity.obj_id}")
+            # A review under way: the gate has published its state, and the confirmation lock
+            # withdraws the review when it does not hold (HITL step 25).
             self._blocked.clear()
             return
         if fresh is None:

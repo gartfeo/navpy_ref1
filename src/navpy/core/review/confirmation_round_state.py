@@ -113,10 +113,11 @@ class ConfirmationRoundState:
                 if not self._workers.is_current(confirmation.worker):
                     return False
                 self._rounds.pop(confirmation.poi_id)
-                self._registry.set_status(confirmation.poi_id, status)
-                self._responses.remember_completion(confirmation, status)
+                accepted = self._registry.set_status(confirmation.poi_id, status)
+                if accepted:
+                    self._responses.remember_completion(confirmation, status)
             confirmation.response_event.set()
-            return True
+            return accepted
 
         return confirmation.outbound.run(complete_exact)
 

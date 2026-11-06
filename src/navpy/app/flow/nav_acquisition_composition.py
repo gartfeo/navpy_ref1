@@ -34,6 +34,7 @@ from navpy.app.flow.nav_composition_types import (
 from navpy.products.delivery.home_dock import HomeDockRules
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
 
@@ -56,6 +57,7 @@ def compose_acquisition(
     home_dock: HomeDockRules,
     approach_kind: ApproachKind,
     logger: ILogger,
+    confirmation_manager: ConfirmationManager,
 ) -> AcquisitionComposition:
     settings = acquisition_gate_settings(profile)
     if settings is not None and approach_kind != ApproachKind.ORBIT:
@@ -73,6 +75,7 @@ def compose_acquisition(
             settings,
             observation.freshness.detection_is_fresh_for_confirm,
             lambda: detection.tracking_status.is_detection_armed,
+            lambda: state.clock.decision_s(),
         ),
         OrbitEstablished(
             settings,
@@ -83,6 +86,7 @@ def compose_acquisition(
         ),
         self_approach,
         logger,
+        confirmation_manager.hold_acquisition,
     )
     return AcquisitionComposition(GatedOrbitStart(sequence), sequence)
 

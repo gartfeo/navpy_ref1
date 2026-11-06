@@ -196,7 +196,7 @@ def compose_navigation_task_workflows(
     home_dock = compose_home_dock_rules(focus, poi)
     acquisition = compose_acquisition(
         vehicle, detection, profile, state, approach, observation, navigation, home_dock,
-        approach_kind, logger,
+        approach_kind, logger, poi.confirmation_manager,
     )
     selector = PoiSelector(
         poi.confirmation_manager,

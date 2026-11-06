@@ -1,9 +1,10 @@
-"""Lock and confirm gates (HITL step 25): the points of the independent review, round 1.
+"""Lock and confirm gates (HITL step 25): the points of the independent review, rounds 1 and 2.
 
-A cached GPS position cannot hold the orbit; a review under way is withdrawn when the gates stop
-holding, so a late operator answer cannot confirm; a circle already flown cannot stall the own
-ORBIT; and compass heading poisoned at the real final-approach confirmation and law boundary changes
-nothing that the gates or the law decide.
+A cached GPS position cannot hold the orbit; no path writes CONFIRMED while the gates do not hold,
+and a review under way is withdrawn when they stop, so a late operator answer cannot confirm; a
+repeated frame does not keep the lock past the frame gap; a circle already flown cannot stall the
+own ORBIT; and compass heading poisoned at the real final-approach confirmation and law boundary
+changes nothing that the gates or the law decide.
 """
 
 from __future__ import annotations
@@ -136,19 +137,73 @@ def test_the_orbit_keeps_its_dwell_while_the_operator_reviews() -> None:
     assert _drive(rig, 15.1, 15.1) == pytest.approx(15.1)
 
 
-def test_an_answer_to_a_withdrawn_review_is_late() -> None:
+def _review_under_way():
     state = ConfirmationManagerState()
     poi = frame(1.0, 0.5, lambda: 1.0)
+    state.acquisition.publish(1, True)
     lease = state.start_review(poi, rt.Event)
     round_ = state.begin_round(poi, lease, rt.Event)
     assert round_ is not None and state.registry.get_status(poi) is ConfirmationStatus.CONFIRMING
-    assert state.withdrawal.withdraw(poi)
+    return state, poi, lease, round_
+
+
+def test_an_answer_to_a_withdrawn_review_is_late() -> None:
+    state, poi, lease, round_ = _review_under_way()
+    assert state.acquisition.publish(1, False)  # the gates stop holding: withdrawn
     assert state.registry.get_status(poi) is None
     assert state.resolve_response(round_.poi_id, True) is ConfirmationResponseKind.LATE_OR_DUPLICATE
     assert not state.complete_round(round_, ConfirmationStatus.CONFIRMED)  # the worker's timeout path
     assert not state.set_worker_status(lease, ConfirmationStatus.CONFIRMED)  # its auto-confirm path
     assert state.registry.get_status(poi) is None
-    assert not state.withdrawal.withdraw(poi)  # nothing under way any more
+    assert not state.acquisition.publish(1, False)  # nothing under way any more
+
+
+@pytest.mark.parametrize("path", ["operator", "timeout", "worker", "local"])
+def test_no_path_confirms_while_the_gates_do_not_hold(path) -> None:
+    """Round 2: an answer landing between the gate check and the withdrawal is refused too."""
+    state, poi, lease, round_ = _review_under_way()
+    state.registry.set_acquisition_held(1, False)  # published, the review not yet withdrawn
+    if path == "operator":
+        assert state.resolve_response(round_.poi_id, True) is ConfirmationResponseKind.LATE_OR_DUPLICATE
+    elif path == "timeout":
+        assert not state.complete_round(round_, ConfirmationStatus.CONFIRMED)
+    elif path == "worker":
+        assert not state.set_worker_status(lease, ConfirmationStatus.CONFIRMED)
+    else:
+        state.registry.update_status(poi, ConfirmationStatus.CONFIRMED)
+    assert state.registry.get_status(poi) is None  # asked again once the gates hold
+
+
+def test_an_answer_while_the_gates_hold_is_accepted() -> None:
+    state, poi, _lease, round_ = _review_under_way()
+    assert state.resolve_response(round_.poi_id, True) is ConfirmationResponseKind.CONFIRMED
+    assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMED
+
+
+def test_an_operator_confirmed_while_the_gates_fail_is_refused_in_the_graph() -> None:
+    rig = AcquisitionRig()
+    assert _drive(rig, 0.0, 5.0) is None  # locked and orbiting, the orbit not yet established
+    manager = rig.rig.confirmation_manager
+    manager.update_status(manager.active_poi, ConfirmationStatus.CONFIRMED)
+    assert manager.get_status(manager.active_poi) is None
+
+
+# --- P2 (round 2): a repeated frame does not keep the lock past the frame gap ----------------------------------------
+
+def test_a_repeated_frame_breaks_the_lock_after_the_frame_gap() -> None:
+    now = [0.0]
+    lock = FreshVisualLock(SETTINGS, lambda _p: True, lambda: True, lambda: now[0])
+    for i in range(26):
+        now[0] = round(i * 0.1, 6)
+        last = frame(now[0], 0.5, lambda: now[0])
+        held = lock.locked(last)
+    assert held
+    now[0] = 2.5 + SETTINGS.lock_max_frame_gap_s
+    assert lock.locked(last)  # the same frame, within the gap
+    now[0] = 2.6 + SETTINGS.lock_max_frame_gap_s
+    assert not lock.locked(last)  # no new frame for longer than the gap
+    now[0] = 3.2
+    assert not lock.locked(frame(3.2, 0.5, lambda: 3.2))  # a new frame restarts the dwell
 
 
 # --- P2: a circle already flown cannot stall the own ORBIT ----------------------------------------------------------
@@ -180,7 +235,7 @@ def _law_outcome(error_deg: float, yaw_deg: float):
                 uas_body_rates_rad_s=(0.1, 0.2, 0.3), source_air_speed_mps=20.0)
     vision = confirmation._project(poi)
     plan = confirmation._ports.law.preview(vision)
-    lock = FreshVisualLock(SETTINGS, lambda _p: True, lambda: True)
+    lock = FreshVisualLock(SETTINGS, lambda _p: True, lambda: True, lambda: 1.0)
     return (
         confirmation.can_confirm_detection(poi),
         (vision.control_x, vision.control_y, vision.control_z, vision.aircraft_yaw_rate_rad_s),
