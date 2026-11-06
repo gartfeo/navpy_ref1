@@ -37,7 +37,8 @@ Frontend:
   opens Camera) or a map icon (a pick opens Synthetic: RC control's
   first-person view and HUD from the UAV's pose on the map's base layer,
   without the controls; never confirms anything; the same layer as the map,
-  Satellite included). Synthetic and RC draw the UAV's own mission path and
+  Satellite included; it looks along the live gimbal camera when the UAV
+  reports one, else along the nose, and its tag says which). Synthetic and RC draw the UAV's own mission path and
   next waypoint; the HUD is compact at normal size, full when maximized, and
   never repeats what the right panel shows (battery, link, mode and status
   texts only with the panel hidden; RC, which hides the panel, shows all

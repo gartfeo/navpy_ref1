@@ -313,19 +313,37 @@ function _projectCameraFrame(
   );
 }
 
+/**
+ * The live gimbal camera's frame (x right, y down, z along the optical axis)
+ * to the vehicle body frame (FRD): the gimbal's reported attitude times the
+ * camera's setup rotation; null when either is unusable.
+ */
+export function liveGimbalCameraToVehicle(camConfig, liveGimbalTelemetry) {
+  if (!liveGimbalTelemetry) return null;
+  const cam = camConfig || getCameraConfig();
+  const setupMatrix = _eulerMatrixFromAttitudeList(cam.setup_att, cam.setup_seq);
+  const gimbalToVehicle = _quaternionWxyzToMatrix(liveGimbalTelemetry.q);
+  if (!setupMatrix || !gimbalToVehicle) return null;
+  return _matMul(gimbalToVehicle, setupMatrix);
+}
+
+/** A camera frame to NED for a vehicle attitude (degrees) and a camera-to-vehicle matrix. */
+export function cameraToNedMatrix(headingDeg, pitchDeg, rollDeg, cameraToVehicle) {
+  return _matMul(_vehicleToNedMatrix(headingDeg, pitchDeg, rollDeg), cameraToVehicle);
+}
+
 export function computeLiveGimbalDetectionEnvelope(
   lat, lon, alt, headingDeg, pitchDeg, rollDeg, camConfig, liveGimbalTelemetry,
 ) {
   if (alt == null || alt < 10 || !liveGimbalTelemetry) return null;
   const cam = camConfig || getCameraConfig();
-  const setupMatrix = _eulerMatrixFromAttitudeList(cam.setup_att, cam.setup_seq);
-  const gimbalToVehicle = _quaternionWxyzToMatrix(liveGimbalTelemetry.q);
-  if (!setupMatrix || !gimbalToVehicle) return null;
+  const cameraToVehicle = liveGimbalCameraToVehicle(cam, liveGimbalTelemetry);
+  if (!cameraToVehicle) return null;
 
   return _projectCameraFrame(
     lat, lon, alt, headingDeg, pitchDeg, rollDeg,
     cam,
-    _matMul(gimbalToVehicle, setupMatrix),
+    cameraToVehicle,
   );
 }
 

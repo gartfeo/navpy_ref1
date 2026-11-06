@@ -491,8 +491,11 @@ large vehicle view.
   - Maximized (full): the speed (AS with a GS readout) and altitude tapes,
     the heading tape, the attitude scale, and at the top right "Next WP n ·
     distance · ETE mm:ss"; with the panel hidden also the mode, link and
-    battery row and the status texts. The row and the heading tape stay left
-    of the small map, the altitude tape below it; the attitude indicator is
+    battery row and the status texts. The heading tape is centred on the
+    picture, where the view looks (owner 2026-11-07: "compas yaw is not
+    centered"), narrowed to clear the small map, and below the small map
+    where that leaves it under 150 px. The row stays left of the small map,
+    the altitude tape below it; the attitude indicator is
     inset by the small map's width on both sides (full width below 180 px).
     Where the room left of the small map leaves the tag under 120 px, the
     top-right column and the heading tape move below the small map, across
@@ -513,6 +516,24 @@ large vehicle view.
   never under the "Waiting for pose" cover. The renderers stay two: RC
   control keeps the main map's camera (its imagery, terrain and entities),
   Synthetic its own widget, with the nose pose math shared (`fpvPose.js`).
+- Gimbal view (owner 2026-11-07: "I think we should show the gimbal view?
+  currently it is straight view"): with live gimbal telemetry for the UAV
+  (the same `selectGimbalTelemetry` the map's detection envelope uses),
+  Synthetic looks along the camera's optical axis with the camera's
+  horizontal field of view (`map/utils/gimbalView.js`), and the tag reads
+  "SYNTHETIC · gimbal · not camera"; without it, the nose view and
+  "SYNTHETIC · nose · not camera". The HUD stays aircraft data; the attitude
+  indicator hides while the camera is turned more than 5 degrees from the nose
+  view (its axis or its roll about it),
+  where an aircraft horizon over a camera picture would mislead. RC control
+  stays the nose view.
+- Confirm list and the maximized window (owner 2026-11-07: "on confirmation
+  is hiding speed and other info"): with the panel collapsed, a round's list
+  lies at the map pane's left; the maximized window then starts one margin
+  right of it, so no card covers the speed tape, tag or bar
+  (`vehicleWindowLayout` `leftReservePx`). Where the pane is too narrow for
+  the list and a whole small map, the window keeps the whole pane and the
+  list lies over the picture, as the cards win.
 - Mission path (2026-11-06, todo 294): both first-person views show the
   viewed UAV's own route (owner: own UAV only) from the main map's plan and
   terrain-sampled track positions (`useRouteSource`, `utils/fpvRoute.js`),
