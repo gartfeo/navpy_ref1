@@ -86,6 +86,7 @@ const RC_HELD_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_HELD_OFFSET_PX;
 const RC_TAPE_BOTTOM_PX = STICK_INSET_PX + STICK_SIZE_PX + RC_CONFIRM_GAP_PX;
 /** Desktop map pane, used until the real pane is measured. */
 const FALLBACK_PANE = { width: 1280, height: 800 };
+const NO_HUD_CORNER = { width: 0, height: 0 };
 
 export default function App() {
   const { t } = useTranslation();
@@ -145,10 +146,14 @@ export default function App() {
   const mapCameraRef = useRef(null);
   // The map's UAV pose source for the vehicle window's synthetic view.
   const poseSourceRef = useRef(null);
+  // The map's route source (each UAV's own route and next waypoint) for the first-person views.
+  const routeSourceRef = useRef(null);
   const mapPaneRef = useRef(null);
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
   // The RC flight-mode column's height, reported by the column; null until measured.
   const [rcColumnPx, setRcColumnPx] = useState(null);
+  // RC's HUD top-right column (link, battery, next waypoint), measured by the HUD.
+  const [rcHudCorner, setRcHudCorner] = useState(NO_HUD_CORNER);
   // The right panel's rule starts from the real width, so the map never mounts
   // in the sliver a docked panel would leave on a phone.
   const rootRef = useRef(null);
@@ -782,6 +787,7 @@ export default function App() {
             mapCameraRef={mapCameraRef}
             swapped={swapped}
             poseSourceRef={poseSourceRef}
+            routeSourceRef={routeSourceRef}
             onCreditsHeight={setMapCreditsPx}
             onTerrainReady={setIonTerrain}
             onViewerReady={setMapReady}
@@ -875,6 +881,8 @@ export default function App() {
               ionTerrain={ionTerrain}
               baseLayer={syntheticBaseLayer(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)}
               onBaseLayerFailed={baseLayerChoice.onFailed}
+              routeSourceRef={routeSourceRef}
+              panelShown={sidePanel.open}
               onSyntheticCreditsHeight={setWindowCreditsPx}
               onChromeHeight={setWindowChromePx}
             />
@@ -928,7 +936,10 @@ export default function App() {
               <TelemetryHud
                 key={mc.manualControlTarget}
                 sysId={mc.manualControlTarget}
+                routeSourceRef={routeSourceRef}
+                onCornerSize={setRcHudCorner}
                 layout={rcHudLayout({
+                  corner: rcHudCorner,
                   tapeBox: hudTapeBox({ paneHeight: mapPane.height, top: RC_FPV_TAG_TOP_PX, bottom: RC_TAPE_BOTTOM_PX }),
                   speedBox: speedTapeBox({
                     paneHeight: mapPane.height,

@@ -9,6 +9,7 @@ import { pictureTagStyle } from './windowStyles';
 import TelemetryHud from './TelemetryHud';
 import { ION_TERRAIN_ASSET_ID, MAP_TARGET_FRAME_RATE } from './map/constants/icons';
 import { applyBaseLayer } from './map/utils/baseLayers';
+import { createRouteOverlay } from './map/utils/routeOverlay';
 import { createPoseMath, noseOrientation } from './map/utils/fpvPose';
 import { observeHeight } from './map/utils/observeHeight';
 
@@ -22,7 +23,7 @@ const NO_SIZE = { width: 0, height: 0 };
  * The vehicle window's Synthetic source (docs/design/gcs_video_streams.md,
  * section 5 "Synthetic view"): RC control's first-person view without the
  * controls. A second public CesiumWidget with the main map's base layer on its
- * terrain, unlit like the map, and no entities, looking through the window
+ * terrain, unlit like the map, no entities but the UAV's own route, looking through the window
  * UAV's nose, under the HUD RC control shows (TelemetryHud). Operator display
  * only; it never confirms anything.
  *
@@ -53,10 +54,14 @@ const NO_SIZE = { width: 0, height: 0 };
  *   large area; at normal size it collapses to one text row.
  * @param {{width: number, height: number}|null} [props.smallMap] - maximized: the small
  *   map in the picture's top-right corner; the tag and the HUD stay clear of it.
+ * @param {{ current: { route: (sysId: number) => object|null } | null }} [props.routeSourceRef] - the
+ *   UAV's own route (utils/fpvRoute.js), drawn over the terrain: numbered when
+ *   maximized, only the next waypoint's number at normal size.
+ * @param {boolean} [props.panelShown] - the right panel is open: the HUD leaves out what it shows.
  */
 export default function SyntheticView({
   sysId, label, poseSourceRef, storeRef, ionTerrain, baseLayer, onBaseLayerFailed, onFail, onCreditsHeight, style,
-  expanded = false, smallMap = null,
+  expanded = false, smallMap = null, routeSourceRef = null, panelShown = true,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
@@ -77,8 +82,12 @@ export default function SyntheticView({
   onCreditsRef.current = onCreditsHeight;
   const onBaseLayerFailedRef = useRef(onBaseLayerFailed);
   onBaseLayerFailedRef.current = onBaseLayerFailed;
+  const routeSourceRefRef = useRef(routeSourceRef);
+  routeSourceRefRef.current = routeSourceRef;
+  const expandedRef = useRef(expanded);
+  expandedRef.current = expanded;
   const [creditsPx, setCreditsPx] = useState(0);
-  const [statusSize, setStatusSize] = useState(NO_SIZE);
+  const [cornerSize, setCornerSize] = useState(NO_SIZE);
   const pictureRef = useRef(null);
   const picture = useElementSize(pictureRef, NO_SIZE);
   const tagRef = useRef(null);
@@ -140,6 +149,14 @@ export default function SyntheticView({
       widget.canvas.addEventListener('webglcontextlost', onContextLost);
       cleanups.push(() => widget.canvas.removeEventListener('webglcontextlost', onContextLost));
 
+      // The UAV's own route, redrawn only when it, its next waypoint or the size changes.
+      const route = createRouteOverlay(Cesium, scene);
+      cleanups.push(() => route.destroy());
+      const syncRoute = () => {
+        const r = routeSourceRefRef.current?.current?.route(sysIdRef.current) ?? null;
+        return route.update(r, { line: true, labels: expandedRef.current ? 'all' : 'next' });
+      };
+
       const poseMath = createPoseMath(Cesium);
       // The window UAV's pose when the shared hold check passes and the copied
       // numbers are finite; else null (the last good pose holds).
@@ -159,6 +176,7 @@ export default function SyntheticView({
         try {
           const id = sysIdRef.current;
           if (validPose(id)) setReadyFor(id);
+          syncRoute();
           scene.requestRender();
         } catch (e) {
           fail(e);
@@ -215,7 +233,7 @@ export default function SyntheticView({
   // once that UAV has a valid pose.
   useEffect(() => {
     checkReadyRef.current?.();
-  }, [sysId, widgetReady]);
+  }, [sysId, widgetReady, expanded]);
   useEffect(() => {
     widgetRef.current?.scene.requestRender();
   }, [readyFor]);
@@ -253,9 +271,10 @@ export default function SyntheticView({
     width: picture.width,
     height: picture.height,
     tagHeight: tag.height + 2 * TAG_BORDER_PX,
-    status: statusSize,
+    corner: cornerSize,
     creditsPx,
     smallMap,
+    panelShown,
   });
   return (
     <>
@@ -305,7 +324,13 @@ export default function SyntheticView({
             data-testid="synthetic-hud"
             style={{ position: 'absolute', inset: 0, zIndex: 0, isolation: 'isolate', pointerEvents: 'none' }}
           >
-            <TelemetryHud key={sysId} sysId={sysId} layout={hud} onStatusSize={setStatusSize} />
+            <TelemetryHud
+              key={sysId}
+              sysId={sysId}
+              layout={hud}
+              routeSourceRef={routeSourceRef}
+              onCornerSize={setCornerSize}
+            />
           </div>
         )}
         <div
