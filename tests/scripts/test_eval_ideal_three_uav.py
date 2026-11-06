@@ -384,6 +384,24 @@ def test_ideal_analysis_uses_ready_python_pid_for_source_cadence(tmp_path):
     assert owner.metrics.command_wall_gap_p50_ms == pytest.approx(2.0)
 
 
+def test_ideal_analysis_does_not_score_a_run_with_a_startup_evidence_failure(tmp_path):
+    # Todo 290: NavPy logs a failed evidence write and flies on; the gate reads
+    # the whole log, so a marker before the mission segment still counts.
+    approvals = _write_ideal_run(tmp_path)
+    log_path = tmp_path / "uav_4_navigation.log"
+    log_path.write_text(
+        "2026-07-10 11:59:59,000 ERROR NAVIGATION_EVIDENCE_FAILURE: navigation log write "
+        "OSError: disk full\n" + log_path.read_text(encoding="utf-8"),
+        encoding="utf-8",
+    )
+
+    report = analysis.analyze_ideal_run(tmp_path, scenario=CERTIFIED, approvals=approvals)
+
+    assert report.passed is False
+    owner = next(item for item in report.vehicles if item.sys_id == 4)
+    assert owner.errors == ["evidence incomplete, not scored (NAVIGATION_EVIDENCE_FAILURE logged)"]
+
+
 def test_ideal_analysis_accepts_isolated_fixed_grid_phase_compression(tmp_path):
     approvals = _write_ideal_run(tmp_path)
     path = (

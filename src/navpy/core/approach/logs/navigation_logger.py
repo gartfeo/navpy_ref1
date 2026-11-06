@@ -9,6 +9,7 @@ import numpy as np
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.approach.logs.evidence_failure import NAVIGATION_EVIDENCE_FAILURE_MARKER
 from navpy.core.approach.logs.navigation_clocks import current_wall_timestamp
 from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
 from navpy.core.approach.logs.navigation_log_streams import (
@@ -23,9 +24,6 @@ from navpy.core.approach.logs.navigation_status_emitter import NavigationStatusE
 from navpy.core.approach.logs.log_events import LogEvent
 from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
 from navpy.core.kernel.location import Location
-
-
-NAVIGATION_EVIDENCE_FAILURE_MARKER = "NAVIGATION_EVIDENCE_FAILURE"
 
 
 __all__ = (
@@ -177,6 +175,10 @@ class NavigationLogger:
 
     def drain(self) -> None:
         self._streams.drain()
+
+    def raise_if_failed(self) -> None:
+        """Raise the first failed CSV write, for callers that stop on it."""
+        self._streams.raise_if_failed()
 
     def close(self) -> None:
         self._streams.close()

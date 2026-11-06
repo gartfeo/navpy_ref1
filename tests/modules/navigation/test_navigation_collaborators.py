@@ -1688,3 +1688,22 @@ def test_lifecycle_defers_navigation_logger_until_command_worker_stops():
 
     lifecycle.stop()
     navigation_logger.close.assert_called_once_with()
+
+
+def test_lifecycle_raise_if_failed_covers_postprocess_and_csv_writes():
+    # Todo 290: NavPy never calls this; bench scripts do, so both evidence
+    # writers must answer it.
+    command_session = Mock()
+    navigation_logger = Mock()
+    navigation_logger.raise_if_failed.side_effect = RuntimeError("csv write failed")
+    lifecycle = NavigationLifecycle(
+        Mock(),
+        Mock(),
+        Mock(),
+        navigation_logger,
+        command_session,
+    )
+
+    with pytest.raises(RuntimeError, match="csv write failed"):
+        lifecycle.raise_if_failed()
+    command_session.raise_if_failed.assert_called_once_with()
