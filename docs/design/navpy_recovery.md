@@ -274,6 +274,14 @@ merges before step 4, which builds on its deadline fix.
    once (not per tick); recovery gives AUTO and the same dock; 30 s gives RTL;
    a pilot mode is never touched; the approach command path gains no new
    inputs (Pure Vision Approach Constraint).
+   Owner ruling 2026-11-07, hold model "keep running, blocked": in the hold
+   the full cycle keeps running behind the closed fence, so health is seen;
+   1.5 s of good cycles is healthy. While holding, NAV does not end the
+   approach for the hold's LOITER and search is not restarted. Without
+   ownership (search in the mission's AUTO, a pilot mode) the hold only
+   fences, there is no RTL, and the fence reopens when healthy. Known gap:
+   GUIDED set implicitly by a peer goto records no ownership request, so a
+   hold then only fences and ArduPlane loiters at the last GUIDED target.
 5. **Component restart and escalation.** Camera capture, detector and
    heartbeat worker restart fresh with a new generation, limited tries and
    back-off. Any other latched failure, or a part that can't be quiesced,

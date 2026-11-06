@@ -31,6 +31,7 @@ from navpy.app.flow.nav_final_approach_composition import (
     compose_final_approach_workflows,
 )
 from navpy.core.ports.dock_contact import DockContactSensor
+from navpy.core.flow.nav_recovery import NavRecoveryLink
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
 from navpy.core.perception.detection_coordination import DetectionCoordination
@@ -46,6 +47,7 @@ def create_nav_application(
     vision_profile: Optional[dict] = None,
     scheduler_cadence: Optional[SchedulerCadence] = None,
     dock_contact: Optional[DockContactSensor] = None,
+    recovery_link: Optional[NavRecoveryLink] = None,
 ) -> NavApplication:
     """Build the application from bounded semantic ownership stages."""
 
@@ -174,6 +176,7 @@ def create_nav_application(
         navigation_capabilities,
         final_approach.nav,
         dock_contact,
+        recovery_link,
     )
 
 

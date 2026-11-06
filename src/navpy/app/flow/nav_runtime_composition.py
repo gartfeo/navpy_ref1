@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -28,7 +28,6 @@ from navpy.app.flow.nav_composition_types import (
 )
 from navpy.core.flow.nav_display import NavDisplayBuilder, NavOutcomeLatch
 from navpy.core.flow.nav_state import NavState
-from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.app.flow.nav_delivery_composition import compose_sortie_finish
 from navpy.products.delivery.flow import restart_search
 from navpy.core.flow.nav_task_availability import is_approaching
@@ -38,6 +37,7 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
+from navpy.core.flow.nav_recovery import NavRecovery, NavRecoveryLink, NavRecoveryPorts, TimeSample
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -105,6 +105,7 @@ def compose_nav_application(
     navigation: NavCapabilities,
     final_approach_nav: FinalApproachNavWorkflow,
     dock_contact_sensor: Optional[DockContactSensor] = None,
+    recovery_link: Optional[NavRecoveryLink] = None,
 ) -> NavApplication:
     loop: Optional[NavigationLoop] = None
     dock_contact = FinalApproachDockContact(
@@ -159,7 +160,7 @@ def compose_nav_application(
     transitions = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: state.clock.decision_s(),
-            return_to_search=lambda: restart_search(vehicle),
+            return_to_search=lambda: _return_to_search(vehicle, state),
             enter_recovery=decision.recovery.enter,
             start_task_actor=observation.network.start_task_actor,
             is_oneshot=lambda: args.is_oneshot,
@@ -229,8 +230,8 @@ def compose_nav_application(
         decision.decision,
         actions,
     )
-    loop = NavigationLoop(cycle, state.clock, logger, on_cycle_error=(
-        lambda error: _fail_active_approach(state, error)))
+    loop = NavigationLoop(cycle, state.clock, logger, on_period=_recovery_step(
+        vehicle, state, logger, recovery_link))
     shutdown = NavShutdown(
         final_approach_nav.close_source_admission,
         navigation.reset,
@@ -241,10 +242,39 @@ def compose_nav_application(
     return NavApplication(loop, observation.network, shutdown, state.overrides)
 
 
-def _fail_active_approach(state: NavStateOwnership, _error: Exception) -> None:
-    """Fail an active approach closed after a NAV cycle error; else nothing."""
-    if state.phase.is_current(NavState.NAV):
-        state.navigation_failures.mark_failed(fail_reason.INTERNAL_ERROR)
+def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
+    """Restart the search, except in recovery's hold: its LOITER and AUTO
+    stand, and the mission goes on from its current item on resume."""
+    if not state.recovery_hold.holding:
+        restart_search(vehicle)
+
+
+def _recovery_step(
+    vehicle: IVehicle,
+    state: NavStateOwnership,
+    logger: ILogger,
+    link: Optional[NavRecoveryLink],
+) -> Callable[[bool], None]:
+    """The NAV loop's per-period hook: recovery's stages (nav_recovery.py).
+
+    Without a link (no MAVLink bus: tests, other vehicles) there is no fence
+    to close and no recovery."""
+    if link is None:
+        return lambda _cycle_ok: None
+    recovery = NavRecovery(
+        NavRecoveryPorts(
+            close_fence=link.close_fence,
+            reopen_fence=link.reopen_fence,
+            observe_mode=link.observe_mode,
+            request_mode=vehicle.set_mode,
+            logger=logger,
+        ),
+        state.recovery_hold,
+    )
+    return lambda cycle_ok: recovery.step(
+        cycle_ok,
+        TimeSample(aircraft_s=_attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
+    )
 
 
 def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:
