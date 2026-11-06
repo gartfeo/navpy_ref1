@@ -180,6 +180,32 @@ def test_an_answer_while_the_gates_hold_is_accepted() -> None:
     assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMED
 
 
+def test_an_answer_racing_the_tick_that_sees_the_loss_is_revoked() -> None:
+    """Round 3: the tick samples a loss, the answer lands on the old state, then the tick publishes."""
+    state, poi, _lease, round_ = _review_under_way()
+    # the navigation tick has computed held=False but not yet published it
+    assert state.resolve_response(round_.poi_id, True) is ConfirmationResponseKind.CONFIRMED
+    assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMED
+    assert state.acquisition.publish(1, False)  # the publication revokes it
+    assert state.registry.get_status(poi) is None
+    assert not state.acquisition.publish(1, True)  # holding again does not restore it: asked again
+    assert state.registry.get_status(poi) is None
+
+
+def test_a_confirmation_is_revoked_by_a_loss_before_nav_and_asked_again() -> None:
+    rig = AcquisitionRig()
+    assert _drive(rig, 0.0, 12.1) is None
+    rig.world.t = 12.2
+    rig.world.detections = [frame(12.2, 0.5, rig.now)]
+    rig.tick()  # confirmed locally on this tick; NAV would come on the next
+    assert rig.confirmed()
+    assert _drive(rig, 12.3, 12.3, error=1.5) is None  # pointing off before NAV
+    assert not rig.confirmed()
+    # pointing back: the lock dwells again, confirms again, then NAV
+    assert _drive(rig, 12.4, 14.3) is None
+    assert _drive(rig, 14.4, 15.0) == pytest.approx(14.5)
+
+
 def test_an_operator_confirmed_while_the_gates_fail_is_refused_in_the_graph() -> None:
     rig = AcquisitionRig()
     assert _drive(rig, 0.0, 5.0) is None  # locked and orbiting, the orbit not yet established
