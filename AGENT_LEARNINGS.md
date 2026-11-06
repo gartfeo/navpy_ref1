@@ -2669,3 +2669,15 @@
   can be read from, so the ground-ray centre error scales with that distance, not with the orbit radius.
 - **Write test strings with Edit, not a Bash heredoc.** A "\n" inside a heredoc reached the file as a real
   newline and broke the test file.
+## Trail blink, todo 293 (2026-11-06)
+
+- A Cesium entity polyline whose positions change often blinks or lags: static entity geometry is built
+  asynchronously, the old primitive stays until the new one is ready, and a change during a build drops it.
+  Draw such lines with a `PolylineCollection` (synchronous) or a CallbackProperty, and call
+  `scene.requestRender()` after a primitive change under requestRenderMode.
+- To prove it live: wrap `StaticGeometryColorBatch.prototype.update`, snapshot the positions each new
+  primitive is built from, and compare per frame with what should be drawn. On this branch Cesium loads from
+  `/node_modules/cesium/Source/Cesium.js` (not `/deps/`), and the resource-timing buffer can be full: import
+  that path directly.
+- I ran `git stash` to test the old hook, against the session rule (stashes are shared by every worktree).
+  It was popped at once. To test old code, copy `git show HEAD:<file>` to the scratchpad and swap the file.
