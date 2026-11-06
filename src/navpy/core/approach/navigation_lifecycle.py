@@ -6,9 +6,6 @@ from typing import Optional
 
 from navpy.core.approach.logs.navigation_logger import ClosestSnap, NavigationLogger
 from navpy.core.approach.navigation_command_session import NavigationCommandSession
-from navpy.core.approach.navigation_postprocess_dispatcher import (
-    NavigationPostprocessFailure,
-)
 from navpy.core.approach.navigation_mode import NavigationModeSelector, NavigationModeState
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyNavigationState
 from navpy.core.kernel import runtime_time as rt
@@ -64,15 +61,14 @@ class NavigationLifecycle:
 
     def stop(self) -> None:
         with self._lock:
-            try:
-                self._command_session.stop()
-            except NavigationPostprocessFailure:
-                self._navigation_logger.close()
-                raise
+            self._command_session.stop()
             self._navigation_logger.close()
 
     def raise_if_failed(self) -> None:
+        """Raise the first failed evidence write. NavPy itself never calls
+        this (todo 290); bench scripts do, to stop on missing evidence."""
         self._command_session.raise_if_failed()
+        self._navigation_logger.raise_if_failed()
 
     @property
     def algorithm_info(self) -> tuple[str, Optional[float]]:

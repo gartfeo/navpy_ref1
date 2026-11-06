@@ -12,6 +12,7 @@ from unittest.mock import Mock, patch
 
 import pymap3d
 
+from navpy.core.approach.logs.evidence_failure import NAVIGATION_EVIDENCE_FAILURE_MARKER
 from navpy.core.approach.logs.navigation_event_recorder import NavigationEventRecorder
 from navpy.core.approach.logs.navigation_log_streams import (
     NavigationLogStreams,
@@ -382,19 +383,43 @@ class StreamResourceSafetyTests(unittest.TestCase):
         self.assertTrue(compact.closed)
         self.assertTrue(debug.closed)
 
-    def test_async_primary_error_surfaces_and_close_cleans_every_handle(self):
+    def test_async_primary_error_is_reported_and_writing_goes_on(self):
+        # Todo 290: a failed write is reported and skipped; drain and close do
+        # not raise it, and only callers that ask (bench scripts) see it.
         compact = _FirstFlushFailingFile()
         debug = _TrackingFile()
-        streams = NavigationLogStreams(compact, debug)
+        reported: list[BaseException] = []
+        streams = NavigationLogStreams(compact, debug, on_error=reported.append)
         streams.write_primary("row\n")
+        streams.drain()
+        streams.write_primary("next\n")
+        streams.drain()
 
-        with self.assertRaisesRegex(OSError, "primary flush failed"):
-            streams.drain()
-        with self.assertRaisesRegex(OSError, "primary flush failed"):
-            streams.close()
+        with self.assertRaisesRegex(RuntimeError, "navigation log stream write failed") as raised:
+            streams.raise_if_failed()
+        self.assertIsInstance(raised.exception.__cause__, OSError)
+        self.assertEqual([str(error) for error in reported], ["primary flush failed"])
+        streams.close()
 
+        self.assertIn("next\n", compact.lines)
         self.assertTrue(compact.closed)
         self.assertTrue(debug.closed)
+
+    def test_opened_streams_log_a_failed_write_with_the_evidence_marker(self):
+        logger = Mock()
+        with tempfile.TemporaryDirectory() as directory:
+            logger.log_path = directory
+            with patch.object(NavigationLogStreams, "_apply_write", side_effect=OSError("disk full")):
+                streams = open_navigation_log_streams(4, logger)
+                try:
+                    streams.write_primary("row\n")
+                    streams.drain()
+                finally:
+                    streams.close()
+
+        message, error = logger.error.call_args.args
+        self.assertTrue(message.startswith(f"{NAVIGATION_EVIDENCE_FAILURE_MARKER}: navigation log write"))
+        self.assertIsInstance(error, OSError)
 
     def test_close_attempts_every_handle_when_compact_flush_fails(self):
         compact = _FlushFailingFile()

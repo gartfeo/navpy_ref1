@@ -77,26 +77,45 @@ def test_sink_failure_is_retained_without_killing_stream_worker():
             raise OSError("disk unavailable")
         handled.append(line)
 
-    worker = NavigationStreamWorker(write)
+    reported: list[BaseException] = []
+    worker = NavigationStreamWorker(write, on_error=reported.append)
     assert worker.submit("bad")
     assert entered.wait(timeout=2.0)
     assert worker.submit("good")
     release.set()
     worker.wait_until_idle()
+    # Todo 290: the failed row is skipped and reported; rows submitted after
+    # the failure are still written.
+    assert worker.submit("after")
     worker.close()
 
     assert isinstance(worker.first_error, OSError)
     assert str(worker.first_error) == "disk unavailable"
+    assert reported == [worker.first_error]
+    assert handled == ["good", "after"]
+
+
+def test_a_failing_error_reporter_does_not_stop_the_worker():
+    handled: list[str] = []
+
+    def write(line: str) -> None:
+        if line == "bad":
+            raise OSError("disk unavailable")
+        handled.append(line)
+
+    def report(_error: BaseException) -> None:
+        raise RuntimeError("logger broke")
+
+    worker = NavigationStreamWorker(write, on_error=report)
+    assert worker.submit("bad")
+    assert worker.submit("good")
+    worker.close()
+
     assert handled == ["good"]
-    try:
-        worker.submit("late")
-    except OSError as error:
-        assert error is worker.first_error
-    else:
-        raise AssertionError("failed worker accepted a later row")
+    assert isinstance(worker.first_error, OSError)
 
 
-def test_backlog_capacity_fails_without_blocking_or_dropping_owned_rows():
+def test_backlog_overflow_drops_only_the_new_row_and_keeps_accepting():
     entered = threading.Event()
     release = threading.Event()
     handled: list[str] = []
@@ -118,8 +137,11 @@ def test_backlog_capacity_fails_without_blocking_or_dropping_owned_rows():
         raise AssertionError("navigation backlog overflow was accepted")
 
     release.set()
+    worker.wait_until_idle()
+    # Todo 290: the overflow does not stop the worker.
+    assert worker.submit("later")
     worker.close()
-    assert handled == ["owned"]
+    assert handled == ["owned", "later"]
     assert isinstance(worker.first_error, NavigationStreamBacklogError)
 
 

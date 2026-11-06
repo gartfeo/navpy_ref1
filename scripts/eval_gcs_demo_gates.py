@@ -20,6 +20,7 @@ from scripts.eval_gcs_demo_models import EpisodeMetrics, RegressionError
 from scripts.eval_gcs_demo_gate_profiles import CERTIFIED_PROFILE
 from scripts.eval_gcs_demo_role_gates import ROLE_GATES
 
+from navpy.core.approach.logs.evidence_failure import NAVIGATION_EVIDENCE_FAILURE_MARKER
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 from navpy.core.perception.profile.vision_profile_loader import load_profiles
 from navpy.core.perception.profile.vision_profile_types import VisionProfile
@@ -165,6 +166,14 @@ def _ordered_workflow_errors(navigation_text: str) -> list[str]:
     return errors
 
 
+def evidence_failure_errors(navigation_text: str) -> list[str]:
+    """NavPy logs a failed evidence write and flies on (todo 290); the run's
+    evidence is then incomplete, so the run is not scored."""
+    if NAVIGATION_EVIDENCE_FAILURE_MARKER in navigation_text:
+        return [f"evidence incomplete, not scored ({NAVIGATION_EVIDENCE_FAILURE_MARKER} logged)"]
+    return []
+
+
 def workflow_errors(
     navigation_text: str,
     *,
@@ -194,6 +203,7 @@ def workflow_errors(
     for label, marker in forbidden.items():
         if marker in lowered:
             errors.append(f"forbidden {label} marker ({marker!r})")
+    errors.extend(evidence_failure_errors(navigation_text))
     errors.extend(
         navigation_speedup_errors(
             navigation_text,
@@ -207,6 +217,7 @@ def workflow_errors(
 __all__ = [
     "active_vision_profile",
     "confirmation_image_errors",
+    "evidence_failure_errors",
     "sensor_config_errors",
     "workflow_errors",
 ]

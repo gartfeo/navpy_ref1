@@ -1,10 +1,10 @@
-# Todo 290: recovery from a failed evidence write (design draft)
+# Todo 290: recovery from a failed evidence write
 
-Status: approved by the owner 2026-11-06; not implemented. No runtime code changed. Scope: todo 290 only;
+Status: approved by the owner 2026-11-06; implemented on this branch (unit tests only). Scope: todo 290 only;
 the overall recovery design (todo 292, component failures, operator reset) is drafted
 separately.
 
-## Today
+## Before this change
 
 - Final-approach evidence (compact/debug rows, DOCKED rows) is written off the command
   thread by one FIFO worker (`core/approach/navigation_postprocess_dispatcher.py`,

@@ -14,6 +14,8 @@
   note; twice more in HITL step 14, even with "\\n" in a quoted 'PYEOF' heredoc). Insert or
   change code with the Edit tool, never a heredoc; check with `ast.parse`. Once more in
   todo 290 (2026-11-05): a `"\\n".join` in a heredoc replacement string broke a gate file.
+  And the same line again on 2026-11-06, in the same task, after reading this entry: any
+  edit text holding a backslash goes through the Edit tool, with no exceptions.
   A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
   (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP

@@ -7,9 +7,10 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 
 import os
 from dataclasses import dataclass
-from typing import NoReturn, Optional, Protocol, TextIO
+from typing import Callable, NoReturn, Optional, Protocol, TextIO
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.approach.logs.evidence_failure import report_evidence_failure
 from navpy.core.approach.logs.log_events import LogEvent, STANDARD_EVENT_HEADER
 from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
 from navpy.core.approach.logs.navigation_stream_worker import NavigationStreamWorker
@@ -43,12 +44,15 @@ class NavigationLogStreams:
         self,
         compact: Optional[NavigationTextStream],
         debug: Optional[NavigationTextStream],
+        *,
+        on_error: Callable[[BaseException], None] | None = None,
     ) -> None:
         self._compact = compact
         self._compact_output = compact
         self._debug = debug
         self._debug_output = debug
-        self._worker = NavigationStreamWorker(self._apply_write)
+        # A failed write is reported and skipped; writing goes on (todo 290).
+        self._worker = NavigationStreamWorker(self._apply_write, on_error=on_error)
         self._condition = rt.Condition(rt.RLock())
         self._debug_event_count = 0
         self._phase = "active"
@@ -91,9 +95,12 @@ class NavigationLogStreams:
     def drain(self) -> None:
         """Fence every navigation row submitted before this call."""
         self._worker.wait_until_idle()
+
+    def raise_if_failed(self) -> None:
+        """Raise the first failed write, for callers that stop on it."""
         error = self._worker.first_error
         if error is not None:
-            raise error
+            raise RuntimeError("navigation log stream write failed") from error
 
     def close(self) -> None:
         owner = rt.get_ident()
@@ -109,7 +116,6 @@ class NavigationLogStreams:
             compact, self._compact = self._compact, None
             debug, self._debug = self._debug, None
 
-        worker_errors: list[BaseException] = []
         try:
             self._worker.close()
         except BaseException as error:
@@ -120,13 +126,10 @@ class NavigationLogStreams:
                 self._close_owner = None
                 self._condition.notify_all()
             raise error
-        worker_error = self._worker.first_error
-        if worker_error is not None:
-            worker_errors.append(worker_error)
 
         compact_errors, compact_failed = _close_stream(compact)
         debug_errors, debug_failed = _close_stream(debug)
-        errors = [*worker_errors, *compact_errors, *debug_errors]
+        errors = [*compact_errors, *debug_errors]
 
         with self._condition:
             self._compact = compact if compact_failed else None
@@ -171,6 +174,10 @@ def open_navigation_log_streams(
     log_path = _create_log_directory(logger)
     if log_path is None:
         return NavigationLogStreams(None, None)
+
+    def on_error(error: BaseException) -> None:
+        report_evidence_failure(logger, "navigation log write", error)
+
     compact = _open_stream(
         os.path.join(log_path, f"uav_{sys_id}_navigation_compact.csv"),
         PRIMARY_SCHEMA.header_line(),
@@ -183,7 +190,7 @@ def open_navigation_log_streams(
         "navigation debug CSV",
         logger,
     )
-    return NavigationLogStreams(compact, debug)
+    return NavigationLogStreams(compact, debug, on_error=on_error)
 
 
 def _create_log_directory(logger: ILogger) -> Optional[str]:

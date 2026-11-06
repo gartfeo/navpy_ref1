@@ -318,6 +318,14 @@ def test_slice_passes_an_owner_log_certified_fails_only_for_dispatch(tmp_path):
     ]
 
 
+def test_a_logged_evidence_failure_is_not_scored_though_navpy_flew_on(tmp_path):
+    text = _owner_only_text(tmp_path) + "x ERROR NAVIGATION_EVIDENCE_FAILURE: navigation log write OSError: disk full\n"
+
+    assert _errors(text, "owner_only_slice") == [
+        "evidence incomplete, not scored (NAVIGATION_EVIDENCE_FAILURE logged)",
+    ]
+
+
 @pytest.mark.parametrize(
     "line",
     [
