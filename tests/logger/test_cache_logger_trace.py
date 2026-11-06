@@ -18,6 +18,7 @@ from navpy.core.kernel.logging.cache_logger import (
     CacheLogger,
     _make_non_string_status_tracer,
 )
+from tests.logger.log_worker_join import unbounded_worker_join
 
 
 class _LoggerArgsStub:
@@ -78,8 +79,9 @@ def _cache_logger(logger=None, status_logger=None) -> CacheLogger:
 @pytest.fixture(autouse=True)
 def _close_loggers():
     yield
-    while _OPEN_LOGGERS:
-        _OPEN_LOGGERS.pop().close()
+    with unbounded_worker_join():
+        while _OPEN_LOGGERS:
+            _OPEN_LOGGERS.pop().close()
 
 
 def _fresh_tracer(monkeypatch, max_traces: int = 5) -> None:
@@ -180,7 +182,8 @@ def test_info_is_cached_by_key_and_message(monkeypatch):
     cl = _cache_logger(logger=sink)
     cl.info("PEER_GEO_ACQ: poi=1 reason=out_of_fov", key="peer_geo_acq")
     cl.info("PEER_GEO_ACQ: poi=1 reason=out_of_fov", key="peer_geo_acq")
-    cl.close()
+    with unbounded_worker_join():
+        cl.close()
     _OPEN_LOGGERS.remove(cl)
 
     assert sink.info_messages.count(
@@ -202,7 +205,8 @@ def test_non_string_status_still_enqueued(monkeypatch):
     status = _RecordingStatusLogger()
     cl = _cache_logger(status_logger=status)
     cl.info("m", status=9.9)
-    cl.close()
+    with unbounded_worker_join():
+        cl.close()
     _OPEN_LOGGERS.remove(cl)
 
     assert status.messages[0][0] == 9.9

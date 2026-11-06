@@ -24,6 +24,7 @@ from navpy.plugins.tracking.tracker_config import tracker_config_from_settings
 from navpy.core.ports.detection import Detection
 from navpy.plugins.detection.yolo.yolo_detector import YoloDetector
 from navpy.core.perception.tracking_command_router import TrackingCommandRouter
+from tests.logger.log_worker_join import unbounded_worker_join
 
 from tests.modules.vision.test_tracker_backends import (
     _FakeBotSort,
@@ -121,7 +122,8 @@ class TestYoloDetectorStartupLog(unittest.TestCase):
             with patch.dict(sys.modules, _fake_vision_modules()):
                 YoloDetector("model.pt", device="cpu", logger=logger)
         finally:
-            logger.close()
+            with unbounded_worker_join():
+                logger.close()
 
     def test_startup_log_is_formatted_and_carries_no_metadata(self):
         logger = _RecordingLogger()
