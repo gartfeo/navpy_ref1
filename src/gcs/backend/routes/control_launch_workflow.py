@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Protocol
 from fastapi import HTTPException
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM
 from navpy.core.ports.flight_mode import FlightMode
@@ -121,7 +121,14 @@ AUTO_CONFIRM_WAIT_S = 2.5
 AUTO_CONFIRM_POLL_S = 0.1
 
 
-async def _set_auto_confirmed(vehicle) -> tuple[bool, FlightMode | None]:
+class _ModeConfirmVehicle(Protocol):
+    heartbeat_count: int
+    get_mode: FlightMode | None
+
+    def set_mode(self, flight_mode: FlightMode) -> bool: ...
+
+
+async def _set_auto_confirmed(vehicle: _ModeConfirmVehicle) -> tuple[bool, FlightMode | None]:
     """Request AUTO until a heartbeat newer than the request shows it.
 
     Returns whether it was confirmed and the last fresh mode seen (None when
