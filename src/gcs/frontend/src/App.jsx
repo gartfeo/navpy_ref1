@@ -58,7 +58,7 @@ import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { isPending } from './hooks/taskConfirmationState';
 import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
 import { rcHudLayout } from './utils/hudLayout';
-import { DEFAULT_BASE_LAYER, isBaseLayerAvailable, secondViewLayer } from './components/map/utils/baseLayers';
+import { syntheticBaseLayer } from './components/map/utils/baseLayers';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
@@ -873,8 +873,7 @@ export default function App() {
               poseSourceRef={poseSourceRef}
               storeRef={storeRef}
               ionTerrain={ionTerrain}
-              baseLayer={secondViewLayer(isBaseLayerAvailable(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)
-                ? baseLayerChoice.baseLayer : DEFAULT_BASE_LAYER)}
+              baseLayer={syntheticBaseLayer(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)}
               onBaseLayerFailed={baseLayerChoice.onFailed}
               onSyntheticCreditsHeight={setWindowCreditsPx}
               onChromeHeight={setWindowChromePx}

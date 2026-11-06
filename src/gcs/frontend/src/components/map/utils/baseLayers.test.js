@@ -1,8 +1,8 @@
 import { describe, it, expect, vi } from 'vitest';
-import { ImageryLayer } from 'cesium';
+import { ImageryLayer, Credit } from 'cesium';
 import {
   BASE_LAYER_KEY, DEFAULT_BASE_LAYER, loadBaseLayer, saveBaseLayer,
-  createBaseLayer, applyBaseLayer, watchBaseLayer, layerAfterFailure, secondViewLayer, SECOND_VIEW_FALLBACK_LAYER,
+  createBaseLayer, applyBaseLayer, watchBaseLayer, layerAfterFailure, syntheticBaseLayer,
 } from './baseLayers';
 
 const memoryStorage = (init = {}) => {
@@ -31,7 +31,7 @@ function fakeCesium() {
     ImageryLayer,
     UrlTemplateImageryProvider: class extends Rec {},
     OpenStreetMapImageryProvider: class extends Rec {},
-    IonImageryProvider: { fromAssetId: vi.fn((id) => ({ ionAsset: id })) },
+    IonImageryProvider: { fromAssetId: vi.fn((id) => Promise.resolve({ ionAsset: id, getTileCredits: () => undefined })) },
     Credit: class { constructor(html, onScreen) { this.html = html; this.onScreen = onScreen; } },
   };
 }
@@ -89,11 +89,41 @@ describe('createBaseLayer', () => {
     expect(provider.opts.credit.onScreen).toBe(true);
   });
 
-  it('satellite is Ion imagery asset 3, loaded async', () => {
+  it('satellite is Ion imagery asset 3, loaded async', async () => {
     const C = fakeCesium();
     const layer = createBaseLayer(C, 'satellite');
     expect(C.IonImageryProvider.fromAssetId).toHaveBeenCalledWith(3);
-    expect(layer).toEqual({ async: { ionAsset: 3 } });
+    expect(await layer.async).toMatchObject({ ionAsset: 3 });
+  });
+
+  it('gives each satellite layer its own tile credits, so two views keep theirs (real Cesium Credit)', async () => {
+    // Cesium caches Bing metadata across providers, so every instance
+    // returns the same Credit objects, each owning one DOM element.
+    const bing = [new Credit('© Microsoft'), new Credit('© Maxar')];
+    const C = {
+      ...fakeCesium(),
+      Credit,
+      IonImageryProvider: { fromAssetId: vi.fn(async () => ({ getTileCredits: () => bing.slice() })) },
+    };
+    const mapProvider = await createBaseLayer(C, 'satellite').async;
+    const syntheticProvider = await createBaseLayer(C, 'satellite').async;
+    const onMap = mapProvider.getTileCredits(1, 2, 3);
+    const onSynthetic = syntheticProvider.getTileCredits(1, 2, 3);
+    expect(onMap.map((c) => c.html)).toEqual(['© Microsoft', '© Maxar']);
+    expect(onSynthetic.map((c) => c.html)).toEqual(['© Microsoft', '© Maxar']);
+    onMap.forEach((c, i) => {
+      expect(c).not.toBe(onSynthetic[i]);
+      expect(c.element).not.toBe(onSynthetic[i].element);
+      expect(c).not.toBe(bing[i]);
+    });
+    // Stable per view, so its credit display does not churn.
+    expect(mapProvider.getTileCredits(4, 5, 6)[0]).toBe(onMap[0]);
+  });
+
+  it('passes no tile credits through as none', async () => {
+    const C = { ...fakeCesium(), Credit };
+    const provider = await createBaseLayer(C, 'satellite').async;
+    expect(provider.getTileCredits(0, 0, 0)).toBeUndefined();
   });
 });
 
@@ -152,11 +182,15 @@ describe('applyBaseLayer', () => {
   });
 });
 
-describe("secondViewLayer (the vehicle window's Synthetic)", () => {
-  it('follows the map, except Satellite, whose Bing credits show in one view only: terrain there', () => {
-    expect(secondViewLayer('terrain')).toBe('terrain');
-    expect(secondViewLayer('street')).toBe('street');
-    expect(secondViewLayer('satellite')).toBe(SECOND_VIEW_FALLBACK_LAYER);
-    expect(SECOND_VIEW_FALLBACK_LAYER).toBe('terrain');
+describe("syntheticBaseLayer (the vehicle window's Synthetic)", () => {
+  it("shows the map's layer, Satellite included", () => {
+    expect(syntheticBaseLayer('terrain', true)).toBe('terrain');
+    expect(syntheticBaseLayer('street', false)).toBe('street');
+    expect(syntheticBaseLayer('satellite', true)).toBe('satellite');
+  });
+
+  it('shows the default for a layer the map cannot show', () => {
+    expect(syntheticBaseLayer('satellite', false)).toBe(DEFAULT_BASE_LAYER);
+    expect(syntheticBaseLayer('bogus', true)).toBe(DEFAULT_BASE_LAYER);
   });
 });

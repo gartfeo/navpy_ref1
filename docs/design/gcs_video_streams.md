@@ -437,9 +437,13 @@ large vehicle view.
   Satellite too, check it live, and fall back to Terrain if it broke. Live
   (2026-11-04, todo 275) it broke: with both views on Satellite the main map's
   credit list kept five empty entries while Synthetic's held the Bing credits,
-  and Synthetic drew no imagery in 45 s. So Satellite is a one-view layer
-  (`oneView` in `BASE_LAYERS`) and Synthetic shows Terrain while the map is on
-  it (`secondViewLayer`). Options
+  and Synthetic drew no imagery in 45 s, so Satellite became a one-view layer
+  with Terrain in Synthetic. The owner overrode that on 2026-11-06 ("in fpv
+  syntetic view the layer is not sattelite it should be same as base map"):
+  each Satellite layer now gets its own copy of each tile credit
+  (`withOwnTileCredits`, as Cesium clones its logo credit per display), so
+  Synthetic shows the map's layer, Satellite included (`syntheticBaseLayer`;
+  todo 294). Options
   (Cesium 1.138.0 installed):
   `baseLayer: false` at construction (never `imageryProvider`, ignored since
   1.107, and never undefined, which adds Ion world imagery); the base layer
@@ -1204,6 +1208,6 @@ section above is written that way.
    should be similar to rc control but without control use shared view";
    asked to choose, "HUD + imagery" and, for Satellite, "Same layer, test
    it", with Terrain as the fallback if it broke. Synthetic shows the map's
-   base layer (Terrain while the map is on Satellite, which broke live) and
+   base layer (Satellite too since 2026-11-06, todo 294) and
    RC control's HUD from one shared component, no map entities, none of RC's
    controls (todo 275).

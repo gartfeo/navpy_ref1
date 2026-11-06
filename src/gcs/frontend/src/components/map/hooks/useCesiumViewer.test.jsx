@@ -78,7 +78,8 @@ const { fake } = vi.hoisted(() => {
     Credit: class { constructor(html) { this.html = html; } },
     OpenStreetMapImageryProvider: class { constructor(options) { this.url = options.url; } },
     UrlTemplateImageryProvider: class { constructor(options) { this.url = options.url; } },
-    IonImageryProvider: { fromAssetId: (id) => fake.ionImagery ?? Promise.resolve({ ionAssetId: id }) },
+    // Like Cesium's IonImageryProvider, it has getTileCredits (baseLayers.js copies its credits).
+    IonImageryProvider: { fromAssetId: (id) => fake.ionImagery ?? Promise.resolve({ ionAssetId: id, getTileCredits: () => undefined }) },
     CesiumTerrainProvider: {
       fromIonAssetId: async () => ({ requestTileGeometry: async () => {} }),
     },
@@ -135,7 +136,7 @@ describe('useCesiumViewer base layer', () => {
     fake.ionToken = 'token';
     const { viewer, current } = await start({ baseLayerId: 'satellite' });
     await waitFor(() => expect(current().terrainReady).toBe(true));
-    expect(providers(viewer)).toEqual([{ ionAssetId: 3 }]);
+    expect(providers(viewer)).toEqual([expect.objectContaining({ ionAssetId: 3 })]);
   });
 
   it('swaps the base imagery when another layer is picked', async () => {
