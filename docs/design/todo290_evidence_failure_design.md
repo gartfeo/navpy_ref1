@@ -1,6 +1,6 @@
 # Todo 290: recovery from a failed evidence write (design draft)
 
-Status: draft for the owner, 2026-11-05. No runtime code changed. Scope: todo 290 only;
+Status: draft, owner rulings 2026-11-06 recorded below. No runtime code changed. Scope: todo 290 only;
 the overall recovery design (todo 292, component failures, operator reset) is drafted
 separately.
 
@@ -67,14 +67,52 @@ material problems, both open:
   so the warning is never retried. Fix: report each part on its own, and keep a warning that
   is still pending.
 
-## Questions for the owner
+## Why a write fails
 
-1. Should a failed evidence write end the approach (A), or only mark the evidence incomplete
-   while the approach flies on (C)? My pick is C: evidence is not on the command path.
-2. Retry at all (B)? If yes, how many times, or for how long?
-3. If a write hangs, may NavPy drop that writer and lose the rest of that approach's
-   evidence, so the next approach starts clean?
-4. Operator: is one STATUSTEXT per failure plus a GCS reason enough, or should the GCS show a
-   standing "evidence incomplete" mark for the flight?
-5. Evals: may any logged evidence failure fail the run on every gate?
-6. Bench children: keep the fail-stop there?
+No run has shown one: no navigation log under the main checkout's `.logs` carries
+`NAVIGATION_EVIDENCE_FAILURE`. The fail-stop is a guard, not a fix for a seen fault. By the
+code, the possible causes are:
+
+- the handler raises: an OS error on the CSV (disk full, a file held by another process such
+  as an antivirus scan or an open editor on Windows) or a bug in a row formatter;
+- the backlog passes 2000 jobs (`NAVIGATION_STREAM_MAX_PENDING`, 2 s of rows at the 50 Hz x
+  10 lockstep worst case): a slow disk or CPU load;
+- the writer thread cannot start;
+- a write blocks (a stuck file system).
+
+Every failure must therefore keep its exception, traceback, job kind and file, so the cause
+can be found later.
+
+## Owner rulings (2026-11-06)
+
+1. **Option C.** The approach flies on; the evidence is marked incomplete; NavPy keeps
+   running. A failure must still be recorded and investigated: ideally it never happens.
+2. **Retry**, with the numbers below.
+3. **A hung write is skipped**; writing goes on with the rest.
+4. **Reporting goes to the logs, not the GCS.** In dev mode the warning is a log warning; no
+   STATUSTEXT and no GCS reason.
+5. **The app never fails on it**: log and continue.
+
+## Proposed numbers
+
+All of this runs on the writer thread; the command path never waits.
+
+| Case | Behaviour |
+|---|---|
+| A write raises | Retry the same job in place 3 times, after 50, 100 and 200 ms (0.35 s in all, under the 2 s RESET wait). Then skip that job, count it, and go on with the next. FIFO order holds because the retry happens before the next job. |
+| Backlog full (2000 jobs) | Do not fail the writer: drop the new row, count it, keep writing the queue. |
+| A write hangs | A job running longer than 2 s (the RESET wait) marks the writer stuck. A new writer starts on new files (same name, suffix `_part2`, `_part3`); the stuck thread is left behind, since Python cannot kill it. At most 3 replacements per NavPy run; after that evidence stops for the run, and NavPy flies on. |
+| Logging | The first failure of each approach is logged in full (exception, traceback, job kind, file). Later ones are counted only. At the approach end one line gives the counts: retried, skipped, dropped, writer replaced. |
+
+## Remaining questions
+
+1. **Evals.** NavPy logs and continues, but a run with missing rows cannot be scored
+   honestly. My proposal: the eval reports such a run as "evidence incomplete, not scored",
+   never as a pass, on every gate. Is that right?
+2. **Outside dev mode.** NavPy has no dev or field mode setting today. Should field use also
+   stay logs-only, or show something in the GCS later?
+3. **Bench children** (`direct_pixel_pn_child.py`, `siyi_pixel_pn_child.py`,
+   `siyi_geo_track_child.py`, `scratch_direct_geo_child.py`). These are not the app: each is a
+   test script that flies one scored approach on the bench or in SITL, and its only output
+   is that evidence. They stop at the first failed write today. My proposal: keep that, since
+   a bench run with missing rows has nothing to score. Agree?
