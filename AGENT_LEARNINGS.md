@@ -2658,6 +2658,17 @@
 - **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
   stops on BaseException; tests use a BaseException subclass to pin that.
 
+## Feasible orbit (HITL step 23, 2026-11-05)
+
+- **Ask what an ambiguous number refers to before acting.** The owner's "2-3m" meant the net's size, and
+  "we can be far" meant seeing the whole net from far away. I read it as an orbit-centre error budget and
+  loosened step 22's 0.3 m pose gate, which had to be reverted.
+- **A check must gate the thing it protects.** A CLI that exits 1 refuses nothing unless the runner calls it.
+  Codex caught this; the runner now runs the check before it creates the run folder.
+- **Use the first detection's distance, not the plan's.** The board is first found at the farthest slant it
+  can be read from, so the ground-ray centre error scales with that distance, not with the orbit radius.
+- **Write test strings with Edit, not a Bash heredoc.** A "\n" inside a heredoc reached the file as a real
+  newline and broke the test file.
 ## Trail blink, todo 293 (2026-11-06)
 
 - A Cesium entity polyline whose positions change often blinks or lags: static entity geometry is built

@@ -10,7 +10,10 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits, r_nav_min
-from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
+from navpy.core.skills.acquire.orbit_radius_setting import (
+    final_approach_orbit_floor,
+    final_approach_orbit_setting,
+)
 from navpy.core.skills.acquire.peer_offset import calc_peer_approach_offset
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
 
@@ -50,6 +53,9 @@ class ApproachPlanner:
         self._approach_kind = approach_kind
         self.scan_altitude_rel = scan_altitude_rel
         self._plan_offset = plan_offset
+        # Refused here when malformed; None keeps the product's 500 m floor.
+        self._orbit_setting_m = final_approach_orbit_setting(vision_profile)
+        self._orbit_floor_m = final_approach_orbit_floor(vision_profile)
 
     def orbit_limits(self) -> Optional[OrbitNavigationLimits]:
         """Return the usable fixed-wing envelope, or None if it is unknown."""
@@ -179,8 +185,19 @@ class ApproachPlanner:
         final_approach_radius = r_nav_min(
             orbit_limits,
             altitude_agl,
-            floor_m=MIN_APPROACH_STANDOFF_M,
+            floor_m=self._orbit_floor_m,
         )
+        if (
+            self._orbit_setting_m is not None
+            and final_approach_radius > self._orbit_setting_m + 0.5
+        ):
+            self._logger.warning(
+                f"Final-approach ORBIT: explicit radius "
+                f"{self._orbit_setting_m:.0f}m is inside the envelope minimum; "
+                f"flying {final_approach_radius:.0f}m",
+                key="nav",
+                dest=LogStatusDest.DRONE,
+            )
         camera_radius = float(plan.orbit_radius or 0.0)
         if not math.isclose(
                 camera_radius,
