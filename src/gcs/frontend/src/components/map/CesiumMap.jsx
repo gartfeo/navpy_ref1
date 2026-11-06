@@ -27,6 +27,7 @@ import useMapSwap from './hooks/useMapSwap';
 import useUavPoseSource from './hooks/useUavPoseSource';
 import { observeHeight } from './utils/observeHeight';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
+import { useRouteSource, useFpvRouteLabels } from './hooks/useRouteSource';
 import MapStoppedNotice from './MapStoppedNotice';
 import { plannedDocksToShow, resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
 import { dockMarkerEntries } from '../../utils/taskAssignmentState';
@@ -128,6 +129,7 @@ function CesiumMap({
   mapCameraRef,
   swapped = false,
   poseSourceRef,
+  routeSourceRef,
   onCreditsHeight,
   onTerrainReady,
   onViewerReady,
@@ -305,6 +307,8 @@ function CesiumMap({
   useUavMarkers(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady);
   useFollowUav(cesiumRef, viewerRef, entitiesRef, fpvSysId, viewerReady, storeRef);
   useUavPoseSource(poseSourceRef, cesiumRef, viewerRef, entitiesRef, viewerReady);
+  useRouteSource(routeSourceRef, storeRef, planRef, trackPosRef, vehiclePosRef);
+  useFpvRouteLabels(cesiumRef, viewerRef, routeSourceRef, fpvSysId, viewerReady, storeRef, showTracks);
   useUavTrails(cesiumRef, viewerRef, entitiesRef, storeRef, viewerReady, showTrails, `${trackResetKey}:${historyResetKey}`, hiddenSysIds, historyPaused, terrainReady);
   useClosestApproachMarks(
     cesiumRef, viewerRef, storeRef, viewerReady, simClosestApproaches,

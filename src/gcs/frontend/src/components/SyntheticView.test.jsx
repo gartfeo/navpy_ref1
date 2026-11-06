@@ -22,7 +22,7 @@ const { fake } = vi.hoisted(() => {
     };
   };
   class Vec { constructor(x = 0, y = 0, z = 0) { Object.assign(this, { x, y, z }); } }
-  const fake = { widgets: [], terrainCalls: [], baseLayers: [], hudProps: [], createThrows: false, event };
+  const fake = { widgets: [], terrainCalls: [], baseLayers: [], hudProps: [], routes: [], createThrows: false, event };
   class CesiumWidget {
     constructor(container, options) {
       if (fake.createThrows) throw new Error('no WebGL');
@@ -80,6 +80,17 @@ vi.mock('./map/utils/observeHeight', () => ({
 vi.mock('./map/utils/baseLayers', () => ({
   applyBaseLayer: (_Cesium, widget, id, onFailed) => {
     fake.baseLayers.push({ widget, id, onFailed });
+  },
+}));
+// The route overlay, recorded: its drawing is routeOverlay.test.js's.
+vi.mock('./map/utils/routeOverlay', () => ({
+  createRouteOverlay: (_Cesium, scene) => {
+    const overlay = { scene, updates: [], destroyed: false };
+    fake.routes.push(overlay);
+    return {
+      update: (route, opts) => { overlay.updates.push({ route, opts }); return true; },
+      destroy: () => { overlay.destroyed = true; },
+    };
   },
 }));
 // The shared HUD, recorded: its own rendering is TelemetryHud.test.jsx's.
@@ -148,6 +159,7 @@ beforeEach(() => {
   fake.terrainCalls.length = 0;
   fake.baseLayers.length = 0;
   fake.hudProps.length = 0;
+  fake.routes.length = 0;
   fake.createThrows = false;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -190,7 +202,7 @@ describe('SyntheticView', () => {
     expect(getByTestId('hud').dataset.sysid).toBe('1');
     expect(getByTestId('synthetic-hud').style.pointerEvents).toBe('none');
     const props = fake.hudProps.at(-1);
-    expect(props.layout).toEqual(expect.objectContaining({ heading: expect.any(Object), status: expect.any(Object) }));
+    expect(props.layout).toEqual(expect.objectContaining({ heading: expect.any(Object), corner: expect.any(Object) }));
     // Display only: no sticks, mode buttons, arming or UAV selector in Synthetic.
     expect(container.querySelectorAll('button, input, select, [role="slider"]')).toHaveLength(0);
     // Another UAV: the HUD goes while its pose is awaited.
@@ -362,5 +374,40 @@ describe('SyntheticView', () => {
     expect(fake.observed).toBe(fake.widgets[0].creditDisplay.container);
     expect(fake.observed).not.toBe(fake.widgets[0].creditContainer);
     expect(onCreditsHeight).toHaveBeenCalledWith(24);
+  });
+
+  it("draws the UAV's own route from the route source: the next number at normal size, all maximized", async () => {
+    const route = { zone: 0, positions: [], track: [], next: 1 };
+    const routeSourceRef = { current: { route: vi.fn((id) => (id === 1 ? route : null)) } };
+    const { store, rerenderWith, unmount } = setup({ routeSourceRef });
+    await widgetReady();
+    await act(async () => {});
+    const [overlay] = fake.routes;
+    expect(overlay.scene).toBe(fake.widgets[0].scene);
+    act(() => store.listeners.forEach((fn) => fn()));
+    expect(overlay.updates.at(-1)).toEqual({ route, opts: { line: true, labels: 'next' } });
+    rerenderWith({ expanded: true });
+    await act(async () => {});
+    expect(overlay.updates.at(-1).opts).toEqual({ line: true, labels: 'all' });
+    rerenderWith({ sysId: 2, expanded: true });
+    await act(async () => {});
+    expect(overlay.updates.at(-1).route).toBeNull();
+    unmount();
+    expect(overlay.destroyed).toBe(true);
+  });
+
+  it('passes the route source to the HUD and leaves to the right panel what it shows', async () => {
+    const routeSourceRef = { current: { route: () => null } };
+    const { rerenderWith } = setup({ routeSourceRef, panelShown: true, expanded: true, smallMap: { width: 200, height: 113 } });
+    await widgetReady();
+    await act(async () => {});
+    frame(fake.widgets[0]);
+    const last = () => fake.hudProps.at(-1);
+    expect(last().routeSourceRef).toBe(routeSourceRef);
+    expect(last().layout.corner).toMatchObject({ status: false, mode: false, waypoint: 'full' });
+    expect(last().layout.strip).toBeNull();
+    rerenderWith({ panelShown: false });
+    expect(last().layout.corner).toMatchObject({ status: true, mode: true });
+    expect(last().layout.strip).not.toBeNull();
   });
 });

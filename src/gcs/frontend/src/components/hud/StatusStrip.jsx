@@ -15,7 +15,8 @@ const severityColor = (sev) => {
   return colors.textBright;              // NOTICE, INFO, DEBUG — white (visible)
 };
 
-export default React.memo(function StatusStrip({ statusTexts }) {
+/** `maxMessages`: the most recent texts shown at once (the host's room). */
+export default React.memo(function StatusStrip({ statusTexts, maxMessages = 5 }) {
   const [messages, setMessages] = useState([]);
   const lastTsRef = useRef(0);
 
@@ -57,7 +58,7 @@ export default React.memo(function StatusStrip({ statusTexts }) {
       gap: 2,
       fontFamily: '"Consolas", "Monaco", "Courier New", monospace',
     }}>
-      {messages.map((msg, i) => (
+      {messages.slice(-maxMessages).map((msg, i) => (
         <div key={`${msg.ts}-${i}`} style={{
           fontSize: 11,
           fontWeight: 600,

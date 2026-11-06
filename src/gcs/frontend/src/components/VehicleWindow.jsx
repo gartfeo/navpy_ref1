@@ -591,11 +591,13 @@ function useObservedHeight(onHeight) {
  * RC, with a UAV in the fleet. State lives in useVehicleWindow; sizes come from
  * vehicleWindowLayout. `onChromeHeight` reports the height of the bar and the
  * warning rows above the picture: the swapped small map sits under them, and
- * the picture's room is computed from them.
+ * the picture's room is computed from them. `routeSourceRef` and
+ * `panelShown` go to the Synthetic view (its route, and what its HUD leaves to
+ * the right panel).
  */
 export default function VehicleWindow({
   fleet, win, layout, poseSourceRef, storeRef, ionTerrain, baseLayer, onBaseLayerFailed,
-  onSyntheticCreditsHeight, onChromeHeight,
+  onSyntheticCreditsHeight, onChromeHeight, routeSourceRef = null, panelShown = true,
 }) {
   const { t } = useTranslation();
   const { sysId, shown, source } = win;
@@ -749,6 +751,8 @@ export default function VehicleWindow({
             style={pictureBox(swapped)}
             expanded={swapped}
             smallMap={layout.smallMap}
+            routeSourceRef={routeSourceRef}
+            panelShown={panelShown}
           />
         ) : <NoRoomRow />}
       </>
