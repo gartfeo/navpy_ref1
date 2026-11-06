@@ -12,9 +12,10 @@ HIGH_RESOLUTION_TAIL_S = 0.05
 # The longest wall period a scheduler deadline loop may wait for one slot
 # (todo 291). The cadence re-reads SIM_SPEEDUP every second
 # (``SchedulerCadence.SPEED_POLL_WALL_S``); a longer slot could not follow a
-# corrected speedup, and no ArduPilot scheduler rate (SCHED_LOOP_RATE 50 to
-# 400 Hz, NAV 25 Hz) needs one at any speedup above 1/25. A tiny speedup or
-# loop rate therefore makes the loop run sooner, never stall it for years.
+# corrected speedup, and no scheduler rate NavPy starts with needs one at a
+# speedup above 1/25 (SCHED_LOOP_RATE must be 50 to 2000 Hz or NavPy refuses
+# to start, see pose_stream_rate; the pre-start NAV default is 25 Hz). A tiny
+# speedup therefore makes the loop run sooner, never stall it for years.
 MAX_SCHEDULER_WALL_PERIOD_S = 1.0
 
 # The longest single ``Event.wait`` slice. ``threading.TIMEOUT_MAX`` is about

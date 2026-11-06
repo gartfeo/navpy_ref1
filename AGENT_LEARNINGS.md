@@ -2668,3 +2668,6 @@
   wait or across two waits in a row; then spend the wait budget by the time asked.
 - Codex's first pass found the loops still spun on a NaN or 1e300 clock (`max(0, nan)` is 0, `1e300 + 1.0 == 1e300`);
   bounding only the period was not enough. Test each loop with constant, alternating and stepping-back clocks.
+- Making SCHED_LOOP_RATE strict (refuse outside 50..2000 Hz) broke vehicle doubles that answer
+  `Mock(return_value=1)` for every parameter. Give such doubles a real SCHED_LOOP_RATE, and run the full
+  suite after tightening any widely read parameter: a targeted run finds them one at a time.

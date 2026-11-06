@@ -41,7 +41,10 @@ class GeoRefCalcTest(unittest.TestCase):
     def __init__(self, tests=()):
         super().__init__(tests)
         self._vehicle = Mock(spec=IVehicle)
-        self._vehicle.get_param_or_default = Mock(return_value=1)
+        self._vehicle.get_param_or_default = Mock(
+            # 1 for every parameter, but a SCHED_LOOP_RATE NavPy runs.
+            side_effect=lambda name, *_a, **_k: 50.0 if name == "SCHED_LOOP_RATE" else 1
+        )
         self._vehicle.mission_items_count = 0
         self._logger = ConsoleLogger()
 

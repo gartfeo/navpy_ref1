@@ -25,6 +25,9 @@ from navpy.core.ports.pose_stream_rate import (
     ARDUPILOT_MESSAGE_RATE_SCHEDULER_FRACTION,
     POSE_STREAM_RATE_HZ,
     SCHED_LOOP_RATE_FALLBACK_HZ,
+    SCHED_LOOP_RATE_MAX_HZ,
+    SCHED_LOOP_RATE_MIN_HZ,
+    SchedulerRateConfigError,
 )
 
 
@@ -71,23 +74,30 @@ def resolve_pose_stream_rate_hz(vehicle: object) -> float:
 
 
 def resolve_ardupilot_scheduler_rate_hz(vehicle: object) -> float:
-    """Return the validated ArduPilot main scheduler rate."""
+    """Return the validated ArduPilot main scheduler rate.
+
+    A vehicle without parameters, or a non-numeric reply (no ArduPilot
+    parameter is one), uses the fallback. A number outside the range the
+    scheduler runs raises ``SchedulerRateConfigError`` so NavPy refuses to
+    start and the operator fixes the parameter.
+    """
     if not isinstance(vehicle, SchedulerParameterReader):
         return SCHED_LOOP_RATE_FALLBACK_HZ
-    try:
-        value = vehicle.get_param_or_default(
-            "SCHED_LOOP_RATE",
-            SCHED_LOOP_RATE_FALLBACK_HZ,
-        )
-        scheduler_rate_hz = float(value)
-    except (TypeError, ValueError):
+    value = vehicle.get_param_or_default(
+        "SCHED_LOOP_RATE",
+        SCHED_LOOP_RATE_FALLBACK_HZ,
+    )
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
         return SCHED_LOOP_RATE_FALLBACK_HZ
-    if (
-        isinstance(value, bool)
-        or not math.isfinite(scheduler_rate_hz)
-        or scheduler_rate_hz <= 0.0
+    scheduler_rate_hz = float(value)
+    if not (
+        SCHED_LOOP_RATE_MIN_HZ <= scheduler_rate_hz <= SCHED_LOOP_RATE_MAX_HZ
     ):
-        return SCHED_LOOP_RATE_FALLBACK_HZ
+        raise SchedulerRateConfigError(
+            f"SCHED_LOOP_RATE={value!r} is outside the {SCHED_LOOP_RATE_MIN_HZ:g}"
+            f" to {SCHED_LOOP_RATE_MAX_HZ:g} Hz ArduPilot runs; set it in that"
+            " range (default 50) and reboot the autopilot before starting NavPy"
+        )
     return scheduler_rate_hz
 
 
