@@ -19,6 +19,10 @@ from navpy.core.approach.logs.navigation_log_streams import (
     open_navigation_log_streams,
 )
 from navpy.core.approach.logs.navigation_logger import NavigationLogger
+from navpy.core.approach.logs.navigation_stream_worker import (
+    NavigationStreamBacklogError,
+    NavigationStreamWorker,
+)
 from navpy.core.approach.logs.log_events import LogEvent, STANDARD_EVENT_HEADER
 from navpy.core.approach.logs.log_schema import LEGACY_PRIMARY_FIELDS, PRIMARY_SCHEMA
 from navpy.core.kernel.location import Location
@@ -450,6 +454,68 @@ class StreamResourceSafetyTests(unittest.TestCase):
         self.assertFalse(streams.has_compact())
         streams.close()
         self.assertTrue(debug.closed)
+        # Todo 290: the lost CSV is logged with the evidence marker and kept
+        # for callers that stop on it (bench scripts).
+        message, error = cache.error.call_args.args
+        self.assertTrue(message.startswith(f"{NAVIGATION_EVIDENCE_FAILURE_MARKER}: creating compact CSV"))
+        self.assertIsInstance(error, OSError)
+        with self.assertRaisesRegex(RuntimeError, "navigation log stream write failed"):
+            streams.raise_if_failed()
+
+    def test_a_failed_log_directory_is_reported_and_kept(self):
+        cache = Mock()
+        cache.log_path = "unused"
+        with patch("os.makedirs", side_effect=PermissionError("denied")):
+            streams = open_navigation_log_streams(4, cache)
+
+        self.assertFalse(streams.has_compact())
+        message, _error = cache.error.call_args.args
+        self.assertTrue(message.startswith(f"{NAVIGATION_EVIDENCE_FAILURE_MARKER}: navigation log directory"))
+        with self.assertRaisesRegex(RuntimeError, "navigation log stream write failed"):
+            streams.raise_if_failed()
+        streams.close()
+
+    def test_a_full_queue_drops_a_synchronous_row_without_raising(self):
+        # Todo 290: DOCK_ARMED, DOCKED and RESET SNAP rows are written on the
+        # NAV thread; a full queue must report and drop them, never raise.
+        entered = threading.Event()
+        release = threading.Event()
+        reported: list[BaseException] = []
+
+        class _BlockingFile(_TrackingFile):
+            def write(self, line: str) -> None:
+                entered.set()
+                assert release.wait(timeout=2.0)
+                super().write(line)
+
+        compact = _BlockingFile()
+        streams = NavigationLogStreams(compact, None, on_error=reported.append)
+        streams._worker = NavigationStreamWorker(  # noqa: SLF001 - a one-slot queue
+            streams._apply_write, max_pending=1, on_error=reported.append
+        )
+        streams.write_primary("owned\n")
+        assert entered.wait(timeout=2.0)
+        streams.write_primary("dropped\n")
+        release.set()
+        streams.drain()
+        streams.write_primary("later\n")
+        streams.close()
+
+        self.assertEqual(compact.lines, ["owned\n", "later\n"])
+        self.assertEqual([type(error) for error in reported], [NavigationStreamBacklogError])
+        with self.assertRaisesRegex(RuntimeError, "navigation log stream write failed"):
+            streams.raise_if_failed()
+
+    def test_a_failed_close_flush_is_reported_with_the_marker(self):
+        reported: list[BaseException] = []
+        streams = NavigationLogStreams(_FlushFailingFile(), None, on_error=reported.append)
+
+        with self.assertRaisesRegex(OSError, "flush failed"):
+            streams.close()
+
+        self.assertEqual([str(error) for error in reported], ["flush failed"])
+        with self.assertRaisesRegex(RuntimeError, "navigation log stream write failed"):
+            streams.raise_if_failed()
 
 
 class SnapByteStabilityTests(unittest.TestCase):

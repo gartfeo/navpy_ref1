@@ -168,7 +168,8 @@ def _ordered_workflow_errors(navigation_text: str) -> list[str]:
 
 def evidence_failure_errors(navigation_text: str) -> list[str]:
     """NavPy logs a failed evidence write and flies on (todo 290); the run's
-    evidence is then incomplete, so the run is not scored."""
+    evidence is then incomplete, so the run is not scored. Callers pass the
+    whole navigation log, not the mission segment: a startup row counts too."""
     if NAVIGATION_EVIDENCE_FAILURE_MARKER in navigation_text:
         return [f"evidence incomplete, not scored ({NAVIGATION_EVIDENCE_FAILURE_MARKER} logged)"]
     return []
@@ -203,7 +204,6 @@ def workflow_errors(
     for label, marker in forbidden.items():
         if marker in lowered:
             errors.append(f"forbidden {label} marker ({marker!r})")
-    errors.extend(evidence_failure_errors(navigation_text))
     errors.extend(
         navigation_speedup_errors(
             navigation_text,
