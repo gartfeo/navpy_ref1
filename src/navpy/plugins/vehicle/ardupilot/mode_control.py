@@ -49,7 +49,21 @@ class ModeControl:
             )
             return True
 
-        return bool(self._transport.call(_send))
+        if name != FlightMode.GUIDED.value:
+            return bool(self._transport.call(_send))
+        # NavPy taking GUIDED is a navigation command: the closed command
+        # fence drops it (mav_command_fence.py). Every other mode request,
+        # the hold's LOITER and AUTO included, is never fenced.
+        with self._transport.fenced() as connection:
+            if connection is None:
+                if self._transport.fence.first_drop_of_generation():
+                    self._logger_ref.value.warning(
+                        "GUIDED request dropped by the closed command fence "
+                        f"(generation {self._transport.fence.generation}).",
+                        key="vehicle",
+                    )
+                return False
+            return _send(connection)
 
     @property
     def heartbeat_count(self) -> int:
