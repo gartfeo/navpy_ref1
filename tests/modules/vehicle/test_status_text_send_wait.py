@@ -13,6 +13,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_messaging import (
     STATUS_TEXT_SEND_WAIT_S,
     VehicleMessaging,
 )
+from tests.logger.log_worker_join import unbounded_worker_join
 
 
 def _messaging():
@@ -261,7 +262,8 @@ def test_logger_close_writes_unsent_status_texts_to_the_text_log():
     sink = MagicMock()
     sink.close.return_value = ["NAV 7"]
     logger = CacheLogger(LoggerArgsStub(), text, sink)
-    logger.close()
+    with unbounded_worker_join():
+        logger.close()
 
     warnings = [call[0][0] for call in text.warning.call_args_list]
     assert any("status text not sent at close" in w and "'NAV 7'" in w for w in warnings)

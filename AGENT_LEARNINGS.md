@@ -2406,9 +2406,13 @@
 - A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s and raised
   TimeoutError under load, both with 1000 queued rows and with only its own close message queued.
   Draining first still leaves that message inside the bound. A test that does not test the bound
-  patches CACHE_WORKER_JOIN_TIMEOUT_S to None. Prove it by slowing _handle past 2 s.
-- From Git Bash, PYTHONPATH="$PWD/src" is a POSIX path that the Windows venv ignores, so pytest
-  imported the main checkout's src through the editable install. Use $(cygpath -w "$PWD")\src.
+  closes inside tests/logger/log_worker_join.unbounded_worker_join(). Fixing one file at a time let
+  the same CI failure move to the next (persistence, then the latch test); grep tests/ for every
+  real-thread CacheLogger close at once. Prove it by slowing _handle past 2 s, run serially: xdist
+  workers do not inherit the slowdown. Lockstep tests run on virtual threads and are unaffected.
+- From Git Bash, a single PYTHONPATH="$PWD/src" is converted to a Windows path, but a ;-joined list
+  such as "$PWD/src;$PWD" is not, so pytest imported the main checkout's src through the editable
+  install. Use one entry, or $(cygpath -w "$PWD")\src, and check navpy.__file__.
 - I kept only the last 30 lines of a 29-minute loaded suite run and lost the failure details. Keep
   the whole output (or at least every E line) of a long run.
 
