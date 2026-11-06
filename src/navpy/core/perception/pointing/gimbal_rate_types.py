@@ -6,6 +6,9 @@ import math
 from dataclasses import dataclass, field
 from enum import Enum
 
+from navpy.core.perception.pointing.compensated_los_rate import (
+    CameraFeedforwardConfig,
+)
 from navpy.core.perception.pointing.poi_angle_estimator import (
     PoiAngleEstimatorConfig,
 )
@@ -37,6 +40,8 @@ class GimbalRateTrackerConfig:
         default_factory=PoiAngleEstimatorConfig
     )
     rate_clamp_slew_multiple: float = 3.0
+    # HITL step 24: None keeps the pure correction law.
+    camera_feedforward: CameraFeedforwardConfig | None = None
 
     def __post_init__(self) -> None:
         _require_nonnegative("correction_bw", self.correction_bw)
@@ -73,6 +78,8 @@ class GimbalTrackResult:
     yaw_rate_estimate: float | None = None
     pitch_rate_estimate: float | None = None
     mature: bool = False
+    feedforward_yaw_rate_rad_s: float | None = None
+    feedforward_pitch_rate_rad_s: float | None = None
 
 
 @dataclass(frozen=True)
@@ -86,6 +93,7 @@ def idle_result() -> GimbalTrackResult:
 
 
 __all__ = [
+    "CameraFeedforwardConfig",
     "GimbalRateTrackerConfig",
     "GimbalRateUpdate",
     "GimbalTrackResult",

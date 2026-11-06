@@ -6,7 +6,13 @@ import math
 from collections.abc import Callable
 from dataclasses import dataclass, replace
 
+import numpy as np
+
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.perception.pointing.compensated_los_rate import (
+    CompensatedLosRate,
+    LosRatePlan,
+)
 from navpy.core.perception.pointing.gimbal_rate_command import (
     GimbalRateCommand,
     GimbalRateCommandLaw,
@@ -51,6 +57,12 @@ class GimbalRateTracker:
             _estimator_config(self._config)
         )
         self._law = GimbalRateCommandLaw(self._config)
+        feedforward = self._config.camera_feedforward
+        self._los = (
+            None
+            if feedforward is None
+            else CompensatedLosRate(feedforward, _estimator_config(self._config))
+        )
         self._lock = rt.Lock()
         self._memory = _TrackerMemory(None, 0, idle_result())
 
@@ -69,6 +81,8 @@ class GimbalRateTracker:
     def reset(self) -> None:
         with self._lock:
             self._estimator.reset()
+            if self._los is not None:
+                self._los.reset()
             self._memory = _TrackerMemory(None, 0, idle_result())
 
     def update(
@@ -111,11 +125,19 @@ class GimbalRateTracker:
                 memory.result,
                 GimbalObservationDisposition.STALE_NOOP,
             )
-        command = self._law.command(plan.estimate)
+        los_plan = self._preview_los(sample)
+        feedforward = (
+            (0.0, 0.0)
+            if los_plan is None
+            else (los_plan.yaw_rate_rad_s, los_plan.pitch_rate_rad_s)
+        )
+        command = self._law.command(plan.estimate, feedforward)
         self._actuator.set_rate(command.yaw_units, command.pitch_units)
         self._estimator.commit(plan)
+        if self._los is not None and los_plan is not None:
+            self._los.commit(los_plan)
         update_count = memory.updates_since_reset + 1
-        result = _tracking_result(plan, command, update_count)
+        result = _tracking_result(plan, command, update_count, los_plan)
         previous = memory.result.state
         self._memory = _TrackerMemory(
             timestamp_s,
@@ -126,6 +148,19 @@ class GimbalRateTracker:
         return GimbalRateUpdate(
             result,
             GimbalObservationDisposition.ACCEPTED,
+        )
+
+    def _preview_los(self, sample: GimbalAngularSample) -> LosRatePlan | None:
+        if self._los is None:
+            return None
+        ray = np.array(
+            [sample.yaw_error_rad, sample.pitch_error_rad, 1.0],
+            dtype=np.float64,
+        )
+        return self._los.preview(
+            ray / np.linalg.norm(ray),
+            sample.camera,
+            sample.source_timestamp_s,
         )
 
     def _log_tracking(
@@ -167,6 +202,7 @@ def _tracking_result(
     plan: PoiAnglePlan,
     command: GimbalRateCommand,
     update_count: int,
+    los_plan: LosRatePlan | None,
 ) -> GimbalTrackResult:
     estimate = plan.estimate
     return GimbalTrackResult(
@@ -179,6 +215,8 @@ def _tracking_result(
         estimate.yaw_rate_rad_s,
         estimate.pitch_rate_rad_s,
         update_count >= 2,
+        None if los_plan is None else los_plan.yaw_rate_rad_s,
+        None if los_plan is None else los_plan.pitch_rate_rad_s,
     )
 
 
