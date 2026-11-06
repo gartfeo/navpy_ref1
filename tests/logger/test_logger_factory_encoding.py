@@ -20,6 +20,7 @@ from logging.handlers import RotatingFileHandler
 from unittest.mock import MagicMock
 
 from navpy.core.kernel.config.logger_args import LoggerArgsStub
+from tests.logger.log_worker_join import unbounded_worker_join
 from navpy.core.kernel.logging.logger_factory import LOG_DIR_ENV, initialize_logger
 
 ARROW_MSG = "DetectionCoordinator: start_tracking task_id=1 → gimbal_0 obj_id=1"
@@ -43,7 +44,8 @@ def test_file_handler_uses_utf8_encoding(tmp_path, monkeypatch):
     finally:
         # initialize_logger starts a CacheLogWorker daemon and opens a file
         # handler; close both so neither outlives the test.
-        cache_logger.close()
+        with unbounded_worker_join():
+            cache_logger.close()
         for handler in logging.getLogger("vehicle_logger_4242").handlers:
             handler.close()
 
@@ -75,7 +77,8 @@ def test_file_handler_writes_arrow_without_crash(tmp_path, monkeypatch):
     finally:
         # initialize_logger starts a CacheLogWorker daemon and opens a file
         # handler; close both so neither outlives the test.
-        cache_logger.close()
+        with unbounded_worker_join():
+            cache_logger.close()
         for handler in logging.getLogger("vehicle_logger_4343").handlers:
             handler.close()
 
@@ -94,6 +97,7 @@ def test_explicit_log_directory_binds_process_logs(tmp_path, monkeypatch):
             (log_dir / "uav_4444_navigation.log").resolve()
         )
     finally:
-        cache_logger.close()
+        with unbounded_worker_join():
+            cache_logger.close()
         for handler in logging.getLogger("vehicle_logger_4444").handlers:
             handler.close()

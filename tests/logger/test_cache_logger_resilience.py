@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from navpy.core.kernel.config.logger_args import LoggerArgsStub
 from navpy.core.kernel.logging.cache_logger import CacheLogger
+from tests.logger.log_worker_join import unbounded_worker_join
 
 
 class _FlakyLogger:
@@ -42,7 +43,8 @@ def test_worker_survives_handler_exception():
     cl.info("healthy message", key="ok")
 
     # Public close is the deterministic drain barrier.
-    cl.close()
+    with unbounded_worker_join():
+        cl.close()
 
     assert "healthy message" in flaky.seen
 
@@ -51,7 +53,8 @@ def test_close_without_status_logger_is_safe_and_stops_worker():
     sink = _FlakyLogger()
     cl = CacheLogger(LoggerArgsStub(), sink, status_logger=None)
 
-    cl.close()
-    cl.close()
+    with unbounded_worker_join():
+        cl.close()
+        cl.close()
 
     assert sink.seen.count("Logger closed") == 1
