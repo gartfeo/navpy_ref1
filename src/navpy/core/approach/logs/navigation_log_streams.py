@@ -7,12 +7,16 @@ from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGrou
 
 import os
 from dataclasses import dataclass
-from typing import NoReturn, Optional, Protocol, TextIO
+from typing import Callable, NoReturn, Optional, Protocol, TextIO
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.approach.logs.evidence_failure import report_evidence_failure
 from navpy.core.approach.logs.log_events import LogEvent, STANDARD_EVENT_HEADER
 from navpy.core.approach.logs.log_schema import PRIMARY_SCHEMA
-from navpy.core.approach.logs.navigation_stream_worker import NavigationStreamWorker
+from navpy.core.approach.logs.navigation_stream_worker import (
+    NavigationStreamBacklogError,
+    NavigationStreamWorker,
+)
 
 
 _COMPACT = "compact"
@@ -43,12 +47,20 @@ class NavigationLogStreams:
         self,
         compact: Optional[NavigationTextStream],
         debug: Optional[NavigationTextStream],
+        *,
+        on_error: Callable[[BaseException], None] | None = None,
+        setup_error: BaseException | None = None,
     ) -> None:
         self._compact = compact
         self._compact_output = compact
         self._debug = debug
         self._debug_output = debug
-        self._worker = NavigationStreamWorker(self._apply_write)
+        # A failed write is reported and skipped; writing goes on (todo 290).
+        # Failures outside the worker (setup, a full queue, close) are kept
+        # here, so raise_if_failed still sees them.
+        self._on_error = on_error
+        self._failure = setup_error
+        self._worker = NavigationStreamWorker(self._apply_write, on_error=on_error)
         self._condition = rt.Condition(rt.RLock())
         self._debug_event_count = 0
         self._phase = "active"
@@ -62,7 +74,7 @@ class NavigationLogStreams:
         with self._condition:
             if self._phase != "active" or self._compact is None:
                 return
-            self._worker.submit(_StreamWrite(_COMPACT, line, True))
+            self._submit(_StreamWrite(_COMPACT, line, True))
 
     def write_event(
         self,
@@ -84,16 +96,19 @@ class NavigationLogStreams:
                 event == LogEvent.SNAP_COMPONENTS
                 or self._debug_event_count % flush_interval == 0
             )
-            self._worker.submit(_StreamWrite(_DEBUG, line, flush))
+            self._submit(_StreamWrite(_DEBUG, line, flush))
             if event == LogEvent.SNAP_COMPONENTS:
                 self.drain()
 
     def drain(self) -> None:
         """Fence every navigation row submitted before this call."""
         self._worker.wait_until_idle()
-        error = self._worker.first_error
+
+    def raise_if_failed(self) -> None:
+        """Raise the first failed write, for callers that stop on it."""
+        error = self._worker.first_error or self._failure
         if error is not None:
-            raise error
+            raise RuntimeError("navigation log stream write failed") from error
 
     def close(self) -> None:
         owner = rt.get_ident()
@@ -109,7 +124,6 @@ class NavigationLogStreams:
             compact, self._compact = self._compact, None
             debug, self._debug = self._debug, None
 
-        worker_errors: list[BaseException] = []
         try:
             self._worker.close()
         except BaseException as error:
@@ -120,13 +134,10 @@ class NavigationLogStreams:
                 self._close_owner = None
                 self._condition.notify_all()
             raise error
-        worker_error = self._worker.first_error
-        if worker_error is not None:
-            worker_errors.append(worker_error)
 
         compact_errors, compact_failed = _close_stream(compact)
         debug_errors, debug_failed = _close_stream(debug)
-        errors = [*worker_errors, *compact_errors, *debug_errors]
+        errors = [*compact_errors, *debug_errors]
 
         with self._condition:
             self._compact = compact if compact_failed else None
@@ -138,6 +149,8 @@ class NavigationLogStreams:
             )
             self._close_owner = None
             self._condition.notify_all()
+        for error in errors:
+            self._report(error)
         if errors:
             _raise_stream_close_errors(errors)
 
@@ -145,9 +158,27 @@ class NavigationLogStreams:
         if self._compact is None:
             return
         if self._debug is not None:
-            self._worker.submit(_StreamWrite(_DEBUG, None, True))
-        self._worker.submit(_StreamWrite(_COMPACT, line, True))
+            self._submit(_StreamWrite(_DEBUG, None, True))
+        self._submit(_StreamWrite(_COMPACT, line, True))
         self.drain()
+
+    def _submit(self, operation: _StreamWrite) -> None:
+        """A full queue drops only this row; NAV writes it synchronously."""
+        try:
+            self._worker.submit(operation)
+        except NavigationStreamBacklogError as error:
+            self._report(error)
+
+    def _report(self, error: BaseException) -> None:
+        with self._condition:
+            if self._failure is None:
+                self._failure = error
+        if self._on_error is None:
+            return
+        try:
+            self._on_error(error)
+        except Exception:  # noqa: BLE001 - the record stays; keep writing
+            pass
 
     def _apply_write(self, operation: _StreamWrite) -> None:
         stream = (
@@ -167,36 +198,49 @@ def open_navigation_log_streams(
     sys_id: int,
     logger: ILogger,
 ) -> NavigationLogStreams:
-    """Open and initialise both navigation CSV streams independently."""
-    log_path = _create_log_directory(logger)
-    if log_path is None:
-        return NavigationLogStreams(None, None)
+    """Open and initialise both navigation CSV streams independently.
+
+    A setup failure is logged with the evidence marker (todo 290) and kept as
+    the streams' failure; NavPy runs on without that CSV.
+    """
+    def on_error(error: BaseException) -> None:
+        report_evidence_failure(logger, "navigation log write", error)
+
+    try:
+        log_path = _create_log_directory(logger)
+    except OSError as error:
+        report_evidence_failure(logger, "navigation log directory", error)
+        return NavigationLogStreams(None, None, on_error=on_error, setup_error=error)
+    setup_errors: list[OSError] = []
     compact = _open_stream(
         os.path.join(log_path, f"uav_{sys_id}_navigation_compact.csv"),
         PRIMARY_SCHEMA.header_line(),
         "compact CSV",
         logger,
+        setup_errors,
     )
     debug = _open_stream(
         os.path.join(log_path, f"uav_{sys_id}_navigation_debug.csv"),
         STANDARD_EVENT_HEADER,
         "navigation debug CSV",
         logger,
+        setup_errors,
     )
-    return NavigationLogStreams(compact, debug)
+    return NavigationLogStreams(
+        compact,
+        debug,
+        on_error=on_error,
+        setup_error=setup_errors[0] if setup_errors else None,
+    )
 
 
-def _create_log_directory(logger: ILogger) -> Optional[str]:
-    try:
-        log_path = getattr(logger, "log_path", None)
-        if not log_path:
-            today = rt.now()
-            log_path = f".logs/{today.date()}/{today.strftime('%H%M%S')}/"
-        os.makedirs(log_path, exist_ok=True)
-        return log_path
-    except OSError as exc:
-        logger.warning(f"Failed to create navigation log directory: {exc}")
-        return None
+def _create_log_directory(logger: ILogger) -> str:
+    log_path = getattr(logger, "log_path", None)
+    if not log_path:
+        today = rt.now()
+        log_path = f".logs/{today.date()}/{today.strftime('%H%M%S')}/"
+    os.makedirs(log_path, exist_ok=True)
+    return log_path
 
 
 def _open_stream(
@@ -204,6 +248,7 @@ def _open_stream(
     header: str,
     label: str,
     logger: ILogger,
+    setup_errors: list[OSError],
 ) -> Optional[TextIO]:
     stream: Optional[TextIO] = None
     try:
@@ -212,7 +257,8 @@ def _open_stream(
         stream.flush()
         return stream
     except OSError as exc:
-        logger.warning(f"Failed to create {label}: {exc}")
+        setup_errors.append(exc)
+        report_evidence_failure(logger, f"creating {label}", exc)
         cleanup_errors, _close_failed = _close_stream(stream)
         for cleanup_error in cleanup_errors:
             if not isinstance(cleanup_error, OSError):

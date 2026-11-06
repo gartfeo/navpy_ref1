@@ -242,8 +242,9 @@ def _build_session(
     )
 
     def check_runtime_health() -> None:
+        # A failed evidence write is logged and skipped; it never stops NavPy,
+        # so navigation is not asked here (todo 290).
         vision.raise_if_failed()
-        navigation.raise_if_failed()
         controller.raise_if_failed()
 
     def signal_runtime_ready() -> None:

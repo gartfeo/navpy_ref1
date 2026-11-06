@@ -19,7 +19,7 @@ from scripts.eval_gcs_demo_api import NavigationLogTails
 from scripts.eval_gcs_demo_config import aas_params_for, aas_params_for_plan, launch_command
 from scripts.eval_gcs_demo_constants import backend_log_path
 from scripts.eval_gcs_demo_execution import SystemClock
-from scripts.eval_gcs_demo_gates import workflow_errors
+from scripts.eval_gcs_demo_gates import evidence_failure_errors, workflow_errors
 from scripts.eval_gcs_demo_inputs import INPUT_MANIFEST, require_recorded_scenario
 from scripts.eval_gcs_demo_models import (
     MissionArtifacts,
@@ -316,6 +316,19 @@ def test_slice_passes_an_owner_log_certified_fails_only_for_dispatch(tmp_path):
         "owner did not dispatch task 2 to peers",
         "owner did not dispatch task 3 to peers",
     ]
+
+
+def test_a_logged_evidence_failure_is_not_scored_though_navpy_flew_on(tmp_path):
+    # The vehicle gates check the whole log (todo 290), so a marker logged at
+    # startup, before the mission segment, still counts.
+    marker = "x ERROR NAVIGATION_EVIDENCE_FAILURE: navigation log write OSError: disk full\n"
+    text = marker + _owner_only_text(tmp_path)
+
+    assert _errors(text, "owner_only_slice") == []
+    assert evidence_failure_errors(text) == [
+        "evidence incomplete, not scored (NAVIGATION_EVIDENCE_FAILURE logged)",
+    ]
+    assert evidence_failure_errors(_owner_only_text(tmp_path)) == []
 
 
 @pytest.mark.parametrize(

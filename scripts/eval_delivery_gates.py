@@ -34,6 +34,7 @@ from scripts.eval_gcs_demo_assignment_lines import AssignmentLines, LogFormat, p
 from scripts.eval_gcs_demo_constants import backend_log_path
 from scripts.eval_gcs_demo_docked import DockFailedEvidence
 from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_final_approach_outcomes
+from scripts.eval_gcs_demo_gates import evidence_failure_errors
 from scripts.eval_gcs_demo_assignment_audit import AssignmentEvidence
 from scripts.eval_gcs_demo_models import FinalApproachEpisode
 from scripts.eval_gcs_demo_poi_binding import vehicle_poi_binding_errors
@@ -180,6 +181,8 @@ def delivery_errors(
         for sys_id, items in evidence.episodes.items()
     }
     errors = list(roles.errors)
+    errors += [f"vehicle {sys_id}: {error}" for sys_id, text in evidence.texts.items()
+               for error in evidence_failure_errors(text)]
     errors += world_id_errors(evidence.texts, episode_ids, len(docks))
     errors += offer_errors(evidence.texts, offerer, docks, offered, homes, roles.applied)
     errors += offerer_errors(mission[offerer], kept)

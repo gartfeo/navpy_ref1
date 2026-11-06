@@ -22,7 +22,6 @@ from navpy.core.kernel.config.logger_args import LoggerArgs  # noqa: E402
 from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs  # noqa: E402
 from navpy.app.navpy_argparse import make_parser  # noqa: E402
 from navpy.core.kernel.config.uas_args import UasArgs  # noqa: E402
-from navpy.core.approach.logs.navigation_snap_types import ClosestSnap  # noqa: E402
 from navpy.core.kernel.logging.logger_factory import initialize_logger  # noqa: E402
 from navpy.core.kernel.location import Location  # noqa: E402
 from navpy.core.kernel.scheduler_cadence import SchedulerCadence  # noqa: E402
@@ -143,8 +142,10 @@ def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> Non
 
 
 def _result_payload(
-    passed: bool, snap: ClosestSnap, source: DirectPoiPixelSource
+    passed: bool, navigation: Navigation, source: DirectPoiPixelSource
 ) -> dict[str, object]:
+    snap = navigation.reset()
+    navigation.raise_if_failed()  # bench runs stop on missing evidence (todo 290)
     metrics = source.metrics
     return {
         "passed": passed,
@@ -246,11 +247,9 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             navigation.raise_if_failed()
             trace.sample(vehicle)
             if navigation.final_approach.poi_passed_override() is True:
-                snap = navigation.reset()
-                return _result_payload(True, snap, source)
+                return _result_payload(True, navigation, source)
             time.sleep(0.01)
-        snap = navigation.reset()
-        return _result_payload(False, snap, source)
+        return _result_payload(False, navigation, source)
     finally:
         if dock_contact is not None:
             dock_contact.close()
