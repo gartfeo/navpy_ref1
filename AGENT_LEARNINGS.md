@@ -2695,3 +2695,17 @@
   tests and flipping the elevation sign 12; only then were the residual and sign checks evidence.
 - **A name guard must tell a read from a constant write.** The AST guard flagged `Attitude(yaw=0.0)`, the level
   frame's zero yaw; allow exactly that constant and assert it separately instead of dropping `yaw` from the list.
+
+## Clock-failure tests for deadline waits (todo 291, 2026-11-05)
+
+- A fake Event that adds each timeout to a fake clock froze on float rounding (0.95 + 4e-17 == 0.95), so
+  the waiter spun forever and hung pytest twice. Advance fake clocks by at least 1e-6 per wait and run new
+  wait tests under `timeout`.
+- "No clock progress" alone cannot mark a frozen clock: an existing worker test models a sleep that returns
+  early with zero progress. Count a clock as frozen only after it steps back, or stays still across an Event
+  wait or across two waits in a row; then spend the wait budget by the time asked.
+- Codex's first pass found the loops still spun on a NaN or 1e300 clock (`max(0, nan)` is 0, `1e300 + 1.0 == 1e300`);
+  bounding only the period was not enough. Test each loop with constant, alternating and stepping-back clocks.
+- Making SCHED_LOOP_RATE strict (refuse outside 50..2000 Hz) broke vehicle doubles that answer
+  `Mock(return_value=1)` for every parameter. Give such doubles a real SCHED_LOOP_RATE, and run the full
+  suite after tightening any widely read parameter: a targeted run finds them one at a time.

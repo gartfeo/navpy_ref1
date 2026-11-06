@@ -10,6 +10,17 @@ import math
 # SIM_STATE has no default Plane stream, so request the firmware-achievable
 # rate directly. These are firmware constraints, not operator settings.
 SCHED_LOOP_RATE_FALLBACK_HZ = 50.0
+# The SCHED_LOOP_RATE range ArduPilot's scheduler actually runs:
+# AP_Scheduler::init clamps the parameter to 50..2000 Hz (its docs say 50 to
+# 400, with more "highly experimental"). NavPy refuses to start on any other
+# reported value (owner ruling 2026-11-07, todo 291): such a rate is a
+# configuration error to fix, not something to fly with.
+SCHED_LOOP_RATE_MIN_HZ = 50.0
+SCHED_LOOP_RATE_MAX_HZ = 2000.0
+
+
+class SchedulerRateConfigError(ValueError):
+    """The vehicle reported a SCHED_LOOP_RATE NavPy will not start with."""
 ARDUPILOT_MESSAGE_RATE_SCHEDULER_FRACTION = 0.8
 POSE_STREAM_RATE_HZ = (
     SCHED_LOOP_RATE_FALLBACK_HZ
