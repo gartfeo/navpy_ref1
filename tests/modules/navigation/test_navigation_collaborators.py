@@ -19,8 +19,8 @@ from navpy.core.approach.navigation_command_session import NavigationCommandSess
 from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
-    _next_fixed_deadline,
 )
+from navpy.core.kernel.high_resolution_deadline import next_fixed_deadline
 from navpy.app.approach.navigation import Navigation
 from navpy.core.approach.navigation_lifecycle import NavigationLifecycle
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
@@ -452,7 +452,7 @@ def test_command_worker_does_not_dispatch_source_after_stop_wakeup():
         source_dispatch=source_dispatch,
     ))
 
-    def stop_after_wait(_deadline_s):
+    def stop_after_wait(_deadline_s, _period_s):
         stop_event.set()
         return False, False
 
@@ -691,7 +691,7 @@ def test_execution_overrun_skips_missed_slot_without_grid_drift():
 
 
 def test_partial_late_wakeup_keeps_the_next_nominal_ap_slot():
-    next_deadline = _next_fixed_deadline(
+    next_deadline = next_fixed_deadline(
         scheduled_s=0.040,
         completed_s=0.0395,
         period_s=0.020,
@@ -717,7 +717,7 @@ def test_next_deadline_preserves_grid_and_skips_missed_slots(
     completed,
     expected,
 ):
-    deadline = _next_fixed_deadline(
+    deadline = next_fixed_deadline(
         scheduled_s=0.040,
         completed_s=completed,
         period_s=0.020,
