@@ -93,26 +93,29 @@ can be found later.
    STATUSTEXT and no GCS reason.
 5. **The app never fails on it**: log and continue.
 
-## Proposed numbers
+## Design (owner ruling 2026-11-06: no work on imagined failures)
 
-All of this runs on the writer thread; the command path never waits.
+Known problems get known fixes; everything unknown goes to one generic handler that logs and
+continues. No write failure has been seen, so none is special-cased now: no retry, no backoff,
+no writer replacement for a hang.
 
-| Case | Behaviour |
-|---|---|
-| A write raises | Retry the same job in place 3 times, after 50, 100 and 200 ms (0.35 s in all, under the 2 s RESET wait). Then skip that job, count it, and go on with the next. FIFO order holds because the retry happens before the next job. |
-| Backlog full (2000 jobs) | Do not fail the writer: drop the new row, count it, keep writing the queue. |
-| A write hangs | A job running longer than 2 s (the RESET wait) marks the writer stuck. A new writer starts on new files (same name, suffix `_part2`, `_part3`); the stuck thread is left behind, since Python cannot kill it. At most 3 replacements per NavPy run; after that evidence stops for the run, and NavPy flies on. |
-| Logging | The first failure of each approach is logged in full (exception, traceback, job kind, file). Later ones are counted only. At the approach end one line gives the counts: retried, skipped, dropped, writer replaced. |
+- **Generic handler.** The writer catches any exception from a job, logs it in full
+  (exception, traceback, job kind, file) with the `NAVIGATION_EVIDENCE_FAILURE` marker, skips
+  that job and goes on with the next. The writer no longer latches a first error or refuses
+  later jobs, and the health check no longer stops NavPy. The approach flies on.
+- **Backlog full.** The 2000-job limit stays as the writer's own bound; on overflow the new
+  row goes to the same generic handler (logged, dropped), instead of failing the writer.
+- **A hang** is not handled; if one is ever seen, it becomes a known problem with its own fix.
+- **Reporting.** Logs only, nothing in the GCS.
+- **Evals.** The marker stays in the navigation log, so an eval can still see that rows are
+  missing (open question below).
 
 ## Remaining questions
 
 1. **Evals.** NavPy logs and continues, but a run with missing rows cannot be scored
    honestly. My proposal: the eval reports such a run as "evidence incomplete, not scored",
-   never as a pass, on every gate. Is that right?
-2. **Outside dev mode.** NavPy has no dev or field mode setting today. Should field use also
-   stay logs-only, or show something in the GCS later?
-3. **Bench children** (`direct_pixel_pn_child.py`, `siyi_pixel_pn_child.py`,
-   `siyi_geo_track_child.py`, `scratch_direct_geo_child.py`). These are not the app: each is a
-   test script that flies one scored approach on the bench or in SITL, and its only output
-   is that evidence. They stop at the first failed write today. My proposal: keep that, since
-   a bench run with missing rows has nothing to score. Agree?
+   never as a pass. Is that right?
+2. **Bench scripts** (`direct_pixel_pn_child.py`, `siyi_pixel_pn_child.py`,
+   `siyi_geo_track_child.py`, `scratch_direct_geo_child.py`). These are test scripts, not the
+   app: each flies one scored approach, and its only output is that evidence. They stop at the
+   first failed write today. My proposal: keep that. Agree?
