@@ -2681,3 +2681,13 @@
   that path directly.
 - I ran `git stash` to test the old hook, against the session rule (stashes are shared by every worktree).
   It was popped at once. To test old code, copy `git show HEAD:<file>` to the scratchpad and swap the file.
+
+## Camera-motion feedforward (HITL step 24, 2026-11-06)
+
+- **A plan item that says "apply the owner's ruling" may point at a ruling that was never made.** Section 9 still
+  listed the gyro question as open and the private plan only had a reviewer's proposal; asking the owner took one
+  question and settled the design (gyro for pointing only, law question still open).
+- **Green on the first run proves nothing until a mutation fails it.** Dropping the gyro term failed 16 of 22
+  tests and flipping the elevation sign 12; only then were the residual and sign checks evidence.
+- **A name guard must tell a read from a constant write.** The AST guard flagged `Attitude(yaw=0.0)`, the level
+  frame's zero yaw; allow exactly that constant and assert it separately instead of dropping `yaw` from the list.

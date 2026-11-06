@@ -24,7 +24,12 @@ class GimbalRateCommandLaw:
     def __init__(self, config: GimbalRateTrackerConfig) -> None:
         self._config = config
 
-    def command(self, estimate: PoiAngleEstimate) -> GimbalRateCommand:
+    def command(
+        self,
+        estimate: PoiAngleEstimate,
+        feedforward_rad_s: tuple[float, float] = (0.0, 0.0),
+    ) -> GimbalRateCommand:
+        """Correction plus feedforward: yaw right +, pitch up + (rad/s)."""
         yaw_rad, pitch_rad = project_estimate(
             estimate,
             self._config.command_lead_time,
@@ -32,9 +37,13 @@ class GimbalRateCommandLaw:
         yaw_error_deg = math.degrees(yaw_rad)
         pitch_error_deg = -math.degrees(pitch_rad)
         bandwidth = self._config.correction_bw
+        yaw_ff_dps = math.degrees(feedforward_rad_s[0])
+        pitch_ff_dps = math.degrees(feedforward_rad_s[1])
         return GimbalRateCommand(
-            self._to_units(bandwidth * yaw_error_deg, yaw_error_deg),
-            self._to_units(bandwidth * pitch_error_deg, pitch_error_deg),
+            self._to_units(bandwidth * yaw_error_deg + yaw_ff_dps, yaw_error_deg),
+            self._to_units(
+                bandwidth * pitch_error_deg + pitch_ff_dps, pitch_error_deg
+            ),
             yaw_rad,
             pitch_rad,
         )

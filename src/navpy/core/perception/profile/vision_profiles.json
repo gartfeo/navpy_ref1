@@ -766,6 +766,9 @@
         "siyi_zr10": {
           "gimbal": {
             "siyi_ip": "127.0.0.1",
+            "tracking": {
+              "camera_feedforward": true
+            },
             "search": {
               "yaw_deg": [-45.0, 45.0],
               "pitch_rows_deg": [-17.0],

@@ -5,6 +5,10 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
+from navpy.core.perception.pointing.camera_motion_state import (
+    CameraMotionState,
+    camera_motion_from_observation,
+)
 from navpy.core.ports.detect_data import DetectedObject
 
 
@@ -13,6 +17,8 @@ class GimbalAngularSample:
     yaw_error_rad: float
     pitch_error_rad: float
     source_timestamp_s: float
+    # The frame's associated camera state (HITL step 24); None = no feedforward.
+    camera: CameraMotionState | None = None
 
 
 class GimbalPoiProjector:
@@ -57,6 +63,7 @@ class GimbalPoiProjector:
             yaw_error_rad=(pixel_x - center_x) / focal_x,
             pitch_error_rad=(pixel_y - center_y) / focal_y,
             source_timestamp_s=timestamp_s,
+            camera=camera_motion_from_observation(poi.pixel),
         )
 
 
