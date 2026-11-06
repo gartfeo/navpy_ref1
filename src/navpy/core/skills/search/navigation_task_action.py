@@ -10,7 +10,7 @@ from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
 from navpy.core.flow.nav_state import NavigationTaskState, FinalApproachNavState
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
-from navpy.core.skills.geo_approach.self_detected_approach import SelfDetectedApproach
+from navpy.core.skills.confirm.acquisition_sequence import OrbitStart
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.perception.detector_ports import TrackingCommandPort
@@ -30,7 +30,7 @@ class NavigationTaskAction:
         tracking: TrackingCommandPort,
         speedup: NavigationSpeedupLease,
         peer_navigation: PeerNavigationCoordinator,
-        self_approach: SelfDetectedApproach,
+        self_approach: OrbitStart,
         final_approach_active: Callable[[], bool],
         logger: ILogger,
     ) -> None:

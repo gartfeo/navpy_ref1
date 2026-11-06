@@ -49,7 +49,7 @@ OWNERS = frozenset({
     "core/perception/pipeline/real_detector_runtime_composition.py",
     "core/skills/geo_approach/board_orbit_centre.py",
     "core/skills/geo_approach/self_detected_approach.py",
-    "app/flow/nav_task_composition.py",
+    "app/flow/nav_acquisition_composition.py",  # the ORBIT builder, moved from nav_task_composition (step 25)
     "app/perception/real_detector_model_builder.py",
 })
 
