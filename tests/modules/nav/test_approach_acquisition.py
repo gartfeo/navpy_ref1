@@ -43,6 +43,7 @@ from tests.modules.nav.acquisition_replay import (
     GATES,
     OWN_CENTRE,
     AcquisitionRig,
+    as_fix,
     frame,
     offset,
     oracle_allows,
@@ -182,7 +183,7 @@ def test_invalid_vision_breaks_the_lock(invalid) -> None:
 
 def _orbit(position):
     now, clock = _clock()
-    gate = OrbitEstablished(SETTINGS, lambda: position[0], clock)
+    gate = OrbitEstablished(SETTINGS, lambda: as_fix(position[0], now[0]), clock)
     return gate, now
 
 
@@ -259,7 +260,7 @@ def _sequence(command=OrbitCommand(OWN_CENTRE, 300.0)):
     start = _Start(command)
     sequence = AcquisitionSequence(
         FreshVisualLock(SETTINGS, lambda _p: True, lambda: True),
-        OrbitEstablished(SETTINGS, lambda: position[0], clock),
+        OrbitEstablished(SETTINGS, lambda: as_fix(position[0], now[0]), clock),
         start, Mock(),
     )
     return sequence, start, now

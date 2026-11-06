@@ -22,6 +22,7 @@ from navpy.core.flow.nav_state import (
 )
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.perception.detector_ports import GeoPointingPort
 from navpy.core.ports.detect_data import DetectedObject
 
@@ -154,12 +155,20 @@ class ConfirmationAction:
         if peers:
             self._peer_notifier.notify(peers)
         active = self._confirmation_manager.active_poi
-        if active is None or self._confirmation_manager.get_status(active) is not None:
+        status = None if active is None else self._confirmation_manager.get_status(active)
+        if active is None or status not in (None, ConfirmationStatus.CONFIRMING):
             self._blocked.clear()
             return
         fresh = self._source.find_active_poi_detection()
         # Asked on every tick, with or without a detection, so the orbit gate sees each tick.
         acquired = self._acquisition.ready(fresh)
+        if status is ConfirmationStatus.CONFIRMING:
+            # HITL step 25: an answer may only land while the gates hold; on a lost lock or orbit
+            # the review is withdrawn (a later answer is late) and asked again once they hold.
+            if not acquired and self._confirmation_manager.withdraw_review(active):
+                self._debug.log(f"acquisition_lost_review_withdrawn obj={active.identity.obj_id}")
+            self._blocked.clear()
+            return
         if fresh is None:
             self._debug.log("no_detection")
             self._blocked.clear()

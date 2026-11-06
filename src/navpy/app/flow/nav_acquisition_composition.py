@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -31,6 +32,7 @@ from navpy.app.flow.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.products.delivery.home_dock import HomeDockRules
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -55,14 +57,17 @@ def compose_acquisition(
     approach_kind: ApproachKind,
     logger: ILogger,
 ) -> AcquisitionComposition:
-    self_approach = _self_detected_approach(
-        vehicle, detection, state, approach, navigation, home_dock, approach_kind, logger,
-    )
     settings = acquisition_gate_settings(profile)
+    if settings is not None and approach_kind != ApproachKind.ORBIT:
+        raise ValueError(f"{FINAL_APPROACH_GATES_KEY} needs the ORBIT approach, not {approach_kind}")
+    # With the gates, the circle must be the own one on the own-detected pose: a circle already flown
+    # (a peer's) is never kept, or the orbit gate would wait for a command that never comes.
+    needs_own_orbit = home_dock.needs_own_orbit if settings is None else (lambda _poi: True)
+    self_approach = _self_detected_approach(
+        vehicle, detection, state, approach, navigation, needs_own_orbit, approach_kind, logger,
+    )
     if settings is None:
         return AcquisitionComposition(self_approach, OPEN_ACQUISITION)
-    if approach_kind != ApproachKind.ORBIT:
-        raise ValueError(f"{FINAL_APPROACH_GATES_KEY} needs the ORBIT approach, not {approach_kind}")
     sequence = AcquisitionSequence(
         FreshVisualLock(
             settings,
@@ -71,7 +76,9 @@ def compose_acquisition(
         ),
         OrbitEstablished(
             settings,
-            lambda: vehicle.location(True),
+            # The stamped fix, not the cached location: a fix counts only while its boot time
+            # advances. A vehicle without one fails the gate closed.
+            lambda: getattr(vehicle, "position_sample", None),
             lambda: state.clock.decision_s(),
         ),
         self_approach,
@@ -86,7 +93,7 @@ def _self_detected_approach(
     state: NavStateOwnership,
     approach: VehicleApproachOwnership,
     navigation: NavCapabilities,
-    home_dock: HomeDockRules,
+    needs_own_orbit: Callable[[DetectedObject], bool],
     approach_kind: ApproachKind,
     logger: ILogger,
 ) -> SelfDetectedApproach:
@@ -103,7 +110,7 @@ def _self_detected_approach(
             save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
             request_guided=lambda: approach.commands.request_guided(),
             loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
-            needs_own_orbit=home_dock.needs_own_orbit,
+            needs_own_orbit=needs_own_orbit,
             board_centre=lambda poi: board_orbit_centre(
                 poi, navigation.legacy_pois.geo_ref.camera_point_to_ned,
                 vehicle.home_location,

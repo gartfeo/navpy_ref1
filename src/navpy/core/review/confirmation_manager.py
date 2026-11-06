@@ -142,6 +142,10 @@ class ConfirmationManager(ListenerAbc):
     def clear_status(self, poi: DetectedObject) -> None:
         self._state.registry.clear_status(poi)
 
+    def withdraw_review(self, poi: DetectedObject) -> bool:
+        """Withdraw the POI's review while still CONFIRMING; True when one was withdrawn."""
+        return self._state.withdrawal.withdraw(poi)
+
     def review(self, pois: List[DetectedObject]) -> None:
         self._coordinator.review(pois)
 

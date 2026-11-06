@@ -58,6 +58,14 @@ def offset(centre: Location, north_m: float, east_m: float, alt: float = 80.0, h
     )
 
 
+def as_fix(position: Location | None, boot_s: float):
+    """The aircraft's stamped GPS fix (``vehicle.position_sample``) at ``position``, new at ``boot_s``."""
+    if position is None:
+        return None
+    return SimpleNamespace(lat=position.lat, lon=position.lng, alt=position.alt, time_boot_s=boot_s,
+                           receipt_time_s=boot_s, vn=0.0, ve=0.0, vd=0.0)
+
+
 def frame(ts: float, error_deg: float, now, *, atomic: bool = True, truth: bool = False, **kw):
     """One detection with the POI ``error_deg`` off the optical axis."""
     return make_detected_poi(
@@ -88,6 +96,7 @@ class AcquisitionRig:
         vehicle = _create_mock_vehicle()
         vehicle.location = Mock(side_effect=self._location)
         type(vehicle).attitude = property(lambda _self: self._attitude())
+        type(vehicle).position_sample = property(lambda _self: as_fix(self.world.position, self.world.t))
         detector = _create_mock_detector()
         detector.is_simulation = truth
         detector.is_detection_armed = True
@@ -125,7 +134,7 @@ class AcquisitionRig:
 
     def _attitude(self) -> Attitude:
         yaw = 0.0 if self._compass is None else float(self._compass.uniform(-180.0, 180.0))
-        return Attitude(0.0, 0.0, yaw)
+        return Attitude(0.0, yaw, 0.0)  # (pitch, yaw, roll): only the compass yaw is poisoned
 
     def tick(self) -> None:
         self.rig.cycle.run()
@@ -232,5 +241,5 @@ def oracle_allows(ticks: list, index: int) -> bool:
     return chain[0]["t"] - chain[-1]["t"] >= GATES["lock_dwell_s"] - 1e-9
 
 
-__all__ = ["AcquisitionRig", "GATES", "OWN_CENTRE", "Replay", "World", "frame", "offset", "oracle_allows",
+__all__ = ["AcquisitionRig", "GATES", "OWN_CENTRE", "Replay", "World", "as_fix", "frame", "offset", "oracle_allows",
            "run_replay"]
