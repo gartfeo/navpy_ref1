@@ -1,4 +1,9 @@
-"""Deterministic FIFO worker for navigation stream I/O."""
+"""Deterministic FIFO worker for navigation stream I/O.
+
+A failed job or a full backlog is reported and skipped; the worker keeps
+running (todo 290). ``first_error`` is a record for callers that stop on a
+failed write (bench scripts), not a latch.
+"""
 
 from __future__ import annotations
 
@@ -14,7 +19,7 @@ _STOP = object()
 NAVIGATION_STREAM_JOIN_TIMEOUT_S = 2.0
 # Two wall-seconds at the exact demo's worst-case 50 Hz * 10x cadence, with
 # room for both compact and debug writes per command.  Control fences and STOP
-# records bypass this bound, so saturation always fails without blocking.
+# records bypass this bound, so saturation drops the new item without blocking.
 NAVIGATION_STREAM_MAX_PENDING = 2 * 50 * 10 * 2
 
 
@@ -40,10 +45,12 @@ class NavigationStreamWorker(Generic[_T]):
         handler: Callable[[_T], None],
         *,
         max_pending: int = NAVIGATION_STREAM_MAX_PENDING,
+        on_error: Callable[[BaseException], None] | None = None,
     ) -> None:
         if type(max_pending) is not int or max_pending <= 0:
             raise ValueError("navigation stream max_pending must be positive")
         self._handler = handler
+        self._on_error = on_error
         self._queue: rt.QueuePort = rt.Queue()
         self._slots = rt.BoundedSemaphore(max_pending)
         self._max_pending = max_pending
@@ -62,11 +69,12 @@ class NavigationStreamWorker(Generic[_T]):
                 return False
             self._start_locked()
             if not self._slots.acquire(blocking=False):
+                # The item is dropped; the submitter reports it.
                 error = NavigationStreamBacklogError(
                     "navigation stream backlog exceeded nonblocking capacity "
                     f"{self._max_pending}"
                 )
-                self._fail_locked(error)
+                self._remember_error(error)
                 raise error
             self._queue.put(_DataItem(item))
             return True
@@ -155,21 +163,21 @@ class NavigationStreamWorker(Generic[_T]):
                     try:
                         self._handler(cast(_T, item.value))
                     except BaseException as error:
-                        self._fail(error)
+                        self._report(error)
                     finally:
                         self._slots.release()
             finally:
                 self._queue.task_done()
 
-    def _fail(self, error: BaseException) -> None:
-        with self._accept_lock:
-            self._fail_locked(error)
-
-    def _fail_locked(self, error: BaseException) -> None:
+    def _report(self, error: BaseException) -> None:
+        """Record and report a failed job, then go on with the next."""
         self._remember_error(error)
-        if self._accepting:
-            self._accepting = False
-            self._queue.put(_STOP)
+        if self._on_error is None:
+            return
+        try:
+            self._on_error(error)
+        except Exception:  # noqa: BLE001 - the record stays; keep writing
+            pass
 
     def _remember_error(self, error: BaseException) -> None:
         with self._error_lock:

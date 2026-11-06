@@ -49,12 +49,15 @@ def test_submit_is_nonblocking_and_jobs_remain_fifo():
     assert order == ["first-enter", "first-exit", "second"]
 
 
-def test_failure_is_latched_reported_and_surfaced_after_drain():
+def test_failure_is_logged_skipped_and_later_jobs_still_run():
+    # Todo 290: a failed job never stops the writer or NavPy; close does not
+    # raise it, and raise_if_failed (bench scripts only) still sees it.
     logger = _Logger()
     dispatcher = NavigationPostprocessDispatcher(logger)
     entered = threading.Event()
     release = threading.Event()
     continued = threading.Event()
+    after = threading.Event()
 
     def fail() -> None:
         entered.set()
@@ -65,14 +68,36 @@ def test_failure_is_latched_reported_and_surfaced_after_drain():
     assert entered.wait(timeout=2.0)
     dispatcher.submit(continued.set)
     release.set()
+    assert continued.wait(timeout=2.0)
+    dispatcher.submit(after.set)
+    dispatcher.close()
 
-    with pytest.raises(NavigationPostprocessFailure) as raised:
-        dispatcher.close()
-
-    assert isinstance(raised.value.__cause__, ValueError)
-    assert continued.is_set()
+    assert after.is_set()
     assert len(logger.errors) == 1
     assert NAVIGATION_EVIDENCE_FAILURE_MARKER in logger.errors[0][0]
+    with pytest.raises(NavigationPostprocessFailure) as raised:
+        dispatcher.raise_if_failed()
+    assert isinstance(raised.value.__cause__, ValueError)
+
+
+def test_a_failing_logger_does_not_stop_later_jobs():
+    class _BrokenLogger:
+        def error(self, message: str, error: BaseException) -> None:
+            raise RuntimeError("logger broke")
+
+    dispatcher = NavigationPostprocessDispatcher(_BrokenLogger())
+    ran = threading.Event()
+
+    def fail() -> None:
+        raise ValueError("diagnostics broke")
+
+    dispatcher.submit(fail)
+    dispatcher.submit(ran.set)
+    dispatcher.close()
+
+    assert ran.is_set()
+    with pytest.raises(NavigationPostprocessFailure):
+        dispatcher.raise_if_failed()
 
 
 def test_blocked_diagnostics_do_not_delay_the_next_command_slot():

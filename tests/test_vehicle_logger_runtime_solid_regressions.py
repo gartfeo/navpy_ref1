@@ -15,6 +15,7 @@ import pytest
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 from navpy.core.approach.logs.navigation_snap_geometry import calc_distance, calc_h_v_dist
 from navpy.core.approach.logs.navigation_log_streams import NavigationLogStreams
+from navpy.core.approach.navigation_postprocess_dispatcher import NavigationPostprocessFailure
 from navpy.core.kernel.location import Location
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus
@@ -569,10 +570,12 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
     def start_navigation() -> None:
         assert registrations[-1][:2] == ("quiescence", "navigation")
 
+    # A failed evidence write must not end NavPy (todo 290): the health check
+    # never asks navigation, so this raise would fail the test.
     navigation = SimpleNamespace(
         start=MagicMock(side_effect=start_navigation),
         stop=MagicMock(),
-        raise_if_failed=MagicMock(),
+        raise_if_failed=MagicMock(side_effect=NavigationPostprocessFailure("evidence")),
     )
     def set_network(_network) -> None:
         assert registrations[-1][:2] == ("quiescence", "controller")
@@ -615,7 +618,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
     navigation.start.assert_called_once_with()
     session._health_check()
     vision.raise_if_failed.assert_called_once_with()
-    navigation.raise_if_failed.assert_called_once_with()
+    navigation.raise_if_failed.assert_not_called()
     controller.raise_if_failed.assert_called_once_with()
     registrations[0][2]()
     foundation.vehicle_close_gate.stop_vision.assert_called_once_with(
