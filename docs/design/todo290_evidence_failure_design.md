@@ -1,6 +1,6 @@
 # Todo 290: recovery from a failed evidence write (design draft)
 
-Status: draft, owner rulings 2026-11-06 recorded below. No runtime code changed. Scope: todo 290 only;
+Status: approved by the owner 2026-11-06; not implemented. No runtime code changed. Scope: todo 290 only;
 the overall recovery design (todo 292, component failures, operator reset) is drafted
 separately.
 
@@ -110,12 +110,12 @@ no writer replacement for a hang.
 - **Evals.** The marker stays in the navigation log, so an eval can still see that rows are
   missing (open question below).
 
-## Remaining questions
+## Settled (owner, 2026-11-06)
 
-1. **Evals.** NavPy logs and continues, but a run with missing rows cannot be scored
-   honestly. My proposal: the eval reports such a run as "evidence incomplete, not scored",
-   never as a pass. Is that right?
-2. **Bench scripts** (`direct_pixel_pn_child.py`, `siyi_pixel_pn_child.py`,
-   `siyi_geo_track_child.py`, `scratch_direct_geo_child.py`). These are test scripts, not the
-   app: each flies one scored approach, and its only output is that evidence. They stop at the
-   first failed write today. My proposal: keep that. Agree?
+- **Evals.** A run whose log carries the marker is reported "evidence incomplete, not
+  scored", never a pass.
+- **Bench scripts** (`direct_pixel_pn_child.py`, `siyi_pixel_pn_child.py`,
+  `siyi_geo_track_child.py`, `scratch_direct_geo_child.py`) keep stopping at the first failed
+  write: their only output is that evidence.
+- **System-wide handling** (wrapping modules in a log-and-continue handler) belongs to the
+  overall recovery design, todo 292, not to this todo.
