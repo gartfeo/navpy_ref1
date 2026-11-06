@@ -523,6 +523,13 @@
       "telemetryDisconnected": "Տեսքը պահված է · տելեմետրիան անջատված է · {{seconds}} վ",
       "linkLost": "Տեսքը պահված է · կապը կորել է · {{seconds}} վ",
       "poseUnavailable": "Տեսքը պահված է · դիրքը հասանելի չէ · {{seconds}} վ"
+    },
+    "hud": {
+      "speed": "AS {{as}} · GS {{gs}} մ/վ",
+      "altitude": "ALT {{alt}} մ",
+      "waypoint": "WP {{n}} · {{dist}}",
+      "nextWaypoint": "Հաջորդ WP {{n}} · {{dist}}",
+      "nextWaypointEte": "Հաջորդ WP {{n}} · {{dist}} · ETE {{ete}}"
     }
   },
   "planningToolbar": {

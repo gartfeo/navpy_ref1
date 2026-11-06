@@ -36,7 +36,12 @@ Frontend:
   end of the action bar opens it (fleet not empty) on the UAV picker: a camera icon (the UAV advertises a stream; a pick
   opens Camera) or a map icon (a pick opens Synthetic: RC control's
   first-person view and HUD from the UAV's pose on the map's base layer,
-  without the controls; never confirms anything). The map never follows a UAV;
+  without the controls; never confirms anything; the same layer as the map,
+  Satellite included). Synthetic and RC draw the UAV's own mission path and
+  next waypoint; the HUD is compact at normal size, full when maximized, and
+  never repeats what the right panel shows (battery, link, mode and status
+  texts only with the panel hidden; RC, which hides the panel, shows all
+  but the mode; `utils/hudLayout.js`). The map never follows a UAV;
   only RC takes the map camera (first person). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:

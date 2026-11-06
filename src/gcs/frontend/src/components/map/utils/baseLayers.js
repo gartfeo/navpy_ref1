@@ -15,23 +15,11 @@
 export const BASE_LAYER_KEY = 'gcs-base-layer';
 export const DEFAULT_BASE_LAYER = 'terrain';
 
-/**
- * `oneView`: the layer can show in one Cesium view only. Satellite is Bing
- * through Ion: Cesium shares each Bing attribution's Credit (one DOM element)
- * across provider instances, so a second view takes the credits away from the
- * main map (seen live 2026-11-04, todo 275), and its imagery did not draw there.
- */
 export const BASE_LAYERS = [
   { id: 'terrain', labelKey: 'mapLayers.terrain', needsIon: false },
-  { id: 'satellite', labelKey: 'mapLayers.satellite', needsIon: true, oneView: true },
+  { id: 'satellite', labelKey: 'mapLayers.satellite', needsIon: true },
   { id: 'street', labelKey: 'mapLayers.street', needsIon: false },
 ];
-
-/** A second view's layer (the vehicle window's Synthetic): the map's, or terrain for a one-view layer. */
-export const SECOND_VIEW_FALLBACK_LAYER = 'terrain';
-export function secondViewLayer(id) {
-  return BASE_LAYERS.find((l) => l.id === id)?.oneView ? SECOND_VIEW_FALLBACK_LAYER : id;
-}
 
 const OSM_CREDIT = '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 const OPENTOPOMAP_CREDIT = `Map data: ${OSM_CREDIT}, SRTM | Map style: © `
@@ -41,6 +29,33 @@ const OPENTOPOMAP_CREDIT = `Map data: ${OSM_CREDIT}, SRTM | Map style: © `
 export function isBaseLayerAvailable(id, hasIon) {
   const layer = BASE_LAYERS.find((l) => l.id === id);
   return !!layer && (!layer.needsIon || hasIon);
+}
+
+/** The layer a second view (the vehicle window's Synthetic) shows: the map's, or the default when unavailable. */
+export function syntheticBaseLayer(id, hasIon) {
+  return isBaseLayerAvailable(id, hasIon) ? id : DEFAULT_BASE_LAYER;
+}
+
+/**
+ * Give `provider` its own copy of each tile credit. Cesium caches Bing
+ * metadata, and with it each attribution's Credit, across provider instances
+ * (BingMapsImageryProvider requestMetadata/build), and a Credit owns one DOM
+ * element that each CreditDisplay re-parents. Two views on Satellite then
+ * took each other's credits (todo 275). Cesium clones its own logo credit per
+ * display the same way (CreditDisplay constructor, Credit.clone).
+ */
+export function withOwnTileCredits(Cesium, provider) {
+  const copies = new Map();
+  const shared = provider.getTileCredits.bind(provider);
+  provider.getTileCredits = (x, y, level) => shared(x, y, level)?.map((credit) => {
+    let copy = copies.get(credit);
+    if (!copy) {
+      copy = Cesium.Credit.clone(credit);
+      copies.set(credit, copy);
+    }
+    return copy;
+  });
+  return provider;
 }
 
 // Reading window.localStorage itself can throw (blocked site data), so the
@@ -74,7 +89,8 @@ export function layerAfterFailure(current, failedId) {
 export function createBaseLayer(Cesium, id) {
   switch (id) {
     case 'satellite':
-      return Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3));
+      return Cesium.ImageryLayer.fromProviderAsync(Cesium.IonImageryProvider.fromAssetId(3)
+        .then((provider) => withOwnTileCredits(Cesium, provider)));
     case 'street':
       return new Cesium.ImageryLayer(new Cesium.OpenStreetMapImageryProvider({
         url: 'https://tile.openstreetmap.org/',
