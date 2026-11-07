@@ -11,7 +11,7 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
-from navpy.core.flow.nav_recovery import RecoveryHold
+from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyDestinationResolver
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.skills.confirm.confirmation_action import ConfirmationAction

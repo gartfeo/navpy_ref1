@@ -27,3 +27,17 @@ def test_a_lockstep_companion_stops_on_its_lifecycle_record_and_never_speeds_up(
     assert lockstep == [
         "--stop-on-lifecycle" if arg == "--stop-on-stdin" else arg for arg in wall[3:]
     ]
+
+
+def test_a_supervised_companion_gets_the_flag_navpy_parses():
+    from navpy.app.navpy_argparse import make_parser
+    from navpy.app.runtime_escalation import SUPERVISED_FLAG, supervised
+
+    command = _build_navpy_command(2, "udpin:127.0.0.1:14560", detector_debug_show=False, vision_profile=None,
+                                   log_level=None, navigation_speedup=0.0, supervised=True)
+    assert command[-1] == SUPERVISED_FLAG
+    assert supervised(make_parser().parse_args(command[3:]))
+    plain = _build_navpy_command(2, "udpin:127.0.0.1:14560", detector_debug_show=False, vision_profile=None,
+                                 log_level=None, navigation_speedup=0.0)
+    assert SUPERVISED_FLAG not in plain
+    assert not supervised(make_parser().parse_args(plain[3:]))

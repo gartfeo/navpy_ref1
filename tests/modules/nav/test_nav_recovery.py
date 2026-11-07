@@ -14,17 +14,15 @@ import pytest
 
 from navpy.app.flow.nav_runtime_composition import _return_to_search
 from navpy.core.flow.nav_ownership import ModeObservation, Ownership
+from navpy.core.flow.nav_mode_request import MODE_CONFIRM_S
 from navpy.core.flow.nav_recovery import (
-    MODE_CONFIRM_S,
     NAV_HOLD_RECOVERY_S,
     NAV_HOLD_TRIGGER_S,
     NavRecovery,
-    NavRecoveryPorts,
-    RecoveryHold,
     RecoveryStage,
-    TimeSample,
 )
-from navpy.core.flow.nav_recovery_clock import RecoveryClock
+from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
+from navpy.core.flow.nav_recovery_ports import NavEscalation, NavRecoveryPorts, RecoveryHold
 from navpy.core.flow.nav_state import NavigationTaskState, NavPhaseState, NavState
 from navpy.core.flow.navigation_decision import ApproachOutcome, NavDecisionPorts, NavStateDecision
 from navpy.core.ports.flight_mode import FlightMode
@@ -65,6 +63,7 @@ class Rig:
         self.fence = Mock()
         self.logger = Mock()
         self.hold = RecoveryHold()
+        self.escalation = NavEscalation()
         self.recovery = NavRecovery(
             NavRecoveryPorts(
                 close_fence=self.fence.close,
@@ -72,6 +71,7 @@ class Rig:
                 observe_mode=autopilot.observe,
                 request_mode=autopilot.request,
                 logger=self.logger,
+                escalation=self.escalation,
             ),
             self.hold,
         )
@@ -274,6 +274,65 @@ def test_the_resume_is_told_for_one_period():
     assert not rig.hold.resumed
 
 
+def test_escalation_hands_an_owned_uav_to_auto_then_releases():
+    rig = Rig(FakeAutopilot())
+    rig.escalation.request()
+    rig.run(True, PERIOD_S)
+    assert rig.stage is RecoveryStage.ESCALATED and rig.hold.holding
+    rig.fence.close.assert_called_once()
+    assert rig.ap.requests == [FlightMode.AUTO] and not rig.escalation.released
+    rig.run(True, 1.0)
+    assert rig.ap.mode is FlightMode.AUTO and rig.escalation.released
+    rig.run(True, 5.0)   # never back to normal: the failure is latched
+    assert rig.stage is RecoveryStage.ESCALATED
+    rig.fence.reopen.assert_not_called()
+    assert rig.ap.requests == [FlightMode.AUTO]
+
+
+def test_escalation_in_the_missions_auto_releases_at_once():
+    rig = Rig(FakeAutopilot(FlightMode.AUTO), owned=False)
+    rig.escalation.request()
+    rig.run(True, PERIOD_S)
+    assert rig.escalation.released and rig.ap.requests == []
+    rig.fence.close.assert_called_once()
+
+
+def test_escalation_without_auto_confirmed_releases_in_rtl():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    ap.takes = False
+    rig.escalation.request()
+    rig.run(True, MODE_CONFIRM_S + 0.25)
+    assert rig.stage is RecoveryStage.CRITICAL and ap.requests[-1] is FlightMode.RTL
+    assert not rig.escalation.released
+    ap.takes = True
+    ap.request(FlightMode.RTL)
+    rig.run(True, 1.0)
+    assert ap.mode is FlightMode.RTL and rig.escalation.released
+
+
+def test_escalation_waits_for_a_fresh_link():
+    rig = Rig(FakeAutopilot())
+    rig.ap.fresh = False
+    rig.escalation.request()
+    rig.run(True, 3.0)
+    assert rig.ap.requests == [] and not rig.escalation.released
+    rig.ap.fresh = True
+    rig.run(True, 2.0)
+    assert rig.ap.requests == [FlightMode.AUTO] and rig.escalation.released
+
+
+def test_escalation_in_the_hold_replaces_the_resume():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.25)
+    rig.run(False, 1.0)   # LOITER
+    rig.escalation.request()
+    rig.run(True, NAV_HOLD_TRIGGER_S + 1.5)
+    assert rig.stage is RecoveryStage.ESCALATED and rig.escalation.released
+    assert rig.ap.requests == [FlightMode.LOITER, FlightMode.AUTO]
+    rig.fence.reopen.assert_not_called()
+
+
 def _decision(holding: bool, resumed: bool = False) -> tuple[NavStateDecision, NavDecisionPorts, NavigationTaskState]:
     task = NavigationTaskState(nav_mode_observed=True)
     ports = NavDecisionPorts(
@@ -328,7 +387,7 @@ def test_the_approach_command_path_gains_no_recovery_input():
         tree = ast.parse(path.read_text(encoding="utf-8"))
         for node in ast.walk(tree):
             if isinstance(node, ast.ImportFrom) and node.module in (
-                "navpy.core.flow.nav_recovery", "navpy.core.flow.nav_ownership",
+                "navpy.core.flow.nav_recovery", "navpy.core.flow.nav_recovery_ports", "navpy.core.flow.nav_mode_request", "navpy.core.flow.nav_ownership",
             ):
                 offenders.append(str(path))
     assert offenders == []

@@ -103,6 +103,7 @@ def _normalize_log_level(value: str | None) -> str | None:
 #: reads stdin there, ``lockstep_slice.md``, "Participant stop").
 STOP_ON_STDIN = "--stop-on-stdin"
 STOP_ON_LIFECYCLE = "--stop-on-lifecycle"
+SUPERVISED_FLAG = "--supervised"   # navpy/app/runtime_escalation.py
 
 
 def navpy_arguments(
@@ -114,8 +115,12 @@ def navpy_arguments(
     vision_profile: str | None,
     log_level: str | None,
     navigation_speedup: float,
+    supervised: bool = False,
 ) -> list[str]:
-    """NavPy's command-line arguments (after ``-m navpy.main``)."""
+    """NavPy's command-line arguments (after ``-m navpy.main``).
+
+    ``supervised``: this manager restarts it on exit, so after a latched component failure NavPy hands the UAV
+    back and exits for a fresh start (navpy/app/runtime_escalation.py)."""
     command = [
         "-c",
         connection,
@@ -139,6 +144,8 @@ def navpy_arguments(
         command.extend(["--log-level", normalized_level])
     if detector_debug_show:
         command.append("--detector-debug-show")
+    if supervised:
+        command.append(SUPERVISED_FLAG)
     return command
 
 
@@ -171,6 +178,7 @@ def _build_navpy_command(
     vision_profile: str | None,
     log_level: str | None,
     navigation_speedup: float,
+    supervised: bool = False,
 ) -> list[str]:
     return [sys.executable, "-m", "navpy.main", *navpy_arguments(
         sys_id,
@@ -180,6 +188,7 @@ def _build_navpy_command(
         vision_profile=vision_profile,
         log_level=log_level,
         navigation_speedup=navigation_speedup,
+        supervised=supervised,
     )]
 
 
@@ -192,6 +201,7 @@ def launch_navpy_instance(
     log_level: str | None,
     navigation_speedup: float,
     extra_env: dict[str, str] | None = None,
+    supervised: bool = False,
     popen_factory: Callable[..., subprocess.Popen[bytes]],
     output_reader: Callable[[NavpyInstance], None],
     logger: logging.Logger,
@@ -203,6 +213,7 @@ def launch_navpy_instance(
         vision_profile=vision_profile,
         log_level=log_level,
         navigation_speedup=navigation_speedup,
+        supervised=supervised,
     )
     kwargs: dict[str, object] = {
         "stdin": subprocess.PIPE,

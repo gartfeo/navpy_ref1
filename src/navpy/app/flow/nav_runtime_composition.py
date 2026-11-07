@@ -37,7 +37,9 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
-from navpy.core.flow.nav_recovery import NavRecovery, NavRecoveryLink, NavRecoveryPorts, TimeSample
+from navpy.core.flow.nav_recovery import NavRecovery
+from navpy.core.flow.nav_recovery_clock import TimeSample
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -268,6 +270,7 @@ def _recovery_step(
             observe_mode=link.observe_mode,
             request_mode=vehicle.set_mode,
             logger=logger,
+            escalation=link.escalation,
         ),
         state.recovery_hold,
     )

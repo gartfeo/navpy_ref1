@@ -54,7 +54,7 @@ from navpy.core.kernel.config.arg_helper import (
     format_kv,
 )
 from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
-from navpy.app.nav_recovery_link import NavRecoveryLink, command_formation, nav_recovery_link
+from navpy.app.nav_recovery_link import NavRecoveryLink, command_formation, nav_recovery_link, runtime_escalation
 
 
 @dataclass(frozen=True)
@@ -270,6 +270,7 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
+        escalation=runtime_escalation(args, foundation.recovery_link, foundation.logger),
         **hooks,
     )
 

@@ -299,6 +299,15 @@ merges before step 4, which builds on its deadline fix.
    released and a supervisor exists (GCS-managed sim); otherwise NavPy stays
    up, fenced and reporting. The health check no longer ends NavPy by itself.
    Tests per component, plus the escalation exit rule.
+   Step 5a as built: the first failure the runtime health check raises
+   closes the fence and asks NAV to escalate (`RuntimeEscalation`,
+   `NavEscalation`): if NavPy owns the mode it requests AUTO; AUTO not
+   confirmed in 3 s gives RTL. NAV releases the UAV once the mode is not
+   NavPy's (AUTO handed over, the pilot's) or RTL shows. Only then, and
+   only with `--supervised` (passed by the GCS to the auto-managed sim
+   companions it restarts on exit; the lockstep launcher restarts nothing
+   and never passes it), NavPy exits for a fresh start. Otherwise it stays
+   up, fenced and reporting, until the operator stops it.
 6. **In-process watchdog.** A thread that watches loop and command-worker
    progress counters; on a hang it closes the fence and requests LOITER under
    the ownership rule through a bounded sender. Tests: a hung cycle and a hung

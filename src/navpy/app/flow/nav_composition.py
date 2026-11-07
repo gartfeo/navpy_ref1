@@ -31,7 +31,7 @@ from navpy.app.flow.nav_final_approach_composition import (
     compose_final_approach_workflows,
 )
 from navpy.core.ports.dock_contact import DockContactSensor
-from navpy.core.flow.nav_recovery import NavRecoveryLink
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.mission_metadata import read_mission_metadata
 from navpy.core.perception.detection_coordination import DetectionCoordination
