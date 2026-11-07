@@ -288,7 +288,7 @@ merges before step 4, which builds on its deadline fix.
    (`nav_recovery_clock.py`); the command worker states the fence generation
    from taking a work item to sending it, so a close and reopen meanwhile drops
    it; critical sends RTL once a fresh heartbeat shows the mode still owned
-   (entered while the link was stale); for one period after the hold ends the
+   (entered while the link was stale); after the hold ends the
    decision asks for GUIDED again instead of reading the resume's AUTO as
    GUIDED lost, so the kept dock is approached; an unowned GUIDED request
    lapses when another mode or a disarm shows, or when NavPy stops waiting.
@@ -308,6 +308,19 @@ merges before step 4, which builds on its deadline fix.
    companions it restarts on exit; the lockstep launcher restarts nothing
    and never passes it), NavPy exits for a fresh start. Otherwise it stays
    up, fenced and reporting, until the operator stops it.
+   Fixes after the Codex review of the step 1–4 fixes and step 5a: only a
+   hold that ends in NavPy's own AUTO (handed over) resumes the approach; a
+   mode the operator took in the hold or the resume stands, and the approach
+   ends as before. The resume is a latch the decision takes, not a one-period
+   pulse, so a cycle that fails before deciding does not lose it; a new hold
+   voids it. NavPy's GUIDED request is recorded at the heartbeat count and
+   mode read at the previous step, before the cycle sent it, so a mode change
+   arriving after the send lapses it; a GUIDED request formed behind the
+   fence (dropped) is not recorded. An unowned escalation releases only on a
+   fresh heartbeat and once NavPy's pending GUIDED request is settled or has
+   not shown within 3 s (`MODE_CONFIRM_S`). The main thread latches the fence
+   closed (`MavCommandFence.latch_closed`), so NAV's resume racing the
+   escalation cannot reopen it.
 6. **In-process watchdog.** A thread that watches loop and command-worker
    progress counters; on a hang it closes the fence and requests LOITER under
    the ownership rule through a bounded sender. Tests: a hung cycle and a hung

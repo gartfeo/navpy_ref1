@@ -181,6 +181,19 @@ def test_close_is_idempotent_and_reopen_starts_a_new_generation():
     assert fence.reopen() == 2 and fence.is_open
 
 
+def test_a_latched_fence_stays_closed_whichever_comes_first():
+    fence = MavCommandFence()
+    fence.latch_closed()
+    fence.reopen()
+    assert not fence.is_open
+    fence = MavCommandFence()
+    fence.close()
+    generation = fence.reopen()
+    assert fence.latch_closed() == generation + 1 and not fence.is_open
+    fence.reopen()
+    assert not fence.is_open
+
+
 class _PausedRuntime:
     """One work item whose execution is paused across recovery's close and reopen, then sends its old command."""
 

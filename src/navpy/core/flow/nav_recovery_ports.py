@@ -42,6 +42,8 @@ class NavRecoveryLink:
     close_fence: Callable[[], object]
     reopen_fence: Callable[[], object]
     observe_mode: Callable[[], ModeObservation]
+    #: Closes the fence for good: the main thread's escalation, so NAV's reopen racing it cannot open it again.
+    latch_fence: Callable[[], object]
     escalation: NavEscalation = field(default_factory=NavEscalation)
     #: Wraps a command's forming and sending on a worker thread, so a close before its send drops it.
     formed_now: Callable[[], AbstractContextManager[None]] = nullcontext
@@ -62,7 +64,9 @@ class RecoveryHold:
 
     def __init__(self) -> None:
         self.holding = False
-        self.resumed = False   # set for one period after the hold ends
+        #: Set when the hold ended in NavPy's own AUTO; kept until the decision takes it (``take_resumed``), so a
+        #: cycle that fails before deciding does not lose it. Cleared by a new hold.
+        self.resumed = False
         self._guided: bool | None = None   # NavPy's last GUIDED event since the last step: asked, or withdrawn
 
     def guided_requested(self) -> None:
@@ -72,6 +76,10 @@ class RecoveryHold:
     def guided_withdrawn(self) -> None:
         """NavPy stopped waiting for GUIDED (its task was cleared): a later GUIDED is not NavPy's."""
         self._guided = False
+
+    def take_resumed(self) -> bool:
+        resumed, self.resumed = self.resumed, False
+        return resumed
 
     def take_guided_request(self) -> bool | None:
         guided, self._guided = self._guided, None

@@ -262,16 +262,158 @@ def test_critical_sends_rtl_once_a_stale_link_shows_the_mode_owned_again():
     rig.fence.reopen.assert_not_called()
 
 
-def test_the_resume_is_told_for_one_period():
-    rig = Rig(FakeAutopilot())
-    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
-    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+def _until_normal(rig: Rig) -> None:
     while rig.stage is not RecoveryStage.NORMAL:
         assert not rig.hold.resumed
         rig.run(True, PERIOD_S)
+
+
+def test_the_resume_is_kept_until_the_decision_takes_it():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+    _until_normal(rig)
     assert rig.hold.resumed and not rig.hold.holding
-    rig.run(True, PERIOD_S)
+    rig.run(True, 1.0)
+    assert rig.hold.resumed
+    assert rig.hold.take_resumed() and not rig.hold.take_resumed()
+
+
+def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
+    """Codex finding 2 on step 5a: the cycle after the resume raises before deciding; the next decision must still
+    see the resume, or it reads NavPy's own AUTO as GUIDED lost and clears the task."""
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+    _until_normal(rig)
+    rig.run(False, PERIOD_S)   # the next cycle fails in sensing, before its decision
+    assert rig.hold.resumed
+    decision, ports, task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
+    ports.clear_navigation_task.assert_not_called()
+    ports.request_guided.assert_called_once()
+
+
+def test_a_new_hold_voids_a_resume_not_yet_taken():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+    _until_normal(rig)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD and not rig.hold.resumed
+
+
+def test_an_operators_auto_in_the_hold_is_not_resumed_over():
+    """Codex finding 1 on step 5a: the operator selects AUTO in the hold, before recovery asks for it; when healthy
+    the fence reopens, but the approach must not take GUIDED back from the operator."""
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(False, 1.0)                 # NavPy's LOITER shows
+    rig.ap.mode = FlightMode.AUTO       # the operator's AUTO
+    rig.run(False, 1.0)
+    assert rig.recovery.ownership.state is Ownership.NOT_OWNED
+    rig.run(True, NAV_HOLD_TRIGGER_S)
+    _until_normal(rig)
     assert not rig.hold.resumed
+    assert rig.ap.requests == [FlightMode.LOITER]
+    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.ABANDONED
+    ports.request_guided.assert_not_called()
+
+
+def test_an_operators_mode_in_the_resume_is_not_resumed_over():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(False, 1.0)
+    rig.ap.takes = False
+    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.RESUMING
+    rig.ap.mode = FlightMode.FBWA       # the operator takes over before NavPy's AUTO shows
+    rig.run(True, 1.0)
+    assert rig.stage is RecoveryStage.NORMAL and not rig.hold.resumed
+
+
+def test_a_guided_request_is_recorded_from_the_heartbeat_before_it_was_sent():
+    """Codex finding 3 on step 5a: NavPy asks for GUIDED from AUTO; the operator's FBWA heartbeat arrives before
+    recovery's step. The request lapses, so a later operator GUIDED is not NavPy's and the hold changes no mode."""
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    rig.run(True, 1.0)
+    rig.hold.guided_requested()         # sent in this period's cycle, from AUTO
+    ap.mode = FlightMode.FBWA
+    ap.heartbeat()                      # the operator's FBWA, before recovery's step
+    rig.run(True, PERIOD_S)
+    ap.mode = FlightMode.GUIDED         # the operator's GUIDED
+    rig.run(True, 1.1)
+    assert rig.recovery.ownership.state is Ownership.NOT_OWNED
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.5)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == []
+
+
+def test_a_guided_request_from_the_previous_heartbeat_is_acquired_on_the_next_guided():
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    rig.run(True, 1.0)
+    rig.hold.guided_requested()
+    ap.mode = FlightMode.GUIDED
+    ap.heartbeat()                      # NavPy's GUIDED shows before recovery's step
+    rig.run(True, PERIOD_S)
+    assert rig.recovery.ownership.state is Ownership.OWNED
+
+
+def test_a_guided_request_behind_the_fence_is_not_navpys():
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD
+    rig.hold.guided_requested()         # dropped by the closed fence
+    rig.run(False, PERIOD_S)
+    assert not rig.recovery.ownership.guided_pending
+
+
+def _guided_sent(ap: FakeAutopilot, rig: Rig) -> None:
+    rig.run(True, PERIOD_S)
+    rig.hold.guided_requested()
+    ap.request(FlightMode.GUIDED)       # NavPy's GUIDED, sent before the escalation
+    ap.requests.clear()
+    rig.run(True, PERIOD_S)
+
+
+def test_escalation_does_not_release_on_a_stale_link_with_guided_pending():
+    """Codex finding 4 on step 5a: GUIDED sent, not yet shown; the link goes stale and a failure escalates. NavPy
+    must not exit while the UAV may already be in GUIDED: a fresh heartbeat decides, then AUTO is handed over."""
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    _guided_sent(ap, rig)
+    ap.fresh = False
+    rig.escalation.request()
+    rig.run(True, MODE_CONFIRM_S + 1.0)
+    assert not rig.escalation.released
+    ap.fresh = True
+    rig.run(True, 2.5)
+    assert ap.requests == [FlightMode.AUTO] and ap.mode is FlightMode.AUTO and rig.escalation.released
+
+
+def test_escalation_waits_for_a_pending_guided_to_show():
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    _guided_sent(ap, rig)
+    rig.escalation.request()
+    rig.run(True, PERIOD_S)
+    assert not rig.escalation.released
+    rig.run(True, 2.5)
+    assert ap.requests == [FlightMode.AUTO] and rig.escalation.released
+
+
+def test_escalation_releases_once_a_pending_guided_did_not_show_in_time():
+    ap = FakeAutopilot(FlightMode.AUTO, takes=False)
+    rig = Rig(ap, owned=False)
+    _guided_sent(ap, rig)
+    rig.escalation.request()
+    rig.run(True, MODE_CONFIRM_S - 0.5)
+    assert not rig.escalation.released
+    rig.run(True, 1.0)
+    assert rig.escalation.released and ap.requests == [] and ap.mode is FlightMode.AUTO
 
 
 def test_escalation_hands_an_owned_uav_to_auto_then_releases():
@@ -333,7 +475,9 @@ def test_escalation_in_the_hold_replaces_the_resume():
     rig.fence.reopen.assert_not_called()
 
 
-def _decision(holding: bool, resumed: bool = False) -> tuple[NavStateDecision, NavDecisionPorts, NavigationTaskState]:
+def _decision(
+    holding: bool, take_resumed=lambda: False,
+) -> tuple[NavStateDecision, NavDecisionPorts, NavigationTaskState]:
     task = NavigationTaskState(nav_mode_observed=True)
     ports = NavDecisionPorts(
         clock_s=lambda: 0.0,
@@ -341,7 +485,7 @@ def _decision(holding: bool, resumed: bool = False) -> tuple[NavStateDecision, N
         request_guided=Mock(),
         final_approach_active=lambda: True,
         holding=lambda: holding,
-        resumed=lambda: resumed,
+        take_resumed=take_resumed,
     )
     phase = NavPhaseState(current=NavState.NAV, previous=NavState.NAV)
     return NavStateDecision(ports, phase, task, Mock(), Mock(), Mock()), ports, task
@@ -356,7 +500,7 @@ def test_the_holds_loiter_does_not_end_the_approach():
 
 def test_the_resumes_auto_approaches_the_kept_dock_again():
     """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and asks for GUIDED again."""
-    decision, ports, task = _decision(holding=False, resumed=True)
+    decision, ports, task = _decision(holding=False, take_resumed=lambda: True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
     ports.request_guided.assert_called_once()

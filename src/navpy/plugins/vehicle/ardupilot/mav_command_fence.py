@@ -28,6 +28,7 @@ class MavCommandFence:
         self._lock = rt.Lock()   # guards the state below only; never held across a write
         self._generation = 0
         self._open = True
+        self._latched = False   # closed for good: reopen() no longer opens
         self._dropped = 0
         self._first_drop_logged_for: int | None = None
         self._stated: dict[int, int] = {}   # thread ident -> stated generation
@@ -55,9 +56,21 @@ class MavCommandFence:
                 self._generation += 1
             return self._generation
 
-    def reopen(self) -> int:
-        """Admit commands again under a new generation; commands formed before stay dropped."""
+    def latch_closed(self) -> int:
+        """Close for good (a latched component failure, app/runtime_escalation.py): a reopen() racing this, or after
+        it, leaves the fence closed. Both take the fence lock, so either order ends closed."""
         with self._lock:
+            self._latched = True
+            if self._open:
+                self._open = False
+                self._generation += 1
+            return self._generation
+
+    def reopen(self) -> int:
+        """Admit commands again under a new generation; commands formed before stay dropped. Not once latched."""
+        with self._lock:
+            if self._latched:
+                return self._generation
             self._generation += 1
             self._open = True
             return self._generation

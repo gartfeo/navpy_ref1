@@ -8,12 +8,15 @@ The loop reports each period whether its cycle ran without an error. Then:
   for seeing LOITER, and the search mission is not restarted (``holding``).
 - Resume (good for NAV_HOLD_TRIGGER_S while holding): if the mode is still NavPy's LOITER, ask for AUTO; once a
   newer heartbeat shows it, reopen the fence. The mission goes on from its current item (MIS_RESTART 0) and the
-  normal flow approaches the kept dock again. Without ownership the fence just reopens; no mode is changed.
+  normal flow approaches the kept dock again (``hold.resumed``, kept until the decision takes it). Without ownership
+  (the operator took the mode in the hold) the fence just reopens, no mode is changed and the approach is not
+  resumed: the operator's mode stands.
 - Critical (NAV_HOLD_RECOVERY_S in the hold, or LOITER/AUTO not confirmed in MODE_CONFIRM_S): RTL if owned. Not
   undone; the fence stays closed until NavPy is restarted (the operator's stop/start).
 - Escalated (a failure NavPy cannot recover in place, told by the main thread through NavEscalation, step 5):
   close the fence and, if owned, hand the UAV to the mission's AUTO; AUTO not confirmed gives RTL. Released once
-  the mode is no longer NavPy's or RTL shows; only then may a supervised NavPy exit for a fresh start.
+  a fresh heartbeat shows the mode is no longer NavPy's (and no GUIDED request of NavPy's may still take effect) or
+  shows RTL; only then may a supervised NavPy exit for a fresh start.
 Pilot, GCS and failsafe modes are never touched: every mode request needs ownership and a fresh heartbeat.
 
 Times are aircraft time (the autopilot's boot time) when it advances, else wall time (nav_recovery_clock.py): a
@@ -24,7 +27,7 @@ from __future__ import annotations
 
 from enum import Enum
 
-from navpy.core.flow.nav_mode_request import ModeRequest
+from navpy.core.flow.nav_mode_request import MODE_CONFIRM_S, ModeRequest
 from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownership, OwnershipEnd
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold
@@ -68,18 +71,13 @@ class NavRecovery:
         self._hold_since: float | None = None
         self._mode = ModeRequest(ports.request_mode, self.ownership, self._report)
         self._long_hold_reported = False
+        self._previous: ModeObservation | None = None   # read at the last step, before this period's cycle ran
+        self._guided_at: float | None = None             # when recovery learned of NavPy's last GUIDED request
 
     def step(self, cycle_ok: bool, sample: TimeSample) -> None:
         now = self._clock.advance(sample)
         observation = self._ports.observe_mode()
-        guided = self.hold.take_guided_request()
-        if guided:
-            # Recorded at the count read now, after the request: acquiring then needs the next GUIDED
-            # heartbeat, one heartbeat later at most.
-            self.ownership.requested(FlightMode.GUIDED, observation.heartbeat_count, observation.mode)
-        elif guided is False:
-            self.ownership.withdraw(FlightMode.GUIDED)
-        held = self.hold.holding
+        self._take_guided_request(observation, now)
         self.ownership.observe(observation)
         self._track(cycle_ok, now)
         if self._ports.escalation.requested and self.stage not in (RecoveryStage.ESCALATED, RecoveryStage.CRITICAL):
@@ -87,8 +85,21 @@ class NavRecovery:
         self._step_stage(observation, now)
         # The fence is closed by recovery: the approach must not end for the hold's LOITER, nor search restart.
         self.hold.holding = self.stage is not RecoveryStage.NORMAL
-        # One period's pulse: the next cycle's decision approaches the kept dock again instead of ending the approach.
-        self.hold.resumed = held and not self.hold.holding
+        if self.hold.holding:
+            self.hold.resumed = False   # a resume not yet taken is void in a new hold
+        self._previous = observation
+
+    def _take_guided_request(self, observation: ModeObservation, now: float) -> None:
+        guided = self.hold.take_guided_request()
+        if guided and self.stage is RecoveryStage.NORMAL:
+            # Sent during this period's cycle, after the last step read the heartbeat: recorded at that count and
+            # mode, so a mode change that arrived after the send lapses the request (nav_ownership.py). Behind the
+            # fence (not NORMAL) the request was dropped, so it is not NavPy's.
+            sent_from = observation if self._previous is None else self._previous
+            self.ownership.requested(FlightMode.GUIDED, sent_from.heartbeat_count, sent_from.mode)
+            self._guided_at = now
+        elif guided is False:
+            self.ownership.withdraw(FlightMode.GUIDED)
 
     def _step_stage(self, observation: ModeObservation, now: float) -> None:
         if self.stage is RecoveryStage.NORMAL:
@@ -145,8 +156,10 @@ class NavRecovery:
     def _resuming(self, observation: ModeObservation, now: float) -> None:
         if self.ownership.ended is not None:
             # Handed over (AUTO shown), or the pilot took the mode meanwhile: either way NavPy goes on.
-            self._resume_normal("NavPy resumed in AUTO" if self.ownership.ended is OwnershipEnd.HANDED_OVER
-                                else "NavPy resumed: the mode was taken over")
+            handed_over = self.ownership.ended is OwnershipEnd.HANDED_OVER
+            self._resume_normal("NavPy resumed in AUTO" if handed_over else "NavPy resumed: the mode was taken over")
+            # Only NavPy's own AUTO resumes the approach; a mode the operator took stands.
+            self.hold.resumed = handed_over
         elif self._mode.not_confirmed(observation, now):
             self._enter_critical(observation, now, "AUTO not confirmed")
 
@@ -157,14 +170,19 @@ class NavRecovery:
         self._report("NavPy failed: commands fenced, hand-over to the mission")
 
     def _escalated(self, observation: ModeObservation, now: float) -> None:
+        # NavPy asked for GUIDED and no heartbeat settled it (acquired, lapsed or withdrawn): the UAV may still switch
+        # to GUIDED. Like any mode request it must show within MODE_CONFIRM_S.
+        guided_unresolved = (self.ownership.guided_pending and self._guided_at is not None
+                             and now - self._guided_at < MODE_CONFIRM_S)
         if self.ownership.may_request_mode():
             if self._mode.pending is None:
                 self._mode.send(FlightMode.AUTO, observation, now)
             elif self._mode.not_confirmed(observation, now):
                 self._enter_critical(observation, now, "AUTO not confirmed")
-        elif self.ownership.state is Ownership.NOT_OWNED:
+        elif (self.ownership.state is Ownership.NOT_OWNED and observation.fresh
+              and not guided_unresolved):
             self._release("NavPy failed: the mode is not NavPy's")   # handed over, or the pilot's
-        # Unknown (stale link): wait; the next fresh heartbeat decides.
+        # Unknown or stale link, or NavPy's GUIDED request may still show: wait; a fresh heartbeat decides.
 
     def _critical(self, observation: ModeObservation, now: float) -> None:
         # Also after a critical entered unowned-looking (stale link): once a fresh heartbeat shows NavPy owns the

@@ -28,7 +28,8 @@ def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryL
         )
 
     return NavRecoveryLink(
-        close_fence=fence.close, reopen_fence=fence.reopen, observe_mode=observe_mode, formed_now=fence.formed_now,
+        close_fence=fence.close, reopen_fence=fence.reopen, observe_mode=observe_mode,
+        latch_fence=fence.latch_closed, formed_now=fence.formed_now,
     )
 
 
@@ -42,7 +43,7 @@ def runtime_escalation(args: Namespace, link: NavRecoveryLink | None, logger: IL
     if link is None:
         return None
     return RuntimeEscalation(
-        close_fence=link.close_fence, escalation=link.escalation, supervised=supervised(args), logger=logger,
+        close_fence=link.latch_fence, escalation=link.escalation, supervised=supervised(args), logger=logger,
     )
 
 

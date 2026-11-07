@@ -81,7 +81,7 @@ def compose_decision_workflows(
             request_guided=lambda: request_guided_owned(state, approach),
             final_approach_active=lambda: navigation.final_approach.is_active,
             holding=lambda: state.recovery_hold.holding,
-            resumed=lambda: state.recovery_hold.resumed,
+            take_resumed=state.recovery_hold.take_resumed,
         ),
         state.phase,
         state.navigation_task,

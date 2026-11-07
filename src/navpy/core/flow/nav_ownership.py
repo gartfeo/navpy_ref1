@@ -58,6 +58,11 @@ class NavOwnership:
             return Ownership.NOT_OWNED
         return Ownership.OWNED if self._fresh else Ownership.UNKNOWN
 
+    @property
+    def guided_pending(self) -> bool:
+        """NavPy's GUIDED request is neither acquired nor lapsed nor withdrawn."""
+        return not self._owned and FlightMode.GUIDED in self._requests
+
     def may_request_mode(self) -> bool:
         """An automatic mode request (hold, handover) only while owned and the heartbeat is fresh."""
         return self.state is Ownership.OWNED
