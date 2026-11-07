@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
+from contextlib import contextmanager, nullcontext
 from typing import ContextManager
 
 from navpy.core.kernel import runtime_time as rt
@@ -33,6 +34,21 @@ def _ignore_command_cadence(_active: bool) -> None:
     return None
 
 
+def formed_runtime_session(
+    runtime_session: Callable[[], ContextManager[CommandWorkRuntime]],
+    command_formation: Callable[[], ContextManager[None]],
+) -> Callable[[], ContextManager[CommandWorkRuntime]]:
+    """One worker pass, from taking a work item to sending it, states the fence generation current at its start
+    (docs/design/navpy_recovery.md): a recovery close meanwhile drops its send, even after a reopen."""
+
+    @contextmanager
+    def session() -> Iterator[CommandWorkRuntime]:
+        with command_formation(), runtime_session() as runtime:
+            yield runtime
+
+    return session
+
+
 class NavigationCommandSession:
     """Start, stop, and monitor one fixed-rate command worker generation."""
 
@@ -48,6 +64,7 @@ class NavigationCommandSession:
             _ignore_command_cadence
         ),
         command_loop: CommandLoopObserver = NO_COMMAND_LOOP_OBSERVER,
+        command_formation: Callable[[], ContextManager[None]] = nullcontext,
     ) -> None:
         self._stop_event = rt.Event()
         self._command_event = command_event
@@ -56,7 +73,7 @@ class NavigationCommandSession:
             stop_event=self._stop_event,
             command_event=command_event,
             wall_period_s=wall_period_s,
-            runtime_session=runtime_session,
+            runtime_session=formed_runtime_session(runtime_session, command_formation),
             logger=logger,
             postprocess_submit=self._postprocess.submit,
             source_dispatch=source_dispatch,

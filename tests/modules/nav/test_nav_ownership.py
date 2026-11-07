@@ -120,3 +120,38 @@ def test_ending_needs_a_new_guided_request_to_own_again():
     record.observe(hb(14, G))
     assert record.state is Ownership.OWNED
     assert record.ended is None
+
+
+@pytest.mark.parametrize("lapse", [hb(11, FlightMode.FBWA), hb(11, A, armed=False)])
+def test_a_guided_request_lapses_on_another_mode_or_a_disarm(lapse):
+    """Codex finding 5 on steps 1-4: NavPy asked for GUIDED from AUTO; the pilot set FBWA (or disarmed); the
+    operator's later GUIDED is not NavPy's."""
+    record = NavOwnership()
+    record.requested(G, 10, A)
+    record.observe(lapse)
+    record.observe(hb(15, G))
+    assert record.state is Ownership.NOT_OWNED
+
+
+def test_a_guided_request_survives_a_heartbeat_still_showing_the_old_mode():
+    """The heartbeat after the request may still show the mode NavPy asked from: that is no lapse."""
+    record = NavOwnership()
+    record.requested(G, 10, A)
+    record.observe(hb(11, A))
+    record.observe(hb(12, G))
+    assert record.state is Ownership.OWNED
+
+
+def test_a_withdrawn_guided_request_does_not_claim_a_later_guided():
+    record = NavOwnership()
+    record.requested(G, 10, A)
+    record.withdraw(G)   # NavPy stopped waiting (GUIDED not accepted, task cleared)
+    record.observe(hb(15, G))
+    assert record.state is Ownership.NOT_OWNED
+
+
+def test_withdraw_leaves_an_owned_mode_owned():
+    record = owned()
+    record.withdraw(G)
+    record.observe(hb(12, G))
+    assert record.state is Ownership.OWNED

@@ -2,6 +2,9 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
+
 from navpy.core.flow.nav_ownership import ModeObservation
 from navpy.core.flow.nav_recovery import NavRecoveryLink
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -20,7 +23,14 @@ def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryL
             fresh=vehicle.link_ok,
         )
 
-    return NavRecoveryLink(close_fence=fence.close, reopen_fence=fence.reopen, observe_mode=observe_mode)
+    return NavRecoveryLink(
+        close_fence=fence.close, reopen_fence=fence.reopen, observe_mode=observe_mode, formed_now=fence.formed_now,
+    )
 
 
-__all__ = ["NavRecoveryLink", "nav_recovery_link"]
+def command_formation(link: NavRecoveryLink | None) -> Callable[[], AbstractContextManager[None]]:
+    """The command worker's formation context: without a link (no MAVLink bus) there is no fence."""
+    return nullcontext if link is None else link.formed_now
+
+
+__all__ = ["NavRecoveryLink", "command_formation", "nav_recovery_link"]

@@ -7,9 +7,12 @@ none after; an old generation is dropped; mode requests other than GUIDED are ne
 from __future__ import annotations
 
 import threading
+from contextlib import nullcontext
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
+from navpy.core.approach.navigation_command_session import formed_runtime_session
+from navpy.core.approach.navigation_command_worker import NavigationCommandWorker, NavigationCommandWorkerPorts
 from navpy.core.kernel.location import Location
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.plugins.vehicle.ardupilot.attitude_command import AttitudeCommand
@@ -176,3 +179,55 @@ def test_close_is_idempotent_and_reopen_starts_a_new_generation():
     assert fence.close() == 1
     assert fence.close() == 1
     assert fence.reopen() == 2 and fence.is_open
+
+
+class _PausedRuntime:
+    """One work item whose execution is paused across recovery's close and reopen, then sends its old command."""
+
+    def __init__(self, rig, stop):
+        self._rig, self._stop, self.taken = rig, stop, False
+
+    def has_command_pending_or_in_flight(self):
+        return not self.taken
+
+    def take_work(self):
+        self.taken = True
+        return "work"
+
+    def execute_work(self, _work):
+        self._rig.fence.close()    # recovery's hold ...
+        self._rig.fence.reopen()   # ... and resume, while this worker is paused
+        self._rig.attitude.set(0.1, 0.0)
+        self._stop.set()
+
+    def postprocess_job(self, _work):
+        return None
+
+    def finish_work(self, _work):
+        pass
+
+
+def _run_worker(rig, formation=nullcontext):
+    stop = threading.Event()
+    runtime = _PausedRuntime(rig, stop)
+    NavigationCommandWorker(NavigationCommandWorkerPorts(
+        stop_event=stop, command_event=threading.Event(), wall_period_s=lambda period_s: period_s,
+        runtime_session=formed_runtime_session(lambda: nullcontext(runtime), formation), logger=MagicMock(),
+    )).run()
+
+
+def test_a_command_formed_before_a_close_and_reopen_is_dropped():
+    """Codex finding 2 on steps 1-4: the command worker states the generation it formed in."""
+    rig = _rig()
+    _run_worker(rig, rig.fence.formed_now)
+    rig.mav.set_attitude_target_send.assert_not_called()
+    assert rig.fence.dropped == 1
+    rig.attitude.set(0.1, 0.0)   # formed after the reopen: goes out
+    assert rig.mav.set_attitude_target_send.call_count == 1
+
+
+def test_without_a_stated_generation_the_old_command_would_go_out():
+    """What finding 2 described: by open or closed alone, the reopened fence admits the pre-recovery command."""
+    rig = _rig()
+    _run_worker(rig)
+    assert rig.mav.set_attitude_target_send.call_count == 1

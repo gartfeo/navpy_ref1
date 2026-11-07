@@ -13,17 +13,19 @@ The loop reports each period whether its cycle ran without an error. Then:
   undone; the fence stays closed until NavPy is restarted (the operator's stop/start).
 Pilot, GCS and failsafe modes are never touched: every mode request needs ownership and a fresh heartbeat.
 
-Times are aircraft time (the autopilot's boot time) when it advances, else wall time: a stalled link stops
-aircraft time, and the hold must still come.
+Times are aircraft time (the autopilot's boot time) when it advances, else wall time (nav_recovery_clock.py): a
+stalled link stops aircraft time, and the hold must still come.
 """
 
 from __future__ import annotations
 
 from collections.abc import Callable
+from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass
 from enum import Enum
 
 from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownership, OwnershipEnd
+from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.flight_mode import FlightMode
@@ -36,19 +38,6 @@ NAV_HOLD_RECOVERY_S = 30.0
 MODE_CONFIRM_S = 3.0
 #: Repeat an unconfirmed mode request this often, not every 50 Hz period.
 MODE_RETRY_S = 1.0
-
-
-@dataclass(frozen=True)
-class TimeSample:
-    aircraft_s: float | None
-    wall_s: float
-
-
-def elapsed_s(since: TimeSample, now: TimeSample) -> float:
-    """Aircraft time between the samples when it advanced, else wall time."""
-    if since.aircraft_s is not None and now.aircraft_s is not None and now.aircraft_s > since.aircraft_s:
-        return now.aircraft_s - since.aircraft_s
-    return now.wall_s - since.wall_s
 
 
 class RecoveryStage(Enum):
@@ -64,6 +53,8 @@ class NavRecoveryLink:
     close_fence: Callable[[], object]
     reopen_fence: Callable[[], object]
     observe_mode: Callable[[], ModeObservation]
+    #: Wraps a command's forming and sending on a worker thread, so a close before its send drops it.
+    formed_now: Callable[[], AbstractContextManager[None]] = nullcontext
 
 
 @dataclass(frozen=True)
@@ -80,15 +71,20 @@ class RecoveryHold:
 
     def __init__(self) -> None:
         self.holding = False
-        self._guided_requested = False
+        self.resumed = False   # set for one period after the hold ends
+        self._guided: bool | None = None   # NavPy's last GUIDED event since the last step: asked, or withdrawn
 
     def guided_requested(self) -> None:
         """NavPy asked for GUIDED: recovery may acquire ownership from the next heartbeat."""
-        self._guided_requested = True
+        self._guided = True
 
-    def take_guided_request(self) -> bool:
-        requested, self._guided_requested = self._guided_requested, False
-        return requested
+    def guided_withdrawn(self) -> None:
+        """NavPy stopped waiting for GUIDED (its task was cleared): a later GUIDED is not NavPy's."""
+        self._guided = False
+
+    def take_guided_request(self) -> bool | None:
+        guided, self._guided = self._guided, None
+        return guided
 
 
 class NavRecovery:
@@ -108,30 +104,37 @@ class NavRecovery:
         self.hold = RecoveryHold() if hold is None else hold
         self.ownership = NavOwnership() if ownership is None else ownership
         self.stage = RecoveryStage.NORMAL
-        self._bad_since: TimeSample | None = None
-        self._good_since: TimeSample | None = None
-        self._hold_since: TimeSample | None = None
+        self._clock = RecoveryClock()
+        self._bad_since: float | None = None
+        self._good_since: float | None = None
+        self._hold_since: float | None = None
         self._pending: FlightMode | None = None   # NavPy's mode request awaiting a newer heartbeat
-        self._pending_since: TimeSample | None = None
-        self._pending_count = -1
+        self._pending_at = (0.0, -1)   # the pending request's clock reading and heartbeat count
         self._long_hold_reported = False
-        self._last_request: TimeSample | None = None
+        self._last_request: float | None = None
 
-    def step(self, cycle_ok: bool, now: TimeSample) -> None:
+    def step(self, cycle_ok: bool, sample: TimeSample) -> None:
+        now = self._clock.advance(sample)
         observation = self._ports.observe_mode()
-        if self.hold.take_guided_request():
+        guided = self.hold.take_guided_request()
+        if guided:
             # Recorded at the count read now, after the request: acquiring then needs the next GUIDED
             # heartbeat, one heartbeat later at most.
-            self.ownership.requested(FlightMode.GUIDED, observation.heartbeat_count)
+            self.ownership.requested(FlightMode.GUIDED, observation.heartbeat_count, observation.mode)
+        elif guided is False:
+            self.ownership.withdraw(FlightMode.GUIDED)
+        held = self.hold.holding
         self.ownership.observe(observation)
         self._track(cycle_ok, now)
         self._step_stage(observation, now)
         # The fence is closed by recovery: the approach must not end for the hold's LOITER, nor search restart.
         self.hold.holding = self.stage is not RecoveryStage.NORMAL
+        # One period's pulse: the next cycle's decision approaches the kept dock again instead of ending the approach.
+        self.hold.resumed = held and not self.hold.holding
 
-    def _step_stage(self, observation: ModeObservation, now: TimeSample) -> None:
+    def _step_stage(self, observation: ModeObservation, now: float) -> None:
         if self.stage is RecoveryStage.NORMAL:
-            if self._bad_since is not None and elapsed_s(self._bad_since, now) >= NAV_HOLD_TRIGGER_S:
+            if self._bad_since is not None and now - self._bad_since >= NAV_HOLD_TRIGGER_S:
                 self._enter_hold(observation, now)
         elif self.stage is RecoveryStage.HOLD:
             self._hold(observation, now)
@@ -140,15 +143,15 @@ class NavRecovery:
         else:
             self._critical(observation, now)
 
-    def _track(self, cycle_ok: bool, now: TimeSample) -> None:
+    def _track(self, cycle_ok: bool, now: float) -> None:
         if cycle_ok:
             self._bad_since = None
-            self._good_since = self._good_since or now
+            self._good_since = now if self._good_since is None else self._good_since
         else:
             self._good_since = None
-            self._bad_since = self._bad_since or now
+            self._bad_since = now if self._bad_since is None else self._bad_since
 
-    def _enter_hold(self, observation: ModeObservation, now: TimeSample) -> None:
+    def _enter_hold(self, observation: ModeObservation, now: float) -> None:
         self._ports.close_fence()
         self.stage = RecoveryStage.HOLD
         self._hold_since = now
@@ -158,11 +161,11 @@ class NavRecovery:
         if owned and observation.mode is not FlightMode.LOITER:
             self._request(FlightMode.LOITER, observation, now)
 
-    def _hold(self, observation: ModeObservation, now: TimeSample) -> None:
+    def _hold(self, observation: ModeObservation, now: float) -> None:
         if self._mode_not_confirmed(observation, now):
             self._enter_critical(observation, now, "LOITER not confirmed")
             return
-        if self._hold_since is not None and elapsed_s(self._hold_since, now) >= NAV_HOLD_RECOVERY_S:
+        if self._hold_since is not None and now - self._hold_since >= NAV_HOLD_RECOVERY_S:
             if self.ownership.may_request_mode():
                 self._enter_critical(observation, now, f"no recovery in {NAV_HOLD_RECOVERY_S:g} s")
                 return
@@ -170,7 +173,7 @@ class NavRecovery:
                 # Not NavPy's mode (the mission's AUTO, the pilot's): it flies on safely; NavPy waits fenced.
                 self._long_hold_reported = True
                 self._report(f"NavPy not recovered in {NAV_HOLD_RECOVERY_S:g} s; mode not NavPy's, commands stay fenced")
-        if self._good_since is None or elapsed_s(self._good_since, now) < NAV_HOLD_TRIGGER_S:
+        if self._good_since is None or now - self._good_since < NAV_HOLD_TRIGGER_S:
             return
         if self.ownership.may_request_mode() and observation.mode is FlightMode.LOITER:
             self.stage = RecoveryStage.RESUMING
@@ -179,7 +182,7 @@ class NavRecovery:
         elif self.ownership.state is not Ownership.UNKNOWN:
             self._resume_normal("NavPy healthy again: commands reopened")
 
-    def _resuming(self, observation: ModeObservation, now: TimeSample) -> None:
+    def _resuming(self, observation: ModeObservation, now: float) -> None:
         if self.ownership.ended is not None:
             # Handed over (AUTO shown), or the pilot took the mode meanwhile: either way NavPy goes on.
             self._resume_normal("NavPy resumed in AUTO" if self.ownership.ended is OwnershipEnd.HANDED_OVER
@@ -187,11 +190,18 @@ class NavRecovery:
         elif self._mode_not_confirmed(observation, now):
             self._enter_critical(observation, now, "AUTO not confirmed")
 
-    def _critical(self, observation: ModeObservation, now: TimeSample) -> None:
-        if self._pending is FlightMode.RTL and observation.mode is not FlightMode.RTL:
+    def _critical(self, observation: ModeObservation, now: float) -> None:
+        # Also after a critical entered unowned-looking (stale link): once a fresh heartbeat shows NavPy owns the
+        # mode, RTL is sent then; a pending one is retried.
+        if observation.mode is FlightMode.RTL or not self.ownership.may_request_mode():
+            return
+        if self._pending is FlightMode.RTL:
             self._retry(observation, now)
+        else:
+            self._report("NavPy critical: mode owned again, RTL")
+            self._request(FlightMode.RTL, observation, now)
 
-    def _enter_critical(self, observation: ModeObservation, now: TimeSample, why: str) -> None:
+    def _enter_critical(self, observation: ModeObservation, now: float, why: str) -> None:
         self.stage = RecoveryStage.CRITICAL
         self._pending = None
         owned = self.ownership.may_request_mode()
@@ -199,31 +209,30 @@ class NavRecovery:
         if owned:
             self._request(FlightMode.RTL, observation, now)
 
-    def _mode_not_confirmed(self, observation: ModeObservation, now: TimeSample) -> bool:
+    def _mode_not_confirmed(self, observation: ModeObservation, now: float) -> bool:
         """True once a pending request has waited MODE_CONFIRM_S; retries it until then."""
         if self._pending is None:
             return False
-        if observation.mode is self._pending and observation.heartbeat_count > self._pending_count:
+        if observation.mode is self._pending and observation.heartbeat_count > self._pending_at[1]:
             self._pending = None
             return False
-        if self._pending_since is not None and elapsed_s(self._pending_since, now) >= MODE_CONFIRM_S:
+        if now - self._pending_at[0] >= MODE_CONFIRM_S:
             return True
         self._retry(observation, now)
         return False
 
-    def _retry(self, observation: ModeObservation, now: TimeSample) -> None:
+    def _retry(self, observation: ModeObservation, now: float) -> None:
         if self._pending is None or not self.ownership.may_request_mode():
             return
-        if self._last_request is None or elapsed_s(self._last_request, now) >= MODE_RETRY_S:
+        if self._last_request is None or now - self._last_request >= MODE_RETRY_S:
             self._send(self._pending, observation, now)
 
-    def _request(self, mode: FlightMode, observation: ModeObservation, now: TimeSample) -> None:
+    def _request(self, mode: FlightMode, observation: ModeObservation, now: float) -> None:
         self._pending = mode
-        self._pending_since = now
-        self._pending_count = observation.heartbeat_count
+        self._pending_at = (now, observation.heartbeat_count)
         self._send(mode, observation, now)
 
-    def _send(self, mode: FlightMode, observation: ModeObservation, now: TimeSample) -> None:
+    def _send(self, mode: FlightMode, observation: ModeObservation, now: float) -> None:
         self.ownership.requested(mode, observation.heartbeat_count)
         self._last_request = now
         try:
@@ -258,5 +267,4 @@ __all__ = [
     "NavRecoveryPorts",
     "RecoveryStage",
     "TimeSample",
-    "elapsed_s",
 ]

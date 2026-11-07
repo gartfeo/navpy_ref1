@@ -118,6 +118,8 @@ class NavDecisionPorts:
     final_approach_active: Callable[[], bool]
     #: Recovery's hold (nav_recovery.py): the LOITER it set must not end the approach.
     holding: Callable[[], bool] = lambda: False
+    #: True for the one period after the hold ends: the approach goes on to the kept dock.
+    resumed: Callable[[], bool] = lambda: False
 
 
 class NavStateDecision:
@@ -175,6 +177,11 @@ class NavStateDecision:
             # Recovery's hold: the mode is its LOITER and NavPy's commands are
             # fenced. Keep the task and dock; no GUIDED request, no timeout.
             return ApproachOutcome.WAITING
+        if self._ports.resumed() and self._navigation_task.nav_mode_observed:
+            # Recovery resumed in AUTO (owner ruling 2026-11-07): ask for GUIDED again and approach the same dock,
+            # instead of reading the AUTO as GUIDED lost.
+            self._navigation_task.nav_mode_observed = False
+            self._clear_guided_wait()
         if self._navigation_task.nav_mode_observed:
             self._ports.clear_navigation_task()
             return ApproachOutcome.ABANDONED

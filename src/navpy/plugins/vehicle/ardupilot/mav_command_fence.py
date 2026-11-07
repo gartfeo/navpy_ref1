@@ -18,7 +18,7 @@ every write for good, this fence drops only navigation commands and can reopen w
 from __future__ import annotations
 
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager
 
 from navpy.core.kernel import runtime_time as rt
 
@@ -77,6 +77,10 @@ class MavCommandFence:
                     self._stated.pop(thread, None)
                 else:
                     self._stated[thread] = previous
+
+    def formed_now(self) -> AbstractContextManager[None]:
+        """Sends on this thread inside the block carry the generation current at entry: a close meanwhile drops them."""
+        return self.formed_in(self.generation)
 
     def admit(self) -> bool:
         """Called by MavTransport while it holds the send lock: True admits this write, False drops and counts it."""

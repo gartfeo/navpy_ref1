@@ -5,6 +5,9 @@ than that request shows GUIDED, armed. Ownership ends:
 - revoked: a fresh heartbeat shows a mode NavPy did not ask for (pilot, GCS, failsafe), or the vehicle is disarmed;
 - handed over: a heartbeat newer than NavPy's AUTO request shows AUTO (the mission has the UAV again).
 While NavPy owns it, GUIDED and any mode shown after NavPy asked for it (the hold's LOITER) keep it owned.
+Before it is owned, NavPy's GUIDED request lapses when a newer heartbeat shows disarmed or a mode other than GUIDED
+and the one shown when NavPy asked (someone else changed it), or when NavPy withdraws it (stopped waiting): a later
+GUIDED is then the operator's, not NavPy's.
 
 Heartbeats are ordered by their count (newer = larger), not by a clock. A stale link (the caller's heartbeat
 freshness) makes ownership unknown: no automatic mode request then, and the next fresh heartbeat decides again.
@@ -46,6 +49,7 @@ class NavOwnership:
         self._fresh = True
         self._seen_count = -1
         self._requests: dict[FlightMode, int] = {}   # NavPy's mode requests: mode -> heartbeat count at request
+        self._guided_from: FlightMode | None = None   # the mode shown when NavPy asked for GUIDED, not yet owned
         self.ended: OwnershipEnd | None = None
 
     @property
@@ -58,11 +62,17 @@ class NavOwnership:
         """An automatic mode request (hold, handover) only while owned and the heartbeat is fresh."""
         return self.state is Ownership.OWNED
 
-    def requested(self, mode: FlightMode, heartbeat_count: int) -> None:
-        """NavPy sent a request for ``mode``; ``heartbeat_count`` is the count read just before sending."""
+    def requested(self, mode: FlightMode, heartbeat_count: int, shown: FlightMode | None = None) -> None:
+        """NavPy sent a request for ``mode``; ``heartbeat_count`` and ``shown`` were read just before sending."""
         if mode is FlightMode.GUIDED and not self._owned:
             self.ended = None   # a new acquisition for this episode
+            self._guided_from = shown
         self._requests[mode] = int(heartbeat_count)
+
+    def withdraw(self, mode: FlightMode) -> None:
+        """NavPy no longer waits for ``mode``; an owned mode stays owned."""
+        if not self._owned:
+            self._requests.pop(mode, None)
 
     def observe(self, observation: ModeObservation) -> None:
         self._fresh = bool(observation.fresh)
@@ -71,10 +81,15 @@ class NavOwnership:
         self._seen_count = observation.heartbeat_count
         if self._owned:
             self._observe_owned(observation)
-        elif self._newer_than_request(FlightMode.GUIDED, observation) and observation.mode is FlightMode.GUIDED \
-                and observation.armed:
+        elif self._newer_than_request(FlightMode.GUIDED, observation):
+            self._observe_guided_request(observation)
+
+    def _observe_guided_request(self, observation: ModeObservation) -> None:
+        if observation.mode is FlightMode.GUIDED and observation.armed:
             self._owned = True
             self.ended = None
+        elif not observation.armed or observation.mode is not self._guided_from:
+            self._requests.pop(FlightMode.GUIDED, None)   # another mode or a disarm: the request lapsed
 
     def _observe_owned(self, observation: ModeObservation) -> None:
         mode = observation.mode

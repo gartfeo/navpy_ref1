@@ -282,6 +282,16 @@ merges before step 4, which builds on its deadline fix.
    fences, there is no RTL, and the fence reopens when healthy. Known gap:
    GUIDED set implicitly by a peer goto records no ownership request, so a
    hold then only fences and ArduPlane loiters at the last GUIDED target.
+   Fixes after the Codex code review of steps 1–4: recovery's clock only moves
+   forward and adds aircraft time per step, else wall time, so aircraft time
+   freezing after it moved still lets the timers expire
+   (`nav_recovery_clock.py`); the command worker states the fence generation
+   from taking a work item to sending it, so a close and reopen meanwhile drops
+   it; critical sends RTL once a fresh heartbeat shows the mode still owned
+   (entered while the link was stale); for one period after the hold ends the
+   decision asks for GUIDED again instead of reading the resume's AUTO as
+   GUIDED lost, so the kept dock is approached; an unowned GUIDED request
+   lapses when another mode or a disarm shows, or when NavPy stops waiting.
 5. **Component restart and escalation.** Camera capture, detector and
    heartbeat worker restart fresh with a new generation, limited tries and
    back-off. Any other latched failure, or a part that can't be quiesced,
