@@ -110,12 +110,15 @@ class FreshVisualLock:
             return False
         try:
             track = (int(get_poi_task_id(poi)), int(poi.identity.obj_id))
-            timestamp_s = float(poi.pixel.source_timestamp_s)
         except (AttributeError, TypeError, ValueError):
             return False
         if track != self._track:
             self.reset()  # another track: lost even when its frame is not good
             self._track = track
+        try:
+            timestamp_s = float(poi.pixel.source_timestamp_s)
+        except (AttributeError, TypeError, ValueError):
+            return False
         if not math.isfinite(timestamp_s) or timestamp_s == self._last_ts:
             return False
         if self._last_ts is not None and timestamp_s < self._last_ts:

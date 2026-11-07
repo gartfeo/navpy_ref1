@@ -10,6 +10,7 @@ changes nothing that the gates or the law decide.
 
 from __future__ import annotations
 
+import dataclasses
 import threading
 
 import pytest
@@ -277,13 +278,17 @@ def test_a_frame_seen_invalid_is_not_held_when_it_comes_again_valid() -> None:
     assert lock.locked(frame(2.7, 0.5, lambda: 2.7))
 
 
-@pytest.mark.parametrize("fault", ["track", "back"])
+@pytest.mark.parametrize("fault", ["track", "track_no_time", "back"])
 def test_an_invalid_frame_still_shows_a_track_change_or_time_going_back(fault) -> None:
     lock, now = _established_lock()
     now[0] = 2.6
     if fault == "track":
         poi = frame(2.6, 0.5, lambda: 2.6, atomic=False)
         poi.reidentify(obj_id=7)
+    elif fault == "track_no_time":  # round 5: a frame without a timestamp still shows the track
+        poi = frame(2.6, 0.5, lambda: 2.6)
+        poi.reidentify(obj_id=7)
+        poi.replace_pixel(dataclasses.replace(poi.pixel, source_timestamp_s=None))
     else:
         poi = frame(2.0, 0.5, lambda: 2.6, atomic=False)
     assert not lock.locked(poi)
