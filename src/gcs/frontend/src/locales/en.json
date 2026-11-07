@@ -509,7 +509,8 @@
       "opensCamera": "camera",
       "opensSynthetic": "synthetic"
     },
-    "syntheticTag": "SYNTHETIC · not camera",
+    "syntheticTag": "SYNTHETIC · nose · not camera",
+    "syntheticTagGimbal": "SYNTHETIC · gimbal · not camera",
     "waitingForPose": "Waiting for pose · {{name}}",
     "syntheticUnavailable": "Synthetic view unavailable",
     "retry": "Retry",

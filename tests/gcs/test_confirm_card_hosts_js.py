@@ -72,6 +72,9 @@ class TestRightPanelHost(unittest.TestCase):
             # A maximized window is not at its normal place: no room to make under it.
             "windowBox: showWindow && !swapped ? windowLayout.window : null,",
             "const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;",
+            # The maximized window keeps right of a shown list (owner 2026-11-07).
+            "? collapsedListWidth(mapPane.width) + PANEL_MARGIN_PX",
+            "leftReservePx: listReservePx,",
             # The list can reach the toast's place, and starts below the top controls.
             "top={collapsedListShown ? PANEL_MARGIN_PX : undefined}",
             # The toggle's badge counts what still asks, not decided rows.

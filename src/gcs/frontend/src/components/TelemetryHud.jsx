@@ -85,7 +85,7 @@ function Hud({ vehicle, layout, waypoint, onCornerSize }) {
   return (
     <>
       {/* Attitude indicator — centred in its box; the scale only where the box can show it */}
-      <div data-testid="hud-attitude" style={{
+      {attitude && <div data-testid="hud-attitude" style={{
         position: 'absolute',
         top: attitude.top,
         bottom: attitude.bottom,
@@ -95,7 +95,7 @@ function Hud({ vehicle, layout, waypoint, onCornerSize }) {
         zIndex: 5,
       }}>
         <AttitudeIndicator pitch={pitch} roll={roll} scale={attitude.scale} />
-      </div>
+      </div>}
 
       {/* Heading tape — top, centred unless the layout gives its left edge */}
       {headingBox && (
