@@ -5,8 +5,9 @@ search -> own detection -> fresh visual lock -> ORBIT on the own-detected pose -
 A navigation task's start (own detection; search stops on it, step 21) only marks the POI: the ORBIT
 waits for the first fresh visual lock and is then placed from that frame's own pose (board centre or
 ground ray, step 22; never truth). Confirm and NAV each need the lock fresh on this tick and the orbit
-established. Each tick's result is published to the confirmation lock (``publish``), which refuses
-CONFIRMED from any path while it is False and withdraws a review under way. Without the profile's
+established. Whether the gates are still held (the lock kept through a blip, the orbit established) is
+published each tick to the confirmation lock (``publish``), which refuses CONFIRMED from any path
+while it is False and withdraws a review under way. Without the profile's
 gates, ``OPEN_ACQUISITION`` keeps the old order.
 """
 
@@ -57,6 +58,7 @@ class AcquisitionSequence:
         self._logger = logger
         self._publish = publish
         self._task_id: int | None = None
+        self._established = False
         self._reported: set[str] = set()
 
     def begin(self, poi: DetectedObject) -> None:
@@ -70,18 +72,22 @@ class AcquisitionSequence:
 
     def ready(self, poi: DetectedObject | None) -> bool:
         """Advance on this tick's detection (None: no detection); True when confirm or NAV may proceed."""
-        held = self._advance(poi)
+        ready = self._advance(poi)
         if self._task_id is not None:
-            self._publish(self._task_id, held)
-        return held
+            # Published: whether the gates are still held, through a blip of the lock; a loss
+            # withdraws or revokes the confirmation, so the operator is asked again only then.
+            self._publish(self._task_id, self._lock.kept and self._established)
+        return ready
 
     def _advance(self, poi: DetectedObject | None) -> bool:
         # The orbit is watched on every tick, frames or not: a vision gap is not a step off the circle.
-        established = self._orbit.established()
-        if poi is None or self._task_id is None or get_poi_task_id(poi) != self._task_id:
-            self._lock.reset()
+        established = self._established = self._orbit.established()
+        if self._task_id is None:
             return False
-        locked = self._lock.locked(poi)
+        if poi is not None and get_poi_task_id(poi) != self._task_id:
+            self._lock.reset()  # another POI's frame: this lock is lost
+            return False
+        locked = self._lock.locked(poi)  # no detection on this tick: a blip of the lock
         if locked:
             self._report("locked", f"P{self._task_id}: fresh visual lock")
         if locked and not self._orbit.commanded:
@@ -91,7 +97,7 @@ class AcquisitionSequence:
                 self._report(
                     "orbit", f"P{self._task_id}: ORBIT r={command.radius_m:.0f}m on the own-detected pose",
                 )
-                established = self._orbit.established()
+                established = self._established = self._orbit.established()
         if established:
             self._report("established", f"P{self._task_id}: orbit established")
         return locked and established

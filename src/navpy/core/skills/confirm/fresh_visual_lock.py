@@ -1,12 +1,17 @@
 """Fresh-visual-lock gate before confirm and NAV (HITL step 25).
 
-A lock holds once one track's frames have kept the POI within the image error of the optical axis
-for the dwell, measured on the frames' own timestamps. The error is the angle between the pixel's
-pinhole ray and the optical axis: frame-local, so no heading, position, range or truth enters it.
-A frame that is not fresh, not a frame-atomic pinhole frame, or not finite breaks the lock, as does
-a gap between new frames longer than the profile's frame gap (on the frames' timestamps, or on the
-decision clock while the same frame repeats), a frame from another track, a time going back, or the
-error over its limit.
+A lock is established once one track's good frames have kept the POI within the image error of the
+optical axis for the dwell, measured on the frames' own timestamps. A good frame is fresh (confirm's
+rule), from an armed detector, a frame-atomic pinhole frame, finite, and within the image error. The
+error is the angle between the pixel's pinhole ray and the optical axis: frame-local, so no heading,
+position, range or truth enters it.
+
+The lock holds on a tick only when that tick shows a good frame. A short blip (missing, invalid or
+off-axis frames) does not lose it (owner, 2026-11-07: do not lose the lock, ask again only when not
+sure): it is lost only when no good frame has arrived for longer than the profile's frame gap on the
+decision clock, two good frames are further apart than that on their own timestamps, a frame comes
+from another track, or the frames' time goes back. ``kept`` says whether an established lock is
+still held through such a blip.
 """
 
 from __future__ import annotations
@@ -47,7 +52,7 @@ def lock_sample(poi: DetectedObject) -> LockSample | None:
 
 
 class FreshVisualLock:
-    """Track the lock dwell of the active POI's frames."""
+    """Track the lock of the active POI's frames."""
 
     def __init__(
         self,
@@ -64,48 +69,52 @@ class FreshVisualLock:
 
     def reset(self) -> None:
         self._track: tuple[int, int] | None = None
-        self._last_s: float | None = None
-        self._since_s: float | None = None
-        self._arrived_s: float | None = None  # when the newest frame was first seen (decision clock)
+        self._last_ts: float | None = None  # newest distinct frame of this track, good or not
+        self._drop()
+
+    def _drop(self) -> None:
+        """Lose the lock; the track and its newest frame are kept."""
+        self._since_ts: float | None = None  # first good frame of the dwell (frame clock)
+        self._good_ts: float | None = None  # newest good frame (frame clock)
+        self._good_s: float | None = None  # when it arrived (decision clock)
+
+    @property
+    def kept(self) -> bool:
+        """An established lock not lost (it may be in a blip on this tick)."""
+        return (
+            self._since_ts is not None
+            and self._good_ts - self._since_ts >= self._settings.lock_dwell_s
+        )
 
     def locked(self, poi: DetectedObject | None) -> bool:
-        """Take this tick's detection and say whether the lock holds on it."""
+        """Take this tick's detection (None: none) and say whether the lock holds on it."""
+        now_s = float(self._now_s())
+        if self._good_s is not None and not 0.0 <= now_s - self._good_s <= self._settings.lock_max_frame_gap_s:
+            self._drop()  # no good frame for longer than the frame gap
         sample = self._admit(poi)
         if sample is None:
+            return False  # a blip: not on this tick, lost only by the frame gap
+        if sample.track != self._track:
             self.reset()
-            return False
-        self._observe(sample, float(self._now_s()))
-        return (
-            self._since_s is not None
-            and self._last_s - self._since_s >= self._settings.lock_dwell_s
-        )
+            self._track = sample.track
+        if self._last_ts is not None and sample.timestamp_s == self._last_ts:
+            return self.kept and sample.timestamp_s == self._good_ts  # the same frame again
+        if self._last_ts is not None and sample.timestamp_s < self._last_ts:
+            self._drop()  # the frames' time went back
+        self._last_ts = sample.timestamp_s
+        if sample.image_error_deg > self._settings.lock_max_image_error_deg:
+            return False  # off the axis: a blip
+        if self._good_ts is not None and sample.timestamp_s - self._good_ts > self._settings.lock_max_frame_gap_s:
+            self._drop()
+        self._good_ts, self._good_s = sample.timestamp_s, now_s
+        if self._since_ts is None:
+            self._since_ts = sample.timestamp_s
+        return self.kept
 
     def _admit(self, poi: DetectedObject | None) -> LockSample | None:
         if poi is None or not self._armed() or not self._fresh(poi):
             return None
         return lock_sample(poi)
-
-    def _observe(self, sample: LockSample, now_s: float) -> None:
-        if sample.track != self._track:
-            self.reset()
-            self._track = sample.track
-        last_s = self._last_s
-        if last_s is not None and sample.timestamp_s == last_s:
-            # The same frame seen again: nothing new, and no new frame for the frame gap breaks it.
-            if self._arrived_s is None or not 0.0 <= now_s - self._arrived_s <= self._settings.lock_max_frame_gap_s:
-                self._since_s = None
-            return
-        self._arrived_s = now_s
-        if last_s is not None and (
-            sample.timestamp_s < last_s
-            or sample.timestamp_s - last_s > self._settings.lock_max_frame_gap_s
-        ):
-            self._since_s = None
-        self._last_s = sample.timestamp_s
-        if sample.image_error_deg > self._settings.lock_max_image_error_deg:
-            self._since_s = None
-        elif self._since_s is None:
-            self._since_s = sample.timestamp_s
 
 
 __all__ = ["FreshVisualLock", "LockSample", "lock_sample"]

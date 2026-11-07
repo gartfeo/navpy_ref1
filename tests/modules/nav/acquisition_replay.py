@@ -47,7 +47,7 @@ RADIUS_M = 300.0
 HOME = (40.0, -74.0)
 OWN_CENTRE = Location(40.0027, -74.0, 0.0, is_absolute=False)  # the own-detected pose (ground ray)
 TRUTH_POISON = Location(40.05, -73.9, 55.0, is_absolute=False)  # 6 km off: any use shows at once
-M_PER_DEG_LAT = 111_320.0
+M_PER_DEG_LAT = 6_371_000.0 * math.pi / 180.0  # the same sphere as Location.distance_to, so a scripted radial is the measured one
 
 
 def offset(centre: Location, north_m: float, east_m: float, alt: float = 80.0, heading: float = 0.0) -> Location:
@@ -217,8 +217,9 @@ def oracle_allows(ticks: list, index: int) -> bool:
     """Independent check from the replay's own log: may confirm or NAV happen at tick ``index``?
 
     Orbit: every tick of the last orbit dwell had the scripted radial error within the tolerance.
-    Lock: the chain of new frames ending at the newest one is unbroken (each valid, within the image
-    error, gaps within the frame gap) and spans the lock dwell; this tick still shows a frame.
+    Lock: good frames are the new, valid frames within the image error. The chain of good frames ending
+    at the newest one has no gap over the frame gap (bad or missing frames between them are a blip) and
+    spans the lock dwell; this tick shows that newest good frame, at most the frame gap after it arrived.
     """
     t_end = ticks[index]["t"]
     window = [tick for tick in ticks[: index + 1] if tick["t"] >= t_end - GATES["orbit_dwell_s"] - 1e-9]
@@ -226,19 +227,19 @@ def oracle_allows(ticks: list, index: int) -> bool:
         tick["radial_m"] is None or abs(tick["radial_m"]) > GATES["orbit_radial_tolerance_m"] for tick in window
     ):
         return False
-    if ticks[index]["frame_ts"] is None:
+    good = [
+        tick for tick in ticks[: index + 1]
+        if tick["error_deg"] is not None and tick["new_valid"] and tick["error_deg"] <= GATES["lock_max_image_error_deg"]
+    ]
+    gap = GATES["lock_max_frame_gap_s"] + 1e-9
+    if not good or ticks[index]["frame_ts"] != good[-1]["t"] or t_end - good[-1]["t"] > gap:
         return False
-    new = [tick for tick in ticks[: index + 1] if tick["error_deg"] is not None]
-    chain = []
-    for tick in reversed(new):
-        if not tick["new_valid"] or tick["error_deg"] > GATES["lock_max_image_error_deg"]:
+    start = good[-1]
+    for tick in reversed(good[:-1]):
+        if start["t"] - tick["t"] > gap:
             break
-        if chain and chain[-1]["t"] - tick["t"] > GATES["lock_max_frame_gap_s"] + 1e-9:
-            break
-        chain.append(tick)
-    if not chain or chain[0] is not new[-1]:
-        return False
-    return chain[0]["t"] - chain[-1]["t"] >= GATES["lock_dwell_s"] - 1e-9
+        start = tick
+    return good[-1]["t"] - start["t"] >= GATES["lock_dwell_s"] - 1e-9
 
 
 __all__ = ["AcquisitionRig", "GATES", "OWN_CENTRE", "Replay", "World", "as_fix", "frame", "offset", "oracle_allows",

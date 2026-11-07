@@ -1,7 +1,8 @@
-"""Lock and confirm gates (HITL step 25): the points of the independent review, rounds 1 and 2.
+"""Lock and confirm gates (HITL step 25): the points of the independent review, rounds 1 to 3.
 
 A cached GPS position cannot hold the orbit; no path writes CONFIRMED while the gates do not hold,
-and a review under way is withdrawn when they stop, so a late operator answer cannot confirm; a
+and a review under way is withdrawn when they are lost, so a late operator answer cannot confirm (a
+blip shorter than the frame gap loses neither the lock nor the answer: owner, 2026-11-07); a
 repeated frame does not keep the lock past the frame gap; a circle already flown cannot stall the
 own ORBIT; and compass heading poisoned at the real final-approach confirmation and law boundary
 changes nothing that the gates or the law decide.
@@ -120,10 +121,12 @@ def _operator_rig() -> AcquisitionRig:
     return rig
 
 
-def test_a_lost_lock_withdraws_the_review_under_way() -> None:
+def test_a_blip_keeps_the_review_and_a_lost_lock_withdraws_it() -> None:
     rig = _operator_rig()
     manager = rig.rig.confirmation_manager
-    assert _drive(rig, 12.2, 12.2, error=1.5) is None  # pointing off: the lock breaks
+    assert _drive(rig, 12.2, 12.6, error=1.5) is None  # pointing off for 0.5 s: a blip
+    assert manager.get_status(manager.active_poi) is ConfirmationStatus.CONFIRMING  # not asked again
+    assert _drive(rig, 12.7, 12.7, error=1.5) is None  # 0.6 s since the last good frame: lost
     assert manager.get_status(manager.active_poi) is None  # withdrawn: asked again once it holds
 
 
@@ -192,18 +195,32 @@ def test_an_answer_racing_the_tick_that_sees_the_loss_is_revoked() -> None:
     assert state.registry.get_status(poi) is None
 
 
-def test_a_confirmation_is_revoked_by_a_loss_before_nav_and_asked_again() -> None:
+def _confirmed_rig() -> AcquisitionRig:
     rig = AcquisitionRig()
     assert _drive(rig, 0.0, 12.1) is None
     rig.world.t = 12.2
     rig.world.detections = [frame(12.2, 0.5, rig.now)]
     rig.tick()  # confirmed locally on this tick; NAV would come on the next
     assert rig.confirmed()
-    assert _drive(rig, 12.3, 12.3, error=1.5) is None  # pointing off before NAV
+    return rig
+
+
+def test_a_blip_before_nav_keeps_the_confirmation() -> None:
+    rig = _confirmed_rig()
+    assert _drive(rig, 12.3, 12.3, error=1.5) is None  # pointing off for one frame: not NAV on it
+    assert rig.confirmed()  # kept: the operator is not asked again
+    assert _drive(rig, 12.4, 12.4) == pytest.approx(12.4)  # NAV on the next good frame
+
+
+def test_a_confirmation_is_revoked_by_a_loss_before_nav_and_asked_again() -> None:
+    rig = _confirmed_rig()
+    assert _drive(rig, 12.3, 12.7, error=1.5) is None  # within the frame gap: still kept
+    assert rig.confirmed()
+    assert _drive(rig, 12.8, 12.8, error=1.5) is None  # 0.6 s since the last good frame: lost
     assert not rig.confirmed()
     # pointing back: the lock dwells again, confirms again, then NAV
-    assert _drive(rig, 12.4, 14.3) is None
-    assert _drive(rig, 14.4, 15.0) == pytest.approx(14.5)
+    assert _drive(rig, 12.9, 14.8) is None
+    assert _drive(rig, 14.9, 16.0) == pytest.approx(15.0)
 
 
 def test_an_operator_confirmed_while_the_gates_fail_is_refused_in_the_graph() -> None:

@@ -131,15 +131,12 @@ def test_image_error_is_the_angle_off_the_optical_axis() -> None:
     assert sample.track == (1, 1) and sample.timestamp_s == 1.0
 
 
-@pytest.mark.parametrize("break_at", ["error", "gap", "back", "track"])
+@pytest.mark.parametrize("break_at", ["gap", "back", "track"])
 def test_each_break_restarts_the_dwell(break_at) -> None:
     lock = _lock()
     assert _feed(lock, 0.0, 2.5)
-    if break_at == "error":
-        assert not lock.locked(frame(2.6, 1.2, lambda: 2.6))
-        start = 2.7
-    elif break_at == "gap":
-        assert not lock.locked(frame(3.1, 0.5, lambda: 3.1))  # 0.6 s since the last new frame
+    if break_at == "gap":
+        assert not lock.locked(frame(3.1, 0.5, lambda: 3.1))  # 0.6 s since the last good frame
         start = 3.2
     elif break_at == "back":
         assert not lock.locked(frame(2.0, 0.5, lambda: 2.6))
@@ -147,8 +144,32 @@ def test_each_break_restarts_the_dwell(break_at) -> None:
     else:
         assert not lock.locked(_other_track(2.6))
         start = 2.7
+    assert not lock.kept
     assert not _feed(lock, start, start + 1.8)
     assert _feed(lock, start + 1.9, start + 2.2)
+
+
+def test_an_off_axis_blip_under_the_gap_keeps_the_lock() -> None:
+    lock = _lock()
+    assert _feed(lock, 0.0, 2.5)
+    lock._now_s.s = 2.6
+    off_axis = frame(2.6, 1.2, lambda: 2.6)
+    assert not lock.locked(off_axis)  # not on this tick
+    lock._now_s.s = 2.7
+    assert not lock.locked(off_axis)  # nor on the same off-axis frame again
+    assert lock.kept
+    assert _feed(lock, 2.8, 2.8)  # held again on the next good frame
+
+
+def test_off_axis_frames_past_the_gap_lose_the_lock() -> None:
+    lock = _lock()
+    assert _feed(lock, 0.0, 2.5)
+    assert not _feed(lock, 2.6, 3.0, error=1.2)
+    assert lock.kept  # 0.5 s since the last good frame: still a blip
+    assert not _feed(lock, 3.1, 3.1, error=1.2)
+    assert not lock.kept
+    assert not _feed(lock, 3.2, 5.1)
+    assert _feed(lock, 5.2, 5.2)
 
 
 def _other_track(ts: float):
@@ -164,31 +185,55 @@ def test_the_same_frame_again_adds_no_dwell() -> None:
         assert not lock.locked(first)
 
 
-@pytest.mark.parametrize("invalid", ["stale", "unarmed", "not_atomic", "spherical", "nan", "none", "no_time"])
-def test_invalid_vision_breaks_the_lock(invalid) -> None:
-    fresh = {"ok": True}
-    armed = {"ok": True}
-    lock = _lock(lambda _poi: fresh["ok"], lambda: armed["ok"])
-    assert _feed(lock, 0.0, 2.5)
-    poi = frame(2.6, 0.5, lambda: 2.6)
+def _invalid(invalid: str, ts: float, fresh: dict, armed: dict):
+    poi = frame(ts, 0.5, lambda: ts)
     if invalid == "stale":
         fresh["ok"] = False
     elif invalid == "unarmed":
         armed["ok"] = False
     elif invalid == "not_atomic":
-        poi = frame(2.6, 0.5, lambda: 2.6, atomic=False)
+        poi = frame(ts, 0.5, lambda: ts, atomic=False)
     elif invalid == "spherical":
-        poi = frame(2.6, 0.5, lambda: 2.6, projection=PixelProjectionKind.SPHERICAL_EQUIANGULAR)
+        poi = frame(ts, 0.5, lambda: ts, projection=PixelProjectionKind.SPHERICAL_EQUIANGULAR)
     elif invalid == "nan":
-        poi = frame(math.nan, 0.5, lambda: 2.6)
+        poi = frame(math.nan, 0.5, lambda: ts)
     elif invalid == "no_time":
-        poi = frame(2.6, 0.5, lambda: 2.6)
         poi.replace_pixel(dataclasses.replace(poi.pixel, source_timestamp_s=None))
     else:
         poi = None
-    assert not lock.locked(poi)
+    return poi
+
+
+INVALID = ["stale", "unarmed", "not_atomic", "spherical", "nan", "none", "no_time"]
+
+
+@pytest.mark.parametrize("invalid", INVALID)
+def test_invalid_vision_is_never_held_and_a_blip_keeps_the_lock(invalid) -> None:
+    fresh = {"ok": True}
+    armed = {"ok": True}
+    lock = _lock(lambda _poi: fresh["ok"], lambda: armed["ok"])
+    assert _feed(lock, 0.0, 2.5)
+    lock._now_s.s = 2.6
+    assert not lock.locked(_invalid(invalid, 2.6, fresh, armed))
+    assert lock.kept
     fresh["ok"] = armed["ok"] = True
-    assert not _feed(lock, 2.7, 4.5)
+    assert _feed(lock, 2.7, 2.7)
+
+
+@pytest.mark.parametrize("invalid", INVALID)
+def test_invalid_vision_past_the_gap_loses_the_lock(invalid) -> None:
+    fresh = {"ok": True}
+    armed = {"ok": True}
+    lock = _lock(lambda _poi: fresh["ok"], lambda: armed["ok"])
+    assert _feed(lock, 0.0, 2.5)
+    for i in range(6):  # 2.6 .. 3.1 s: the last good frame is 0.6 s old
+        ts = round(2.6 + i * 0.1, 6)
+        lock._now_s.s = ts
+        assert not lock.locked(_invalid(invalid, ts, fresh, armed))
+    assert not lock.kept
+    fresh["ok"] = armed["ok"] = True
+    assert not _feed(lock, 3.2, 5.1)
+    assert _feed(lock, 5.2, 5.2)
 
 
 # --- orbit established ---------------------------------------------------------------------------------------------
