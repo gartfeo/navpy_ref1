@@ -249,6 +249,49 @@ def test_a_repeated_frame_breaks_the_lock_after_the_frame_gap() -> None:
     assert not lock.locked(frame(3.2, 0.5, lambda: 3.2))  # a new frame restarts the dwell
 
 
+# --- P2 (round 4): a blip cannot hide a pointing error, a track change or time going back --------------------------
+
+def _established_lock():
+    now = [0.0]
+    lock = FreshVisualLock(SETTINGS, lambda _p: True, lambda: True, lambda: now[0])
+    for i in range(26):
+        now[0] = round(i * 0.1, 6)
+        assert lock.locked(frame(now[0], 0.5, lambda: now[0])) is (i >= 20)
+    return lock, now
+
+
+def test_the_same_timestamp_off_the_axis_is_not_held() -> None:
+    lock, now = _established_lock()
+    now[0] = 2.6
+    assert not lock.locked(frame(2.5, 1.5, lambda: 2.6))  # newest good frame's time, pixels moved off
+    assert lock.kept
+
+
+def test_a_frame_seen_invalid_is_not_held_when_it_comes_again_valid() -> None:
+    lock, now = _established_lock()
+    now[0] = 2.6
+    assert not lock.locked(frame(2.6, 0.5, lambda: 2.6, atomic=False))
+    assert not lock.locked(frame(2.6, 0.5, lambda: 2.6))  # same frame time: not a new good frame
+    assert lock.kept
+    now[0] = 2.7
+    assert lock.locked(frame(2.7, 0.5, lambda: 2.7))
+
+
+@pytest.mark.parametrize("fault", ["track", "back"])
+def test_an_invalid_frame_still_shows_a_track_change_or_time_going_back(fault) -> None:
+    lock, now = _established_lock()
+    now[0] = 2.6
+    if fault == "track":
+        poi = frame(2.6, 0.5, lambda: 2.6, atomic=False)
+        poi.reidentify(obj_id=7)
+    else:
+        poi = frame(2.0, 0.5, lambda: 2.6, atomic=False)
+    assert not lock.locked(poi)
+    assert not lock.kept  # lost: the operator is asked again
+    now[0] = 2.7
+    assert not lock.locked(frame(2.7, 0.5, lambda: 2.7))  # track A again: the dwell restarts
+
+
 # --- P2: a circle already flown cannot stall the own ORBIT ----------------------------------------------------------
 
 def test_a_circle_already_flown_does_not_stall_the_own_orbit() -> None:

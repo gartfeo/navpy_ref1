@@ -10,7 +10,7 @@ The lock holds on a tick only when that tick shows a good frame. A short blip (m
 off-axis frames) does not lose it (owner, 2026-11-07: do not lose the lock, ask again only when not
 sure): it is lost only when no good frame has arrived for longer than the profile's frame gap on the
 decision clock, two good frames are further apart than that on their own timestamps, a frame comes
-from another track, or the frames' time goes back. ``kept`` says whether an established lock is
+from another track, or the frames' time goes back (any frame, good or not, counts for these two). ``kept`` says whether an established lock is
 still held through such a blip.
 """
 
@@ -91,25 +91,37 @@ class FreshVisualLock:
         now_s = float(self._now_s())
         if self._good_s is not None and not 0.0 <= now_s - self._good_s <= self._settings.lock_max_frame_gap_s:
             self._drop()  # no good frame for longer than the frame gap
+        new = self._watch(poi)
         sample = self._admit(poi)
-        if sample is None:
+        if sample is None or sample.image_error_deg > self._settings.lock_max_image_error_deg:
             return False  # a blip: not on this tick, lost only by the frame gap
-        if sample.track != self._track:
-            self.reset()
-            self._track = sample.track
-        if self._last_ts is not None and sample.timestamp_s == self._last_ts:
-            return self.kept and sample.timestamp_s == self._good_ts  # the same frame again
-        if self._last_ts is not None and sample.timestamp_s < self._last_ts:
-            self._drop()  # the frames' time went back
-        self._last_ts = sample.timestamp_s
-        if sample.image_error_deg > self._settings.lock_max_image_error_deg:
-            return False  # off the axis: a blip
+        if not new:
+            return self.kept and sample.timestamp_s == self._good_ts  # the newest good frame again
         if self._good_ts is not None and sample.timestamp_s - self._good_ts > self._settings.lock_max_frame_gap_s:
             self._drop()
         self._good_ts, self._good_s = sample.timestamp_s, now_s
         if self._since_ts is None:
             self._since_ts = sample.timestamp_s
         return self.kept
+
+    def _watch(self, poi: DetectedObject | None) -> bool:
+        """Watch the track and time of any frame, good or not; True when it is a new frame."""
+        if poi is None:
+            return False
+        try:
+            track = (int(get_poi_task_id(poi)), int(poi.identity.obj_id))
+            timestamp_s = float(poi.pixel.source_timestamp_s)
+        except (AttributeError, TypeError, ValueError):
+            return False
+        if track != self._track:
+            self.reset()  # another track: lost even when its frame is not good
+            self._track = track
+        if not math.isfinite(timestamp_s) or timestamp_s == self._last_ts:
+            return False
+        if self._last_ts is not None and timestamp_s < self._last_ts:
+            self._drop()  # the frames' time went back
+        self._last_ts = timestamp_s
+        return True
 
     def _admit(self, poi: DetectedObject | None) -> LockSample | None:
         if poi is None or not self._armed() or not self._fresh(poi):
