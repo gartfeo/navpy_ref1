@@ -12,6 +12,7 @@ from navpy.core.kernel.logging.log_output_latch import (
     OutputLatch,
     close_strictly,
 )
+from tests.logger.log_worker_join import unbounded_worker_join
 
 
 class _FailingStream:
@@ -39,7 +40,8 @@ def test_a_good_write_leaves_the_latch_clear(tmp_path):
     logger, handler, latch = _logger(tmp_path, "good")
     cache = CacheLogger(LoggerArgsStub(), logger, output_latch=latch)
     cache.info("fine")
-    close_strictly(cache)
+    with unbounded_worker_join():
+        close_strictly(cache)
     handler.close()
     assert not latch.latched
     assert "fine" in (tmp_path / "good.log").read_text(encoding="utf-8")
@@ -51,8 +53,9 @@ def test_a_swallowed_emit_error_latches_and_strict_close_raises(tmp_path, capsys
     handler.stream = _FailingStream()
     cache = CacheLogger(LoggerArgsStub(), logger, output_latch=latch)
     cache.info("lost")
-    cache.close()  # the wall close: the same swallowed error, no raise
+    with unbounded_worker_join():
+        cache.close()  # the wall close: the same swallowed error, no raise
     assert latch.latched
     assert "OSError: disk full" in capsys.readouterr().err  # logging's own report, unchanged
-    with pytest.raises(LogOutputFailed):
+    with unbounded_worker_join(), pytest.raises(LogOutputFailed):
         close_strictly(cache)

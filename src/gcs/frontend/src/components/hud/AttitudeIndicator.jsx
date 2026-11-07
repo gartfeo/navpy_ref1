@@ -4,7 +4,8 @@ import { scheduleRaf, cancelRaf } from '../../utils/rafScheduler';
 const WING_COLOR = '#00d2ff';
 const LERP = 0.15;
 
-export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
+/** `scale` false: horizon and wings only, no pitch ladder or roll arc (a box too small to read them). */
+export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0, scale = true }) {
   const canvasRef = useRef(null);
   const [dims, setDims] = useState(null);
 
@@ -12,6 +13,8 @@ export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
   const poiRef = useRef({ p: 0, r: 0 });
   const displayRef = useRef({ p: 0, r: 0 });
   poiRef.current = { p: pitch || 0, r: roll || 0 };
+  const scaleRef = useRef(scale);
+  scaleRef.current = scale;
 
   // Track parent size
   useEffect(() => {
@@ -36,7 +39,7 @@ export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
       const t = poiRef.current;
       d.p += (t.p - d.p) * LERP;
       d.r += (t.r - d.r) * LERP;
-      draw(canvasRef.current, d.p, d.r, dims.w, dims.h);
+      draw(canvasRef.current, d.p, d.r, dims.w, dims.h, scaleRef.current);
     });
     return () => cancelRaf(id);
   }, [dims]);
@@ -58,7 +61,8 @@ export default React.memo(function AttitudeIndicator({ pitch = 0, roll = 0 }) {
   );
 });
 
-function draw(canvas, pitch, roll, w, h) {
+/** One frame; exported for its test. */
+export function draw(canvas, pitch, roll, w, h, scale) {
   const ctx = canvas?.getContext('2d');
   if (!ctx) return;
   const dpr = window.devicePixelRatio || 1;
@@ -84,6 +88,59 @@ function draw(canvas, pitch, roll, w, h) {
   ctx.lineTo(diag, pitchPx);
   ctx.stroke();
 
+  if (scale) drawScale(ctx, pitchPx, pxPerDeg, w, h);
+
+  // Reset rotation — everything below is fixed on screen
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+  // Aircraft wings symbol (fixed center)
+  const wingScale = Math.min(w, h) / 200;
+  const wingLen = 35 * wingScale;
+  const wingGap = 8 * wingScale;
+
+  ctx.strokeStyle = WING_COLOR;
+  ctx.fillStyle = WING_COLOR;
+  ctx.lineWidth = 2.5;
+
+  // Center dot
+  ctx.beginPath();
+  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Left wing
+  ctx.beginPath();
+  ctx.moveTo(cx - wingGap, cy);
+  ctx.lineTo(cx - wingGap - wingLen, cy);
+  ctx.lineTo(cx - wingGap - wingLen, cy + 6);
+  ctx.stroke();
+
+  // Right wing
+  ctx.beginPath();
+  ctx.moveTo(cx + wingGap, cy);
+  ctx.lineTo(cx + wingGap + wingLen, cy);
+  ctx.lineTo(cx + wingGap + wingLen, cy + 6);
+  ctx.stroke();
+
+  // Roll pointer — fixed triangle at top center, pointing inward to the roll arc
+  if (scale) {
+    const arcR = rollArcRadius(w, h);
+    ctx.fillStyle = WING_COLOR;
+    ctx.beginPath();
+    ctx.moveTo(cx, cy - arcR + 10);
+    ctx.lineTo(cx - 5, cy - arcR);
+    ctx.lineTo(cx + 5, cy - arcR);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+/** The roll arc's radius; the fixed roll pointer sits on it. */
+const rollArcRadius = (w, h) => Math.min(w, h) * 0.35;
+
+/** Pitch ladder and roll arc, in the rotated frame. */
+function drawScale(ctx, pitchPx, pxPerDeg, w, h) {
   // Pitch ladder — extends to the roll arc radius
   const ladderW = Math.min(w, h) * 0.35;
   const fontSize = Math.round(Math.min(w, h) / 25);
@@ -124,7 +181,7 @@ function draw(canvas, pitch, roll, w, h) {
   }
 
   // Roll arc + ticks + labels (rotate with horizon)
-  const arcR = Math.min(w, h) * 0.35;
+  const arcR = rollArcRadius(w, h);
   ctx.strokeStyle = 'rgba(255,255,255,0.5)';
   ctx.lineWidth = 1.2;
   ctx.beginPath();
@@ -160,46 +217,4 @@ function draw(canvas, pitch, roll, w, h) {
       }
     }
   }
-
-  // Reset rotation — everything below is fixed on screen
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-  // Aircraft wings symbol (fixed center)
-  const wingScale = Math.min(w, h) / 200;
-  const wingLen = 35 * wingScale;
-  const wingGap = 8 * wingScale;
-
-  ctx.strokeStyle = WING_COLOR;
-  ctx.fillStyle = WING_COLOR;
-  ctx.lineWidth = 2.5;
-
-  // Center dot
-  ctx.beginPath();
-  ctx.arc(cx, cy, 3, 0, Math.PI * 2);
-  ctx.fill();
-
-  // Left wing
-  ctx.beginPath();
-  ctx.moveTo(cx - wingGap, cy);
-  ctx.lineTo(cx - wingGap - wingLen, cy);
-  ctx.lineTo(cx - wingGap - wingLen, cy + 6);
-  ctx.stroke();
-
-  // Right wing
-  ctx.beginPath();
-  ctx.moveTo(cx + wingGap, cy);
-  ctx.lineTo(cx + wingGap + wingLen, cy);
-  ctx.lineTo(cx + wingGap + wingLen, cy + 6);
-  ctx.stroke();
-
-  // Roll pointer — fixed triangle at top center, pointing inward
-  ctx.fillStyle = WING_COLOR;
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - arcR + 10);
-  ctx.lineTo(cx - 5, cy - arcR);
-  ctx.lineTo(cx + 5, cy - arcR);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.restore();
 }

@@ -56,6 +56,7 @@ class OrbitMount(Protocol):
 # that idealized plant. The lateral benefit above is the real, retained reason
 # to keep 500 m; closing the vertical axis needs a live-SITL pitch/geometry
 # change, not more standoff. approach_ready_dist = orbit_radius + PEER_APPROACH_MARGIN_M.
+# A HITL profile may replace this floor explicitly (orbit_radius_setting.py, HITL step 23).
 MIN_APPROACH_STANDOFF_M = 500.0
 
 # Legacy no-zoom / no-orbit-limits acquisition floor ("never park closer than

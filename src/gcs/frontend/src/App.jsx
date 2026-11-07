@@ -56,9 +56,9 @@ import useElementSize from './hooks/useElementSize';
 import useSidePanel from './hooks/useSidePanel';
 import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { isPending } from './hooks/taskConfirmationState';
-import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
+import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, collapsedListWidth, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
 import { rcHudLayout } from './utils/hudLayout';
-import { DEFAULT_BASE_LAYER, isBaseLayerAvailable, secondViewLayer } from './components/map/utils/baseLayers';
+import { syntheticBaseLayer } from './components/map/utils/baseLayers';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
@@ -86,6 +86,7 @@ const RC_HELD_TOP_PX = RC_FPV_TAG_TOP_PX + FPV_HELD_OFFSET_PX;
 const RC_TAPE_BOTTOM_PX = STICK_INSET_PX + STICK_SIZE_PX + RC_CONFIRM_GAP_PX;
 /** Desktop map pane, used until the real pane is measured. */
 const FALLBACK_PANE = { width: 1280, height: 800 };
+const NO_HUD_CORNER = { width: 0, height: 0 };
 
 export default function App() {
   const { t } = useTranslation();
@@ -145,10 +146,14 @@ export default function App() {
   const mapCameraRef = useRef(null);
   // The map's UAV pose source for the vehicle window's synthetic view.
   const poseSourceRef = useRef(null);
+  // The map's route source (each UAV's own route and next waypoint) for the first-person views.
+  const routeSourceRef = useRef(null);
   const mapPaneRef = useRef(null);
   const mapPane = useElementSize(mapPaneRef, FALLBACK_PANE);
   // The RC flight-mode column's height, reported by the column; null until measured.
   const [rcColumnPx, setRcColumnPx] = useState(null);
+  // RC's HUD top-right column (link, battery, next waypoint), measured by the HUD.
+  const [rcHudCorner, setRcHudCorner] = useState(NO_HUD_CORNER);
   // The right panel's rule starts from the real width, so the map never mounts
   // in the sliver a docked panel would leave on a phone.
   const rootRef = useRef(null);
@@ -569,6 +574,15 @@ export default function App() {
   const showWindow = vehicleWindowVisible({
     monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length, open: win.open,
   });
+  // ---- Right panel (docs/design/gcs_handheld_layout.md) ----
+  // One list element in every mode; a round shows over the map while collapsed.
+  const panelCollapsed = sidePanel.mode === 'collapsed';
+  const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
+  const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;
+  // The maximized window keeps right of the list, so no card covers its HUD.
+  const listReservePx = collapsedListShown
+    ? collapsedListWidth(mapPane.width) + PANEL_MARGIN_PX
+    : 0;
   const windowLayout = vehicleWindowLayout({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
@@ -577,6 +591,7 @@ export default function App() {
     mapCreditsPx,
     windowChromePx,
     windowCreditsPx,
+    leftReservePx: listReservePx,
   });
   const swapped = showWindow && win.swapped && windowLayout.canSwap;
   const smallMap = windowLayout.smallMap;
@@ -620,17 +635,12 @@ export default function App() {
   });
   const rcHeldRight = rcList.heldRight ?? RC_HELD_RIGHT_PX;
 
-  // ---- Right panel (docs/design/gcs_handheld_layout.md) ----
-  // One list element in every mode; a round shows over the map while collapsed.
-  const panelCollapsed = sidePanel.mode === 'collapsed';
-  const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
   const collapsedBox = collapsedListBox({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
     topControlsBottom,
     windowBox: showWindow && !swapped ? windowLayout.window : null,
   });
-  const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;
   const panelToggleShown = !mc.manualControlEnabled;
   const pendingCount = Object.values(taskConfirm.pendingConfirms || {}).filter(isPending).length;
 
@@ -782,6 +792,7 @@ export default function App() {
             mapCameraRef={mapCameraRef}
             swapped={swapped}
             poseSourceRef={poseSourceRef}
+            routeSourceRef={routeSourceRef}
             onCreditsHeight={setMapCreditsPx}
             onTerrainReady={setIonTerrain}
             onViewerReady={setMapReady}
@@ -873,9 +884,10 @@ export default function App() {
               poseSourceRef={poseSourceRef}
               storeRef={storeRef}
               ionTerrain={ionTerrain}
-              baseLayer={secondViewLayer(isBaseLayerAvailable(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)
-                ? baseLayerChoice.baseLayer : DEFAULT_BASE_LAYER)}
+              baseLayer={syntheticBaseLayer(baseLayerChoice.baseLayer, baseLayerChoice.hasIon)}
               onBaseLayerFailed={baseLayerChoice.onFailed}
+              routeSourceRef={routeSourceRef}
+              panelShown={sidePanel.open}
               onSyntheticCreditsHeight={setWindowCreditsPx}
               onChromeHeight={setWindowChromePx}
             />
@@ -929,7 +941,10 @@ export default function App() {
               <TelemetryHud
                 key={mc.manualControlTarget}
                 sysId={mc.manualControlTarget}
+                routeSourceRef={routeSourceRef}
+                onCornerSize={setRcHudCorner}
                 layout={rcHudLayout({
+                  corner: rcHudCorner,
                   tapeBox: hudTapeBox({ paneHeight: mapPane.height, top: RC_FPV_TAG_TOP_PX, bottom: RC_TAPE_BOTTOM_PX }),
                   speedBox: speedTapeBox({
                     paneHeight: mapPane.height,

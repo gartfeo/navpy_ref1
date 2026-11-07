@@ -6,6 +6,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
+from navpy.core.perception.pointing.compensated_los_rate import CameraFeedforwardConfig
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTrackerConfig
 from navpy.core.perception.pointing.poi_angle_estimator import PoiAngleEstimatorConfig
 
@@ -103,6 +104,7 @@ def build_tracking_profile(
         "settle_tolerance_deg",
     }
     allowed_keys = rate_keys | {
+        "camera_feedforward",
         "command_lead_time",
         "enabled",
         "estimator",
@@ -130,6 +132,11 @@ def build_tracking_profile(
             tracking["command_lead_time"],
             "gimbal.tracking.command_lead_time",
         )
+    if _boolean(
+        tracking.get("camera_feedforward", False),
+        "gimbal.tracking.camera_feedforward",
+    ):
+        rate_kwargs["camera_feedforward"] = CameraFeedforwardConfig()
     estimator = _estimator_config(tracking.get("estimator"))
     if estimator is not None:
         rate_kwargs["estimator"] = estimator

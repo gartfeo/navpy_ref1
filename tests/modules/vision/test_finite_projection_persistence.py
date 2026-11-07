@@ -1,7 +1,7 @@
 """Offline persistence through the production logger, with no simulator."""
 import json
 import logging
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
@@ -9,15 +9,13 @@ from navpy.core.kernel.config.logger_args import LoggerArgsStub
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.logging.logger_factory import initialize_logger
 from navpy.sim.camera.finite_projection_evidence import projection_log_sink
+from tests.logger.log_worker_join import unbounded_worker_join
 from tests.modules.vision.test_finite_projection_evidence import rig
 from navpy.core.kernel.attitude import Attitude
 
 
 def close_logger(logger, sysid):
-    # Close bounds its worker join (2 s) against a stuck handler; test_cache_log_worker
-    # covers that bound. Here a loaded host can need longer to write the queued rows,
-    # so the join waits for the worker to finish them.
-    with patch("navpy.core.kernel.logging.cache_log_worker.CACHE_WORKER_JOIN_TIMEOUT_S", None):
+    with unbounded_worker_join():
         logger.close()
     text = logging.getLogger(f'vehicle_logger_{sysid}')
     for handler in list(text.handlers):

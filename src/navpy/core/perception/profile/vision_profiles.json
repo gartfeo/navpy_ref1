@@ -759,10 +759,16 @@
     },
     "siyi_zr10_hitl_encoded": {
       "extends": "siyi_zr10",
+      "final_approach_orbit": {
+        "radius_m": 300.0
+      },
       "device_overrides": {
         "siyi_zr10": {
           "gimbal": {
             "siyi_ip": "127.0.0.1",
+            "tracking": {
+              "camera_feedforward": true
+            },
             "search": {
               "yaw_deg": [-45.0, 45.0],
               "pitch_rows_deg": [-17.0],

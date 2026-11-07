@@ -1,6 +1,8 @@
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+import pytest
+
 from navpy.core.ports.pose_stream_rate import (
     ARDUPILOT_MESSAGE_RATE_SCHEDULER_FRACTION,
     POSE_FRAME_ASSOCIATION_ABSOLUTE_MAX_SKEW_S,
@@ -8,6 +10,9 @@ from navpy.core.ports.pose_stream_rate import (
     POSE_FRAME_ASSOCIATION_MAX_SKEW_S,
     POSE_STREAM_RATE_HZ,
     SCHED_LOOP_RATE_FALLBACK_HZ,
+    SCHED_LOOP_RATE_MAX_HZ,
+    SCHED_LOOP_RATE_MIN_HZ,
+    SchedulerRateConfigError,
     pose_frame_association_max_skew_s,
 )
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
@@ -41,28 +46,55 @@ def test_resolves_raw_ardupilot_scheduler_rate_for_navigation_loop():
     assert resolve_ardupilot_scheduler_rate_hz(vehicle) == 80.0
 
 
-def test_scheduler_rate_resolution_falls_back_for_invalid_param():
+def _reporting(value):
+    return SimpleNamespace(get_param_or_default=Mock(return_value=value))
+
+
+def test_scheduler_rate_resolution_falls_back_without_a_numeric_param():
+    # No parameters at all, or a reply no ArduPilot parameter can be.
     assert (
         resolve_ardupilot_scheduler_rate_hz(SimpleNamespace())
         == SCHED_LOOP_RATE_FALLBACK_HZ
     )
-    for bad in (None, True, 0.0, -1.0, float("nan"), float("inf"), "bad"):
-        vehicle = SimpleNamespace(
-            get_param_or_default=Mock(return_value=bad),
-        )
+    for not_a_number in (None, True, "bad", Mock()):
         assert (
-            resolve_ardupilot_scheduler_rate_hz(vehicle)
+            resolve_ardupilot_scheduler_rate_hz(_reporting(not_a_number))
             == SCHED_LOOP_RATE_FALLBACK_HZ
         )
 
 
-def test_pose_rate_resolution_falls_back_for_missing_or_invalid_param():
+def test_scheduler_rate_range_is_the_one_ardupilot_runs():
+    # AP_Scheduler::init clamps SCHED_LOOP_RATE to 50..2000 Hz.
+    assert SCHED_LOOP_RATE_MIN_HZ == 50.0
+    assert SCHED_LOOP_RATE_MAX_HZ == 2000.0
+    for rate in (50, 50.0, 300.0, 400.0, 2000.0):
+        assert resolve_ardupilot_scheduler_rate_hz(_reporting(rate)) == rate
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [0.0, -1.0, 0.5, 49.9, 2000.1, 1e300, 1e-300,
+     float("nan"), float("inf"), float("-inf")],
+)
+def test_out_of_range_scheduler_rate_refuses_to_start(bad):
+    # Owner ruling 2026-11-07 (todo 291): a reported rate the scheduler does
+    # not run is a configuration error; NavPy refuses to start and names
+    # the parameter to fix, for the scheduler and the pose rate alike.
+    for resolve in (
+        resolve_ardupilot_scheduler_rate_hz,
+        resolve_pose_stream_rate_hz,
+    ):
+        with pytest.raises(SchedulerRateConfigError, match="SCHED_LOOP_RATE"):
+            resolve(_reporting(bad))
+
+
+def test_pose_rate_resolution_falls_back_without_a_numeric_param():
     assert resolve_pose_stream_rate_hz(SimpleNamespace()) == POSE_STREAM_RATE_HZ
-    for bad in (None, 0.0, -1.0, float("nan"), float("inf"), "bad"):
-        vehicle = SimpleNamespace(
-            get_param_or_default=Mock(return_value=bad),
+    for not_a_number in (None, "bad"):
+        assert (
+            resolve_pose_stream_rate_hz(_reporting(not_a_number))
+            == POSE_STREAM_RATE_HZ
         )
-        assert resolve_pose_stream_rate_hz(vehicle) == POSE_STREAM_RATE_HZ
 
 
 def test_frame_pose_skew_bound_is_derived_from_pose_stream_period():

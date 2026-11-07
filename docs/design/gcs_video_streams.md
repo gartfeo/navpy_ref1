@@ -437,9 +437,13 @@ large vehicle view.
   Satellite too, check it live, and fall back to Terrain if it broke. Live
   (2026-11-04, todo 275) it broke: with both views on Satellite the main map's
   credit list kept five empty entries while Synthetic's held the Bing credits,
-  and Synthetic drew no imagery in 45 s. So Satellite is a one-view layer
-  (`oneView` in `BASE_LAYERS`) and Synthetic shows Terrain while the map is on
-  it (`secondViewLayer`). Options
+  and Synthetic drew no imagery in 45 s, so Satellite became a one-view layer
+  with Terrain in Synthetic. The owner overrode that on 2026-11-06 ("in fpv
+  syntetic view the layer is not sattelite it should be same as base map"):
+  each Satellite layer now gets its own copy of each tile credit
+  (`withOwnTileCredits`, as Cesium clones its logo credit per display), so
+  Synthetic shows the map's layer, Satellite included (`syntheticBaseLayer`;
+  todo 294). Options
   (Cesium 1.138.0 installed):
   `baseLayer: false` at construction (never `imageryProvider`, ignored since
   1.107, and never undefined, which adds Ion world imagery); the base layer
@@ -455,27 +459,90 @@ large vehicle view.
   `maximumRenderTimeChange` Infinity, the main map's target frame rate as one
   shared constant, `msaaSamples` 1, `showRenderLoopErrors` false, camera
   inputs off; sky atmosphere on (a horizon cue the main map does not draw),
-  sun, moon and sky box off. No entities; peers, docks and tracks stay on the
+  sun, moon and sky box off. No entities: the UAV's own route is drawn with
+  primitives (Mission path below); peers, docks and other tracks stay on the
   main map.
-- HUD (2026-11-04): one shared component, `TelemetryHud`, drawn by RC control
-  over the main map and by Synthetic inside its picture: attitude lines,
-  heading tape, speed and altitude tapes, the link, GPS and battery row and
-  the status texts. It is display only (no taps, no buttons); the sticks, the
-  flight-mode and arm column, the UAV selector and the confirm list stay with
-  RC control, and nothing RC sends changes. Where its parts go is a pure
-  layout per host (`utils/hudLayout.js`): `rcHudLayout` keeps RC control's
-  placement as it was; `pictureHudLayout` puts the tag and the status row in
-  one top row (the tag wraps before the row), the heading tape (36 px high like RC's, since its labels need that,
-  at most 300 px wide) under it, 56 px tapes from there to the credit line,
-  left out below 48 px, and while maximized keeps the row and the heading tape
-  left of the small map and the altitude tape below it, and insets the
-  attitude indicator by the small map's width on both sides, so it keeps the
-  picture's centre and its ladder and roll arc end left of the small map
-  (full width below 180 px). The HUD shows only
-  while a frame with the window UAV's pose is drawn, never under the
-  "Waiting for pose" cover. The renderers stay two: RC control keeps the main
-  map's camera (its imagery, terrain and entities), Synthetic its own widget,
-  with the nose pose math shared (`fpvPose.js`).
+- HUD (2026-11-04, sizes and route 2026-11-06, todo 294): one shared
+  component, `TelemetryHud`, drawn by RC control over the main map and by
+  Synthetic inside its picture. It is display only (no taps, no buttons); the
+  sticks, the flight-mode and arm column, the UAV selector and the confirm
+  list stay with RC control, and nothing RC sends changes. Where its parts go
+  is a pure layout per host (`utils/hudLayout.js`). One rule for every host:
+  what the right panel shows, the HUD does not repeat, so the link, GPS and
+  battery row, the flight mode and the status texts show only while the panel
+  is hidden (collapsed, or the drawer closed); RC hides the panel, so in RC
+  they always show (the mode excepted, below). The owner's words: "mission
+  path is not visible, also we should have the small view and expand view.
+  some info in small view are duplicate and overlap. if the right bar is there
+  we should hide infos like battery, etc."
+  - Normal size (`pictureHudLayout`, compact): the flight picture only. The
+    tag and, at the top right, "WP n · distance"; the heading strip below;
+    "AS · GS m/s" (left) and "ALT m" (right) as plain numbers; one line of
+    status texts above the credit line (panel hidden); the attitude indicator
+    in the band between those rows, so nothing overlaps. Never the link,
+    battery or mode row. When the height runs out the status texts drop
+    first, then the heading strip; the attitude scale (ladder, roll arc)
+    shows only in a band of at least 110 px (not at the 179 px normal size),
+    so only the horizon and the wings show there (an open point for the
+    owner: the requested order drops the scale last). A band under 32 px
+    gives the horizon the whole picture behind the readouts, as maximized.
+    Speed and altitude never drop: at the smallest picture (82 px) they take
+    the waypoint's place in the top row.
+  - Maximized (full): the speed (AS with a GS readout) and altitude tapes,
+    the heading tape, the attitude scale, and at the top right "Next WP n ·
+    distance · ETE mm:ss"; with the panel hidden also the mode, link and
+    battery row and the status texts. The heading tape is centred on the
+    picture, where the view looks (owner 2026-11-07: "compas yaw is not
+    centered"), narrowed to clear the small map, and below the small map
+    where that leaves it under 150 px. The row stays left of the small map,
+    the altitude tape below it; the attitude indicator is
+    inset by the small map's width on both sides (full width below 180 px).
+    Where the room left of the small map leaves the tag under 120 px, the
+    top-right column and the heading tape move below the small map, across
+    the picture (live check 2026-11-06: the tag printed a character per line).
+  - RC control (`rcHudLayout`): the maximized layout over the main map plus
+    RC's own items, in RC's placement as before. Never the mode (the
+    flight-mode column shows it); the link, battery row and status texts
+    always (no right panel in RC); the altitude tape starts below the
+    top-right column.
+  - Next waypoint: the UAV's next track waypoint from the same mission
+    progress the main map's track uses (`useTrackLayer`), numbered 1-based
+    along the route; the distance is horizontal; ETE is the distance over the
+    ground speed, left out below 1 m/s. Outside AUTO there is none (the
+    UAV flies to no waypoint; the route stays drawn). Display only, never a navigation
+    input (the owner, 2026-11-06: one time, by ground speed; both speeds in
+    the speed readout as in Mission Planner).
+  The HUD shows only while a frame with the window UAV's pose is drawn,
+  never under the "Waiting for pose" cover. The renderers stay two: RC
+  control keeps the main map's camera (its imagery, terrain and entities),
+  Synthetic its own widget, with the nose pose math shared (`fpvPose.js`).
+- Gimbal view (owner 2026-11-07: "I think we should show the gimbal view?
+  currently it is straight view"): with live gimbal telemetry for the UAV
+  (the same `selectGimbalTelemetry` the map's detection envelope uses),
+  Synthetic looks along the camera's optical axis with the camera's
+  horizontal field of view (`map/utils/gimbalView.js`), and the tag reads
+  "SYNTHETIC · gimbal · not camera"; without it, the nose view and
+  "SYNTHETIC · nose · not camera". The HUD stays aircraft data; the attitude
+  indicator hides while the camera is turned more than 5 degrees from the nose
+  view (its axis or its roll about it),
+  where an aircraft horizon over a camera picture would mislead. RC control
+  stays the nose view.
+- Confirm list and the maximized window (owner 2026-11-07: "on confirmation
+  is hiding speed and other info"): with the panel collapsed, a round's list
+  lies at the map pane's left; the maximized window then starts one margin
+  right of it, so no card covers the speed tape, tag or bar
+  (`vehicleWindowLayout` `leftReservePx`). Where the pane is too narrow for
+  the list and a whole small map, the window keeps the whole pane and the
+  list lies over the picture, as the cards win.
+- Mission path (2026-11-06, todo 294): both first-person views show the
+  viewed UAV's own route (owner: own UAV only) from the main map's plan and
+  terrain-sampled track positions (`useRouteSource`, `utils/fpvRoute.js`),
+  drawn with scene primitives (`map/utils/routeOverlay.js`): Synthetic draws
+  the line, a dot per waypoint (the next larger and outlined) and, maximized,
+  every waypoint's number, at normal size only the next one's. RC control
+  adds the RC UAV's dots and numbers on the main map, whose own track line
+  already shows (all UAVs' tracks stay there as on the map); with tracks
+  hidden on the map the overlay draws the RC UAV's line itself.
 - Pose: the same interpolated position and orientation the map's UAV model
   uses (copies through a narrow source ref from `CesiumMap`, wired like the
   map camera ref), through today's first-person math moved into one pure helper
@@ -1204,6 +1271,12 @@ section above is written that way.
    should be similar to rc control but without control use shared view";
    asked to choose, "HUD + imagery" and, for Satellite, "Same layer, test
    it", with Terrain as the fallback if it broke. Synthetic shows the map's
-   base layer (Terrain while the map is on Satellite, which broke live) and
+   base layer (Satellite too since 2026-11-06, todo 294) and
    RC control's HUD from one shared component, no map entities, none of RC's
    controls (todo 275).
+11. FPV sizes and route (owner, 2026-11-06, todo 294): the HUD repeats
+   nothing the right panel shows; a compact normal size and a full maximized
+   layout; the viewed UAV's own route in both first-person views; one time to
+   the next waypoint, by ground speed; the flight mode only maximized with the
+   panel hidden, never in RC (Codex's UX advice, the owner's ask); RC shows
+   link, battery and status texts, as its panel is hidden.

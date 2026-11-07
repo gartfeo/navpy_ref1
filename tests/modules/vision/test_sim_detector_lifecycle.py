@@ -607,11 +607,12 @@ def test_ideal_source_rate_follows_ardupilot_scheduler_capacity():
         get_param_or_default=Mock(return_value=400.0)
     )
     slow_scheduler = SimpleNamespace(
-        get_param_or_default=Mock(return_value=20.0)
+        # The slowest rate NavPy starts with (todo 291); 20 Hz now refuses.
+        get_param_or_default=Mock(return_value=50.0)
     )
 
     assert source_stream_rate_hz(fast_scheduler) == 320.0
-    assert source_stream_rate_hz(slow_scheduler) == 16.0
+    assert source_stream_rate_hz(slow_scheduler) == 40.0
 
 
 def test_ideal_receipt_tolerance_tracks_wall_cadence_but_reorder_stays_raw():

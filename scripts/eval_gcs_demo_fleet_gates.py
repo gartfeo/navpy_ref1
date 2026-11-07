@@ -31,6 +31,7 @@ from scripts.eval_gcs_demo_confirmation_timing import approval_timing_errors
 from scripts.eval_gcs_demo_assignment_lines import parse_assignment_lines
 from scripts.eval_gcs_demo_constants import backend_log_path
 from scripts.eval_gcs_demo_fleet_faults import fault_recovery_errors
+from scripts.eval_gcs_demo_gates import evidence_failure_errors
 from scripts.eval_gcs_demo_fleet_packets import (
     applied_chains,
     applied_emissions,
@@ -100,7 +101,8 @@ def role_order_errors(lines: Lines, role: str) -> list[str]:
 def vehicle_workflow_errors(lines: Mapping[int, Lines], plan: DemoMissionPlan) -> list[str]:
     return [f"vehicle {vehicle.sys_id}: {error}" for vehicle in plan.vehicles
             for error in workflow_tick_errors(lines[vehicle.sys_id])
-            + role_order_errors(lines[vehicle.sys_id], vehicle.role)]
+            + role_order_errors(lines[vehicle.sys_id], vehicle.role)
+            + evidence_failure_errors("\n".join(line for _k, line in lines[vehicle.sys_id]))]
 
 
 def backend_assignment_errors(log_dir: Path, records: Sequence[Mapping],

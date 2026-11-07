@@ -14,6 +14,7 @@ from unittest.mock import MagicMock
 from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
 from navpy.core.kernel.logging.logger_factory import initialize_logger
+from tests.logger.log_worker_join import unbounded_worker_join
 
 
 def _logger_args(level):
@@ -35,7 +36,8 @@ def _run(level, sys_id, monkeypatch, tmp_path):
     try:
         cache_logger.debug("TRACKER: marker_debug_line")
         cache_logger.info("marker_info_line")
-        cache_logger.close()  # drains the worker queue, flushes handlers
+        with unbounded_worker_join():
+            cache_logger.close()  # drains the worker queue, flushes handlers
         log_file = Path(cache_logger.log_path) / f"uav_{sys_id}_navigation.log"
         return log_file.read_text(encoding="utf-8")
     finally:

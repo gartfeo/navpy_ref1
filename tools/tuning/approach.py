@@ -4,11 +4,13 @@ Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
 
     python -s -m tools.tuning.sitl_driver approach --mode pc-sitl --model-dir M --model-input MI.json
         --media-runtime MR.json --publisher-profile P.json --aas-hitl A --uproject U.uproject
-        --params-file F.parm --scenario-series SERIES.json --seed-index N [--timing-constants FIT.json]
+        --params-file F.parm --scenario-series SERIES.json --seed-index N --board-height-m H
+        [--timing-constants FIT.json]
 
 The scenario service (tools/hitl/scenario_service.py, its own process: approach_scenario.py) prepares the seed's
 scenario folder; the runner reads only its public half (identity, lane, limits: scenario_public.py) and hands Unreal the
-path of its private file unread. It writes the run's record (approach_records.py) into a new private run folder, refuses
+path of its private file unread. It refuses an infeasible HITL orbit (approach_orbit.py, step 23), then writes the
+run's record (approach_records.py) into a new private run folder, refuses
 at once when a role's port or Unreal is taken or anything holds a role (approach_owners.py), then starts backing ->
 router -> board setup (parameters, the bridge, the boot on the bridge) -> emulator -> publisher -> Unreal -> navpy, each
 on its ready line (the publisher first: Unreal connects to it), and counts each role's owners again. Takeoff, the
@@ -45,6 +47,7 @@ from tools.hitl.source_identity import source_identity
 from tools.hitl.timing_fit import FIT_SCHEMA
 from tools.tuning import approach_chain as chain, approach_handles as handles, approach_scenario as scenario_run
 from tools.tuning import approach_airspeed as airspeed, approach_owners as owners, approach_quiesce as stop
+from tools.tuning.approach_orbit import orbit_check
 from tools.tuning.approach_lane import FIRST_LANE_SEQ, LaneSpec, build_lane, fly_lane
 from tools.tuning.approach_procs import STOP_EOF, PosixHandle, ProcessGroup, RunnerError, spawn_posix
 from tools.tuning.approach_verdict import verdict
@@ -189,6 +192,7 @@ def approach(args: argparse.Namespace) -> int:
     run_id = "approach-" + datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     run_dir = Path(args.run_root or private_dir() / "runs" / "approach") / run_id
     scenario = scenario_run.public(args.scenario_series, args.seed_index)     # refuses a bad series or seed first
+    orbit_check_result = orbit_check(args, scenario)        # refuses an infeasible orbit before the run folder
     record = _record(args, run_id, repo, scenario)          # refuses bad inputs before the run folder exists
     run_dir.mkdir(parents=True, exist_ok=False)
     scenario_dir = run_dir / scenario_run.SCENARIO_DIR
@@ -205,7 +209,7 @@ def approach(args: argparse.Namespace) -> int:
     run: dict = {"run_id": run_id, "mode": MODE, "record": str(record_path), "scenario": scenario,
                  "addresses": [wsl_ip, windows_ip], "commissioning": record["commissioning"],
                  "admission_problems": media_fault_spec.admission_problems(record),
-                 "sitl_binary": _binary(args.sitl_binary)}
+                 "sitl_binary": _binary(args.sitl_binary), "orbit_check": orbit_check_result}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip), None, 0,
                          run_dir / "board", args.origin, popen=_adopting_popen(group))
     files = board_param_files([run_dir / BOARD_SCRIPTING], [Path(p) for p in args.params_file or []], True, False,
@@ -285,6 +289,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--python", default=sys.executable, help="the Python navpy and the tools run with")
     a.add_argument("--windows-python", required=True, help="WSL path of the Windows Python the emulator runs with")
     a.add_argument("--params-file", action="append", help="starting parameters, as dock-pass")
+    a.add_argument("--board-height-m", type=float, required=True,
+                   help="the board's design height above home (m), for the orbit check")
     a.add_argument("--hitl-data", type=Path, help="the aircraft's private HITL files (default: the private folder)")
     a.add_argument("--scenario-series", required=True,
                    help="the private series file (tools/hitl/scenario_service.py new-series); read only by the service")

@@ -12,7 +12,10 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note; twice more in HITL step 14, even with "\\n" in a quoted 'PYEOF' heredoc). Insert or
-  change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  change code with the Edit tool, never a heredoc; check with `ast.parse`. Once more in
+  todo 290 (2026-11-05): a `"\\n".join` in a heredoc replacement string broke a gate file.
+  And the same line again on 2026-11-06, in the same task, after reading this entry: any
+  edit text holding a backslash goes through the Edit tool, with no exceptions.
   A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
   (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
@@ -2406,9 +2409,13 @@
 - A bounded close is not a drain wait: CacheLogger.close joins its worker for 2 s and raised
   TimeoutError under load, both with 1000 queued rows and with only its own close message queued.
   Draining first still leaves that message inside the bound. A test that does not test the bound
-  patches CACHE_WORKER_JOIN_TIMEOUT_S to None. Prove it by slowing _handle past 2 s.
-- From Git Bash, PYTHONPATH="$PWD/src" is a POSIX path that the Windows venv ignores, so pytest
-  imported the main checkout's src through the editable install. Use $(cygpath -w "$PWD")\src.
+  closes inside tests/logger/log_worker_join.unbounded_worker_join(). Fixing one file at a time let
+  the same CI failure move to the next (persistence, then the latch test); grep tests/ for every
+  real-thread CacheLogger close at once. Prove it by slowing _handle past 2 s, run serially: xdist
+  workers do not inherit the slowdown. Lockstep tests run on virtual threads and are unaffected.
+- From Git Bash, a single PYTHONPATH="$PWD/src" is converted to a Windows path, but a ;-joined list
+  such as "$PWD/src;$PWD" is not, so pytest imported the main checkout's src through the editable
+  install. Use one entry, or $(cygpath -w "$PWD")\src, and check navpy.__file__.
 - I kept only the last 30 lines of a 29-minute loaded suite run and lost the failure details. Keep
   the whole output (or at least every E line) of a long run.
 
@@ -2658,6 +2665,53 @@
 - **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
   stops on BaseException; tests use a BaseException subclass to pin that.
 
+## Feasible orbit (HITL step 23, 2026-11-05)
+
+- **Ask what an ambiguous number refers to before acting.** The owner's "2-3m" meant the net's size, and
+  "we can be far" meant seeing the whole net from far away. I read it as an orbit-centre error budget and
+  loosened step 22's 0.3 m pose gate, which had to be reverted.
+- **A check must gate the thing it protects.** A CLI that exits 1 refuses nothing unless the runner calls it.
+  Codex caught this; the runner now runs the check before it creates the run folder.
+- **Use the first detection's distance, not the plan's.** The board is first found at the farthest slant it
+  can be read from, so the ground-ray centre error scales with that distance, not with the orbit radius.
+- **Write test strings with Edit, not a Bash heredoc.** A "\n" inside a heredoc reached the file as a real
+  newline and broke the test file.
+## Trail blink, todo 293 (2026-11-06)
+
+- A Cesium entity polyline whose positions change often blinks or lags: static entity geometry is built
+  asynchronously, the old primitive stays until the new one is ready, and a change during a build drops it.
+  Draw such lines with a `PolylineCollection` (synchronous) or a CallbackProperty, and call
+  `scene.requestRender()` after a primitive change under requestRenderMode.
+- To prove it live: wrap `StaticGeometryColorBatch.prototype.update`, snapshot the positions each new
+  primitive is built from, and compare per frame with what should be drawn. On this branch Cesium loads from
+  `/node_modules/cesium/Source/Cesium.js` (not `/deps/`), and the resource-timing buffer can be full: import
+  that path directly.
+- I ran `git stash` to test the old hook, against the session rule (stashes are shared by every worktree).
+  It was popped at once. To test old code, copy `git show HEAD:<file>` to the scratchpad and swap the file.
+
+## Camera-motion feedforward (HITL step 24, 2026-11-06)
+
+- **A plan item that says "apply the owner's ruling" may point at a ruling that was never made.** Section 9 still
+  listed the gyro question as open and the private plan only had a reviewer's proposal; asking the owner took one
+  question and settled the design (gyro for pointing only, law question still open).
+- **Green on the first run proves nothing until a mutation fails it.** Dropping the gyro term failed 16 of 22
+  tests and flipping the elevation sign 12; only then were the residual and sign checks evidence.
+- **A name guard must tell a read from a constant write.** The AST guard flagged `Attitude(yaw=0.0)`, the level
+  frame's zero yaw; allow exactly that constant and assert it separately instead of dropping `yaw` from the list.
+
+## Clock-failure tests for deadline waits (todo 291, 2026-11-05)
+
+- A fake Event that adds each timeout to a fake clock froze on float rounding (0.95 + 4e-17 == 0.95), so
+  the waiter spun forever and hung pytest twice. Advance fake clocks by at least 1e-6 per wait and run new
+  wait tests under `timeout`.
+- "No clock progress" alone cannot mark a frozen clock: an existing worker test models a sleep that returns
+  early with zero progress. Count a clock as frozen only after it steps back, or stays still across an Event
+  wait or across two waits in a row; then spend the wait budget by the time asked.
+- Codex's first pass found the loops still spun on a NaN or 1e300 clock (`max(0, nan)` is 0, `1e300 + 1.0 == 1e300`);
+  bounding only the period was not enough. Test each loop with constant, alternating and stepping-back clocks.
+- Making SCHED_LOOP_RATE strict (refuse outside 50..2000 Hz) broke vehicle doubles that answer
+  `Mock(return_value=1)` for every parameter. Give such doubles a real SCHED_LOOP_RATE, and run the full
+  suite after tightening any widely read parameter: a targeted run finds them one at a time.
 ## HITL whole-dock detector design (2026-11-05)
 
 - **Recompute a brief's numbers.** The brief said ChArUco gets "at most about 8 px" per square at 300 m;

@@ -95,6 +95,8 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
     Cartesian3,
     PolygonHierarchy,
     CallbackProperty,
+    PolylineCollection: class { constructor() { this.lines = []; } add(o) { const l = { ...o }; this.lines.push(l); return l; } },
+    Material: { fromType: (type, uniforms) => ({ type, ...uniforms }) },
     Color: { fromCssColorString: fakeColor, WHITE: fakeColor(), BLACK: fakeColor() },
     Cartesian2: class {},
     NearFarScalar: class {},
@@ -104,7 +106,8 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
     VerticalOrigin: {},
     ClassificationType: { TERRAIN: 'terrain' },
   } };
-  const viewer = { current: { entities } };
+  const scene = { primitives: { add: (p) => p, remove: () => {} }, requestRender: () => {} };
+  const viewer = { current: { entities, scene } };
   const entitiesRef = { current: { trailMap: {} } };
   const api = { sendCommand: vi.fn(), restartMission: vi.fn(() => Promise.reject(new Error('down'))) };
   const props = { store, viewer, cesium, api, entitiesRef };
@@ -112,7 +115,7 @@ function setup(planRef = { current: { altitude_m: 100, zones: [] } }) {
   const marks = () => [...live].filter((e) => e.polygon?.hierarchy instanceof PolygonHierarchy).length;
   const trailPoints = () => {
     const pool = entitiesRef.current.trailMap[1];
-    return pool ? pool.segs.flat().reduce((n, e) => n + e.polyline.positions.length / 3, 0) : 0;
+    return pool ? pool.segs.flat().reduce((n, e) => n + e.positions.length / 3, 0) : 0;
   };
   const panel = (name) => {
     if (!utils.queryByTestId('trails-panel')) {
