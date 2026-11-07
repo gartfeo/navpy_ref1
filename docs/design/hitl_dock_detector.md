@@ -6,7 +6,7 @@ v2 applies Codex review round 1 (section 10), v2.1 round 2 (section 11).
 
 ## 1. Why
 
-HITL step 23 (branch `claude/hitl-step23-feasible-orbit-5412ef`, at a811d5e5) flies the owner's 300 m orbit
+HITL step 23 (PR #89, merged to main 2026-11-06) flies the owner's 300 m orbit
 (`final_approach_orbit.radius_m` in profile `siyi_zr10_hitl_encoded`). Its pre-series check refuses every series:
 
 - ChArUco needs about 11.5 px per 40 cm square along the line of sight (dock4, `hitl_unreal_camera.md`). At 10x
@@ -163,9 +163,9 @@ reported with 95 % intervals.
 
 ## 7. Proposed plan change (needs owner approval)
 
-New step **22b, whole-dock detector**, before step 23 merges; step 23's check then uses `check_detector`.
+New step **23b, whole-dock detector**, next after step 23 (merged 2026-11-06 with the ChArUco reader check, which refuses every 300 m series). 23b replaces that check with `check_detector`.
 
-22b. **Whole-dock detector — `plugins/detection/yolo`, the HITL profile, `tools/hitl/scenario_checks.py`,
+23b. **Whole-dock detector — `plugins/detection/yolo`, the HITL profile, `tools/hitl/scenario_checks.py`,
 `tools/hitl/scenario_public.py`, an Unreal dataset tool in `tools/unreal`.** Add a net mesh to the Unreal scene;
 train a one-class `dock` model on auto-labelled encoded renders in three disjoint sets; freeze it; run it in
 `siyi_zr10_hitl_encoded` with the acquisition and ambiguity gates; orbit on the ground ray; replace the reader check
@@ -179,7 +179,7 @@ exposure; 0 box-size, centre, heading, position or altitude reads on NAV command
 1. **The net in the HITL scene:** diameter, height, mounting and colour? Today the scene has only the flat
    2.0 x 2.8 m ChArUco board. My recommendation: add a net mesh at the real net's size; no board on it.
 2. **Ground ray first, multi-ray only if needed** (recommended, Codex agrees), or build the multi-ray re-centre now?
-3. **Plan placement:** step 22b before step 23 merges (recommended), or merge step 23 first with the ChArUco check.
+3. **Plan placement:** step 23b as the next step, before step 24 (recommended), or later in the plan.
 4. **Targets:** recall ≥ 95 % per frame, 0 false confirms in 2 h of dock-free video. Approve or set others.
 5. **Training data:** auto-labelled Unreal renders now; real ZR10 video of the net later (stage 5; the sim-to-real
    gap is not covered here). Agree?

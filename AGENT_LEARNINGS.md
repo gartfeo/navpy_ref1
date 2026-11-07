@@ -2657,3 +2657,11 @@
   is NAV_FAIL source_command_stale. Check the logs for a real exit before hunting a crash.
 - **A loop catch-all must not swallow fatal signals.** The NAV loop now recovers from Exception but still
   stops on BaseException; tests use a BaseException subclass to pin that.
+
+## HITL whole-dock detector design (2026-11-05)
+
+- **Recompute a brief's numbers.** The brief said ChArUco gets "at most about 8 px" per square at 300 m;
+  fy x 0.4 x sin(d) / R gives 5.6 px. Codex caught it. Recompute every quoted number from its formula.
+- **Re-read the branch a design cites before each review round.** Step 23's branch moved during the design
+  (first-detection distance D replaced the orbit radius), and the step merged before owner review, which
+  made "before step 23 merges" stale. Check `git log` of cited branches and main before sending a design.
