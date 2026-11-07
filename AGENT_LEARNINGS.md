@@ -12,7 +12,10 @@
 - Python heredocs that write "\n" into source files through Git Bash ended up as real
   newlines five times (three more in dev-sim step 1: a test, a scratch script and this
   note; twice more in HITL step 14, even with "\\n" in a quoted 'PYEOF' heredoc). Insert or
-  change code with the Edit tool, never a heredoc; check with `ast.parse`.
+  change code with the Edit tool, never a heredoc; check with `ast.parse`. Once more in
+  todo 290 (2026-11-05): a `"\\n".join` in a heredoc replacement string broke a gate file.
+  And the same line again on 2026-11-06, in the same task, after reading this entry: any
+  edit text holding a backslash goes through the Edit tool, with no exceptions.
   A "\x00" in a heredoc edit script became a real NUL, so its search string never matched
   (todo 70): write such scripts with the Write tool and raw strings.
 - SITL's simulated receiver takes 8 or 16 little-endian uint16 PWM values on UDP
@@ -2722,3 +2725,17 @@
 - **A replay's scripted geometry must use the same earth model as the code it checks.** The replay offset on
   111 320 m/deg while `Location.distance_to` uses a 6 371 km sphere; a scripted 25.2 m radial measured 24.9 m,
   and the oracle disagreed with a correct gate.
+
+## Clock-failure tests for deadline waits (todo 291, 2026-11-05)
+
+- A fake Event that adds each timeout to a fake clock froze on float rounding (0.95 + 4e-17 == 0.95), so
+  the waiter spun forever and hung pytest twice. Advance fake clocks by at least 1e-6 per wait and run new
+  wait tests under `timeout`.
+- "No clock progress" alone cannot mark a frozen clock: an existing worker test models a sleep that returns
+  early with zero progress. Count a clock as frozen only after it steps back, or stays still across an Event
+  wait or across two waits in a row; then spend the wait budget by the time asked.
+- Codex's first pass found the loops still spun on a NaN or 1e300 clock (`max(0, nan)` is 0, `1e300 + 1.0 == 1e300`);
+  bounding only the period was not enough. Test each loop with constant, alternating and stepping-back clocks.
+- Making SCHED_LOOP_RATE strict (refuse outside 50..2000 Hz) broke vehicle doubles that answer
+  `Mock(return_value=1)` for every parameter. Give such doubles a real SCHED_LOOP_RATE, and run the full
+  suite after tightening any widely read parameter: a targeted run finds them one at a time.

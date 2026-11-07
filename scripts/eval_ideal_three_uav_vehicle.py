@@ -24,13 +24,13 @@ from scripts.eval_gcs_demo_snap import (
     parse_debug_snap_distances,
 )
 from scripts.eval_gcs_demo_final_approach_gates import cadence_errors
+from scripts.eval_gcs_demo_gates import evidence_failure_errors
 from scripts.eval_gcs_demo_vehicle import navigation_log
 
 
 MIN_ISSUED_COMMANDS = 10
 IDEAL_PROFILE = "ideal_360"
 _FATAL_MARKERS = (
-    "NAVIGATION_EVIDENCE_FAILURE",
     "NAV_FAIL:",
     "GUIDED not accepted within",
     "DetectorSim ideal source overload",
@@ -122,6 +122,7 @@ def analyze_ideal_vehicle(
         errors.append("missing ideal_360 argument marker")
     if "static ideal 360 enabled" not in navigation_text.lower():
         errors.append("missing static ideal_360 activation marker")
+    errors.extend(evidence_failure_errors(navigation_text))
     for marker in _FATAL_MARKERS:
         if marker in mission_text:
             errors.append(f"fatal runtime marker present: {marker}")

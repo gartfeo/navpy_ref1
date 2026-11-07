@@ -16,7 +16,7 @@ from scripts.eval_gcs_demo_evidence import (
     mission_navigation_segment,
     parse_final_approach_episodes,
 )
-from scripts.eval_gcs_demo_gates import confirmation_image_errors, workflow_errors
+from scripts.eval_gcs_demo_gates import confirmation_image_errors, evidence_failure_errors, workflow_errors
 from scripts.eval_gcs_demo_metrics import (
     final_approach_timing,
     score_achieved_roll,
@@ -210,6 +210,7 @@ def analyze_vehicle(
         )
     navigation_text = paths["navigation"].read_text(encoding="utf-8", errors="replace")
     mission_text = mission_navigation_segment(navigation_text)
+    errors.extend(evidence_failure_errors(navigation_text))
     errors.extend(
         workflow_errors(
             mission_text,

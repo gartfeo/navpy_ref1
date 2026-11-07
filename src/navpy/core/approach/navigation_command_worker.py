@@ -9,7 +9,11 @@ from typing import Any, Callable, ContextManager, Protocol
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
+from navpy.core.kernel.high_resolution_deadline import (
+    bounded_scheduler_wall_period_s,
+    next_fixed_deadline,
+    wait_for_slot,
+)
 from navpy.core.approach.calc_data import CalcData
 from navpy.core.approach.navigation_postprocess_dispatcher import (
     PostprocessJob,
@@ -113,7 +117,9 @@ class NavigationCommandWorker:
         iteration = 0
         try:
             while not ports.stop_event.is_set():
-                signaled, stopped = self._wait_for_deadline(next_deadline_s)
+                signaled, stopped = self._wait_for_deadline(
+                    next_deadline_s, period_s
+                )
                 if stopped:
                     break
                 # Numbered at the TOP of the pass, not before the source
@@ -223,7 +229,7 @@ class NavigationCommandWorker:
                     next_deadline_s = completed_s + period_s
                 else:
                     scheduled_s = next_deadline_s + period_s
-                    next_deadline_s = _next_fixed_deadline(
+                    next_deadline_s = next_fixed_deadline(
                         scheduled_s,
                         completed_s,
                         period_s,
@@ -251,11 +257,14 @@ class NavigationCommandWorker:
             with suppress(Exception):  # a failing logger must not strand the fence
                 self._ports.logger.error(f"Error observing issued command: {exc}", exc)
 
-    def _wait_for_deadline(self, deadline_s: float) -> tuple[bool, bool]:
+    def _wait_for_deadline(
+        self, deadline_s: float, period_s: float
+    ) -> tuple[bool, bool]:
         """Sleep to the AP deadline without Windows Event timeout quantization."""
         ports = self._ports
-        reached = wait_until_deadline(
+        reached = wait_for_slot(
             deadline_s,
+            period_s,
             stop_event=ports.stop_event,
             monotonic_s=ports.monotonic_s,
             sleep_s=ports.sleep_s,
@@ -265,26 +274,13 @@ class NavigationCommandWorker:
         return bool(ports.command_event.wait(timeout=0.0)), False
 
     def _wall_period_s(self) -> float:
-        return max(
-            0.0,
-            float(self._ports.wall_period_s(self._ports.scheduler_period_s)),
+        # Bounded so a nonsense SIM_SPEEDUP can neither raise nor stall the
+        # fixed-deadline grid for years (todo 291).
+        scheduler_period_s = self._ports.scheduler_period_s
+        return bounded_scheduler_wall_period_s(
+            self._ports.wall_period_s(scheduler_period_s),
+            fallback_s=scheduler_period_s,
         )
-
-
-def _next_fixed_deadline(
-    scheduled_s: float,
-    completed_s: float,
-    period_s: float,
-) -> float:
-    """Return the first unmissed deadline on the existing AP wall grid."""
-    if period_s <= 0.0:
-        return completed_s
-    if completed_s <= math.nextafter(scheduled_s, math.inf):
-        return scheduled_s
-    slots_late = math.ceil((completed_s - scheduled_s) / period_s)
-    candidate = scheduled_s + slots_late * period_s
-    # Protect against a downward-rounded product. Never replay a missed slot.
-    return candidate + period_s if candidate < completed_s else candidate
 
 
 __all__ = [

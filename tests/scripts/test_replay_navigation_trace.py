@@ -113,7 +113,7 @@ def test_offline_event_is_written_before_return(monkeypatch):
 
     class DeferredWorker:
         first_error = None
-        def __init__(self, write):
+        def __init__(self, write, *, on_error=None):
             self.write, self.pending = write, []
         def submit(self, item):
             self.pending.append(item)

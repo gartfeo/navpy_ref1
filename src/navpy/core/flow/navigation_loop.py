@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import math
 import traceback
 from collections.abc import Callable, Mapping
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
-from navpy.core.kernel.high_resolution_deadline import wait_until_deadline
+from navpy.core.kernel.high_resolution_deadline import (
+    bounded_scheduler_wall_period_s,
+    wait_for_slot,
+)
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.flow.nav_clock import NavClock
 from navpy.core.flow.nav_constants import NAV_LOOP_PERIOD_S
@@ -155,8 +159,13 @@ class NavigationLoop:
         self.thread = rt.Thread(target=self._run_thread, daemon=True)
 
     def start(self, loop_rate_hz: float) -> None:
-        if loop_rate_hz > 0:
-            self.period_s = 1.0 / loop_rate_hz
+        # A rate that is NaN, infinite, non-positive or so tiny that its
+        # period overflows keeps the default period. Each cycle bounds the
+        # wall period after the speedup conversion (todo 291).
+        if math.isfinite(loop_rate_hz) and loop_rate_hz > 0:
+            period_s = 1.0 / loop_rate_hz
+            if math.isfinite(period_s):
+                self.period_s = period_s
         if not self.thread.is_alive():
             self.stop_event.clear()
             self.thread.start()
@@ -204,17 +213,23 @@ class NavigationLoop:
             except Exception as error:  # noqa: BLE001 - fail closed, keep flying
                 self._recover(error)
             elapsed = self._monotonic_s() - started
-            wall_period = self._clock.scheduler_wall_period(self.period_s)
+            wall_period = bounded_scheduler_wall_period_s(
+                self._clock.scheduler_wall_period(self.period_s),
+                fallback_s=self.period_s,
+            )
             if elapsed - wall_period > 0.5:
                 self._logger.warning(
                     f"Loop time exceeded: {elapsed:.3f} s",
                     key="nav",
                     dest=LogStatusDest.DRONE,
                 )
-            remaining_s = max(0.0, wall_period - elapsed)
-            if remaining_s > 0.0 and not self.stop_event.is_set():
-                wait_until_deadline(
+            # Skip the wait only for a measured overrun: a non-finite elapsed
+            # time still waits, and wait_for_slot paces it (todo 291).
+            overran = math.isfinite(elapsed) and elapsed >= wall_period
+            if not overran and not self.stop_event.is_set():
+                wait_for_slot(
                     started + wall_period,
+                    wall_period,
                     stop_event=self.stop_event,
                     monotonic_s=self._monotonic_s,
                     sleep_s=self._sleep_s,
