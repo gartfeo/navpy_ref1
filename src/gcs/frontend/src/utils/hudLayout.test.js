@@ -211,17 +211,45 @@ describe('pictureHudLayout normal size (compact)', () => {
     expect(tall.scale).toBe(true);
   });
 
-  it('as the height runs out: the status texts drop first, then the heading strip; speed and altitude stay', () => {
+  it('as the height runs out, the owner order: scale, heading strip, waypoint, status line last; speed and altitude stay', () => {
     const at = (height) => normal({ height, panelShown: false, creditsPx: 38 }).hud;
     const heights = [];
-    for (let h = 179; h >= PICTURE_MIN_H_PX; h--) heights.push([h, at(h)]);
+    for (let h = 400; h >= 40; h--) heights.push([h, at(h)]);
     const firstWithout = (pick) => heights.find(([, hud]) => !pick(hud))?.[0] ?? 0;
-    const stripGone = firstWithout((hud) => hud.strip);
+    const scaleGone = firstWithout((hud) => hud.attitude.scale);
     const headingGone = firstWithout((hud) => hud.heading);
+    const waypointGone = firstWithout((hud) => hud.corner.waypoint);
+    const stripGone = firstWithout((hud) => hud.strip);
     expect(stripGone).toBeGreaterThan(0);
-    expect(headingGone).toBeGreaterThan(0);
-    expect(stripGone).toBeGreaterThan(headingGone);
-    for (const [, hud] of heights) expect(hud.numbers != null || hud.corner.numbers).toBe(true);
+    expect(scaleGone).toBeGreaterThan(headingGone);
+    expect(headingGone).toBeGreaterThan(waypointGone);
+    expect(waypointGone).toBeGreaterThan(stripGone);
+    for (const [h, hud] of heights) {
+      // Once gone, an item stays gone as the height shrinks further.
+      if (h < scaleGone) expect(hud.attitude.scale).toBe(false);
+      if (h < headingGone) expect(hud.heading).toBeNull();
+      if (h < waypointGone) expect(hud.corner).toMatchObject({ waypoint: null, numbers: true });
+      if (h < stripGone) expect(hud.strip).toBeNull();
+      expect(hud.numbers != null || hud.corner.numbers).toBe(true);
+    }
+  });
+
+  it('nothing overlaps at any height while items drop', () => {
+    for (const creditsPx of [16, 38]) {
+      for (const panelShown of [true, false]) {
+        for (let height = 400; height >= PICTURE_MIN_H_PX; height--) {
+          const p = { width: 318, height, tagHeight: 24, corner: LINE_CORNER, creditsPx, smallMap: null, panelShown };
+          expectNoOverlap(compactRows(pictureHudLayout(p), p));
+        }
+      }
+    }
+  });
+
+  it('the status line outlasts the heading strip at a low picture', () => {
+    // 120 px with two credit lines and the panel hidden: the heading strip is gone, the status line keeps its row.
+    const hud = normal({ panelShown: false, creditsPx: 38, height: 120 }).hud;
+    expect(hud.strip).not.toBeNull();
+    expect(hud.heading).toBeNull();
   });
 
   it('at the smallest picture nothing overlaps: speed and altitude move into the top row', () => {
@@ -232,8 +260,10 @@ describe('pictureHudLayout normal size (compact)', () => {
       const layout = pictureHudLayout(p);
       expectNoOverlap(compactRows(layout, p));
       expect(layout.hud.heading).toBeNull();
-      expect(layout.hud.strip).toBeNull();
-      if (!layout.hud.numbers) expect(layout.hud.corner).toMatchObject({ numbers: true, waypoint: null });
+      expect(layout.hud.numbers).toBeNull();
+      expect(layout.hud.corner).toMatchObject({ numbers: true, waypoint: null });
+      // The status line goes last: with one credit line it still has its row here.
+      expect(layout.hud.strip != null).toBe(creditsPx === 16);
     }
   });
 
