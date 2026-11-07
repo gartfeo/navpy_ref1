@@ -11,6 +11,7 @@ from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.skills.geo_approach.board_orbit_centre import BoardOrbitCentre
+from navpy.core.skills.confirm.orbit_established import OrbitCommand
 
 # The waiting circle takes the POI to sit on the terrain: a few metres of real
 # height move the circle centre by a few metres, well inside the circle.
@@ -48,15 +49,16 @@ class SelfDetectedApproach:
         self._approach_kind = approach_kind
         self._logger = logger
 
-    def prepare(self, poi: DetectedObject) -> None:
+    def prepare(self, poi: DetectedObject) -> Optional[OrbitCommand]:
+        """Command the waiting ORBIT; the circle it commanded, or None when it commanded none."""
         if self._navigation_task.orbit_radius_m > 0:
             if not self._ports.needs_own_orbit(poi):
-                return
+                return None
             # The mission module says this dock needs its own circle: the
             # circle already flown would take it out of view.
             self._navigation_task.orbit_radius_m = 0.0
         if self._approach_kind != ApproachKind.ORBIT:
-            return
+            return None
         # Circle the POI until it is confirmed (owner, 2026-10-07), so it
         # stays inside the turn and in view. Under the vision law only the
         # camera's own estimate centres the circle, and it is not stored
@@ -74,14 +76,14 @@ class SelfDetectedApproach:
                     "Self-detect orbit skipped: no ground estimate for the POI",
                     key="nav",
                 )
-            return
+            return None
         plan, loiter_alt = self._ports.plan_orbit(
             poi_location,
             poi.classification.class_id,
             self._ports.current_relative(),
         )
         if not plan.orbit_radius or plan.orbit_radius <= 0:
-            return
+            return None
         if not final_approach:
             self._navigation_task.navigation_poi_location = (
                 self._ports.absolute_location(poi_location)
@@ -105,6 +107,7 @@ class SelfDetectedApproach:
             f"orbit_r={self._navigation_task.orbit_radius_m:.0f}m",
             key="nav",
         )
+        return OrbitCommand(poi_location, self._navigation_task.orbit_radius_m)
 
     def _vision_centre(self, poi: DetectedObject) -> Optional[Location]:
         """The board pose's centre; else the ground ray at height zero."""

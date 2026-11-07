@@ -35,10 +35,11 @@ def response_for_current_round(
 ) -> ConfirmationResponseKind:
     current = registry.status_by_id(poi_id)
     if current is ConfirmationStatus.CONFIRMING:
-        registry.set_status(
+        if not registry.set_status(
             poi_id,
             ConfirmationStatus.CONFIRMED if is_confirmed else ConfirmationStatus.REJECTED,
-        )
+        ):
+            return ConfirmationResponseKind.LATE_OR_DUPLICATE  # the acquisition gates do not hold
         return (
             ConfirmationResponseKind.CONFIRMED
             if is_confirmed

@@ -13,6 +13,7 @@ from navpy.app.flow.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.core.skills.confirm.confirmed_poi_release import ConfirmedPoiRelease
+from navpy.core.skills.confirm.acquisition_sequence import AcquisitionGate
 from navpy.core.skills.confirm.poi_presence_review import (
     PoiPresencePorts,
     PoiPresenceReview,
@@ -45,6 +46,7 @@ def _compose_poi_status(
     release: FinalApproachReleaseGate,
     peer_task: PeerTaskPriority,
     peer_reask: PeerTaskReask,
+    acquisition: AcquisitionGate,
 ) -> ConfirmationStatusDecision:
     poi_status = ConfirmationStatusDecision(
         PoiSelectionPorts(
@@ -70,6 +72,7 @@ def _compose_poi_status(
             tracking.recovery,
             release,
             lambda: navigation.final_approach.is_active,
+            lambda: acquisition.ready(observation.source.find_active_poi_detection()),
         ),
         PoiRejectionExit(
             PoiRejectionPorts(
