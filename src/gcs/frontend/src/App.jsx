@@ -56,7 +56,7 @@ import useElementSize from './hooks/useElementSize';
 import useSidePanel from './hooks/useSidePanel';
 import useSimAutoConnect from './hooks/useSimAutoConnect';
 import { isPending } from './hooks/taskConfirmationState';
-import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
+import { DOCKED_MIN_VIEWPORT_PX, collapsedListBox, collapsedListWidth, hudTapeBox, panelHostStyle, rcListPlacement, speedTapeBox } from './utils/appLayout';
 import { rcHudLayout } from './utils/hudLayout';
 import { syntheticBaseLayer } from './components/map/utils/baseLayers';
 import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } from './utils/vehicleWindowLayout';
@@ -574,6 +574,15 @@ export default function App() {
   const showWindow = vehicleWindowVisible({
     monitor, rcEnabled: mc.manualControlEnabled, fleetSize: videoFleet.length, open: win.open,
   });
+  // ---- Right panel (docs/design/gcs_handheld_layout.md) ----
+  // One list element in every mode; a round shows over the map while collapsed.
+  const panelCollapsed = sidePanel.mode === 'collapsed';
+  const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
+  const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;
+  // The maximized window keeps right of the list, so no card covers its HUD.
+  const listReservePx = collapsedListShown
+    ? collapsedListWidth(mapPane.width) + PANEL_MARGIN_PX
+    : 0;
   const windowLayout = vehicleWindowLayout({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
@@ -582,6 +591,7 @@ export default function App() {
     mapCreditsPx,
     windowChromePx,
     windowCreditsPx,
+    leftReservePx: listReservePx,
   });
   const swapped = showWindow && win.swapped && windowLayout.canSwap;
   const smallMap = windowLayout.smallMap;
@@ -625,17 +635,12 @@ export default function App() {
   });
   const rcHeldRight = rcList.heldRight ?? RC_HELD_RIGHT_PX;
 
-  // ---- Right panel (docs/design/gcs_handheld_layout.md) ----
-  // One list element in every mode; a round shows over the map while collapsed.
-  const panelCollapsed = sidePanel.mode === 'collapsed';
-  const roundsExist = Object.keys(taskConfirm.pendingConfirms || {}).length > 0;
   const collapsedBox = collapsedListBox({
     paneWidth: mapPane.width,
     paneHeight: mapPane.height,
     topControlsBottom,
     windowBox: showWindow && !swapped ? windowLayout.window : null,
   });
-  const collapsedListShown = panelCollapsed && roundsExist && !mc.manualControlEnabled;
   const panelToggleShown = !mc.manualControlEnabled;
   const pendingCount = Object.values(taskConfirm.pendingConfirms || {}).filter(isPending).length;
 

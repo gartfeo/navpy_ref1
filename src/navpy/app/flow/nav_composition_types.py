@@ -26,6 +26,7 @@ from navpy.core.skills.confirm.confirmation_reporting import (
 from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
+from navpy.core.skills.confirm.acquisition_sequence import AcquisitionGate
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
@@ -161,6 +162,8 @@ class NavigationTaskWorkflows:
     peer_task_priority: PeerTaskPriority
     peer_reask: PeerTaskReask
     work_source: DeliveryWorkSource
+    # HITL step 25: lock and orbit gates before confirm and NAV (open without the profile's gates).
+    acquisition: AcquisitionGate
 
 
 @dataclass(frozen=True)
@@ -180,6 +183,7 @@ class ConfirmationAdmissionWorkflows:
     action: ConfirmationAction
     release: FinalApproachReleaseGate
     deadline: FinalApproachRecordDeadline
+    acquisition: AcquisitionGate
 
 
 @dataclass(frozen=True)

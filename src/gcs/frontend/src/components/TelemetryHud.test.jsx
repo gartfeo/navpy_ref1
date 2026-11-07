@@ -121,6 +121,13 @@ describe('TelemetryHud', () => {
     expect(getByTestId('hud-attitude').style).toMatchObject({ left: '344px', right: '344px', top: '0px', bottom: '0px' });
   });
 
+  it('no attitude box from the host (the gimbal view off the nose axis): no indicator, the rest stays', () => {
+    const { queryByTestId, getByTestId } = hud({ ...full(true), attitude: null });
+    expect(queryByTestId('hud-attitude')).toBeNull();
+    expect(getByTestId('speed')).toBeTruthy();
+    expect(getByTestId('hud-waypoint')).toBeTruthy();
+  });
+
   it('nothing for a UAV without telemetry', () => {
     const { container } = render(<TelemetryHud sysId={9} layout={rc()} />);
     expect(container.innerHTML).toBe('');

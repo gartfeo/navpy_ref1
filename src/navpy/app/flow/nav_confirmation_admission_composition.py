@@ -130,6 +130,7 @@ def compose_confirmation_admission_workflows(
         observation.blocked,
         observation.debug,
         confirmation_geo_hold,
+        navigation_task.acquisition,
     )
     release = FinalApproachReleaseGate(
         observation.source,
@@ -147,6 +148,7 @@ def compose_confirmation_admission_workflows(
         confirmation_action,
         release,
         deadline,
+        navigation_task.acquisition,
     )
 
 

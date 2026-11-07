@@ -63,6 +63,15 @@ class ConfirmationWorkerState:
             ):
                 self._current_by_poi.pop(lease.poi_id, None)
 
+    def cancel(self, poi_id: int) -> Optional[ConfirmationWorkerLease]:
+        """Cancel the POI's current worker; it can no longer set a status."""
+        with self._lock:
+            lease = self._current_by_poi.pop(poi_id, None)
+            if lease is not None:
+                self._workers.pop(lease, None)
+                lease.cancel_event.set()
+            return lease
+
     def reset(self) -> None:
         with self._lock:
             self._generation += 1
