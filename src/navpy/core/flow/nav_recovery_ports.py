@@ -60,18 +60,25 @@ class NavRecoveryPorts:
 
 
 class RecoveryHold:
-    """What the cycle reads and tells: NAV state's view of recovery (no callbacks, owned by the NAV loop thread)."""
+    """What the cycle reads and tells: NAV state's view of recovery (owned by the NAV loop thread).
 
-    def __init__(self) -> None:
+    ``observe_mode`` is the link's heartbeat reading (NavRecoveryLink.observe_mode); None without a link, where there
+    is no recovery to tell."""
+
+    def __init__(self, observe_mode: Callable[[], ModeObservation] | None = None) -> None:
+        self._observe_mode = observe_mode
         self.holding = False
         #: Set when the hold ended in NavPy's own AUTO; kept until the decision takes it (``take_resumed``), so a
         #: cycle that fails before deciding does not lose it. Cleared by a new hold.
         self.resumed = False
-        self._guided: bool | None = None   # NavPy's last GUIDED event since the last step: asked, or withdrawn
+        # NavPy's last GUIDED event since the last step: asked (the heartbeat read just before sending), or withdrawn
+        self._guided: ModeObservation | bool | None = None
 
     def guided_requested(self) -> None:
-        """NavPy asked for GUIDED: recovery may acquire ownership from the next heartbeat."""
-        self._guided = True
+        """NavPy is about to send GUIDED: the heartbeat count and mode are read now, at the request boundary, so
+        ownership is judged from exactly what NavPy asked from (nav_ownership.py)."""
+        if self._observe_mode is not None:
+            self._guided = self._observe_mode()
 
     def guided_withdrawn(self) -> None:
         """NavPy stopped waiting for GUIDED (its task was cleared): a later GUIDED is not NavPy's."""
@@ -81,7 +88,7 @@ class RecoveryHold:
         resumed, self.resumed = self.resumed, False
         return resumed
 
-    def take_guided_request(self) -> bool | None:
+    def take_guided_request(self) -> ModeObservation | bool | None:
         guided, self._guided = self._guided, None
         return guided
 

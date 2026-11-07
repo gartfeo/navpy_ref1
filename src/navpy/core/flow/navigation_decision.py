@@ -179,9 +179,10 @@ class NavStateDecision:
             # Recovery's hold: the mode is its LOITER and NavPy's commands are
             # fenced. Keep the task and dock; no GUIDED request, no timeout.
             return ApproachOutcome.WAITING
-        if resumed and self._navigation_task.nav_mode_observed:
+        if resumed and mode is FlightMode.AUTO and self._navigation_task.nav_mode_observed:
             # Recovery resumed in AUTO (owner ruling 2026-11-07): ask for GUIDED again and approach the same dock,
-            # instead of reading the AUTO as GUIDED lost.
+            # instead of reading the AUTO as GUIDED lost. Only while AUTO still shows: a mode the operator selected
+            # after the resume stands, and the approach ends as for any lost GUIDED.
             self._navigation_task.nav_mode_observed = False
             self._clear_guided_wait()
         if self._navigation_task.nav_mode_observed:

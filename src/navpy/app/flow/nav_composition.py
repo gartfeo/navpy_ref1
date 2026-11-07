@@ -67,6 +67,7 @@ def create_nav_application(
     state = compose_state_ownership(
         scheduler_cadence,
         navigation.final_approach.latch_failure,
+        None if recovery_link is None else recovery_link.observe_mode,
     )
     metadata = read_mission_metadata(vehicle)
     poi = compose_poi_mission_ownership(

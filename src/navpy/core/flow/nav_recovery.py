@@ -71,13 +71,12 @@ class NavRecovery:
         self._hold_since: float | None = None
         self._mode = ModeRequest(ports.request_mode, self.ownership, self._report)
         self._long_hold_reported = False
-        self._previous: ModeObservation | None = None   # read at the last step, before this period's cycle ran
         self._guided_at: float | None = None             # when recovery learned of NavPy's last GUIDED request
 
     def step(self, cycle_ok: bool, sample: TimeSample) -> None:
         now = self._clock.advance(sample)
         observation = self._ports.observe_mode()
-        self._take_guided_request(observation, now)
+        self._take_guided_request(now)
         self.ownership.observe(observation)
         self._track(cycle_ok, now)
         if self._ports.escalation.requested and self.stage not in (RecoveryStage.ESCALATED, RecoveryStage.CRITICAL):
@@ -87,16 +86,14 @@ class NavRecovery:
         self.hold.holding = self.stage is not RecoveryStage.NORMAL
         if self.hold.holding:
             self.hold.resumed = False   # a resume not yet taken is void in a new hold
-        self._previous = observation
 
-    def _take_guided_request(self, observation: ModeObservation, now: float) -> None:
+    def _take_guided_request(self, now: float) -> None:
         guided = self.hold.take_guided_request()
-        if guided and self.stage is RecoveryStage.NORMAL:
-            # Sent during this period's cycle, after the last step read the heartbeat: recorded at that count and
-            # mode, so a mode change that arrived after the send lapses the request (nav_ownership.py). Behind the
-            # fence (not NORMAL) the request was dropped, so it is not NavPy's.
-            sent_from = observation if self._previous is None else self._previous
-            self.ownership.requested(FlightMode.GUIDED, sent_from.heartbeat_count, sent_from.mode)
+        if isinstance(guided, ModeObservation) and self.stage is RecoveryStage.NORMAL:
+            # Recorded at the count and mode read just before the send (RecoveryHold.guided_requested), so a mode
+            # change after the send lapses the request and one before it does not. Behind the fence (not NORMAL)
+            # the request was dropped, so it is not NavPy's.
+            self.ownership.requested(FlightMode.GUIDED, guided.heartbeat_count, guided.mode)
             self._guided_at = now
         elif guided is False:
             self.ownership.withdraw(FlightMode.GUIDED)

@@ -313,10 +313,12 @@ merges before step 4, which builds on its deadline fix.
    mode the operator took in the hold or the resume stands, and the approach
    ends as before. The resume is a latch the decision takes, not a one-period
    pulse, so a cycle that fails before deciding does not lose it; a new hold
-   voids it. NavPy's GUIDED request is recorded at the heartbeat count and
-   mode read at the previous step, before the cycle sent it, so a mode change
-   arriving after the send lapses it; a GUIDED request formed behind the
-   fence (dropped) is not recorded. An unowned escalation releases only on a
+   voids it, and it applies only while AUTO still shows (an operator mode
+   selected after the resume stands). NavPy's GUIDED request is recorded at
+   the heartbeat count and mode read at the request boundary, just before
+   the send (`RecoveryHold.guided_requested` reads the link), so a mode
+   change after the send lapses it and one before it does not; a GUIDED
+   request formed behind the fence (dropped) is not recorded. An unowned escalation releases only on a
    fresh heartbeat and once NavPy's pending GUIDED request is settled or has
    not shown within 3 s (`MODE_CONFIRM_S`). The main thread latches the fence
    closed (`MavCommandFence.latch_closed`), so NAV's resume racing the

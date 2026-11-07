@@ -62,7 +62,7 @@ class Rig:
         self.ap = autopilot
         self.fence = Mock()
         self.logger = Mock()
-        self.hold = RecoveryHold()
+        self.hold = RecoveryHold(autopilot.observe)   # GUIDED requests read the heartbeat at the request
         self.escalation = NavEscalation()
         self.recovery = NavRecovery(
             NavRecoveryPorts(
@@ -294,6 +294,21 @@ def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
     ports.request_guided.assert_called_once()
 
 
+def test_an_operators_mode_after_the_resume_is_not_resumed_over():
+    """Codex round 2, finding 1: NavPy's AUTO is confirmed; sensing fails before the resume is taken; the operator
+    selects LOITER. The next decision must not ask for GUIDED over the operator's LOITER."""
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
+    _until_normal(rig)
+    rig.run(False, PERIOD_S)            # sensing fails before the decision
+    rig.ap.mode = FlightMode.LOITER     # the operator's LOITER
+    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    assert decision._await_guided(FlightMode.LOITER) is ApproachOutcome.ABANDONED
+    ports.request_guided.assert_not_called()
+    ports.clear_navigation_task.assert_called_once()
+
+
 def test_a_new_hold_voids_a_resume_not_yet_taken():
     rig = Rig(FakeAutopilot())
     rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
@@ -350,7 +365,7 @@ def test_a_guided_request_is_recorded_from_the_heartbeat_before_it_was_sent():
     assert rig.stage is RecoveryStage.HOLD and ap.requests == []
 
 
-def test_a_guided_request_from_the_previous_heartbeat_is_acquired_on_the_next_guided():
+def test_a_guided_request_is_acquired_on_the_next_guided_heartbeat():
     ap = FakeAutopilot(FlightMode.AUTO)
     rig = Rig(ap, owned=False)
     rig.run(True, 1.0)
@@ -359,6 +374,27 @@ def test_a_guided_request_from_the_previous_heartbeat_is_acquired_on_the_next_gu
     ap.heartbeat()                      # NavPy's GUIDED shows before recovery's step
     rig.run(True, PERIOD_S)
     assert rig.recovery.ownership.state is Ownership.OWNED
+
+
+def test_a_mode_change_before_the_guided_request_does_not_lapse_it():
+    """Codex round 2, finding 2: the last step saw AUTO; the operator's LOITER heartbeat arrives before NavPy sends
+    GUIDED (from LOITER). The request is NavPy's: GUIDED shown later is owned, even while cycles fail, so a hold
+    requests LOITER under ownership instead of only fencing."""
+    ap = FakeAutopilot(FlightMode.AUTO)
+    rig = Rig(ap, owned=False)
+    rig.run(True, 1.0)                  # recovery's last step saw AUTO
+    ap.mode = FlightMode.LOITER
+    ap.heartbeat()                      # the operator's LOITER, before NavPy's send
+    rig.hold.guided_requested()         # NavPy sends GUIDED from LOITER
+    ap.request(FlightMode.GUIDED)
+    ap.requests.clear()
+    rig.run(False, PERIOD_S)
+    assert rig.recovery.ownership.guided_pending
+    rig.run(False, 1.1)                 # sensing fails; GUIDED shows
+    assert ap.mode is FlightMode.GUIDED
+    assert rig.recovery.ownership.state is Ownership.OWNED
+    rig.run(False, NAV_HOLD_TRIGGER_S)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == [FlightMode.LOITER]
 
 
 def test_a_guided_request_behind_the_fence_is_not_navpys():
@@ -535,3 +571,16 @@ def test_the_approach_command_path_gains_no_recovery_input():
             ):
                 offenders.append(str(path))
     assert offenders == []
+
+
+def test_the_state_reads_the_links_heartbeat_at_navpys_guided_request():
+    """The composed hold reads the link at the request boundary; without a link it records nothing."""
+    from navpy.app.flow.nav_foundation_composition import compose_state_ownership
+
+    seen = ModeObservation(7, FlightMode.LOITER, True, True)
+    hold = compose_state_ownership(None, None, lambda: seen).recovery_hold
+    hold.guided_requested()
+    assert hold.take_guided_request() == seen
+    unlinked = compose_state_ownership(None).recovery_hold
+    unlinked.guided_requested()
+    assert unlinked.take_guided_request() is None
