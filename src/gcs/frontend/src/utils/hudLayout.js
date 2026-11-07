@@ -10,7 +10,8 @@
  * panel is hidden (`panelShown` false: collapsed, or the drawer closed).
  *
  * A layout: {
- *   attitude: {left, right, top, bottom, scale},  // the indicator's box; scale: ladder and roll arc
+ *   attitude: {left, right, top, bottom, scale}|null,  // the indicator's box; scale: ladder and roll arc;
+ *                                                  // a host sets null where the horizon would mislead
  *   heading: {top, height, width, left?}|null,     // `left` absent centres the tape
  *   corner: {top, right, status, mode, waypoint, numbers},  // top-right column; see TelemetryHud
  *   speed: {left, top, width, height}|null, altitude: {right, top, width, height}|null,  // tapes
@@ -23,6 +24,8 @@ import { PANEL_MARGIN_PX, PICTURE_TAG_INSET_PX } from './vehicleWindowLayout';
 
 /** The heading tape's size where it has room (its 60 degree scale is drawn over this width). */
 export const HEADING_TAPE_W_PX = 300;
+/** Maximized: the narrowest centred heading tape beside the small map (half its 60 degree scale's width). */
+export const HEADING_TAPE_MIN_W_PX = HEADING_TAPE_W_PX / 2;
 /** Its height in every host: HeadingTape draws its scale labels down to about this, so a shorter canvas clips them. */
 export const HEADING_TAPE_H_PX = 36;
 /** The speed and altitude tapes' width over the main map. */
@@ -123,7 +126,7 @@ export function pictureHudLayout(p) {
  * Maximized: the full HUD. Top row: the tag at the left and the top-right
  * column (left of the small map; below it, across the picture, where that
  * room is under TAG_MIN_W_PX for the tag); the heading tape below that row,
- * centred in the same room; the tapes from there to the credit
+ * centred on the picture; the tapes from there to the credit
  * line, the altitude tape below the small map; the status texts above the
  * credit line. The attitude indicator keeps the picture's centre (the
  * camera's) and is inset by the small map's width on both sides, so its
@@ -145,14 +148,23 @@ function fullPictureLayout({ width, height, tagHeight, corner, creditsPx, smallM
   const cornerTop = stacked ? belowMapTop : inset;
   const cornerRight = stacked ? inset : rightOffset;
 
-  const headingTop = (stacked
+  const rowTop = (stacked
     ? Math.max(inset + tagHeight, cornerTop + corner.height)
     : inset + Math.max(tagHeight, corner.height)) + HUD_GAP_PX;
-  const room = stacked ? Math.max(0, width - 2 * inset) : beside;
-  const headingWidth = Math.min(HEADING_TAPE_W_PX, room);
+  // The heading tape is centred on the picture's centre, the camera's axis
+  // (the owner, 2026-11-07: "compas yaw is not centered"), and ends before
+  // the small map; with less than HEADING_TAPE_MIN_W_PX there, it goes below
+  // the small map at its full width.
+  const centreX = width / 2;
+  const besideHalf = Math.min(centreX - inset, width - rightOffset - centreX);
+  const besideFits = stacked || 2 * besideHalf >= HEADING_TAPE_MIN_W_PX;
+  const headingTop = besideFits ? rowTop : Math.max(rowTop, belowMapTop);
+  const headingWidth = Math.max(0, Math.min(
+    HEADING_TAPE_W_PX, width - 2 * inset, stacked || !besideFits ? Infinity : 2 * besideHalf,
+  ));
   // Left out, never cut by the credit line, where it no longer fits above it.
   const heading = headingTop + HEADING_TAPE_H_PX <= tapesBottom
-    ? { top: headingTop, height: HEADING_TAPE_H_PX, width: headingWidth, left: inset + (room - headingWidth) / 2 }
+    ? { top: headingTop, height: HEADING_TAPE_H_PX, width: headingWidth, left: centreX - headingWidth / 2 }
     : null;
 
   const tapesTop = heading ? headingTop + HEADING_TAPE_H_PX + HUD_GAP_PX : headingTop;

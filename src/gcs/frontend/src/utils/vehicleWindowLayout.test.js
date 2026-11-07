@@ -246,3 +246,38 @@ describe('edges of the contract', () => {
     expect(SMALL_MAP_MIN_PX).toBeGreaterThanOrEqual(138 + 2 * WINDOW_BORDER_PX);
   });
 });
+
+describe('maximized with the confirm list shown (panel collapsed)', () => {
+  // A round arriving while the window is maximized: the list covered the
+  // picture's speed tape, tag and bar (owner, 2026-11-07).
+  const reserveAt = (pane, top) => collapsedListBox({
+    paneWidth: pane.width, paneHeight: pane.height, topControlsBottom: top,
+  }).width + PANEL_MARGIN_PX;
+
+  it('the window sits right of the list, its small map whole', () => {
+    const pane = { width: 1280, height: 720 };
+    const top = TOP_BOTTOM.desktop;
+    const reserve = reserveAt(pane, top);
+    const layout = layoutAt(pane, top, { swapped: true, windowChromePx: CHROME, leftReservePx: reserve });
+    expect(layout.canSwap).toBe(true);
+    const listBox = collapsedListBox({ paneWidth: pane.width, paneHeight: pane.height, topControlsBottom: top });
+    const list = rect(listBox.left, listBox.top, listBox.width, listBox.height);
+    const win = windowRect(pane, layout);
+    expect(overlap(list, win)).toBe(false);
+    expect(win.x - (list.x + list.w)).toBe(PANEL_MARGIN_PX);
+    expect(layout.smallMap.width).toBeGreaterThanOrEqual(SMALL_MAP_MIN_PX);
+  });
+
+  it('no list: the window keeps the whole pane', () => {
+    const pane = { width: 1280, height: 720 };
+    const layout = layoutAt(pane, TOP_BOTTOM.desktop, { swapped: true, windowChromePx: CHROME });
+    expect(layout.window.width).toBe(pane.width - 2 * PANEL_MARGIN_PX);
+  });
+
+  it('a pane too narrow for both stays maximized over the whole pane, the list over the picture', () => {
+    const top = TOP_BOTTOM.narrow;
+    const layout = layoutAt(NARROW, top, { swapped: true, windowChromePx: CHROME, leftReservePx: reserveAt(NARROW, top) });
+    expect(layout.canSwap).toBe(true);
+    expect(layout.window.width).toBe(NARROW.width - 2 * PANEL_MARGIN_PX);
+  });
+});

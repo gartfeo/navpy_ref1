@@ -47,6 +47,11 @@ function windowBottom(box) {
   return box.top + 2 * WINDOW_BORDER_PX + MAP_CONTROL_PX + 2 * BAR_PADDING_PX + picture;
 }
 
+/** The collapsed confirm list's width: the panel's, clear of the 32 px column on the right. */
+export function collapsedListWidth(paneWidth) {
+  return Math.max(0, Math.min(sidebarWidth, paneWidth - 2 * PANEL_MARGIN_PX - RESET_VIEW_PX - PANEL_MARGIN_PX));
+}
+
 /**
  * The confirm list over the map while the panel is collapsed, at the left, clear
  * of the 32 px column on the right (reset view, planning toolbar). It starts at
@@ -70,7 +75,7 @@ function windowBottom(box) {
  */
 export function collapsedListBox({ paneWidth, paneHeight, topControlsBottom, windowBox = null }) {
   const margin = PANEL_MARGIN_PX;
-  const width = Math.max(0, Math.min(sidebarWidth, paneWidth - 2 * margin - RESET_VIEW_PX - margin));
+  const width = collapsedListWidth(paneWidth);
   const bottom = paneHeight - margin - RESET_VIEW_PX - margin;
   let top = topControlsBottom + margin;
   if (windowBox && paneWidth < margin + width + margin + windowBox.width + margin) {

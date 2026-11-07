@@ -509,7 +509,8 @@
       "opensCamera": "տեսախցիկ",
       "opensSynthetic": "սինթետիկ"
     },
-    "syntheticTag": "ՍԻՆԹԵՏԻԿ · ոչ տեսախցիկ",
+    "syntheticTag": "ՍԻՆԹԵՏԻԿ · քիթ · ոչ տեսախցիկ",
+    "syntheticTagGimbal": "ՍԻՆԹԵՏԻԿ · գիմբալ · ոչ տեսախցիկ",
     "waitingForPose": "Սպասում ենք դիրքին · {{name}}",
     "syntheticUnavailable": "Սինթետիկ տեսքը հասանելի չէ",
     "retry": "Կրկնել",
