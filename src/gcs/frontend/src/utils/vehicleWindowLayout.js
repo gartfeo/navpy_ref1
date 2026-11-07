@@ -11,7 +11,10 @@
  * (maximized), the window takes the pane below the action bar and the map
  * shrinks into a small box at the top right of the window's picture, under
  * its bar and warning rows and above the picture's own credit
- * line (the synthetic view has one, camera video has none). Every control is
+ * line (the synthetic view has one, camera video has none). A confirm list
+ * shown over the map's left (leftReservePx) keeps the maximized window to its
+ * right, so no card covers the picture's HUD, tag or bar; on a pane too narrow
+ * for both, the list lies over the picture as the cards win. Every control is
  * the app's 32 px map button (docs/design/gcs_video_streams.md, v12).
  */
 
@@ -99,6 +102,8 @@ const tagMaxWidth = (win, smallMap) =>
  *   above its picture (never the "too little room" row, which replaces the picture);
  *   null until measured, and then no picture at normal size (none mounts to be closed again).
  * @param {number} [p.windowCreditsPx] - height of the window picture's credit line (synthetic view).
+ * @param {number} [p.leftReservePx] - width the collapsed confirm list takes at the pane's
+ *   left, its margin included; 0 when no list shows.
  * @returns {{
  *   window: { top: number, right: number, width: number, height: number|null, maxHeight: number },
  *   smallMap: { top: number, right: number, width: number, height: number } | null,
@@ -108,20 +113,25 @@ const tagMaxWidth = (win, smallMap) =>
  */
 export function vehicleWindowLayout({
   paneWidth, paneHeight, topControlsBottom, swapped = false,
-  mapCreditsPx = 0, windowChromePx = 0, windowCreditsPx = 0,
+  mapCreditsPx = 0, windowChromePx = 0, windowCreditsPx = 0, leftReservePx = 0,
 }) {
   const top = topControlsBottom + PANEL_MARGIN_PX;
 
   // Reset view is hidden while swapped, so the window reaches the bottom margin.
   const swappedHeight = Math.max(0, paneHeight - top - PANEL_MARGIN_PX);
-  const swappedWin = {
-    top, right: PANEL_MARGIN_PX, width: Math.max(0, paneWidth - 2 * PANEL_MARGIN_PX),
-    height: swappedHeight, maxHeight: swappedHeight,
-  };
   const chromePx = windowChromePx ?? 0;
-  const swappedMap = smallMapBox(swappedWin, paneHeight, chromePx, windowCreditsPx);
+  const swappedAt = (reserve) => {
+    const w = {
+      top, right: PANEL_MARGIN_PX, width: Math.max(0, paneWidth - 2 * PANEL_MARGIN_PX - reserve),
+      height: swappedHeight, maxHeight: swappedHeight,
+    };
+    return { win: w, map: smallMapBox(w, paneHeight, chromePx, windowCreditsPx) };
+  };
   // Too little room for a whole small map: no swap rather than a map that
-  // covers a credit line, clips its own or reaches size 0.
+  // covers a credit line, clips its own or reaches size 0. Beside a confirm
+  // list when a whole small map still fits there, else over the whole pane.
+  const beside = swappedAt(leftReservePx);
+  const { win: swappedWin, map: swappedMap } = beside.map.width >= SMALL_MAP_MIN_PX ? beside : swappedAt(0);
   const canSwap = swappedMap.width >= SMALL_MAP_MIN_PX;
 
   let win;

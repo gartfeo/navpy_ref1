@@ -2,7 +2,7 @@
 // picture, maximized (full) and at normal size (compact).
 import { describe, it, expect } from 'vitest';
 import {
-  ATTITUDE_BAND_MIN_PX, ATTITUDE_SCALE_MIN_PX, HEADING_TAPE_H_PX, HEADING_TAPE_W_PX, HUD_GAP_PX, PICTURE_ATTITUDE_MIN_W_PX,
+  ATTITUDE_BAND_MIN_PX, ATTITUDE_SCALE_MIN_PX, HEADING_TAPE_H_PX, HEADING_TAPE_MIN_W_PX, HEADING_TAPE_W_PX, HUD_GAP_PX, PICTURE_ATTITUDE_MIN_W_PX,
   PICTURE_TAPE_MIN_PX, PICTURE_TAPE_W_PX, RC_TAPE_W_PX, READOUT_LINE_PX, STRIP_MAX_MESSAGES, TAG_MIN_W_PX,
   pictureHudLayout, rcHudLayout,
 } from './hudLayout';
@@ -79,10 +79,11 @@ describe('pictureHudLayout maximized (full)', () => {
     const right = PANEL_MARGIN_PX + SMALL_MAP.width + PANEL_MARGIN_PX;
     expect(hud.corner).toMatchObject({ top: INSET, right, waypoint: 'full', numbers: false });
     expect(tagMaxWidth).toBe(1200 - INSET - right - CORNER.width - HUD_GAP_PX);
-    const room = 1200 - INSET - right;
+    // Centred on the picture (the camera's axis), clear of the small map.
     expect(hud.heading).toEqual({
-      top: INSET + CORNER.height + HUD_GAP_PX, height: HEADING_TAPE_H_PX, width: 300, left: INSET + (room - 300) / 2,
+      top: INSET + CORNER.height + HUD_GAP_PX, height: HEADING_TAPE_H_PX, width: 300, left: 600 - 150,
     });
+    expect(hud.heading.left + hud.heading.width).toBeLessThanOrEqual(1200 - right);
     expect(hud.speed).toMatchObject({ left: INSET, width: PICTURE_TAPE_W_PX, height: HUD_TAPE_MAX_PX });
     expect(hud.altitude).toMatchObject({ right: INSET, top: PANEL_MARGIN_PX + SMALL_MAP.height + HUD_GAP_PX });
     expect(hud.attitude).toEqual({ left: right, right, top: 0, bottom: 0, scale: true });
@@ -95,6 +96,22 @@ describe('pictureHudLayout maximized (full)', () => {
     const hidden = maximized({ panelShown: false }).hud;
     expect(hidden.corner).toMatchObject({ status: true, mode: true });
     expect(hidden.strip).toEqual({ bottom: 16 + INSET, maxMessages: STRIP_MAX_MESSAGES });
+  });
+
+  it("the heading tape's centre is the picture's: narrowed to clear the small map, below it when too narrow (owner 2026-11-07)", () => {
+    const right = PANEL_MARGIN_PX + SMALL_MAP.width + PANEL_MARGIN_PX;
+    // The live check's 854 px maximized picture: 91 px from the centre to the small map.
+    const narrowed = maximized({ width: 854 }).hud.heading;
+    expect(narrowed.left + narrowed.width / 2).toBe(427);
+    expect(narrowed.width).toBe(2 * (854 - right - 427));
+    expect(narrowed.top).toBe(INSET + CORNER.height + HUD_GAP_PX);
+    // Too narrow beside the small map: full width, below it, still centred.
+    const width = 2 * right + HEADING_TAPE_MIN_W_PX - 2;
+    const below = maximized({ width, corner: { width: 40, height: 16 } }).hud;
+    expect(below.heading.width).toBe(HEADING_TAPE_W_PX);
+    expect(below.heading.left + below.heading.width / 2).toBe(width / 2);
+    expect(below.heading.top).toBeGreaterThanOrEqual(PANEL_MARGIN_PX + SMALL_MAP.height + HUD_GAP_PX);
+    expect(below.altitude.top).toBeGreaterThanOrEqual(below.heading.top + HEADING_TAPE_H_PX);
   });
 
   it('the heading tape keeps the height its drawing needs (a shorter canvas clipped its labels, Codex r1)', () => {
@@ -139,10 +156,11 @@ describe('pictureHudLayout maximized (full)', () => {
     expect(hud.speed).toBeNull();
     expect(hud.altitude).toBeNull();
     // Codex's case: no room below the small map for the column either, so it
-    // stays beside it and the heading tape keeps its row above the credit line.
+    // stays beside it; the picture's centre is under the small map and there
+    // is no room below it, so the heading tape is left out, never off centre.
     const short = maximized({ width: 600, height: 230, corner, creditsPx: 38, smallMap }).hud;
     expect(short.corner.top).toBe(INSET);
-    expect(short.heading.top + HEADING_TAPE_H_PX).toBeLessThanOrEqual(230 - 38);
+    expect(short.heading).toBeNull();
   });
 
   it('in a narrow window: the attitude indicator full width rather than below its minimum', () => {

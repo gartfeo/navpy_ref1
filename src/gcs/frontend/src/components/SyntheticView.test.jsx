@@ -39,7 +39,7 @@ const { fake } = vi.hoisted(() => {
       // the whole widget; the credit line is the CreditDisplay's container.
       this.creditContainer = container;
       this.creditDisplay = { container: document.createElement('div') };
-      this.camera = { setView: vi.fn() };
+      this.camera = { setView: vi.fn(), frustum: { fov: 1.0472 } };
       this.scene = {
         globe: {},
         screenSpaceCameraController: { enableInputs: true },
@@ -105,6 +105,15 @@ vi.mock('./map/utils/fpvPose', () => ({
   noseOrientation: (hpr) => ({ heading: hpr.heading, pitch: hpr.roll, roll: -hpr.pitch }),
 }));
 
+// The gimbal view, driven per test: its math is gimbalView.test.js's.
+vi.mock('./map/utils/gimbalView', async (importOriginal) => ({
+  ...(await importOriginal()),
+  GIMBAL_ON_AXIS_RAD: 0.1,
+  liveGimbalView: (vehicle) => fake.gimbal?.(vehicle) ?? null,
+  gimbalOrientation: () => fake.gimbalOrientation,
+}));
+vi.mock('../utils/plannerConfig', () => ({ getDeviceConfigs: () => [] }));
+
 const linked = { link_ok: true, lat: 32, lon: 34, alt_rel: 100, roll: 1, pitch: 2, heading: 90 };
 
 function makeStore(vehicles = { 1: linked, 2: linked }) {
@@ -161,6 +170,8 @@ beforeEach(() => {
   fake.hudProps.length = 0;
   fake.routes.length = 0;
   fake.createThrows = false;
+  fake.gimbal = null;
+  fake.gimbalOrientation = null;
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
 
@@ -409,5 +420,39 @@ describe('SyntheticView', () => {
     rerenderWith({ panelShown: false });
     expect(last().layout.corner).toMatchObject({ status: true, mode: true });
     expect(last().layout.strip).not.toBeNull();
+  });
+
+  it("with live gimbal telemetry: looks where the gimbal camera looks, with its field of view; the tag says so (owner 2026-11-07)", async () => {
+    fake.gimbal = () => ({ cameraToVehicle: [[0, 0, 1], [1, 0, 0], [0, 1, 0]], fovH: 0.5, fovV: 0.3 });
+    fake.gimbalOrientation = { heading: 0.4, pitch: -0.7, roll: 0.05, offNose: 0.7 };
+    const { getByText, store } = setup();
+    await widgetReady();
+    await act(async () => {});
+    const [w] = fake.widgets;
+    emit(store);
+    frame(w);
+    expect(w.camera.setView).toHaveBeenLastCalledWith({
+      destination: pose.position, orientation: { heading: 0.4, pitch: -0.7, roll: 0.05 },
+    });
+    expect(w.camera.frustum.fov).toBe(0.5);
+    expect(getByText('vehicleWindow.syntheticTagGimbal')).toBeInTheDocument();
+    // Off the nose axis: the aircraft's horizon would not match the picture.
+    expect(fake.hudProps.at(-1).layout.attitude).toBeNull();
+    expect(fake.hudProps.at(-1).layout.corner).toBeTruthy();
+    // Near the nose axis: the horizon is back.
+    fake.gimbalOrientation = { heading: 0.4, pitch: -0.05, roll: 0, offNose: 0.05 };
+    frame(w);
+    expect(fake.hudProps.at(-1).layout.attitude).not.toBeNull();
+    // A canvas taller than wide: Cesium reads fov as vertical, so it gets the
+    // vertical view that keeps the camera's horizontal 0.5 (Codex f1).
+    w.camera.frustum.aspectRatio = 0.6;
+    frame(w);
+    expect(2 * Math.atan(0.6 * Math.tan(w.camera.frustum.fov / 2))).toBeCloseTo(0.5, 9);
+    // Telemetry gone: the nose view and its own field of view again.
+    fake.gimbal = null;
+    frame(w);
+    expect(w.camera.setView).toHaveBeenLastCalledWith({ destination: pose.position, orientation: { heading: 1, pitch: 3, roll: -2 } });
+    expect(w.camera.frustum.fov).toBe(1.0472);
+    expect(getByText('vehicleWindow.syntheticTag')).toBeInTheDocument();
   });
 });
