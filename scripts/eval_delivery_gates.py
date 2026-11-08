@@ -213,11 +213,14 @@ def delivery_run_gate_errors(
         return ["delivery: the run gates need the delivery scenario"]
     try:
         evidence = load_delivery_evidence(log_dir, plan, scenario)
+    except (OSError, UnicodeError, KeyError, TypeError, ValueError) as error:
+        return [f"{DELIVERY_EVIDENCE_ERROR}: {error}"]
+    try:   # the evidence is read: what it holds is the product's (Codex review of step 8, round 2, finding 2)
         applied = {(ack.owner, ack.helper, ack.task) for ack in evidence.lines.acks}
         roles = resolve_roles(evidence.sys_ids, evidence.expected, applied)
         return delivery_errors(evidence, roles, approvals)
-    except (OSError, UnicodeError, KeyError, TypeError, ValueError) as error:
-        return [f"{DELIVERY_EVIDENCE_ERROR}: {error}"]
+    except (KeyError, TypeError, ValueError) as error:
+        return [f"delivery: {error}"]
 
 
 __all__ = [

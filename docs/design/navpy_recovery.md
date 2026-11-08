@@ -560,6 +560,12 @@ merges before step 4, which builds on its deadline fix.
         prefixes (`RUN_EVIDENCE_ERRORS`), and make the run invalid.
      5. A journal or NavPy log that exists but cannot be read is invalid
         evidence, not an aborted analysis.
+   - Codex round 2 on step 8, fixed: the logger closes the journal before
+     its worker stops, so a failure writing the close line is still logged
+     (and the run invalid); only reading and parsing the backend or delivery
+     evidence is invalid, while readable evidence that breaks an assignment
+     rule is a product failure (`global assignment rule broken`, `delivery:`);
+     a close line whose counts are not non-negative integers is invalid.
    - To check in SITL (step 9): every NavPy in a wall and a lockstep eval
      closes its logger at the end, so its journal ends with `close`;
      otherwise every run would read as invalid.

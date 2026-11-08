@@ -137,3 +137,40 @@ def test_navpy_s_logger_journals_a_recovery_and_closes_the_journal(tmp_path, mon
     lines = _lines(path)
     assert [(e["source"], e["message"]) for e in lines[1:-1]] == [("nav", "NavPy hold: commands fenced, LOITER")]
     assert lines[-1]["event"] == "close" and lines[-1]["recorded"] == 1
+
+
+def test_r2_finding1_a_failed_close_line_is_still_logged_at_shutdown(tmp_path, monkeypatch):
+    """Codex review of step 8, round 2: the journal closes before the log worker stops, so a failure writing the
+    close line reaches the NavPy log, and the eval sees the marker."""
+    from scripts.eval_gcs_demo_recovery import recovery_evidence
+
+    monkeypatch.setenv(LOG_DIR_ENV, str(tmp_path))
+    logger = initialize_logger(LoggerArgsStub(), sys_id=4646, status_logger=None)
+    path = tmp_path / "uav_4646_recovery.jsonl"
+    real = open(path, "w", encoding="utf-8")
+
+    class FailingClose:
+        def write(self, text):
+            if '"close"' in text:
+                raise OSError("disk gone")
+            real.write(text)
+
+        def flush(self):
+            real.flush()
+
+        def close(self):
+            real.close()
+
+    logger.recovery_journal.close()
+    logger.recovery_journal = RecoveryJournal(str(path), lambda line: logger.error(line),
+                                              open_file=lambda p: FailingClose())
+    try:
+        logger.recovery("NavPy hold: commands fenced", "nav")
+    finally:
+        with unbounded_worker_join():
+            logger.close()
+        for handler in logging.getLogger("vehicle_logger_4646").handlers:
+            handler.close()
+    navigation = (tmp_path / "uav_4646_navigation.log").read_text(encoding="utf-8")
+    assert RECOVERY_JOURNAL_FAILURE_MARKER in navigation
+    assert recovery_evidence(tmp_path, 4646, navigation).errors[0].startswith("recovery journal incomplete")

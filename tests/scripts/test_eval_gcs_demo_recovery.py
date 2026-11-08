@@ -170,11 +170,37 @@ def test_r1_finding2_a_restart_in_a_clean_run_fails_the_clean_run_gate(tmp_path)
 
 
 def test_r1_finding3_the_lua_watchdog_s_recovery_fails_a_clean_run(tmp_path):
-    """NavPy journals the autopilot's NAVWD hold (navpy/app/autopilot_watchdog_report.py); the verdict counts it."""
+    """The whole path (Codex review of step 8, round 2): the autopilot's NAVWD hold and its action text, as decoded
+    MAVLink frames, through NavPy's subscriptions and logger into a real journal, then the eval's verdict."""
+    from types import SimpleNamespace
+
+    from pymavlink.dialects.v20 import ardupilotmega as mav2
+
+    from navpy.app.autopilot_watchdog_report import AutopilotWatchdogSubscriptions
+    from navpy.core.kernel.logging.logger_api import ConsoleLogger
+    from navpy.core.kernel.logging.recovery_journal import RecoveryJournal
+
     _acked_run(tmp_path)
-    _journal(tmp_path, 5, {"seq": 1, "t": 3.0, "source": "autopilot", "message": "autopilot NavPy watchdog: hold"})
+    (tmp_path / "uav_5_recovery.jsonl").unlink()      # this NavPy's journal is the one written below
+    logger = ConsoleLogger()
+    logger.recovery_journal = RecoveryJournal(str(tmp_path / "uav_5_recovery.jsonl"), print)
+    callbacks = {}
+    vehicle = SimpleNamespace(target_system=5, on_message=lambda name, cb: callbacks.setdefault(name, cb)
+                              and SimpleNamespace(cancel=lambda: None))
+    subscriptions = AutopilotWatchdogSubscriptions(vehicle, logger)
+    autopilot, decoder = mav2.MAVLink(None, srcSystem=5, srcComponent=1), mav2.MAVLink(None)
+    for frame in (autopilot.named_value_float_encode(1000, b"NAVWD", 0.0),
+                  autopilot.named_value_float_encode(2000, b"NAVWD", 1.0),
+                  autopilot.statustext_encode(2, b"NavPy watchdog: no NavPy heartbeat, LOITER")):
+        message = decoder.parse_buffer(frame.pack(autopilot))[0]
+        callbacks[message.get_type()](message)
+    subscriptions.close()
+    logger.recovery_journal.close()
     report = _analyzed(tmp_path)
-    assert report.verdict == FAILED and "autopilot NavPy watchdog: hold" in report.errors[0]
+    assert report.verdict == FAILED
+    assert [r["source"] for r in next(v for v in report.vehicles if v.sys_id == 5).recoveries] == [
+        "autopilot", "autopilot",
+    ]
 
 
 def test_r1_finding4_a_missing_backend_log_makes_the_run_invalid(tmp_path):
@@ -203,6 +229,27 @@ def test_r1_finding5_an_unreadable_navpy_log_makes_the_vehicle_invalid(tmp_path,
     report = evaluator.analyze_run(tmp_path, scenario=CERTIFIED, sys_ids=(4, 5, 6), approvals=_approval_records())
     vehicle = next(v for v in report.vehicles if v.sys_id == 6)
     assert vehicle.verdict == INVALID and report.verdict == INVALID
+
+
+def test_r2_finding2_an_assignment_rule_broken_in_readable_evidence_is_failed(tmp_path):
+    """A non-owner sends a task request: the backend log reads fine, the product broke an assignment rule."""
+    from scripts.eval_gcs_demo_constants import backend_log_path
+
+    _acked_run(tmp_path)
+    log = backend_log_path(tmp_path)
+    log.write_text(log.read_text(encoding="utf-8") + "INFO Task assign request: sender=5 receiver=6 task_id=3 "
+                   "at (40.000600, 44.000000) uid=50:30\n", encoding="utf-8")
+    report = _analyzed(tmp_path)
+    assert report.verdict == FAILED
+    assert any(error.startswith("global assignment rule broken") for error in report.errors), report.errors
+
+
+def test_r2_finding3_malformed_close_counts_are_invalid_not_an_abort(tmp_path):
+    for sys_id, close in enumerate(({"recorded": 1, "dropped": "1"}, {"recorded": None, "dropped": 0},
+                                    {"recorded": True, "dropped": 0}, {"recorded": -1, "dropped": 0}), 1):
+        line = json.dumps({"event": "close", "t": 1.0, **close})
+        _write(tmp_path, sys_id, RECOVERY_JOURNAL_OPEN, line + "\n")
+        assert "close line has malformed counts" in _errors(tmp_path, sys_id)[0]
 
 
 def test_a_product_failure_with_valid_evidence_is_failed(tmp_path):

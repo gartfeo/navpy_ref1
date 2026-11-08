@@ -25,6 +25,9 @@ CLEAN, RECOVERED, INVALID, FAILED = "clean", "recovered", "invalid", "failed"
 #: The run-level gates' evidence errors, each producer's prefix (Codex review of step 8, finding 4): the backend log,
 #: the lockstep journal and NavPy lines, or the delivery evidence could not be read, so the run is not scored.
 ASSIGNMENT_EVIDENCE_ERROR = "invalid global assignment evidence"
+#: Readable assignment evidence that breaks an assignment rule (a non-owner request, one POI to several peers): a
+#: product failure, so not in RUN_EVIDENCE_ERRORS.
+ASSIGNMENT_RULE_ERROR = "global assignment rule broken"
 LOCKSTEP_EVIDENCE_ERROR = "certified lockstep evidence"
 SLICE_EVIDENCE_ERROR = "slice evidence"
 DELIVERY_EVIDENCE_ERROR = "delivery: invalid evidence"
@@ -90,6 +93,10 @@ def _process_errors(name: str, processes: Sequence[_Process]) -> list[str]:
     for index, process in enumerate(processes, 1):
         close = process.close
         if close is None:
+            continue
+        counts = (close.get("recorded"), close.get("dropped"))
+        if not all(type(count) is int and count >= 0 for count in counts):   # bool is not a count
+            errors.append(f"recovery journal {name}: process {index} close line has malformed counts {counts}")
             continue
         if close.get("dropped") != 0:
             errors.append(f"recovery journal {name}: process {index} dropped {close.get('dropped')} entries")
@@ -176,7 +183,7 @@ def faults_planned(log_dir: Path, journal_file: str) -> bool:
 
 
 __all__ = [
-    "ASSIGNMENT_EVIDENCE_ERROR", "CLEAN", "DELIVERY_EVIDENCE_ERROR", "FAILED", "INVALID", "LOCKSTEP_EVIDENCE_ERROR",
+    "ASSIGNMENT_EVIDENCE_ERROR", "ASSIGNMENT_RULE_ERROR", "CLEAN", "DELIVERY_EVIDENCE_ERROR", "FAILED", "INVALID", "LOCKSTEP_EVIDENCE_ERROR",
     "RECOVERED", "RUN_EVIDENCE_ERRORS", "RecoveryEvidence", "SLICE_EVIDENCE_ERROR", "faults_planned",
     "recovery_evidence", "recovery_journal", "run_verdict", "scored_with", "unexpected_recovery_errors",
     "vehicle_verdict",

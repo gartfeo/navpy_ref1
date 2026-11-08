@@ -41,7 +41,7 @@ from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_r
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, slice_gate_errors
 from scripts.eval_gcs_demo_recovery import (
-    ASSIGNMENT_EVIDENCE_ERROR, faults_planned, run_verdict, unexpected_recovery_errors,
+    ASSIGNMENT_EVIDENCE_ERROR, ASSIGNMENT_RULE_ERROR, faults_planned, run_verdict, unexpected_recovery_errors,
 )
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
@@ -91,18 +91,20 @@ def global_assignment_evidence(
     log_dir: Path,
     plan: DemoMissionPlan,
 ) -> AssignmentEvidence:
-    acked = False
+    # Reading and parsing the backend log is evidence; the assignment rules on what it holds are the product's
+    # (Codex review of step 8, round 2, finding 2).
     try:
         backend_log = backend_log_path(log_dir).read_text(
             encoding="utf-8",
             errors="strict",
         )
         acked = parse_assignment_lines(backend_log).log_format is LogFormat.ACKED
-        assignments = derive_global_assignment_map(backend_log, plan)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
-        return AssignmentEvidence(
-            {}, [f"{ASSIGNMENT_EVIDENCE_ERROR}: {error}"], acked,
-        )
+        return AssignmentEvidence({}, [f"{ASSIGNMENT_EVIDENCE_ERROR}: {error}"], False)
+    try:
+        assignments = derive_global_assignment_map(backend_log, plan)
+    except (TypeError, ValueError) as error:
+        return AssignmentEvidence({}, [f"{ASSIGNMENT_RULE_ERROR}: {error}"], acked)
     return AssignmentEvidence(assignments, [], acked)
 
 
