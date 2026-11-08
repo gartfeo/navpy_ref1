@@ -996,8 +996,9 @@ class TestVisionControllerSimDetector(unittest.TestCase):
             self.vehicle, self.args, vision_args, self.logger
         )
 
+        # The controller keeps a stable proxy per mount (recovery step 5b); the sim detector is behind it.
         for detector in controller.detectors:
-            self.assertIsInstance(detector, DetectorSim)
+            self.assertIsInstance(detector.instance, DetectorSim)
 
     def test_sim_detector_has_mount(self):
         """Sim detector has associated mount."""
@@ -1016,7 +1017,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         )
 
         for detector in controller.detectors:
-            self.assertIsNotNone(detector.mount)
+            self.assertIsNotNone(detector.instance.mount)
             self.assertTrue(len(detector.mounts) == 1)
 
     def test_ideal_360_profile_creates_lightweight_ideal_detector(self):
@@ -1039,7 +1040,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         self.assertEqual(len(controller.detectors), 1)
         detector = controller.detectors[0]
         self.assertTrue(detector.has_source_driven_detection_events)
-        self.assertIsNone(detector.navigation)
+        self.assertIsNone(detector.instance.navigation)
         self.logger.info.assert_any_call(
             "DetectorSim(ideal_360): static ideal 360 enabled"
         )

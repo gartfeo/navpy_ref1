@@ -12,6 +12,9 @@ from navpy.core.ports.detect_data import DetectedObject
 class PoiIdentity:
     source_name: str
     local_obj_id: int
+    #: The source detector's instance (DetectionIdentity.source_generation): a restarted detector's local ids
+    #: start again, so the same local id of a new instance is a different object.
+    source_generation: int = 0
 
 
 def get_poi_task_id(poi: DetectedObject) -> int | None:
@@ -52,7 +55,26 @@ def get_poi_identity(poi: DetectedObject) -> PoiIdentity:
     return PoiIdentity(
         source_name=poi.pixel.source_name,
         local_obj_id=poi.identity.obj_id,
+        source_generation=poi.identity.source_generation,
     )
+
+
+def _identity_generation(identity: PoiIdentity) -> int:
+    generation = getattr(identity, "source_generation", 0)
+    return generation if isinstance(generation, int) and not isinstance(generation, bool) else 0
+
+
+def instance_serving(member: object, identity: PoiIdentity) -> object | None:
+    """The detector instance that made ``identity``'s object, to command directly; None if it was replaced.
+
+    A restarting member (app/perception/restarting_detector.py) is asked for that generation's instance in one
+    read, so checking and commanding use the same instance even if the main thread replaces it meanwhile. A
+    member that is never restarted serves generation 0 only.
+    """
+    generation = _identity_generation(identity)
+    if callable(getattr(type(member), "instance_for_generation", None)):
+        return member.instance_for_generation(generation)  # type: ignore[attr-defined]
+    return member if generation == 0 else None
 
 
 class PoiTaskIdAllocator:
@@ -104,4 +126,5 @@ __all__ = [
     "get_poi_identity",
     "get_poi_task_id",
     "same_poi_identity",
+    "instance_serving",
 ]

@@ -32,6 +32,8 @@ WIRING = frozenset({
     "src/navpy/app/perception/vision_detector_factory_ports.py",
     "src/navpy/app/perception/real_detector_factory.py",
     "src/navpy/app/perception/sim_detector_factory.py",
+    # The restarted detector's stable node forwards the current instance's reading (recovery step 5b).
+    "src/navpy/app/perception/restarting_detector.py",
     "src/navpy/app/perception/camera_stream_composition.py",
     "src/navpy/app/perception/vision_controller_composition.py",
     "src/navpy/plugins/vehicle/ardupilot/camera_stream_messages.py",

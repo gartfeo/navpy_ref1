@@ -39,7 +39,7 @@ from navpy.core.flow.navigation_loop import (
     StateActionDispatcher,
 )
 from navpy.core.flow.nav_recovery import NavRecovery
-from navpy.core.flow.nav_recovery_clock import TimeSample
+from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
@@ -277,7 +277,7 @@ def _recovery_step(
     )
     return lambda cycle_ok: recovery.step(
         cycle_ok,
-        TimeSample(aircraft_s=_attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
+        TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
     )
 
 
