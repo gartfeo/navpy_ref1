@@ -127,8 +127,9 @@ _RESULTS = {0: ["update result: updated"], 2: ["update result: app build failed"
 
 class _FakeHandheld:
     def __init__(self, built="b1", installed="b1", app_running=True, update_code=0,
-                 update_lines=None, preflight_code=0):
+                 update_lines=None, preflight_code=0, other_key=False, token_sha=None):
         self.built, self.installed, self.running = built, installed, app_running
+        self.other_key, self.token_sha, self.tokens = other_key, token_sha, []
         self.update_code, self.preflight_code = update_code, preflight_code
         self.update_lines = _RESULTS.get(update_code, []) if update_lines is None else update_lines
         self.calls = []
@@ -150,7 +151,7 @@ class _FakeHandheld:
         return self.running
 
     def termux_sha256(self, path):
-        return self.built
+        return self.token_sha if path == deploy.TOKEN_ON_DEVICE else self.built
 
     def installed_apk_sha256(self):
         return self.installed
@@ -160,9 +161,37 @@ class _FakeHandheld:
 
     def install(self, apk):
         self.calls.append("install")
+        if self.other_key:
+            raise deploy.OtherSigningKey("INSTALL_FAILED_UPDATE_INCOMPATIBLE")
+
+    def uninstall_app(self):
+        self.calls.append("uninstall")
+        self.other_key = False
+
+    def put_token(self, token):
+        self.calls.append("token")
+        self.tokens.append(token)
 
     def restart_app(self):
         self.calls.append("restart_app")
+
+
+class TestLocalToken(unittest.TestCase):
+    """The PC's token is found where the backend finds it (map_config.py)."""
+
+    def test_env_wins_then_the_file_then_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tok"
+            path.write_text(" from-file " + chr(10), encoding="utf-8")
+            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "from-env",
+                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(deploy.local_cesium_token(), "from-env")
+            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "",
+                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(deploy.local_cesium_token(), "from-file")
+            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "",
+                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path) + ".missing"}):
+                self.assertIsNone(deploy.local_cesium_token())
 
 
 class TestDeploySteps(unittest.TestCase):
@@ -254,6 +283,51 @@ class TestDeploySteps(unittest.TestCase):
         script = handheld.update_script
         self.assertIn("navpy-update-*.tgz", script)
         self.assertLess(script.index("flock -n 9"), script.index("navpy-update-*.tgz"))
+
+    def test_an_app_signed_with_another_key_is_reported_and_left_installed(self):
+        """Owner (2026-11-08): the app installed from a PC build is signed with
+        the PC's key, so adb install -r of the handheld's build failed with a
+        raw adb error. The deploy says what to do, keeps the old app, and the
+        open app still loads the new backend's page."""
+        handheld = _FakeHandheld(built="new", installed="old", other_key=True)
+        with self.assertRaisesRegex(deploy.DeployError, "--replace-app"):
+            deploy.deploy(handheld, self.bundle)
+        self.assertEqual(handheld.calls, ["upload", "update", "download", "install", "restart_app"])
+
+    def test_replace_app_uninstalls_an_app_signed_with_another_key_and_installs(self):
+        handheld = _FakeHandheld(built="new", installed="old", other_key=True)
+        deploy.deploy(handheld, self.bundle, replace_app=True)
+        self.assertEqual(handheld.calls,
+                         ["upload", "update", "download", "install", "uninstall", "install", "restart_app"])
+
+    def test_replace_app_never_uninstalls_an_app_that_updates_in_place(self):
+        handheld = _FakeHandheld(built="new", installed="old")
+        deploy.deploy(handheld, self.bundle, replace_app=True)
+        self.assertNotIn("uninstall", handheld.calls)
+
+    def test_the_pcs_cesium_token_is_copied_before_the_backend_restarts(self):
+        """Owner (2026-11-08): the handheld had no token, so no satellite layer."""
+        handheld = _FakeHandheld()
+        deploy.deploy(handheld, self.bundle, token="tok")
+        self.assertEqual(handheld.tokens, ["tok"])
+        self.assertLess(handheld.calls.index("token"), handheld.calls.index("update"))
+
+    def test_a_token_the_handheld_already_has_is_not_copied_again(self):
+        import hashlib
+        handheld = _FakeHandheld(token_sha=hashlib.sha256(b"tok").hexdigest())
+        deploy.deploy(handheld, self.bundle, token="tok")
+        self.assertNotIn("token", handheld.calls)
+
+    def test_without_a_token_on_the_pc_the_handhelds_is_kept(self):
+        handheld = _FakeHandheld(token_sha="whatever")
+        deploy.deploy(handheld, self.bundle, token=None)
+        self.assertNotIn("token", handheld.calls)
+
+    def test_the_token_is_never_printed(self):
+        printed = []
+        with mock.patch("builtins.print", lambda *a, **k: printed.append(" ".join(map(str, a)))):
+            deploy.deploy(_FakeHandheld(), self.bundle, token="s3cr3t-token")
+        self.assertFalse(any("s3cr3t-token" in line for line in printed))
 
     def test_no_run_as_stops_before_copying(self):
         handheld = _FakeHandheld(preflight_code=1)

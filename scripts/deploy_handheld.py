@@ -7,15 +7,26 @@ in (keeping the old one as ~/navpy.prev), and restarts the backend if it was
 running, rolling back when the new one does not come up. Then the app is
 installed from here with adb install -r when the handheld's build differs
 from the installed app, and restarted if it was open, so it loads the new page.
+This PC's Cesium Ion token (CESIUM_ION_TOKEN, else ~/.gcs/cesium_ion_token or
+GCS_CESIUM_ION_TOKEN_FILE, as the backend reads it) is copied to the handheld's
+~/.gcs/cesium_ion_token, readable by Termux only, so its map has satellite and
+3D terrain. The token is never printed.
 
     python scripts/deploy_handheld.py                  # deploy HEAD
     python scripts/deploy_handheld.py --out bundle.tgz # only build the bundle
+    python scripts/deploy_handheld.py --replace-app    # also replace an app signed with another key
+
+The handheld signs the app with its own key. An installed app signed with
+another key (one built on a PC with build_apk.ps1) cannot be updated in
+place: the deploy says so and stops, and --replace-app uninstalls it first,
+which clears the app's own stored data (the page's saved choices).
 
 Needs a Termux build that allows run-as (the GitHub build does).
 """
 from __future__ import annotations
 
 import argparse
+import hashlib
 import io
 import os
 import re
@@ -47,6 +58,12 @@ FLOCK = "/system/bin/flock"
 APK_ON_DEVICE = f"{HOME}/.gcs/apk/aas-gcs.apk"
 APP = "com.aas.gcs"
 APP_ACTIVITY = f"{APP}/.MainActivity"
+# Where the handheld's backend reads the Cesium Ion token (map_config.py).
+TOKEN_ON_DEVICE = f"{HOME}/.gcs/cesium_ion_token"
+CESIUM_ION_TOKEN_ENV = "CESIUM_ION_TOKEN"
+CESIUM_ION_TOKEN_FILE_ENV = "GCS_CESIUM_ION_TOKEN_FILE"
+# adb install's answer when the installed app is signed with another key.
+_OTHER_KEY = b"INSTALL_FAILED_UPDATE_INCOMPATIBLE"
 # update_gcs.sh ends with one of these lines and exit codes; the code alone
 # could come from tar or bash failing before the updater decided anything.
 UPDATED = (0, "update result: updated")
@@ -69,6 +86,24 @@ cd "$HOME"
 
 class DeployError(RuntimeError):
     pass
+
+
+class OtherSigningKey(DeployError):
+    """The installed app is signed with another key; adb install -r cannot replace it."""
+
+
+def local_cesium_token() -> str | None:
+    """This PC's Cesium Ion token, found as the backend finds it (map_config.py), or None."""
+    token = os.environ.get(CESIUM_ION_TOKEN_ENV, "").strip()
+    if token:
+        return token
+    override = os.environ.get(CESIUM_ION_TOKEN_FILE_ENV, "").strip()
+    path = Path(override).expanduser() if override else Path.home() / ".gcs" / "cesium_ion_token"
+    try:
+        token = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return None
+    return token or None
 
 
 def git(*args: str, repo: Path = REPO) -> str:
@@ -182,17 +217,62 @@ class Handheld:
         return _sha256(self._adb("shell", "sha256sum", found.group(1).decode()).stdout)
 
     def install(self, apk: Path) -> None:
-        subprocess.run([*self.base, "install", "-r", str(apk)], check=True)
+        proc = subprocess.run([*self.base, "install", "-r", str(apk)], capture_output=True)
+        output = proc.stdout + proc.stderr
+        print(output.decode(errors="replace").strip())
+        if proc.returncode != 0:
+            if _OTHER_KEY in output:
+                raise OtherSigningKey(output.decode(errors="replace").strip())
+            raise subprocess.CalledProcessError(proc.returncode, proc.args, proc.stdout, proc.stderr)
+
+    def uninstall_app(self) -> None:
+        self._adb("uninstall", APP, check=True)
+
+    def put_token(self, token: str) -> None:
+        """Writes the token to TOKEN_ON_DEVICE, mode 600, replacing it whole."""
+        tmp = f"{TOKEN_ON_DEVICE}.new"
+        subprocess.run([*self.base, "exec-in", "run-as", TERMUX, "sh", "-c",
+                        f"umask 077; mkdir -p '{HOME}/.gcs' && cat > '{tmp}' && chmod 600 '{tmp}' "
+                        f"&& mv -f '{tmp}' '{TOKEN_ON_DEVICE}'"],
+                       input=token.encode(), check=True)
 
     def restart_app(self) -> None:
         self._adb("shell", "am", "force-stop", APP, check=True)
         self._adb("shell", "am", "start", "-n", APP_ACTIVITY, check=True)
 
 
-def deploy(handheld: Handheld, bundle: Path) -> None:
+def copy_token(handheld: Handheld, token: str | None) -> None:
+    """Gives the handheld this PC's token unless it already has the same one."""
+    if not token:
+        print("no Cesium Ion token on this PC; the handheld keeps whatever it has")
+        return
+    if handheld.termux_sha256(TOKEN_ON_DEVICE) == hashlib.sha256(token.encode()).hexdigest():
+        return
+    handheld.put_token(token)
+    print(f"copied this PC's Cesium Ion token to {TOKEN_ON_DEVICE}")
+
+
+def install_app(handheld: Handheld, apk: Path, replace_app: bool) -> None:
+    try:
+        handheld.install(apk)
+    except OtherSigningKey as error:
+        if not replace_app:
+            raise DeployError(
+                "The installed app is signed with another key (built on a PC with build_apk.ps1?), "
+                "so it cannot be updated in place. The backend is updated. Deploy again with "
+                "--replace-app to uninstall it and install the handheld's build; that clears the "
+                "app's own stored data. Later deploys then install by themselves.") from error
+        print("the installed app is signed with another key: uninstalling it, then installing")
+        handheld.uninstall_app()
+        handheld.install(apk)
+
+
+def deploy(handheld: Handheld, bundle: Path, token: str | None = None, replace_app: bool = False) -> None:
     if handheld.run("true\n")[0] != 0:
         raise DeployError("Cannot run commands in Termux over adb; run-as needs Termux's GitHub build "
                           "(see the guide, or use --out).")
+    # Before the update, which restarts the backend.
+    copy_token(handheld, token)
     app_was_open = handheld.app_running()
     print(f"copying {bundle.stat().st_size / 1e6:.1f} MB to the handheld")
     # Its own name, so a deploy started meanwhile cannot overwrite it.
@@ -219,6 +299,7 @@ def deploy(handheld: Handheld, bundle: Path) -> None:
     # After a failed build the APK on the handheld may be half-written: keep
     # the installed app. Otherwise comparing files, not "was it rebuilt",
     # also retries an install that failed.
+    install_error = None
     if outcome == UPDATED:
         built = handheld.termux_sha256(APK_ON_DEVICE)
         installed = handheld.installed_apk_sha256()
@@ -227,13 +308,18 @@ def deploy(handheld: Handheld, bundle: Path) -> None:
                 local = Path(tmp) / "aas-gcs.apk"
                 handheld.download(APK_ON_DEVICE, local)
                 print("installing the app built on the handheld")
-                handheld.install(local)
+                try:
+                    install_app(handheld, local, replace_app)
+                except DeployError as error:  # the old app stays; it still loads the new page
+                    install_error = error
         elif built and not installed:
             print(f"The app is not installed; install {APK_ON_DEVICE} to use it (see the guide).")
     # The new backend runs either way, so the open app must load its page.
     if app_was_open:
         print("restarting the app so it loads the new page")
         handheld.restart_app()
+    if install_error:
+        raise install_error
     if outcome == APP_BUILD_FAILED:
         raise DeployError("The backend is updated, but the app build failed; the installed app is "
                           "unchanged. Deploy again to retry the build.")
@@ -248,6 +334,9 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--adb", default=os.environ.get("ADB", "adb"), help="adb executable (default: $ADB or adb)")
     parser.add_argument("-s", "--serial", help="device serial, when more than one is attached")
     parser.add_argument("--out", type=Path, help="write the bundle here and stop (no adb)")
+    parser.add_argument("--replace-app", action="store_true",
+                        help="uninstall an app signed with another key before installing "
+                             "(clears the app's own stored data)")
     args = parser.parse_args(argv)
     # Keep this script's lines in order with the output of adb and npm.
     sys.stdout.reconfigure(line_buffering=True)
@@ -265,7 +354,8 @@ def main(argv: list[str] | None = None) -> int:
         with tempfile.TemporaryDirectory() as tmp:
             bundle = Path(tmp) / "navpy-update.tgz"
             build_bundle(bundle)
-            deploy(Handheld(args.adb, args.serial), bundle)
+            deploy(Handheld(args.adb, args.serial), bundle, token=local_cesium_token(),
+                   replace_app=args.replace_app)
     except (DeployError, subprocess.CalledProcessError) as error:
         print(f"deploy failed: {error}", file=sys.stderr)
         return 1
