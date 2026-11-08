@@ -114,6 +114,7 @@ def _classify_accel_cal_statustext(text: str) -> Optional[dict]:
 
 
 def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
+    entry.message_log.on_statustext(msg)
     sev = getattr(msg, "severity", 6)
     text = getattr(msg, "text", "").rstrip("\x00")
     label = entry._SEVERITY_LABELS.get(sev, "INFO")

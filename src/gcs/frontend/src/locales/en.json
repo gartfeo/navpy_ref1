@@ -1261,5 +1261,29 @@
     "dockAltUnknown": "Zone {{zone}}: camera check not run, the vehicle's dock altitude (AAS_TARG_ALT) is not known yet.",
     "couldNotRun": "Camera check could not run ({{error}}). The plan was not checked against the camera. Continue anyway?",
     "couldNotRunShort": "Camera check could not run: {{error}}"
+  },
+  "messages": {
+    "title": "Messages",
+    "open": "Messages: autopilot and companion texts and values",
+    "filter": "Filter",
+    "filters": {
+      "all": "All",
+      "warnings": "Warnings",
+      "texts": "Texts",
+      "values": "Values"
+    },
+    "export": "Export",
+    "empty": "No messages yet",
+    "loadFailed": "Could not load earlier messages",
+    "staleFor": "no update {{age}} s",
+    "valueTitle": "From {{source}}, {{age}} s ago",
+    "source": {
+      "autopilot": "autopilot",
+      "companion": "companion",
+      "camera": "camera",
+      "unknown": "unknown"
+    },
+    "incomplete": "incomplete",
+    "incompleteTitle": "Part of this long text did not arrive"
   }
 }

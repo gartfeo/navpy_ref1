@@ -16,6 +16,7 @@ from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.position_path import PositionPath
 from gcs.backend.producer_inventory import producers
 from gcs.backend.video_streams import VehicleVideoStreams
+from gcs.backend.vehicle_message_log import VehicleMessageLog
 from gcs.backend.vehicle_status import ACCEL_CAL_ACTIVE_WINDOW_S, RC_CHANNELS_MAX, CONFIRM_BLOCKED_STALE_S
 from gcs.backend import vehicle_status, vehicle_camera, vehicle_snapshot
 
@@ -68,8 +69,13 @@ class VehicleEntry:
         # Camera-protocol video discovery of the own companion's cameras
         # (display only, gcs_video_streams.md).
         self._video_streams = VehicleVideoStreams(sys_id, vehicle)
+        # Messages window history (STATUSTEXT and named values), attributed
+        # by MAVLink source system.
+        self.message_log = VehicleMessageLog(sys_id)
         for name, handler in (
             ("STATUSTEXT", self._on_statustext),
+            ("NAMED_VALUE_FLOAT", self.message_log.on_named_value),
+            ("NAMED_VALUE_INT", self.message_log.on_named_value),
             ("GIMBAL_DEVICE_ATTITUDE_STATUS", self._on_gimbal_device_attitude_status),
             ("CAMERA_FOV_STATUS", self._on_camera_fov_status),
             ("CAMERA_SETTINGS", self._on_camera_settings),
