@@ -32,6 +32,12 @@ class MavTransport:
         with self._send_lock:
             return action(self._connection)
 
+    def uplink_bytes(self) -> int | None:
+        """Bytes this connection's encoder has written (pymavlink's
+        ``total_bytes_sent``), ``None`` when it keeps no count."""
+        written = getattr(getattr(self._connection, "mav", None), "total_bytes_sent", None)
+        return written if isinstance(written, int) else None
+
     def try_call(
         self,
         action: Callable[[mavutil.mavfile], ResultT],

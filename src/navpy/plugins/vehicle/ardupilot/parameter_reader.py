@@ -98,6 +98,7 @@ class ParameterReader:
                     lambda message: self._matches(message, normalized),
                     deadline=deadline,
                 ),
+                self._transport.uplink_bytes,
             ),
             timeout,
             log=None if quiet else lambda line: self._logger_ref.value.info(line, "param"),

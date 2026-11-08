@@ -16,7 +16,7 @@ from fastapi import HTTPException
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.runtime_time import LockPort
-from navpy.core.ports.parameter_exchange import ExchangePolicy
+from navpy.core.ports.parameter_exchange import MAVLINK2_MAX_FRAME_BYTES, ExchangePolicy
 
 #: Sends per exchange step: a provisional budget from an estimated 44 % per-send
 #: failure of a parameter echo at the ``stress`` byte loss, 0.44^12 < 1e-4 if
@@ -29,8 +29,10 @@ MISSION_UPLOAD_REQUEST_S = 225.0
 
 
 def gcs_policy(budget_s: float) -> ExchangePolicy:
-    """A request's policy: its deadline is ``budget_s`` from now."""
-    return ExchangePolicy(GCS_EXCHANGE_ATTEMPTS, rt.monotonic() + budget_s, stop_on_silence=True)
+    """A request's policy: its deadline is ``budget_s`` from now. The uplink is the
+    lossy radio, so sends a held frame may swallow do not count (``held_frame_bytes``)."""
+    return ExchangePolicy(GCS_EXCHANGE_ATTEMPTS, rt.monotonic() + budget_s, stop_on_silence=True,
+                          held_frame_bytes=MAVLINK2_MAX_FRAME_BYTES)
 
 
 def requested_policy(timeout_s: object, default_s: float) -> ExchangePolicy:

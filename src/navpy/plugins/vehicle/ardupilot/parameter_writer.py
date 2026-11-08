@@ -99,7 +99,7 @@ class ParameterWriter:
             self._messages,
             ExchangeIo(f"PARAM_SET {spec.name}", send, lambda cursor, deadline: self._messages.wait_after(
                 "PARAM_VALUE", cursor, lambda message: self._matches(message, spec), deadline=deadline,
-            )),
+            ), self._transport.uplink_bytes),
             timeout,
             lock=self._write_lock,
             log=lambda line: self._logger_ref.value.info(line, "param"),

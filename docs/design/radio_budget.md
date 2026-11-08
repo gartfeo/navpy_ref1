@@ -679,6 +679,61 @@ handshake or chunk of that round's image.
   `test_mission_transfer` also failed once on timing. Opt-in tests pass (26).
 - No image reaches the GCS whole under `stress` (todo 119).
 
+## Held frames on the uplink (`stress` seed 40, 2026-11-08)
+
+### Cause
+
+- `stress` seed 40 failed in setup on main from PR #97 on (journal
+  `d1e09b64…`; first parent `7af7ebef` passes at `39d3d81f…`). #97's eval
+  SITL roots boot in AUTO (`FLTMODE6`, `INITIAL_MODE` = 10), which changes
+  the radio bytes from boot, so the byte losses land elsewhere. That moved
+  the draw. It is not the cause.
+- The cause: `GET /api/vehicles/2/mission` lost item 10 after 12 of 12
+  sends (404). The journal shows a lost byte on the backend's uplink in
+  the header of item 10's third request (tick 8183): the router's parser
+  (mavlink-router's, as ArduPilot's) then waited for a long frame and
+  swallowed the next 288 bytes, ticks 8183-8292, with eight
+  `MISSION_REQUEST_INT 10` and eight GCS heartbeats in them. The uplink
+  carries about 120 B/s while a download waits (15-byte requests every
+  0.25 s, three 21-byte heartbeats a second), so the held frame lasted
+  2.2 s of the step's 3 s. An earlier loss broke the step's first two
+  sends, and the reply to the one request after the held frame was lost on
+  the downlink.
+- Todo 103 sized the GCS budget for independent losses and counted only
+  the downlink ("the request is a read for SITL"). Sends inside one held
+  frame fail together, and 12 requests (180 bytes) cannot fill a 280-byte
+  frame by themselves.
+
+### Design
+
+- `ExchangePolicy.held_frame_bytes`: a send counts against `attempts` only
+  once the uplink carried that many bytes since the exchange's first send
+  (`SendBudget`, `parameter_exchange_loop.py`). A frame held by a lost byte
+  at or before a counted send ends before it. `gcs_policy` sets
+  `MAVLINK2_MAX_FRAME_BYTES` (10 + 255 + 2 + 13 = 280). Other policies
+  (NavPy on serial0, a cable) keep 0: every send counts.
+- The uplink count is the encoder's `total_bytes_sent`
+  (`MavTransport.uplink_bytes`). It covers the requests and whatever else
+  that encoder writes. A count that misses other traffic only allows more
+  free sends, never fewer, and they stay bounded: at most
+  ceil(280 / request frame) free sends, 19 for an item request and fewer
+  for a parameter. The deadline and the link check still end the exchange.
+- Every `run_exchange` caller passes the count (download steps, parameter
+  reads and writes), and so does the upload's `MISSION_COUNT` loop. Log
+  lines show the free sends: `send 12/12 (+19 free)`.
+- Not chosen: more attempts or longer waits (they hide the correlation);
+  sending padding to flush a held frame (it adds air load for every
+  exchange, and the receiver's parser is not ours).
+
+### Checks
+
+- `tests/modules/vehicle/test_held_frame_budget.py` encodes real MAVLink 2
+  frames into a radio that swallows one held frame. With every send counted
+  the item fails, and the held frame is still incomplete when the budget
+  runs out. With the GCS policy the download completes. A silent autopilot
+  gets exactly 12 + ceil(280 / frame) sends. A parameter read outlasts a
+  held frame.
+
 ## Not covered
 
 - Air timing and per-link loss: todo 96.
