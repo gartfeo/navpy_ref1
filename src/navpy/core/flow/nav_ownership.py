@@ -108,6 +108,21 @@ class NavOwnership:
         elif mode is FlightMode.AUTO:
             self._end(OwnershipEnd.HANDED_OVER)
 
+    def copy(self) -> NavOwnership:
+        """An independent copy: what the NAV loop publishes for the watchdog to go on with while it is hung."""
+        twin = NavOwnership()
+        twin.adopt(self)
+        return twin
+
+    def adopt(self, other: NavOwnership) -> None:
+        """Take ``other``'s record: the watchdog's, which went on observing while the NAV loop was hung."""
+        self._owned = other._owned
+        self._fresh = other._fresh
+        self._seen_count = other._seen_count
+        self._requests = dict(other._requests)
+        self._guided_from = other._guided_from
+        self.ended = other.ended
+
     def _newer_than_request(self, mode: FlightMode, observation: ModeObservation) -> bool:
         sent_at = self._requests.get(mode)
         return sent_at is not None and observation.heartbeat_count > sent_at

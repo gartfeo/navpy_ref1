@@ -37,6 +37,7 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
+from navpy.app.flow.nav_watchdog_composition import nav_watchdog
 from navpy.core.flow.nav_recovery import NavRecovery
 from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
@@ -225,15 +226,10 @@ def compose_nav_application(
         state.detections,
         state.phase,
     )
-    cycle = NavigationCycle(
-        lambda: vehicle.is_armed,
-        state.detections,
-        sensor,
-        decision.decision,
-        actions,
-    )
+    cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
     loop = NavigationLoop(cycle, state.clock, logger, on_period=_recovery_step(
         vehicle, state, logger, recovery_link))
+    watchdog = nav_watchdog(vehicle, recovery_link, loop.progress, logger)
     shutdown = NavShutdown(
         final_approach_nav.close_source_admission,
         navigation.reset,
@@ -241,7 +237,7 @@ def compose_nav_application(
         observation.network,
         logger,
     )
-    return NavApplication(loop, observation.network, shutdown, state.overrides)
+    return NavApplication(loop, observation.network, shutdown, state.overrides, watchdog)
 
 
 def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
@@ -271,6 +267,7 @@ def _recovery_step(
             request_mode=vehicle.set_mode,
             logger=logger,
             escalation=link.escalation,
+            watchdog=link.watchdog,
         ),
         state.recovery_hold,
     )

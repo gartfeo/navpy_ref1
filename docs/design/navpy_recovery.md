@@ -362,6 +362,24 @@ merges before step 4, which builds on its deadline fix.
    the ownership rule through a bounded sender. Tests: a hung cycle and a hung
    worker each give the fence and the hold; the watchdog never touches NAV
    state.
+   As built (`core/flow/nav_watchdog.py`): the NAV loop (cycle and recovery
+   step) and each command-worker pass mark themselves busy on a progress
+   beacon (`core/kernel/progress_beacon.py`); waiting is never a hang. One
+   pass busy for `NAV_HOLD_TRIGGER_S` of recovery time (aircraft time, else
+   wall) is a hang: the watchdog closes the fence and tells NAV through
+   `WatchdogSignal`, so NAV's decision already treats it as the hold and NAV
+   counts its periods failed (a hung worker then gets NAV's own hold, LOITER
+   and RTL). A hung NAV loop cannot hold, so the watchdog holds in its place:
+   it goes on with a copy of the ownership record NAV published at its last
+   step, LOITER if owned, RTL after `NAV_HOLD_RECOVERY_S` or when LOITER is
+   not confirmed, every send through a bounded sender
+   (`core/kernel/bounded_sender.py`, 0.5 s; a hung send is left behind and
+   no new one starts while it runs). When the hang ends NAV adopts that
+   record and takes the hold over (HOLD, or CRITICAL after RTL); healthy
+   periods then resume to AUTO as after any hold. The hold's 30 s restarts
+   when NAV takes it over, so a NAV-loop hang can hold up to twice that
+   before NAV's own RTL. Started with the NAV application, stopped before
+   the loop's shutdown join.
 7. **Autopilot Lua watchdog** (`scripts/lua/nav_watchdog.lua`). It receives
    NavPy's HEARTBEAT (`mavlink:register_rx_msgid`). After 1.5 s without one
    in GUIDED, it sets LOITER; after 30 s more it sets RTL; when the heartbeat

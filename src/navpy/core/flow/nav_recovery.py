@@ -76,18 +76,21 @@ class NavRecovery:
     def step(self, cycle_ok: bool, sample: TimeSample) -> None:
         now = self._clock.advance(sample)
         observation = self._ports.observe_mode()
-        self._take_guided_request(now)
-        self.ownership.observe(observation)
-        self._track(cycle_ok, now)
+        self._take_signals(observation, now)
+        # A hung command worker (the watchdog's signal) fails the period like a failed cycle (step 6).
+        self._track(cycle_ok and not self._ports.watchdog.hung, now)
         if self._ports.escalation.requested and self.stage not in (RecoveryStage.ESCALATED, RecoveryStage.CRITICAL):
             self._enter_escalated()
         self._step_stage(observation, now)
         # The fence is closed by recovery: the approach must not end for the hold's LOITER, nor search restart.
         self.hold.holding = self.stage is not RecoveryStage.NORMAL
-        if self.hold.holding:
+        if self.stage is not RecoveryStage.NORMAL:
             self.hold.resumed = False   # a resume not yet taken is void in a new hold
+        self._ports.watchdog.publish_ownership(self.ownership)
 
-    def _take_guided_request(self, now: float) -> None:
+    def _take_signals(self, observation: ModeObservation, now: float) -> None:
+        """What others told recovery since its last step: NavPy's GUIDED request (the cycle), the heartbeat, and
+        the watchdog's hold of a hung loop (nav_watchdog.py)."""
         guided = self.hold.take_guided_request()
         if isinstance(guided, ModeObservation) and self.stage is RecoveryStage.NORMAL:
             # Recorded at the count and mode read just before the send (RecoveryHold.guided_requested), so a mode
@@ -97,6 +100,25 @@ class NavRecovery:
             self._guided_at = now
         elif guided is False:
             self.ownership.withdraw(FlightMode.GUIDED)
+        self.ownership.observe(observation)
+        hold = self._ports.watchdog.take_hold()
+        if hold is None:
+            return
+        # The watchdog fenced while a loop was hung: NAV takes the hold over from here.
+        if hold.ownership is not None:
+            # The NAV loop was hung: the watchdog's record went on observing and holds its LOITER/RTL requests.
+            self.ownership.adopt(hold.ownership)
+            self.ownership.observe(observation)
+        if hold.critical and self.stage is not RecoveryStage.CRITICAL:
+            self.stage = RecoveryStage.CRITICAL
+            self._mode.clear()
+            self._report("NavPy critical after a hang: RTL stands")
+        elif self.stage is RecoveryStage.NORMAL:
+            # The fence is closed already; the hold's timers start now, and healthy periods resume as after any hold.
+            self.stage = RecoveryStage.HOLD
+            self._hold_since = now
+            self._good_since = None
+            self._report("NavPy hold after a hang: commands fenced")
 
     def _step_stage(self, observation: ModeObservation, now: float) -> None:
         if self.stage is RecoveryStage.NORMAL:

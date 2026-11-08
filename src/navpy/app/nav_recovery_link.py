@@ -4,8 +4,8 @@ and the main thread's escalation of a component failure through it (runtime_esca
 from __future__ import annotations
 
 from argparse import Namespace
-from collections.abc import Callable
-from contextlib import AbstractContextManager, nullcontext
+from collections.abc import Callable, Iterator
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 
 from navpy.app.runtime_escalation import RuntimeEscalation, supervised
 from navpy.core.flow.nav_ownership import ModeObservation
@@ -34,8 +34,17 @@ def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryL
 
 
 def command_formation(link: NavRecoveryLink | None) -> Callable[[], AbstractContextManager[None]]:
-    """The command worker's formation context: without a link (no MAVLink bus) there is no fence."""
-    return nullcontext if link is None else link.formed_now
+    """The command worker's formation context, one per worker pass: the fence generation it forms in, and the pass
+    the watchdog watches (step 6). Without a link (no MAVLink bus) there is neither."""
+    if link is None:
+        return nullcontext
+
+    @contextmanager
+    def formation() -> Iterator[None]:
+        with link.command_progress.busy(), link.formed_now():
+            yield
+
+    return formation
 
 
 def runtime_escalation(args: Namespace, link: NavRecoveryLink | None, logger: ILogger) -> RuntimeEscalation | None:

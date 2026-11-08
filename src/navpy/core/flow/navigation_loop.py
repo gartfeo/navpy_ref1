@@ -9,6 +9,8 @@ from collections.abc import Callable, Mapping
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.kernel.progress_beacon import ProgressBeacon
+from navpy.core.ports.worker_failure import WorkerFailureLatch
 from navpy.core.kernel.high_resolution_deadline import (
     bounded_scheduler_wall_period_s,
     wait_for_slot,
@@ -144,8 +146,11 @@ class NavigationLoop:
         monotonic_s: Callable[[], float] = rt.perf_counter,
         sleep_s: Callable[[float], None] = rt.sleep,
         on_period: Callable[[bool], None] = lambda cycle_ok: None,
+        progress: ProgressBeacon | None = None,
     ) -> None:
         self._cycle = cycle
+        # Busy from the cycle through recovery's step, idle while pacing: the watchdog's view (nav_watchdog.py).
+        self.progress = ProgressBeacon() if progress is None else progress
         self._clock = clock
         self._logger = logger
         # Told each period whether the cycle ran without an error; NAV
@@ -156,8 +161,7 @@ class NavigationLoop:
         self._sleep_s = sleep_s
         self.period_s = NAV_LOOP_PERIOD_S
         self.stop_event = rt.Event()
-        self._failure_lock = rt.Lock()
-        self._failure: BaseException | None = None
+        self._failure = WorkerFailureLatch()
         self.thread = rt.Thread(target=self._run_thread, daemon=True)
 
     def start(self, loop_rate_hz: float) -> None:
@@ -186,10 +190,7 @@ class NavigationLoop:
         return self.stop_event.is_set()
 
     def raise_if_failed(self) -> None:
-        with self._failure_lock:
-            failure = self._failure
-        if failure is not None:
-            raise failure
+        self._failure.raise_if_failed()
 
     def _run_thread(self) -> None:
         try:
@@ -197,18 +198,18 @@ class NavigationLoop:
         except BaseException as error:
             # Publish the fatal failure before fencing the worker so an owner
             # that observes shutdown can never miss the corresponding cause.
-            with self._failure_lock:
-                self._failure = error
-                self.stop_event.set()
+            self._failure.record(error)
+            self.stop_event.set()
 
     def _run(self) -> None:
         while not self.stop_event.is_set():
             started = self._monotonic_s()
-            cycle_ok = self._run_cycle()
-            try:
-                self._on_period(cycle_ok)
-            except Exception:  # noqa: BLE001 - recovery must not end the loop
-                traceback.print_exc()
+            with self.progress.busy():
+                cycle_ok = self._run_cycle()
+                try:
+                    self._on_period(cycle_ok)
+                except Exception:  # noqa: BLE001 - recovery must not end the loop
+                    traceback.print_exc()
             try:
                 self._pace(started)
             except Exception:  # noqa: BLE001 - a timing fault must not end the loop

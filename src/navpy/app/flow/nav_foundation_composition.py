@@ -73,7 +73,7 @@ from navpy.core.skills.acquire.vehicle_navigation import (
     VehicleNavigationCommands,
 )
 from navpy.core.flow.nav_ownership import ModeObservation
-from navpy.core.flow.nav_recovery_ports import RecoveryHold
+from navpy.core.flow.nav_recovery_ports import RecoveryHold, WatchdogSignal
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -85,6 +85,7 @@ def compose_state_ownership(
     scheduler_cadence: Optional[SchedulerCadence],
     admit_failure: Optional[Callable[[], bool]] = None,
     observe_mode: Optional[Callable[[], ModeObservation]] = None,
+    watchdog: Optional[WatchdogSignal] = None,
 ) -> NavStateOwnership:
     return NavStateOwnership(
         clock=NavClock(scheduler_cadence),
@@ -97,7 +98,7 @@ def compose_state_ownership(
         confirm=ConfirmGateState(),
         overrides=ConfirmOverrideInbox(),
         post_dock_climb=PostDockClimb(),
-        recovery_hold=RecoveryHold(observe_mode),
+        recovery_hold=RecoveryHold(observe_mode, watchdog),
     )
 
 
