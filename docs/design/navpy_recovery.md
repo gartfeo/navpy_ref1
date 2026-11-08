@@ -429,15 +429,36 @@ merges before step 4, which builds on its deadline fix.
    - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
      fresh. A GUIDED entered while NavPy was dead, or never alive, is left
      alone.
-   - Params, added by the script to the AAS table (key 88, indices 20-23;
+   - Params, added by the script to the AAS table (key 88, indices 20-24;
      `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
      `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
-     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
-     autopilot's own clock (aircraft time).
+     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191), `AAS_NWD_MISS` (2.5
+     heartbeat periods). Times are the autopilot's own clock (aircraft
+     time); a heartbeat is timed when the autopilot received it
+     (`receive_chan`'s timestamp), so one read late from the queue is not
+     fresh, and only one received after the hold began ends it.
+   - Timeout (Codex step 7, finding 2): the longer of `AAS_NWD_TMO` and
+     `AAS_NWD_MISS` heartbeat periods, the period being the shortest of the
+     last 8 heartbeat spacings in aircraft time (a lost beat only lengthens
+     a spacing). The companion paces its heartbeat in wall time, so at sim
+     speed-up k its period in aircraft time is k times longer; the timeout
+     follows it, so neither a speed-up nor one lost beat trips the hold, and
+     it needs no change in NavPy whichever heartbeat rate the owner picks:
+     at 1 Hz the hold comes 2.5 s after the last heartbeat, at 4 Hz 1.5 s
+     (`AAS_NWD_TMO`). Until two heartbeats gave a period, nothing is NavPy's.
    - Stages: WATCH, HOLD (its LOITER), RTL (not undone, as ArduPlane's long
-     failsafe). Leaving its LOITER or RTL for any other mode stands it down.
-     A refused mode change is retried each tick and reported once; a refused
-     AUTO keeps the hold and its RTL deadline.
+     failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
+     stands it down. A refused mode change is retried each tick and reported
+     once; a refused AUTO keeps the hold and its RTL deadline.
+   - Mode writes: each is preceded, as the last binding call, by a read
+     that the mode is still the one it decided from (GUIDED for the hold,
+     its LOITER for AUTO or RTL). Bindings take the scheduler semaphore one
+     call at a time, so stock-firmware Lua cannot make the read and the
+     write atomic; this leaves only the main loop running between those two
+     calls, not between the step's decision and the write.
+   - Payload length is checked (at most HEARTBEAT's 9 bytes) before the
+     CRC, so corrupt frames claiming long payloads cannot run the script
+     past `SCR_VM_I_COUNT`, which `pcall` cannot catch.
    - State report: NAMED_VALUE_FLOAT `NAVWD` once a second (-1 off, 0
      watching, 1 hold, 2 RTL), sent even after an error in a step; status
      texts on each change. The loop's step runs under `pcall`.

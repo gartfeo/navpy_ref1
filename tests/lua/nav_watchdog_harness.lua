@@ -11,8 +11,12 @@ local function fresh_state()
     return {
         params = {
             SYSID_THISMAV = 1,
-            AAS_NWD_ENABLE = 1, AAS_NWD_TMO = 1.5, AAS_NWD_RTL = 30, AAS_NWD_COMP = 191,
+            AAS_NWD_ENABLE = 1, AAS_NWD_TMO = 1.5, AAS_NWD_RTL = 30, AAS_NWD_COMP = 191, AAS_NWD_MISS = 2.5,
         },
+        -- The autopilot's main loop between two binding calls: on_param(name) runs inside param:get, on_armed
+        -- inside arming:is_armed, so a test can change the mode between the script's read and its write.
+        on_param = nil,
+        on_armed = nil,
         time_ms = 0,
         mode = 15,                  -- GUIDED
         armed = true,
@@ -35,7 +39,10 @@ end
 
 local function install()
     _G.param = {
-        get = function(_, name) return M.state.params[name] end,
+        get = function(_, name)
+            if M.state.on_param then M.state.on_param(name) end
+            return M.state.params[name]
+        end,
         add_table = function(_, key, prefix, n) M.state.table_added = { key, prefix, n }; return true end,
         add_param = function(_, key, index, name, default)
             M.state.added_params[#M.state.added_params + 1] = { key = key, index = index, name = name, default = default }
@@ -54,7 +61,12 @@ local function install()
             return ok
         end,
     }
-    _G.arming = { is_armed = function() return M.state.armed end }
+    _G.arming = {
+        is_armed = function()
+            if M.state.on_armed then M.state.on_armed() end
+            return M.state.armed
+        end,
+    }
     _G.millis = function()
         local t = M.state.time_ms
         return { toint = function() return t end }
@@ -71,9 +83,10 @@ local function install()
         init = function(_, queue, ids) M.state.init_args = { queue, ids } end,
         register_rx_msgid = function(_, id) M.state.registered[#M.state.registered + 1] = id; return true end,
         receive_chan = function()
-            local msg = table.remove(M.state.queue, 1)
-            if msg == nil then return end
-            return msg, 0, M.state.time_ms
+            local item = table.remove(M.state.queue, 1)
+            if item == nil then return end
+            local received = item.received
+            return item.msg, 0, { toint = function() return received end }
         end,
     }
 end
@@ -84,12 +97,12 @@ function M.load(path)
     M.update, M.tick_ms = fn, delay
 end
 
--- A mavlink_message_t (hex), as the test builds it.
+-- A mavlink_message_t (hex), as the test builds it, received by the autopilot at ``received_ms`` (default now).
 -- Dropped when the queue is full, as ArduPilot's ObjectBuffer of mavlink:init's queue length drops it.
-function M.push(hex)
+function M.push(hex, received_ms)
     local limit = M.state.init_args and M.state.init_args[1] or 0
     if #M.state.queue < limit then
-        M.state.queue[#M.state.queue + 1] = unhex(hex)
+        M.state.queue[#M.state.queue + 1] = { msg = unhex(hex), received = received_ms or M.state.time_ms }
     end
 end
 

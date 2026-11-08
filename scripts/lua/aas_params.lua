@@ -26,4 +26,4 @@ assert(param:add_param(PARAM_TABLE_KEY, 17, "DEL_CTRL", 2), "Failed to add DEL_C
 
 assert(param:add_param(PARAM_TABLE_KEY, 19, "NAV_CGT", 15), "Failed to add NAV_CGT parameter")  -- operator gate timeout (sec)
 
--- Indices 20-23 belong to nav_watchdog.lua (AAS_NWD_*), which adds them to this table itself.
+-- Indices 20-24 belong to nav_watchdog.lua (AAS_NWD_*), which adds them to this table itself.

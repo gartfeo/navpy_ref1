@@ -52,17 +52,20 @@ def _lua_path(p: Path) -> str:
 
 def heartbeat(
     *, sysid: int = 1, compid: int = NAVPY_COMPONENT, mav_type: int = mav2.MAV_TYPE_ONBOARD_CONTROLLER,
-    mavlink1: bool = False, corrupt: bool = False,
+    mavlink1: bool = False, corrupt: bool = False, claimed_len: int | None = None,
 ) -> str:
     """A HEARTBEAT as the mavlink_message_t ArduPilot hands a script, in hex: checksum, then the wire header and
-    payload (the C struct's field order)."""
+    payload (the C struct's field order). ``claimed_len`` overwrites the length byte and pads the payload as the
+    full C struct does."""
     link = mav2.MAVLink(None, srcSystem=sysid, srcComponent=compid)
-    if mavlink1:
-        link.WIRE_PROTOCOL_VERSION = "1.0"
     wire = bytearray(link.heartbeat_encode(mav_type, mav2.MAV_AUTOPILOT_INVALID, 0, 0, mav2.MAV_STATE_ACTIVE)
-                     .pack(link))
+                     .pack(link, force_mavlink1=mavlink1))
+    assert wire[0] == (0xFE if mavlink1 else 0xFD)
     if corrupt:
         wire[-3] ^= 0x01                               # a payload bit flipped in transit
+    if claimed_len is not None:
+        wire[1] = claimed_len
+        wire[-2:-2] = bytes(claimed_len)              # the struct's payload buffer behind the real payload
     if mavlink1:
         # v1 wire: magic len seq sysid compid msgid payload crc -> struct: crc magic len 0 0 seq sysid compid msgid(3)
         header = bytes([wire[0], wire[1], 0, 0, *wire[2:5]]) + bytes([wire[5], 0, 0])
@@ -110,7 +113,7 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
     assert state["init_args"] == [10, 1] and state["registered"] == [0]       # (queue length, message ids)
     assert state["table_added"] == [88, "AAS_", 30]
     assert [(p["index"], p["name"]) for p in state["added_params"]] == [
-        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"),
+        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"), (24, "NWD_MISS"),
     ]
     assert "NavPy watchdog loaded" in texts(out)
 
@@ -118,7 +121,7 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
 def test_aas_params_lua_leaves_the_watchdog_indices_free():
     used = {int(line.split(",")[1]) for line in AAS_PARAMS.read_text(encoding="utf-8").splitlines()
             if "add_param(PARAM_TABLE_KEY" in line}
-    assert used.isdisjoint({20, 21, 22, 23})
+    assert used.isdisjoint({20, 21, 22, 23, 24})
 
 
 def test_reports_its_state_once_a_second():
@@ -129,7 +132,7 @@ def test_reports_its_state_once_a_second():
 
 
 def test_navpy_alive_in_guided_is_left_alone():
-    out = run("h.run(60000, NAVPY, 1000)")       # 1 Hz heartbeat: never 1.5 s without one
+    out = run("h.run(60000, NAVPY, 1000)")       # 1 Hz heartbeat
     assert out["modes"] == []
 
 
@@ -211,8 +214,9 @@ def test_only_navpys_own_heartbeat_counts(frame):
 
 
 def test_a_mavlink1_heartbeat_counts():
-    out = run(f"h.run(10000, '{heartbeat(mavlink1=True)}', 200)")
-    assert out["modes"] == []
+    """Codex step 7, finding 6: MAVLink 1 heartbeats make NavPy alive, so their loss holds."""
+    out = run(f"h.run(3000, '{heartbeat(mavlink1=True)}', 200)\nh.run(2000)")
+    assert modes(out) == [LOITER]
 
 
 def test_a_refused_loiter_is_retried_and_reported_once():
@@ -281,3 +285,99 @@ def test_script_fits_ardupilot_lua_limits():
         elif line.startswith("upvalues ("):
             max_up = max(max_up, int(line.split("(")[1].split(")")[0]))
     assert max_active <= AP_MAXVARS and max_up <= AP_MAXUPVAL, (max_active, max_up)
+
+
+# ---------- Codex review of step 7 ----------
+
+
+def _hold_then(scenario: str) -> str:
+    return ALIVE + "h.run(1600)\nassert(S.mode == 12, 'not held')\n" + scenario
+
+
+def test_finding1_a_pilot_mode_between_the_read_and_the_loiter_write_wins():
+    """The autopilot's main loop runs between two binding calls: the pilot selects FBWA after the script read
+    GUIDED, before its LOITER write."""
+    out = run(ALIVE + """
+        h.run(1400)
+        S.on_armed = function() if S.time_ms >= 4500 then S.mode = 5; S.on_armed = nil end end
+        h.run(5000)
+    """)
+    assert out["modes"] == [] and out["state"]["mode"] == FBWA
+
+
+def test_finding1_a_pilot_mode_between_the_read_and_the_rtl_write_wins():
+    out = run(_hold_then("""
+        S.on_param = function(name) if name == 'AAS_NWD_RTL' and S.time_ms >= 34500 then S.mode = 5; S.on_param = nil end end
+        h.run(35000)
+    """))
+    assert modes(out) == [LOITER] and out["state"]["mode"] == FBWA
+    assert "NavPy watchdog: mode changed, standing down" in texts(out)
+
+
+def test_finding1_a_pilot_mode_between_the_read_and_the_auto_write_wins():
+    out = run(_hold_then("""
+        S.on_param = function(name) if name == 'AAS_NWD_TMO' and S.time_ms >= 4800 then S.mode = 5; S.on_param = nil end end
+        h.run(1000, NAVPY, 200)
+    """))
+    assert modes(out) == [LOITER] and out["state"]["mode"] == FBWA
+
+
+def test_finding2_one_lost_1hz_beat_does_not_hold():
+    """The companion's 1 Hz: a beat lost now and then is not a dead NavPy."""
+    out = run("""
+        for i = 1, 30 do
+            h.run(1000)
+            if i % 5 ~= 0 then h.push(NAVPY) end
+        end
+    """)
+    assert out["modes"] == []
+
+
+def test_finding2_a_sim_speed_up_does_not_hold():
+    """At speed-up 10 the companion's 1 Hz wall-time heartbeat arrives every 10 s of aircraft time."""
+    out = run("h.run(120000, NAVPY, 10000)")
+    assert out["modes"] == []
+
+
+@pytest.mark.parametrize("period_ms, held_after_ms", [(200, 1500), (1000, 2500), (10000, 25000)])
+def test_finding2_a_dead_navpy_holds_after_the_longer_of_tmo_and_miss_periods(period_ms, held_after_ms):
+    out = run(f"h.run({period_ms * 10}, NAVPY, {period_ms})\nh.run({held_after_ms + 1000})")
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] - period_ms * 10 == held_after_ms
+
+
+def test_finding3_a_stale_queued_heartbeat_does_not_end_the_hold():
+    """A heartbeat the autopilot received before the hold, read by the script only now, is not NavPy back."""
+    out = run(_hold_then("""
+        h.push(NAVPY, 4400)                  -- received before the hold (4500), processed late
+        h.run(2000)
+    """))
+    assert modes(out) == [LOITER]
+
+
+def test_finding3_a_heartbeat_received_long_ago_is_not_fresh():
+    out = run(ALIVE + """
+        h.run(1400)
+        h.push(NAVPY, 3100)                  -- received 1.3 s ago, processed now
+        h.run(200)
+    """)
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] - 3100 == 1500
+
+
+def test_finding4_frames_claiming_a_long_payload_fit_the_instruction_limit():
+    long = heartbeat(claimed_len=255)
+    out = run(ALIVE + f"for _ = 1, 10 do h.push('{long}') end\nh.run(100)\nh.run(1500)")
+    assert modes(out) == [LOITER]                 # they did not count as NavPy, and the script lives
+
+
+def test_finding5_disarming_ends_the_hold():
+    out = run(_hold_then("""
+        S.armed = false
+        h.run(200)
+        h.run(1000, NAVPY, 200)              -- NavPy back while disarmed: no AUTO
+        S.armed = true
+        h.run(31000)                         -- re-armed: no RTL from the old hold
+    """))
+    assert modes(out) == [LOITER]
+    assert "NavPy watchdog: disarmed, standing down" in texts(out)
