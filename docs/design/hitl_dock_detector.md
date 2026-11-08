@@ -3,7 +3,8 @@
 Status: design for owner review. No code until the owner approves. It adds one step to the HITL lean plan
 (`hitl_final_approach.md` section 9, revision 25edd29c), so the plan needs a revision too (section 7).
 v2 applies Codex review round 1 (section 10), v2.1 round 2 (section 11). v2.2 applies the owner's answers of
-2026-11-08 (section 8): a car as the placeholder dock, on the ground; the real net's shape is still open.
+2026-11-08 (section 8): a car as the placeholder dock, on the ground, found by RF-DETR-L; one detector, no
+fallback chain; the floor guards only until the operator confirms. The real net's shape is still open.
 
 ## 1. Why
 
@@ -22,15 +23,15 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
 
 ## 2. What changes, in short
 
-1. **Detector, in two phases** (owner, 2026-11-08). The HITL profile runs the existing YOLO backend
-   (`plugins/detection/yolo/yolo_detector.py`); ChArUco is not used in this profile. Other profiles keep ChArUco as
-   the product default.
+1. **Detector: RF-DETR-L, one detector, in two phases** (owner, 2026-11-08). The HITL profile runs a new
+   `rfdetr` backend (`plugins/detection/rfdetr/`); ChArUco and YOLO are not used in this profile. Other profiles
+   keep ChArUco as the product default. One detector with one job: no fallback model inside the step.
    - **Phase A, now (placeholder):** the dock is a Ford car standing on the ground in the Unreal scene, about the
-     net's size, and the detector is the pretrained COCO `yolov8s` with only class `car` kept, mapped to `dock`. No
-     training. It matches the owner's real ZR10 tests, which track cars (`gimbal-controller`).
-   - **Phase B, later (the real net):** a model trained for one class, `dock`: the net as one box. The net's shape
-     is not decided; the owner's idea is a globe (sphere) net in a colour that does not disturb nature and animals.
-     Phase B gets its own plan step once the net is defined.
+     net's size, and the detector is RF-DETR-L with its pretrained COCO weights, only class `car` kept, mapped to
+     `dock`. No training. It is the detector the owner's real ZR10 car tests picked (`gimbal-controller`).
+   - **Phase B, later (the real net):** the same RF-DETR-L fine-tuned for one class, `dock`: the net as one box. The
+     net's shape is not decided; the owner's idea is a globe (sphere) net in a colour that does not disturb nature
+     and animals. Phase B gets its own plan step once the net is defined.
 2. **Orbit centre:** the existing height-zero ground ray (`SelfDetectedApproach._vision_centre`), with an error
    bound the pre-series check must absorb. A multi-ray re-centre is designed (section 4.3) but built only if the
    measured ground-ray error fails the check.
@@ -40,13 +41,18 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
 
 ## 3. Detector
 
-- **Backend:** `--detector-backend yolo` already exists (`core/kernel/config/detector_backend.py`). It is opt-in and
-  needs `--detector-model-path`; that stays. The HITL profile names it; no implicit model.
-- **Phase A model:** the COCO-pretrained `yolov8s.pt` already in `.models/`, run with `classes=[2]` (COCO `car`);
-  the profile maps that class to `dock`. If it misses the section 6 item 1 recall target, the next candidates, in
-  order: the car detectors scored on the owner's ZR10 car clips (RF-DETR, `gimbal-controller`), then the phase B
-  pipeline below trained on car renders. Section 6 measures phase A exactly as it would a trained model.
-- **Phase B model:** fine-tune `yolov8s` (already kept in `.models/`) on one class, `dock`
+- **Backend:** a new `--detector-backend rfdetr` beside the existing `yolo` and ChArUco ones
+  (`core/kernel/config/detector_backend.py`), opt-in, with `--detector-model-path`. The HITL profile names it; no
+  implicit model. Pre- and post-processing follow `gimbal-controller` `gimbal/rfdetr_detect.py` (rfdetr's own: the
+  whole frame squashed to the 704 px square, RGB, ImageNet-normalised; COCO ids mapped to 0-79). The `rfdetr` pip
+  package (1.12.0 there) is a new dependency: the step installs it in its own environment, not the shared `.venv`,
+  until the owner approves adding it.
+- **Phase A model:** RF-DETR-L, pretrained COCO weights (Apache-2.0), class `car` only, mapped to `dock` in the
+  profile. Evidence: on the owner's 11 real car clips it found 0.878 of the cars at score 0.45 (YOLOX-s 0.604) and
+  tracked best (recall 0.898, 58 ID switches); TensorRT FP16 engines exist on orin1 (`gimbal-controller`
+  `docs/CAR-MOT.md`, `docs/CAR-MOT-LIVE.md`). Section 6 measures it exactly as it would a trained model. If it
+  misses a target, the step stops FAILED with the numbers and the owner decides; no automatic fallback.
+- **Phase B model:** fine-tune RF-DETR-L on one class, `dock`
   (`vision_class_profile.py` `DOCK_PRESET_NAME`). Weights stay out of git, in the private HITL folder; the run
   record (step 1, `approach_records.py`) records the model, dataset and preprocessing hashes.
 - **What is boxed and aimed at, phase A:** the car. A car is not the same from every side (about 4.5 x 1.8 m from
@@ -63,11 +69,13 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
   (thresholds, input size) and a final held-out set. Weights, confidence threshold and preprocessing are frozen
   before the held-out set and before any series; the series' private seeds are in none of the sets. Include
   terrain, light and haze variation and dock-free frames.
-- **Input size and crop:** at 300 m radius and 80 m above the dock, a 2 m side along the line of sight is about
-  28 px on the full frame, but 9 px at `imgsz` 640, 14 px at 960 and 19 px at 1280 (ultralytics letterboxes to
-  `imgsz`). Search and reacquisition run on the full frame. Once locked, an optional crop around the track box is
-  resized to `imgsz` with a recorded transform, and box pixels are mapped back to the full frame before any use.
-  The effective scale is (`imgsz` / crop side); input size and crop are chosen by measurement (section 6).
+- **Input size and crop:** at 300 m radius and 80 m above the dock (about 7.4 px/m at 10x), the phase A car is about
+  33 x 14 px on the full frame, but RF-DETR-L squashes the whole 1920 x 1080 frame to 704 x 704, so about 12 x 9 px:
+  likely too small for search on the full frame. A fixed tiling of the frame into 704 px squares for search is the
+  expected answer; section 6 item 1 decides. Search and reacquisition cover the whole frame. Once locked, an optional
+  crop around the track box is resized to 704 with a recorded transform, and box pixels are mapped back to the full
+  frame before any use. The effective scale is (704 / crop side); tiling and crop are chosen by measurement (section
+  6).
 - **Output:** the existing `Detection` (box, class, confidence). Navigation uses only the box centre pixel, turned
   into a frame-local ray, as with ChArUco's board centre today.
 - **False and ambiguous detections:** a box detector has no fiducial check, and a static look-alike gives a
@@ -155,10 +163,13 @@ step with its own approval.
   r + e (no zoom past).
 - `pose_accepted_at` and the ChArUco pose prediction leave this profile's check. Turn radius, descent, model speed
   are unchanged, with r ± e as now.
-- **Recovery floor, open (owner question 9):** the owner chose docks on the ground and a floor lowered to the
-  ground. Today `check_recovery_floor` needs the dock at least `PULL_OUT_ALLOWANCE_M` (9 m) above the floor, and the
-  floor (`limits.min_height_m`, `flight_floor.HeightFloor`) must be positive. A dock on the ground cannot meet both:
-  the floor's pull-up would trip before contact. Section 8 question 9 asks how to resolve it.
+- **Recovery floor (owner, 2026-11-08, question 9 option A):** docks stand on the ground. Today
+  `check_recovery_floor` needs the dock at least `PULL_OUT_ALLOWANCE_M` (9 m) above the floor
+  (`limits.min_height_m`, `flight_floor.HeightFloor`), so the pull-up would trip before contact. New rule: the floor
+  guards the lane, search and orbit, and is released when the operator confirms the dock (step 25's confirm). The
+  check then requires the lane and orbit above the floor and no longer the dock above it. In the sim, a miss ends
+  on the ground and is scored as a miss. Stage 1 only; flight (stage 5) needs its own answer. The release is a
+  mission-state event, not an altitude read on the NAV command path.
 
 ## 6. What has to be measured
 
@@ -166,8 +177,8 @@ All in Unreal through the encoded HITL stream, on the held-out set unless stated
 reported with 95 % intervals.
 
 1. **Detection versus box size:** per-frame recall and false-box rate against the smaller box side, at the series'
-   zoom steps and depressions 10-20 deg, per candidate input size and crop (commissioning set; in phase A, also
-   by car azimuth). Sets
+   zoom steps and depressions 10-20 deg, per tiling and crop (commissioning set; in phase A, also by car
+   azimuth). Sets
    `detector.min_box_px`: the smallest size with recall ≥ 95 % per frame and a lock within `MIN_LOCK_S` + 1 s in
    ≥ 99 % of passes (my targets, for approval).
 2. **False boxes and false locks:** search sweeps (step 21) and orbits over the scene's terrain, dock-free and with
@@ -182,8 +193,8 @@ reported with 95 % intervals.
    Report the longest valid-measurement gap, box-centre jumps at clipping, and frame capture-to-consumption age and
    queue depth (not only inference time), against the existing feasibility contract
    (`hitl_final_approach.md` section 4, "Feasibility contract").
-5. **Inference time** per frame on the PC GPU for each input size and crop (the Orin later, stage 2), against the
-   stream rate.
+5. **Inference time** per frame on the PC GPU for each tiling and crop (the Orin later, stage 2, where the
+   TensorRT engines exist), against the stream rate.
 6. **Ground-ray error:** first-detection distance D and centre error against truth (scorer only), on SITL replays,
    to confirm the section 4.1 bound. If the bound fails the check, section 4.3 becomes a plan step.
 
@@ -193,26 +204,29 @@ New step **23b, whole-dock detector, phase A**, the next HITL step, before the s
 merged; step 23's ChArUco reader check still refuses every 300 m series). 23b replaces that check with
 `check_detector`.
 
-23b. **Whole-dock detector, phase A — `plugins/detection/yolo`, the HITL profile, `tools/hitl/scenario_checks.py`,
-`tools/hitl/scenario_public.py`, the Unreal scene.** Put a Ford car on the ground at the dock POI in the Unreal
-scene, with no other car near it; run the COCO-pretrained `yolov8s`, class `car` mapped to `dock`, in
-`siyi_zr10_hitl_encoded` with the acquisition and ambiguity gates; orbit on the ground ray; replace the reader
-check with the detector check; resolve the recovery floor as the owner decides (question 9). Test
-`test_approach_geometry.py` (detector check feasible/impossible, D beyond r, dock on the ground), detector-gate
-tests (two tracks, short track, class mapping) and the isolation guards with the section 4.2 mutations. Done: the
-section 6 measurements recorded; the check passes at 300 m with measured values; 0 false confirms in the declared
-exposure; 0 box-size, centre, heading, position or altitude reads on NAV command and completion paths.
+23b. **Whole-dock detector, phase A — `plugins/detection/rfdetr` (new), the HITL profile,
+`tools/hitl/scenario_checks.py`, `tools/hitl/scenario_public.py`, the Unreal scene.** Put a Ford car on the
+ground at the dock POI in the Unreal scene, with no other car near it; run RF-DETR-L (COCO weights), class `car`
+mapped to `dock`, in `siyi_zr10_hitl_encoded` with the acquisition and ambiguity gates; orbit on the ground ray;
+replace the reader check with the detector check; release the recovery floor at the operator's confirm (section
+5). Test `test_approach_geometry.py` (detector check feasible/impossible, D beyond r, dock on the ground),
+detector-gate tests (two tracks, short track, class mapping), floor-release tests and the isolation guards with
+the section 4.2 mutations. Done: the section 6 measurements recorded; the check passes at 300 m with measured
+values; 0 false confirms in the declared exposure; 0 box-size, centre, heading, position or altitude reads on
+NAV command and completion paths.
 
 Later steps, each with its own approval: **23c, supervised automatic confirm** (the operator turns it on and can
 cancel a false confirm before contact; needs the section 6 item 2 bound); **phase B, the real net** (scene mesh,
-trained one-class model, once the net's shape is decided); the multi-ray re-centre only if section 6 item 6 fails.
+RF-DETR-L fine-tuned for one class, once the net's shape is decided); the multi-ray re-centre only if section 6 item
+6 fails.
 
 ## 8. Owner decisions (2026-11-08)
 
 1. **Target for now:** a pretrained object as placeholder, a Ford car (about the net's size; matches the ZR10 car
-   tests). Not the ChArUco board, not a new net mesh yet.
+   tests), found by RF-DETR-L. One detector, single responsibility, no fallback chain. Not the ChArUco board, not a
+   new net mesh yet.
 2. **The real net:** not decided. Idea: a globe (sphere) net in a colour that does not disturb nature and animals.
-3. **Height:** docks stand on the ground; lower the floor to the ground. See question 9.
+3. **Height:** docks stand on the ground; lower the floor to the ground (question 9).
 4. **Orbit centre:** ground ray first; multi-ray only if the measured error fails the check (as recommended).
 5. **Plan placement:** step 23b next, as recommended.
 6. **Targets:** recall ≥ 95 % per frame, 0 false confirms in 2 h of dock-free video. Approved.
@@ -221,14 +235,9 @@ trained one-class model, once the net's shape is decided); the multi-ray re-cent
 8. **Identity confirm:** the operator, from the video. Later, a supervised automatic mode the operator can switch
    on and use to cancel a false confirm (step 23c).
 
-Open:
-
-9. **Recovery floor with a dock on the ground** (section 5). The floor's pull-up exists so a bad approach does not
-   hit the ground; a ground dock means the approach must go to about 1 m. Options: (A) the floor guards the lane and
-   orbit and is switched off once the operator confirms the dock, so in the sim a miss ends on the ground and is
-   scored as a miss (recommended for stage 1; stage 5 flight needs its own answer); (B) keep the floor and stand
-   the dock on a platform at least 9 m above it; (C) a low floor, for example 2 m, with the pull-out allowance
-   cut to match, measured in SITL first.
+9. **Recovery floor with a dock on the ground:** option A. The floor guards the lane, search and orbit and is
+   released at the operator's confirm; in the sim a miss ends on the ground and is scored as a miss (section 5).
+   Stage 5 flight needs its own answer.
 
 ## 9. What this cannot prove
 
