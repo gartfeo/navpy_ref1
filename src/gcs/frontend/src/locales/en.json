@@ -1282,6 +1282,8 @@
       "companion": "companion",
       "camera": "camera",
       "unknown": "unknown"
-    }
+    },
+    "incomplete": "incomplete",
+    "incompleteTitle": "Part of this long text did not arrive"
   }
 }

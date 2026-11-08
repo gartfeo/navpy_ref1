@@ -9,6 +9,8 @@ from fastapi import HTTPException
 from gcs.backend.telemetry_loop import TelemetryLoop, _has_changed
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend.vehicle_message_log import (
+    NAMED_VALUE_CAPACITY,
+    STATUSTEXT_CHUNK_WAIT_S,
     VehicleMessageLog,
     source_label,
 )
@@ -69,6 +71,68 @@ class TestNamedValues(unittest.TestCase):
         self.assertEqual(texts, ["NAVWD = 1", "NAVWD = 3"])
         self.assertEqual(log.named_values(),
                          {"NAVWD": {"value": 3.0, "source": "autopilot", "ts": 12.0}})
+
+
+def _chunk(text_id, chunk_seq, text, src_component=1, severity=4):
+    return _Msg(2, src_component, severity=severity, text=text, id=text_id, chunk_seq=chunk_seq)
+
+
+class TestStatustextChunks(unittest.TestCase):
+    LONG = "A" * 50 + "B" * 50 + "tail"
+
+    def test_chunks_are_one_row_in_chunk_order(self):
+        log = VehicleMessageLog(2)
+        # Out of order, with another component's chunked text in between.
+        log.on_statustext(_chunk(7, 1, self.LONG[50:100]))
+        log.on_statustext(_chunk(7, 0, self.LONG[:50]))
+        log.on_statustext(_chunk(7, 0, "companion text", src_component=191))
+        log.on_statustext(_chunk(7, 2, self.LONG[100:]))
+        rows = [(e["source"], e["text"]) for e in log.backlog()["entries"]]
+        self.assertEqual(rows, [("companion", "companion text"), ("autopilot", self.LONG)])
+        self.assertNotIn("incomplete", log.backlog()["entries"][1])
+
+    def test_a_null_terminated_50_char_chunk_ends_the_text(self):
+        log = VehicleMessageLog(2)
+        log.on_statustext(_chunk(3, 0, "A" * 50))
+        log.on_statustext(_chunk(3, 1, "B" * 49 + "\x00"))
+        self.assertEqual([e["text"] for e in log.backlog()["entries"]], ["A" * 50 + "B" * 49])
+
+    def test_a_text_missing_a_chunk_is_shown_incomplete_after_the_wait(self):
+        log = VehicleMessageLog(2)
+        clock = [100.0]
+        with patch("gcs.backend.vehicle_message_log.rt.time", side_effect=lambda: clock[0]):
+            log.on_statustext(_chunk(9, 0, "A" * 50))
+            log.on_statustext(_chunk(9, 2, "end"))  # chunk 1 lost
+            self.assertEqual(log.drain_new(), [])
+            clock[0] += STATUSTEXT_CHUNK_WAIT_S
+            drained = log.drain_new()
+        self.assertEqual([(e["text"], e.get("incomplete")) for e in drained],
+                         [("A" * 50 + "end", True)])
+
+    def test_id_zero_is_a_whole_text(self):
+        log = VehicleMessageLog(2)
+        log.on_statustext(_chunk(0, 0, "A" * 50))
+        self.assertEqual([e["text"] for e in log.backlog()["entries"]], ["A" * 50])
+
+
+class TestNamedValueBound(unittest.TestCase):
+    def test_the_least_recently_heard_name_is_dropped_past_capacity(self):
+        log = VehicleMessageLog(2, named_capacity=2)
+        log.on_named_value(_value(2, 1, "A", 1))
+        log.on_named_value(_value(2, 1, "B", 1))
+        log.on_named_value(_value(2, 1, "A", 1))  # A heard again: B is now oldest
+        log.on_named_value(_value(2, 1, "C", 1))
+        self.assertEqual(set(log.named_values()), {"A", "C"})
+        self.assertEqual(NAMED_VALUE_CAPACITY, 32)
+
+
+class TestEpoch(unittest.TestCase):
+    def test_each_log_has_its_own_epoch_on_every_entry(self):
+        first, second = VehicleMessageLog(2), VehicleMessageLog(2)
+        self.assertNotEqual(first.epoch, second.epoch)
+        first.on_statustext(_text(2, 1, "a"))
+        self.assertEqual(first.drain_new()[0]["epoch"], first.epoch)
+        self.assertEqual(first.backlog()["epoch"], first.epoch)
 
 
 class TestDrainAndBacklog(unittest.TestCase):

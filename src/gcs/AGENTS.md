@@ -60,9 +60,13 @@ Frontend:
   UAV's STATUSTEXT and named-value changes (NAMED_VALUE_FLOAT/INT, e.g. the
   watchdog's NAVWD), a filter, UAV switching and a text export; the latest
   named values sit on top and turn amber when not heard for 3 s. The backend
-  keeps 500 entries per UAV, attributed by MAVLink source system
-  (`vehicle_message_log.py`), sends new ones in the telemetry snapshot's
-  `messages`, and serves the backlog at `GET /api/vehicles/{sys_id}/messages`.
+  keeps 500 entries and 32 named values per UAV, attributed by MAVLink
+  source system, and joins chunked long STATUSTEXTs (a lost chunk shows as
+  incomplete) (`vehicle_message_log.py`). New entries ride the telemetry
+  snapshot's `messages`; the backlog is at
+  `GET /api/vehicles/{sys_id}/messages`, loaded on open and on every socket
+  reconnect. Each entry carries its log's `epoch`, so the browser tells a
+  restarted log from an overlap.
   No extra radio traffic: it shows what the link already carries.
 - Base map layers (bottom-right layers button): terrain (OpenTopoMap, the
   default), satellite (Ion, needs the token) and street (OSM). The choice

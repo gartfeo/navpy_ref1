@@ -10,6 +10,10 @@ Attribution is by MAVLink SOURCE system: over the shared radio link every
 UAV's traffic reaches every vehicle connection, so a message counts for this
 UAV only when its source system is this UAV's system id. The component tells
 autopilot, companion and camera apart.
+
+Every entry carries the log's ``epoch``, new for each log instance (each
+connection of the vehicle), so the browser can tell a restarted log, whose
+``seq`` starts again at 1, from an overlap of entries it already has.
 """
 from __future__ import annotations
 
@@ -26,6 +30,18 @@ from gcs.backend.companion_identity import (
 # Entries kept per UAV. Bounded so a chatty UAV cannot grow the backend
 # without limit; about an hour of a busy flight's texts and value changes.
 MESSAGE_LOG_CAPACITY = 500
+
+# Distinct named values kept per UAV; past it the one heard least recently is
+# dropped. A script naming values by a counter must not grow every snapshot.
+NAMED_VALUE_CAPACITY = 32
+
+# STATUSTEXT carries 50 characters; a longer text is sent as chunks sharing a
+# non-zero ``id`` with ``chunk_seq`` 0, 1, ..., ended by a chunk shorter than
+# 50 characters (MAVLink common.xml). The sender emits the chunks back to back,
+# so a text still unfinished this long after its first chunk lost a chunk; it
+# is then shown as it stands, marked incomplete.
+STATUSTEXT_CHUNK_LEN = 50
+STATUSTEXT_CHUNK_WAIT_S = 2.0
 
 _AUTOPILOT_COMPONENT_ID = 1
 
@@ -47,10 +63,36 @@ def source_label(component: Optional[int]) -> str:
     return f"comp {component}"
 
 
-def _text(raw) -> str:
+def _decode(raw) -> str:
     if isinstance(raw, (bytes, bytearray)):
         raw = raw.decode("utf-8", errors="replace")
-    return str(raw or "").rstrip("\x00").strip()
+    return str(raw or "")
+
+
+def _text(raw) -> str:
+    return _decode(raw).rstrip("\x00").strip()
+
+
+class _PendingText:
+    """The chunks of one chunked STATUSTEXT received so far."""
+
+    def __init__(self, component: Optional[int], severity: int, started: float) -> None:
+        self.component = component
+        self.severity = severity
+        self.started = started
+        self.chunks: dict[int, str] = {}
+        self.last: Optional[int] = None  # chunk_seq of the terminating chunk
+
+    def add(self, chunk_seq: int, raw: str) -> bool:
+        """Store a chunk; True once the text is complete."""
+        terminated = "\x00" in raw or len(raw) < STATUSTEXT_CHUNK_LEN
+        self.chunks[chunk_seq] = raw.split("\x00", 1)[0]
+        if terminated:
+            self.last = chunk_seq
+        return self.last is not None and all(i in self.chunks for i in range(self.last + 1))
+
+    def text(self) -> str:
+        return "".join(self.chunks[i] for i in sorted(self.chunks)).strip()
 
 
 class VehicleMessageLog:
@@ -60,10 +102,19 @@ class VehicleMessageLog:
     drains new entries and the REST route reads the backlog.
     """
 
-    def __init__(self, sys_id: int, capacity: int = MESSAGE_LOG_CAPACITY) -> None:
+    def __init__(
+        self,
+        sys_id: int,
+        capacity: int = MESSAGE_LOG_CAPACITY,
+        named_capacity: int = NAMED_VALUE_CAPACITY,
+    ) -> None:
         self.sys_id = int(sys_id)
+        self.epoch = rt.uuid4().hex[:12]
         self._entries: collections.deque = collections.deque(maxlen=capacity)
         self._named: dict[str, dict] = {}
+        self._named_capacity = named_capacity
+        # (component, id) -> chunks of a STATUSTEXT still being received.
+        self._pending: dict[tuple[Optional[int], int], _PendingText] = {}
         self._seq = 0
         self._drained_seq = 0
         self._lock = rt.Lock()
@@ -79,23 +130,51 @@ class VehicleMessageLog:
     def _append(self, entry: dict) -> None:
         self._seq += 1
         entry["seq"] = self._seq
+        entry["epoch"] = self.epoch
         self._entries.append(entry)
+
+    def _append_text(self, component: Optional[int], severity: int, text: str,
+                     ts: float, incomplete: bool = False) -> None:
+        entry = {
+            "kind": "text",
+            "ts": ts,
+            "source": source_label(component),
+            "severity": severity,
+            "label": SEVERITY_LABELS.get(severity, "INFO"),
+            "text": text,
+        }
+        if incomplete:
+            entry["incomplete"] = True
+        self._append(entry)
+
+    def _flush_stale_locked(self, now: float) -> None:
+        """Show texts whose missing chunk did not come as incomplete."""
+        for key, pending in list(self._pending.items()):
+            if now - pending.started >= STATUSTEXT_CHUNK_WAIT_S:
+                del self._pending[key]
+                self._append_text(pending.component, pending.severity, pending.text(),
+                                  pending.started, incomplete=True)
 
     def on_statustext(self, msg) -> None:
         own, component = self._own_source(msg)
         if not own:
             return
         severity = getattr(msg, "severity", _INFO)
-        text = _text(getattr(msg, "text", ""))
+        text_id = int(getattr(msg, "id", 0) or 0)
+        now = rt.time()
         with self._lock:
-            self._append({
-                "kind": "text",
-                "ts": rt.time(),
-                "source": source_label(component),
-                "severity": severity,
-                "label": SEVERITY_LABELS.get(severity, "INFO"),
-                "text": text,
-            })
+            self._flush_stale_locked(now)
+            if text_id == 0:
+                self._append_text(component, severity, _text(getattr(msg, "text", "")), now)
+                return
+            key = (component, text_id)
+            pending = self._pending.get(key)
+            if pending is None:
+                pending = self._pending[key] = _PendingText(component, severity, now)
+            chunk_seq = int(getattr(msg, "chunk_seq", 0) or 0)
+            if pending.add(chunk_seq, _decode(getattr(msg, "text", ""))):
+                del self._pending[key]
+                self._append_text(component, pending.severity, pending.text(), pending.started)
 
     def on_named_value(self, msg) -> None:
         own, component = self._own_source(msg)
@@ -108,8 +187,11 @@ class VehicleMessageLog:
         source = source_label(component)
         now = rt.time()
         with self._lock:
-            previous = self._named.get(name)
+            previous = self._named.pop(name, None)
+            # Insertion order is recency: the first key was heard longest ago.
             self._named[name] = {"value": value, "source": source, "ts": now}
+            while len(self._named) > self._named_capacity:
+                del self._named[next(iter(self._named))]
             # The history records a value only when it changes: a 1 Hz
             # watchdog report would otherwise bury every text.
             if previous is None or previous["value"] != value:
@@ -127,6 +209,7 @@ class VehicleMessageLog:
     def drain_new(self) -> list[dict]:
         """Entries added since the last drain; only the broadcast drains."""
         with self._lock:
+            self._flush_stale_locked(rt.time())
             new = [dict(e) for e in self._entries if e["seq"] > self._drained_seq]
             self._drained_seq = self._seq
             return new
@@ -134,8 +217,10 @@ class VehicleMessageLog:
     def backlog(self, after: int = 0) -> dict:
         """Every kept entry with ``seq > after`` and the latest named values."""
         with self._lock:
+            self._flush_stale_locked(rt.time())
             return {
                 "sys_id": self.sys_id,
+                "epoch": self.epoch,
                 "entries": [dict(e) for e in self._entries if e["seq"] > after],
                 "named_values": self.named_values_locked(),
                 "last_seq": self._seq,

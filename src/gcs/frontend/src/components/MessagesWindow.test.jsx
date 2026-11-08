@@ -26,11 +26,16 @@ class FakeSocket {
     this.onmessage({ data: JSON.stringify({ type: 'telemetry', vehicles, ts }) });
   }
 
+  drop() {
+    this.readyState = 3;
+    this.onclose();
+  }
+
   close() {}
 }
 
-const entry = (seq, text, severity = 6, kind = 'text') => ({
-  seq, kind, ts: 1990 + seq, source: 'autopilot', severity,
+const entry = (seq, text, severity = 6, kind = 'text', epoch = 'e1') => ({
+  seq, epoch, kind, ts: 1990 + seq, source: 'autopilot', severity,
   label: severity === 4 ? 'WARN' : 'INFO', text,
 });
 
@@ -52,7 +57,10 @@ afterEach(() => {
 function backlog(bySysId) {
   vi.stubGlobal('fetch', vi.fn((url) => {
     const sysId = Number(url.match(/vehicles\/(\d+)\/messages/)[1]);
-    return Promise.resolve({ ok: true, json: () => Promise.resolve({ entries: bySysId[sysId] || [] }) });
+    return Promise.resolve({
+      ok: true,
+      json: () => Promise.resolve({ epoch: 'e1', entries: bySysId[sysId] || [] }),
+    });
   }));
 }
 
@@ -113,6 +121,67 @@ describe('MessagesWindow', () => {
     expect(values.textContent).toContain('NAVWD 1');
     expect(values.textContent).toContain('messages.staleFor');
     expect(values.textContent).toContain('TASK 4');
+  });
+
+  // The backend keeps draining while the socket is down; those entries are
+  // only in its backlog, so a reconnect loads it again.
+  it('loads the backlog again after the socket reconnects', async () => {
+    const server = [entry(1, 'before')];
+    backlog({ 1: server });
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1' }]));
+    render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    await screen.findByText('before');
+    act(() => ws.drop());
+    server.push(entry(2, 'while down'));  // broadcast to nobody
+    act(() => telemetryStore.connect());  // what the store's reconnect timer does
+    ws = FakeSocket.last;
+    act(() => ws.open());
+    act(() => ws.telemetry([{ sys_id: 1, messages: [entry(3, 'after')] }]));
+    await screen.findByText('while down');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(messageLogStore.getEntries(1).map((e) => e.text)).toEqual(['before', 'while down', 'after']);
+  });
+
+  // A UAV switch mid-load: the first UAV's late failure must not show on the second.
+  it('ignores a load answered after the UAV changed', async () => {
+    let failFirst;
+    vi.stubGlobal('fetch', vi.fn((url) => (url.includes('/1/')
+      ? new Promise((_, reject) => { failFirst = reject; })
+      : Promise.resolve({ ok: true, json: () => Promise.resolve({ epoch: 'e1', entries: [] }) }))));
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1' }, { sys_id: 2, name: 'UAV 2' }]));
+    const view = render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    view.rerender(<MessagesWindow sysId={2} onSelect={() => {}} onClose={() => {}} />);
+    await waitFor(() => expect(fetch).toHaveBeenCalledWith('/api/vehicles/2/messages'));
+    await act(async () => { failFirst(new Error('late')); });
+    expect(screen.queryByText('messages.loadFailed')).toBeNull();
+    expect(screen.getByText('messages.empty')).toBeInTheDocument();
+  });
+
+  // At capacity a new row evicts the oldest, so the row count stays 500.
+  it('keeps following the newest row once the history is full', async () => {
+    const full = Array.from({ length: 500 }, (_, i) => entry(i + 1, `row ${i + 1}`));
+    backlog({ 1: full });
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1' }]));
+    let scrolls = 0;
+    vi.spyOn(HTMLElement.prototype, 'scrollHeight', 'get').mockReturnValue(10000);
+    vi.spyOn(HTMLElement.prototype, 'clientHeight', 'get').mockReturnValue(300);
+    let top = 0;
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'get').mockImplementation(() => top);
+    vi.spyOn(HTMLElement.prototype, 'scrollTop', 'set').mockImplementation((v) => { top = v; scrolls += 1; });
+    render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    await screen.findByText('row 500');
+    const before = scrolls;
+    act(() => ws.telemetry([{ sys_id: 1, messages: [entry(501, 'row 501')] }]));
+    expect(screen.getByText('row 501')).toBeInTheDocument();
+    expect(screen.queryByText('row 1')).toBeNull();
+    expect(scrolls).toBeGreaterThan(before);
+  });
+
+  it('marks a long text with a lost chunk', async () => {
+    backlog({ 1: [{ ...entry(1, 'PreArm: part'), incomplete: true }] });
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1' }]));
+    render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    await screen.findByText(/messages\.incomplete/);
   });
 
   it('says when the backlog could not load', async () => {

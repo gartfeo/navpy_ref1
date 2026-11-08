@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   appendEntries,
   mergeBacklog,
+  newestKey,
   filterEntries,
   severityTone,
   formatExport,
@@ -9,11 +10,11 @@ import {
   NAMED_VALUE_STALE_S,
 } from './messageLog';
 
-const text = (seq, severity = 6, t = `m${seq}`) => ({
-  seq, kind: 'text', ts: 1000 + seq, source: 'autopilot', severity, label: 'INFO', text: t,
+const text = (seq, severity = 6, t = `m${seq}`, epoch = 'e1') => ({
+  seq, epoch, kind: 'text', ts: 1000 + seq, source: 'autopilot', severity, label: 'INFO', text: t,
 });
 const value = (seq) => ({
-  seq, kind: 'value', ts: 1000 + seq, source: 'autopilot', severity: 6, label: 'VALUE',
+  seq, epoch: 'e1', kind: 'value', ts: 1000 + seq, source: 'autopilot', severity: 6, label: 'VALUE',
   name: 'NAVWD', value: 1, text: 'NAVWD = 1',
 });
 
@@ -28,17 +29,40 @@ describe('appendEntries', () => {
     expect(appendEntries(h, [])).toBe(h);
   });
 
-  // The backend log starts over after a backend restart: seq goes back to 1.
-  it('restarts the history when seq goes back', () => {
-    const h = appendEntries([text(7), text(8)], [text(1)]);
-    expect(h.map((e) => e.seq)).toEqual([1]);
+  // The backend log starts over (a reconnect or restart): a new epoch, seq from 1.
+  it('restarts the history on a new epoch', () => {
+    const h = appendEntries([text(7), text(8)], [text(1, 6, 'new', 'e2')]);
+    expect(h.map((e) => [e.epoch, e.seq])).toEqual([['e2', 1]]);
+  });
+
+  // The backlog can hold entries the broadcast has not drained yet: the live
+  // feed then repeats them. An overlap is not a restart.
+  it('drops entries it already has and keeps the older ones', () => {
+    const h = appendEntries([text(1), text(2), text(3)], [text(2), text(3), text(4)]);
+    expect(h.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+    const same = [text(1), text(2), text(3)];
+    expect(appendEntries(same, [text(2), text(3)])).toBe(same);
   });
 });
 
 describe('mergeBacklog', () => {
-  it('keeps live entries newer than the backlog, once', () => {
-    const merged = mergeBacklog([text(1), text(2), text(3)], [text(3), text(4)]);
+  it('keeps live entries of its epoch newer than the backlog, once', () => {
+    const merged = mergeBacklog([text(1), text(2), text(3)], 'e1', [text(3), text(4)]);
     expect(merged.map((e) => e.seq)).toEqual([1, 2, 3, 4]);
+  });
+
+  it("drops a previous log's history", () => {
+    const merged = mergeBacklog([text(1, 6, 'a', 'e2')], 'e2', [text(5), text(6)]);
+    expect(merged.map((e) => [e.epoch, e.seq])).toEqual([['e2', 1]]);
+    expect(mergeBacklog([], 'e2', [text(5)])).toEqual([]);
+  });
+});
+
+describe('newestKey', () => {
+  it('names the newest entry, so a same-length history still changes it', () => {
+    expect(newestKey([])).toBe('');
+    expect(newestKey([text(1), text(2)])).toBe('e1:2');
+    expect(newestKey([text(2), text(3)])).not.toBe(newestKey([text(1), text(2)]));
   });
 });
 

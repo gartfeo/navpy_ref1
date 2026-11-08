@@ -32,9 +32,9 @@ function ingest(sysId, entries) {
   _notify();
 }
 
-/** The backend backlog (`GET /api/vehicles/{sysId}/messages`). */
-function loadBacklog(sysId, backlogEntries) {
-  _histories = { ..._histories, [sysId]: mergeBacklog(backlogEntries || [], getEntries(sysId)) };
+/** The backend backlog (`GET /api/vehicles/{sysId}/messages`): its entries and log epoch. */
+function loadBacklog(sysId, backlogEntries, epoch) {
+  _histories = { ..._histories, [sysId]: mergeBacklog(backlogEntries || [], epoch, getEntries(sysId)) };
   _notify();
 }
 

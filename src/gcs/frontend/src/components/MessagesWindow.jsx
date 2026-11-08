@@ -11,6 +11,7 @@ import {
   formatExport,
   formatTime,
   namedValueRows,
+  newestKey,
   severityTone,
 } from '../utils/messageLog';
 
@@ -76,28 +77,35 @@ export default function MessagesWindow({ sysId, onSelect, onClose }) {
   const vehicleList = useVehicleList();
   const vehicle = useTelemetryStore((s) => s.getVehicles()[sysId]);
   const entries = useEntries(sysId);
+  // Messages broadcast while the socket was down are not replayed: load the
+  // backlog again on every (re)connect, as well as on open and UAV switch.
+  const connected = useTelemetryStore((s) => s.isConnected());
   const [filter, setFilter] = useState('all');
   const [loadError, setLoadError] = useState(false);
   const listRef = useRef(null);
   const stickRef = useRef(true);
 
   useEffect(() => {
+    if (!connected) return undefined;
     let cancelled = false;
     setLoadError(false);
     stickRef.current = true;
     fetch(`/api/vehicles/${sysId}/messages`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((body) => { if (!cancelled) messageLogStore.loadBacklog(sysId, body.entries); })
+      .then((body) => { if (!cancelled) messageLogStore.loadBacklog(sysId, body.entries, body.epoch); })
       .catch(() => { if (!cancelled) setLoadError(true); });
     return () => { cancelled = true; };
-  }, [sysId]);
+  }, [sysId, connected]);
 
   const shown = filterEntries(entries, filter);
+  // The newest row's identity, not the count: at capacity a new row evicts
+  // the oldest and the count stays the same.
+  const newest = newestKey(shown);
 
   useLayoutEffect(() => {
     const el = listRef.current;
     if (el && stickRef.current) el.scrollTop = el.scrollHeight;
-  }, [shown.length, filter, sysId]);
+  }, [newest, filter, sysId]);
 
   const onScroll = () => {
     const el = listRef.current;
@@ -190,11 +198,18 @@ export default function MessagesWindow({ sysId, onSelect, onClose }) {
           </div>
         )}
         {shown.map((e) => (
-          <div key={e.seq} style={{ display: 'flex', gap: 8, lineHeight: '17px', color: TONE_COLOR[severityTone(e)] }}>
+          <div key={`${e.epoch}:${e.seq}`} style={{ display: 'flex', gap: 8, lineHeight: '17px', color: TONE_COLOR[severityTone(e)] }}>
             <span style={{ color: colors.textDim, flex: '0 0 auto' }}>{formatTime(e.ts)}</span>
             <span style={{ color: colors.textDim, flex: '0 0 9ch' }}>{t(`messages.source.${e.source}`, { defaultValue: e.source })}</span>
             <span style={{ flex: '0 0 7ch', fontWeight: 600 }}>{e.label}</span>
-            <span style={{ wordBreak: 'break-word' }}>{e.text}</span>
+            <span style={{ wordBreak: 'break-word' }}>
+              {e.text}
+              {e.incomplete && (
+                <span title={t('messages.incompleteTitle')} style={{ color: colors.warning }}>
+                  {` [${t('messages.incomplete')}]`}
+                </span>
+              )}
+            </span>
           </div>
         ))}
       </div>

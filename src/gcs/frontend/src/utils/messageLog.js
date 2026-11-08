@@ -18,27 +18,40 @@ const WARNING_SEVERITY = 4;
 export const MESSAGE_FILTERS = ['all', 'warnings', 'texts', 'values'];
 
 /**
- * Append live entries to a history. A seq at or below the newest kept seq
- * means the backend's log started over (backend restart or reconnect), so
- * the history restarts with the new entries.
+ * Entries of `incoming` newer than `history`'s newest, appended. Every entry
+ * carries its backend log's `epoch`; a different epoch means the log started
+ * over (a reconnect or backend restart, seq from 1 again), so the history
+ * restarts with the new log. Within one epoch, seq orders and deduplicates:
+ * the backlog and the live feed may both carry an entry.
  */
 export function appendEntries(history, incoming, capacity = MESSAGE_LOG_CAPACITY) {
   if (!incoming || incoming.length === 0) return history;
-  const lastSeq = history.length > 0 ? history[history.length - 1].seq : 0;
-  const base = incoming[0].seq <= lastSeq ? [] : history;
-  const merged = base.concat(incoming);
+  const newest = history.length > 0 ? history[history.length - 1] : null;
+  const epoch = incoming[incoming.length - 1].epoch;
+  const sameLog = newest !== null && newest.epoch === epoch;
+  const base = sameLog ? history : [];
+  const lastSeq = sameLog ? newest.seq : 0;
+  const added = incoming.filter((e) => e.epoch === epoch && e.seq > lastSeq);
+  if (added.length === 0) return history;
+  const merged = base.concat(added);
   return merged.length > capacity ? merged.slice(merged.length - capacity) : merged;
 }
 
 /**
- * Merge the backend backlog with entries that arrived live while it loaded.
- * The backlog is the authority; live entries newer than it are kept.
+ * The backend backlog (of log `epoch`) with live entries that arrived while
+ * it loaded. The backlog is the authority: only live entries of its epoch
+ * newer than it are kept; a previous log's history is dropped.
  */
-export function mergeBacklog(backlog, live, capacity = MESSAGE_LOG_CAPACITY) {
-  const lastSeq = backlog.length > 0 ? backlog[backlog.length - 1].seq : 0;
-  const newer = (live || []).filter((e) => e.seq > lastSeq);
-  const merged = backlog.concat(newer);
-  return merged.length > capacity ? merged.slice(merged.length - capacity) : merged;
+export function mergeBacklog(backlog, epoch, live, capacity = MESSAGE_LOG_CAPACITY) {
+  const sameLog = (live || []).filter((e) => e.epoch === epoch);
+  if (backlog.length === 0) return sameLog.slice(-capacity);
+  return appendEntries(backlog.slice(-capacity), sameLog, capacity);
+}
+
+/** Identity of the newest entry ('' when none): changes with every new row. */
+export function newestKey(entries) {
+  const e = entries[entries.length - 1];
+  return e ? `${e.epoch}:${e.seq}` : '';
 }
 
 export function filterEntries(entries, filter) {
