@@ -67,13 +67,13 @@ def source_label(component: Optional[int]) -> str:
     return f"comp {component}"
 
 
-def _decode(raw) -> str:
+def _decode(raw: object) -> str:
     if isinstance(raw, (bytes, bytearray)):
         raw = raw.decode("utf-8", errors="replace")
     return str(raw or "")
 
 
-def _text(raw) -> str:
+def _text(raw: object) -> str:
     return _decode(raw).rstrip("\x00").strip()
 
 
@@ -141,7 +141,7 @@ class VehicleMessageLog:
         self._drained_seq = 0
         self._lock = rt.Lock()
 
-    def _own_source(self, msg) -> tuple[bool, Optional[int]]:
+    def _own_source(self, msg: object) -> tuple[bool, Optional[int]]:
         ids = source_ids(msg)
         if ids is None:
             # Test / non-MAVLink paths carry no source: accept as this UAV's.
@@ -181,7 +181,7 @@ class VehicleMessageLog:
             if now - pending.started >= STATUSTEXT_CHUNK_WAIT_S:
                 self._retire_locked(key)
 
-    def on_statustext(self, msg) -> None:
+    def on_statustext(self, msg: object) -> None:
         own, component = self._own_source(msg)
         if not own:
             return
@@ -213,7 +213,7 @@ class VehicleMessageLog:
                 del self._pending[key]
                 self._append_text(component, pending.severity, pending.text(), pending.started)
 
-    def on_named_value(self, msg) -> None:
+    def on_named_value(self, msg: object) -> None:
         own, component = self._own_source(msg)
         if not own:
             return

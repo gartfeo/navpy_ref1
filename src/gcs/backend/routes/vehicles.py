@@ -23,7 +23,7 @@ async def list_vehicles():
 
 
 @router.get("/{sys_id}/messages")
-async def vehicle_messages(sys_id: int, after: int = 0):
+async def vehicle_messages(sys_id: int, after: int = 0) -> dict:
     """The UAV's Messages-window history (entries with ``seq > after``) and latest named values.
 
     The window loads this once when it opens; new entries then arrive in the
