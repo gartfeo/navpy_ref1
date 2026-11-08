@@ -1,4 +1,4 @@
-"""The contact service's process loop (hitl_final_approach.md step 26): two loopback UDP sockets, one thread.
+"""The contact service's process loop (hitl_guidance.md step 26): two loopback UDP sockets, one thread.
 
 navpy's socket (the link's service endpoint) takes arm/disarm datagrams only from navpy's endpoint and sends contacts
 there; the pose socket takes the bridge's vehicle_state copy. Everything runs on the calling thread, so the judge

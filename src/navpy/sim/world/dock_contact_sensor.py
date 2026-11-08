@@ -1,6 +1,6 @@
 """Simulator contact sensor: the stand-in for the dock's net.
 
-The only success source of a simulated final approach. It compares the
+The only success source of a simulated guidance. It compares the
 aircraft's telemetry position with the true position of the vehicle's OWN
 armed dock and publishes one DOCKED event when the flown path passes within
 the net radius. Nothing it computes reaches frames, the law or the command

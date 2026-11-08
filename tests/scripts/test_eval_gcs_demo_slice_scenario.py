@@ -682,7 +682,7 @@ def test_slice_refuses_a_navigation_speedup_override(tmp_path):
     [
         "Task 1 offered by owner 5; waiting for its confirmation.",
         "Task 1 from owner 5 rejected: busy.",
-        "Busy (holding a task or flying a final approach); not bidding.",
+        "Busy (holding a task or in guidance); not bidding.",
     ],
 )
 def test_slice_fails_on_participation_in_another_owners_auction(tmp_path, line):

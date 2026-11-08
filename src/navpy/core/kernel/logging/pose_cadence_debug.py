@@ -2,7 +2,7 @@
 pipeline.
 
 Started as a cadence instrument for the pose (ATTITUDE) stream; Phase 2a of the
-10x-determinism plan extended it to every hop of the final approach data
+10x-determinism plan extended it to every hop of the guidance data
 path. Each hop records the SOURCE time of the data it consumed (the raw
 autopilot boot clock for source-driven simulation frames) next to its receipt/
 emission time, plus the drop/duplicate outcomes that were previously silent.
@@ -166,7 +166,7 @@ def record_observation(
         outcome: str,
         epoch: int | None = None,
 ) -> None:
-    """Record one detection delivered to final approach (nav())."""
+    """Record one detection delivered to guidance (nav())."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "observation").append(
@@ -185,7 +185,7 @@ def record_worker(
         work_cpu_ms: float | None = None,
         epoch: int | None = None,
 ) -> None:
-    """Record one final-approach command actually sent (execute_final_approach_command)."""
+    """Record one guidance command actually sent (execute_guidance_command)."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "worker").append(
@@ -210,7 +210,7 @@ def record_frame_lineage(
         frame_ts: float,
         disposition: str,
 ) -> None:
-    """Record what became of one fresh final-approach frame."""
+    """Record what became of one fresh guidance frame."""
     if not ENABLED:
         return
     _buffer_for(int(sys_id), "frame_lineage").append(

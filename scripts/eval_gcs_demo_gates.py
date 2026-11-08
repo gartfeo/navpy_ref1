@@ -128,7 +128,7 @@ def sensor_config_errors(navigation_text: str) -> list[str]:
     if _IDEAL_360_ACTIVE_RE.search(navigation_text) is not None:
         errors.append(
             "detector reported the simulator-only ideal_360 static sensor active; "
-            "the upper bound must never certify a final-approach run"
+            "the upper bound must never certify a guidance run"
         )
     return errors
 

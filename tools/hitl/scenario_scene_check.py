@@ -1,4 +1,4 @@
-"""The ten-seed scene check of step 14 (hitl_final_approach.md section 9): every seed of a series builds its scene.
+"""The ten-seed scene check of step 14 (hitl_guidance.md section 9): every seed of a series builds its scene.
 
 For each seed the scenario service draws the scene twice (the same hash both times) and prepares its scenario folder;
 Unreal then loads the level with the approach runner's own arguments and the seed's -NavPyScenario file, is stopped

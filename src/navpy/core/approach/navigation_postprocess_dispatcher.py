@@ -91,7 +91,7 @@ class NavigationPostprocessDispatcher:
             failure = self._failure
         if failure is not None:
             raise NavigationPostprocessFailure(
-                "final-approach command evidence postprocess failed"
+                "guidance command evidence postprocess failed"
             ) from failure
 
     def close(self) -> None:
@@ -109,7 +109,7 @@ class NavigationPostprocessDispatcher:
             job()
         except Exception as error:
             self._remember(error)
-            report_evidence_failure(self._logger, "final-approach postprocess", error)
+            report_evidence_failure(self._logger, "guidance postprocess", error)
 
     def _remember(self, error: BaseException) -> None:
         with self._lock:

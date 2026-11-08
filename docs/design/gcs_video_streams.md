@@ -10,7 +10,7 @@ and for vehicles that have none says "No camera" in plain text, never an empty
 or broken picture.
 
 Video is **operator display only**. Nothing here feeds frames, pixels or stream
-state into NavPy's navigation or the final-approach command path (Pure Vision
+state into NavPy's navigation or the guidance command path (Pure Vision
 Approach Constraint). The vision pipeline keeps reading its own camera input.
 
 ## What exists today
@@ -177,7 +177,7 @@ Purpose of the two sources:
 
 - **Camera (real video)**: inspect the real scene at the two delivery moments
   the map cannot show: the dock confirmation (does the live scene still match
-  the detector's still?) and the final approach (is there a reason to Cancel
+  the detector's still?) and the guidance (is there a reason to Cancel
   task?). Watching is optional; the map stays the main view.
 - **Synthetic (Cesium nose view)**: orientation, and a vehicle view where there
   is no usable video (SITL demo, UAV without camera, failed feed), without

@@ -27,7 +27,7 @@ from eval_navigation_telemetry import (
 
 
 def fly_case(state: CaseState, args: argparse.Namespace) -> None:
-    """Observe the final-approach scoring interval until one fully bound SNAP is present."""
+    """Observe the guidance scoring interval until one fully bound SNAP is present."""
     processes = state.processes
     assert processes.master is not None and processes.sysid is not None
     deadline = time.time() + args.timeout

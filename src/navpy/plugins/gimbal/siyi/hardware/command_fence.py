@@ -1,4 +1,4 @@
-"""The SIYI command fence of the HITL terminal handoff (docs/design/hitl_final_approach.md sections 2 and 7).
+"""The SIYI command fence of the HITL terminal handoff (docs/design/hitl_guidance.md sections 2 and 7).
 
 Once closed, every SIYI frame that would move the gimbal, zoom, focus or change mode is dropped and counted at the
 SDK's single send point (``sendMsg``, where every request and the SDK's own polling loops end), so a reconnect's

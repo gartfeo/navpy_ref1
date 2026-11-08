@@ -46,7 +46,7 @@ _DETECTOR_CAPABILITIES = (
     "prepare_geo_acquisition",
     "stop_geo_tracking",
     "set_zoom_size_demand",
-    "freeze_final_approach_zoom_at_min",
+    "freeze_guidance_zoom_at_min",
 )
 
 
@@ -958,14 +958,14 @@ class TestDetectionCoordinatorZoomSizeDemand(unittest.TestCase):
         for detector in detectors:
             detector.set_zoom_size_demand.assert_called_once_with(False)
 
-    def test_final_approach_zoom_freeze_broadcasts(self):
+    def test_guidance_zoom_freeze_broadcasts(self):
         detectors = [self._create_mock_detector() for _ in range(3)]
         coordinator = DetectionCoordinator(detectors, self.logger)
 
-        coordinator.freeze_final_approach_zoom_at_min()
+        coordinator.freeze_guidance_zoom_at_min()
 
         for detector in detectors:
-            detector.freeze_final_approach_zoom_at_min.assert_called_once_with()
+            detector.freeze_guidance_zoom_at_min.assert_called_once_with()
 
 
 class TestDetectionCoordinatorGeo(unittest.TestCase):

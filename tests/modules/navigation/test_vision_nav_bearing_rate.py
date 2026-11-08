@@ -1,4 +1,4 @@
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
@@ -6,7 +6,7 @@ from navpy.core.approach.vision_nav.source_epoch import (
 
 
 def _frame(source="a", generation=0, task=1, obj=2, timestamp=1.0):
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         source, generation, task, obj, timestamp,
         1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
     )

@@ -1,11 +1,11 @@
-"""The pc-sitl chain of one approach run (hitl_final_approach.md section 1, stage 1 step 13), as ProcSpecs.
+"""The pc-sitl chain of one approach run (hitl_guidance.md section 1, stage 1 step 13), as ProcSpecs.
 
 Most roles run in WSL beside the runner: the SITL backing (hitl.py sitl-backing, HIL model), the router on its
 serial0, the aas-hitl publisher (MediaMTX is its child) and navpy. The bridge is started by the board setup
 (hitl_procs.py, direct: it opens the backing's HIL port). Unreal and the ZR10 emulator run on Windows and are reached
 on the Windows host's address; Unreal sends its frames to WSL's own address (the direct route: todo 186). The
 emulator runs there, as in steps 8 and 9, because Unreal joins its gimbal samples to frames on the PC's one clock
-(QPC, hitl_final_approach.md "One time axis"), which a WSL process does not read.
+(QPC, hitl_guidance.md "One time axis"), which a WSL process does not read.
 """
 from __future__ import annotations
 

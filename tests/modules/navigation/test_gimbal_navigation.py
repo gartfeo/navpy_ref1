@@ -203,19 +203,19 @@ class TestGimbalNavigation(unittest.TestCase):
         g = self._make(with_zoom=False)
         g.set_zoom_size_demand(False)  # must not raise
 
-    def test_final_approach_zoom_freeze_commands_min_and_never_reads_bbox(self):
+    def test_guidance_zoom_freeze_commands_min_and_never_reads_bbox(self):
         class PoisonBboxPoi:
             @property
             def tracking_bbox_cxcywh(self):
-                raise AssertionError("bbox must not be read during final-approach NAV")
+                raise AssertionError("bbox must not be read during guidance NAV")
 
             @property
             def bbox_cxcywh(self):
-                raise AssertionError("bbox must not be read during final-approach NAV")
+                raise AssertionError("bbox must not be read during guidance NAV")
 
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
-        g.freeze_final_approach_zoom_at_min()
+        g.freeze_guidance_zoom_at_min()
         _zoom_tracker(g).update = Mock(
             side_effect=AssertionError("bbox-driven zoom tracker must stay frozen")
         )
@@ -225,7 +225,7 @@ class TestGimbalNavigation(unittest.TestCase):
         self.mount.command_zoom.assert_called_with("1")
         _zoom_tracker(g).update.assert_not_called()
 
-    def test_final_approach_zoom_freeze_serializes_with_visual_update(self):
+    def test_guidance_zoom_freeze_serializes_with_visual_update(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         tracker = _zoom_tracker(g)
@@ -243,7 +243,7 @@ class TestGimbalNavigation(unittest.TestCase):
         freeze_result = []
         freezer = Thread(
             target=lambda: freeze_result.append(
-                g.freeze_final_approach_zoom_at_min()
+                g.freeze_guidance_zoom_at_min()
             )
         )
         updater = Thread(
@@ -266,7 +266,7 @@ class TestGimbalNavigation(unittest.TestCase):
         self.assertFalse(updater.is_alive())
         tracker.update.assert_not_called()
 
-    def test_final_approach_zoom_freeze_waits_for_inflight_visual_update(self):
+    def test_guidance_zoom_freeze_waits_for_inflight_visual_update(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         tracker = _zoom_tracker(g)
@@ -283,7 +283,7 @@ class TestGimbalNavigation(unittest.TestCase):
         updater = Thread(target=lambda: g.update(_make_poi(), now=10.0))
         freezer = Thread(
             target=lambda: (
-                g.freeze_final_approach_zoom_at_min(),
+                g.freeze_guidance_zoom_at_min(),
                 freeze_finished.set(),
             )
         )
@@ -301,31 +301,31 @@ class TestGimbalNavigation(unittest.TestCase):
         g.update(_make_poi(), now=10.1)
         tracker.update.assert_called_once()
 
-    def test_failed_final_approach_zoom_freeze_latches_and_retries_hardware(self):
+    def test_failed_guidance_zoom_freeze_latches_and_retries_hardware(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
         prior_result = _zoom_tracker(g).last_result
         self.mount.command_zoom.side_effect = OSError("link")
 
-        self.assertFalse(g.freeze_final_approach_zoom_at_min())
+        self.assertFalse(g.freeze_guidance_zoom_at_min())
 
         self.assertTrue(
-            g.status.detection.final_approach_zoom_frozen_at_min
+            g.status.detection.guidance_zoom_frozen_at_min
         )
         self.assertFalse(_zoom_tracker(g).size_demand)
         self.assertIs(_zoom_tracker(g).last_result, prior_result)
 
         self.mount.command_zoom.side_effect = None
-        self.assertTrue(g.freeze_final_approach_zoom_at_min())
+        self.assertTrue(g.freeze_guidance_zoom_at_min())
         self.assertTrue(
-            g.status.detection.final_approach_zoom_frozen_at_min
+            g.status.detection.guidance_zoom_frozen_at_min
         )
         self.assertFalse(_zoom_tracker(g).size_demand)
 
-    def test_new_tracking_session_releases_final_approach_zoom_freeze(self):
+    def test_new_tracking_session_releases_guidance_zoom_freeze(self):
         g = self._make(with_rate=False, with_zoom=True)
         g.start_tracking(7)
-        g.freeze_final_approach_zoom_at_min()
+        g.freeze_guidance_zoom_at_min()
         _zoom_tracker(g).update = Mock()
 
         g.start_tracking(8)

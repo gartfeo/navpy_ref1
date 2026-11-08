@@ -13,7 +13,7 @@ from collections.abc import Callable
 from typing import Optional
 
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachTerminal,
+    GuidanceTerminal,
     TerminalObserver,
 )
 from navpy.core.kernel import runtime_time as rt
@@ -52,10 +52,10 @@ def with_dock_evidence_cut(
         return then
 
     def on_terminal(
-        terminal: FinalApproachTerminal,
+        terminal: GuidanceTerminal,
         identity: Optional[DockContactIdentity],
     ) -> None:
-        if identity is not None and terminal is not FinalApproachTerminal.DOCKED:
+        if identity is not None and terminal is not GuidanceTerminal.DOCKED:
             try:
                 sensor.end_evidence(identity)
             except Exception:  # noqa: BLE001 - display evidence only
@@ -67,7 +67,7 @@ def with_dock_evidence_cut(
 
 
 
-class FinalApproachDockContact:
+class GuidanceDockContact:
     def __init__(
         self,
         sensor: Optional[DockContactSensor],
@@ -165,4 +165,4 @@ class FinalApproachDockContact:
         )
 
 
-__all__ = ["EpisodeEnding", "FinalApproachDockContact", "with_dock_evidence_cut"]
+__all__ = ["EpisodeEnding", "GuidanceDockContact", "with_dock_evidence_cut"]

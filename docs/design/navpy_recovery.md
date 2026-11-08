@@ -151,7 +151,7 @@ from the heartbeat and reports failure instead of "restarted".
 - **Existing approach bounds stay.** The 1 s command freshness and hold
   expiry are not extended to fit a recovery timer.
 - **Pure vision constraint holds.** Recovery may read mode, armed state and
-  mission state. It ends the final-approach command generation before any
+  mission state. It ends the guidance command generation before any
   mission recovery, never feeds the approach law, and never routes an active
   approach through `recovery.py`'s altitude branch.
 

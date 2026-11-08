@@ -23,7 +23,7 @@ first check-in would cut nothing.
 
 Everything is healed at the latest at the fence, the first confirm request
 (:data:`FENCE_MARKER`), and nothing starts after it. The mission's last phase,
-final approach, starts only when the operator answers, which is the eval's
+guidance, starts only when the operator answers, which is the eval's
 confirmation delay later, so each recovery deadline falls before it (the gates
 check that on every run).
 

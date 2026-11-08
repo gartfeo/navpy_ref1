@@ -5,10 +5,10 @@ from dataclasses import replace
 
 import pytest
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.law import (
     VisionNavLaw,
@@ -19,15 +19,15 @@ from navpy.plugins.laws.vision_pn.law_plan import VERTICAL_PN_NAVIGATION_CONSTAN
 
 def frame(timestamp, elevation_deg):
     angle = math.radians(elevation_deg)
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         "cam", 0, 7, 9, timestamp, 1., 0., 0.,
         math.cos(angle), 0., math.sin(angle), 0., 25., 0., 0.,
     )
 
 
 def drive(points):
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(
-        FinalApproachLawConfig(-55., 25., 45., .5, None)
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(
+        GuidanceLawConfig(-55., 25., 45., .5, None)
     ))
     law.seed(frame(0., 0.))
     plans = {}
@@ -113,8 +113,8 @@ def test_equal_interval_ramp_has_the_declared_continuous_time_constant():
 
 @pytest.mark.parametrize("uncommitted", [False, True])
 def test_closed_excursion_preserves_area_past_a_held_or_uncommitted_frame(uncommitted):
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(
-        FinalApproachLawConfig(-55., 25., 45., .5, None)
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(
+        GuidanceLawConfig(-55., 25., 45., .5, None)
     ))
     law.seed(frame(0., 0.))
     first = law.plan(frame(.02, .1))
@@ -135,8 +135,8 @@ def test_closed_excursion_preserves_area_past_a_held_or_uncommitted_frame(uncomm
 
 
 def test_outlier_reseed_starts_a_new_area_identity():
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(
-        FinalApproachLawConfig(-55., 25., 45., .5, None)
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(
+        GuidanceLawConfig(-55., 25., 45., .5, None)
     ))
     law.seed(frame(0., 0.))
     first = law.plan(frame(.02, .1))
@@ -159,8 +159,8 @@ def test_outlier_reseed_starts_a_new_area_identity():
 
 
 def test_slow_first_frame_retains_the_remaining_filter_tail():
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(
-        FinalApproachLawConfig(-55., 25., 45., .5, None)
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(
+        GuidanceLawConfig(-55., 25., 45., .5, None)
     ))
     # Keep sufficient ceiling clearance to observe the full filter area. The
     # single-frame increment bound is not a bound on the settled response.

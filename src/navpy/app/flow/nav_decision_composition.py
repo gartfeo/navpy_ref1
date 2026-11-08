@@ -45,7 +45,7 @@ def compose_decision_workflows(
 ) -> DecisionWorkflows:
     recovery = RecoveryAction(
         RecoveryPorts(
-            final_approach_active=lambda: navigation.final_approach.is_active,
+            guidance_active=lambda: navigation.guidance.is_active,
             detector_stop=detection.tracking_commands.stop_tracking,
             current_relative=lambda: vehicle.location(True),
             pause_navigation=navigation.pause,
@@ -79,7 +79,7 @@ def compose_decision_workflows(
             clock_s=lambda: state.clock.decision_s(),
             clear_navigation_task=lambda: clear_guided_wait(state, confirmation.reset.reset.clear),
             request_guided=lambda: request_guided_owned(state, approach),
-            final_approach_active=lambda: navigation.final_approach.is_active,
+            guidance_active=lambda: navigation.guidance.is_active,
             holding=lambda: state.recovery_hold.holding,
             take_resumed=state.recovery_hold.take_resumed,
         ),

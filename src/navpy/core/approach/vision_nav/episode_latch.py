@@ -1,4 +1,4 @@
-"""Episode-level terminal latch of one final approach (physical_docking.md).
+"""Episode-level terminal latch of one guidance (physical_docking.md).
 
 It lives outside `VisualPassState`, so `invalidate_commands()` and a
 continuity-key change cannot erase it; only RESET or the next episode
@@ -25,13 +25,13 @@ from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 
 
-class FinalApproachTerminal(Enum):
+class GuidanceTerminal(Enum):
     DOCKED = "docked"
     MISSED = "missed"
     FAILED = "failed"
 
 
-TerminalObserver = Callable[[FinalApproachTerminal, Optional[DockContactIdentity]], None]
+TerminalObserver = Callable[[GuidanceTerminal, Optional[DockContactIdentity]], None]
 
 # The reason of an aft-dock miss, as its NAV_FAIL line names it.
 MISSED_DOCK_REASON = fail_reason.MISSED_DOCK
@@ -40,25 +40,25 @@ UNNAMED_FAILURE_REASON = fail_reason.NAV_FAIL
 
 
 @dataclass(frozen=True)
-class FinalApproachEpisodeTerminal:
+class GuidanceEpisodeTerminal:
     """The armed episode's first terminal, taken at NAV exit before reset."""
 
     identity: DockContactIdentity
-    terminal: FinalApproachTerminal
+    terminal: GuidanceTerminal
     reason: str | None
 
 
-class FinalApproachEpisodeLatch:
+class GuidanceEpisodeLatch:
     def __init__(self, on_terminal: TerminalObserver | None = None) -> None:
         self._identity: DockContactIdentity | None = None
-        self._terminal: FinalApproachTerminal | None = None
+        self._terminal: GuidanceTerminal | None = None
         self._reason: str | None = None
         self._miss_reported = False
         self._on_terminal = on_terminal
 
     @property
     def docked(self) -> bool:
-        return self._terminal is FinalApproachTerminal.DOCKED
+        return self._terminal is GuidanceTerminal.DOCKED
 
     @property
     def commands_ended(self) -> bool:
@@ -67,7 +67,7 @@ class FinalApproachEpisodeLatch:
 
         A frame admitted after an armed NAV_FAIL is suppressed, not flown.
         """
-        if self._terminal is FinalApproachTerminal.FAILED:
+        if self._terminal is GuidanceTerminal.FAILED:
             return self.failure_ends_commands
         return self._terminal is not None
 
@@ -75,15 +75,15 @@ class FinalApproachEpisodeLatch:
     def failure_ends_commands(self) -> bool:
         """A FAILED latch ends commands only for an armed (sim) episode."""
         return (
-            self._terminal is FinalApproachTerminal.FAILED
+            self._terminal is GuidanceTerminal.FAILED
             and self._identity is not None
         )
 
-    def terminal_snapshot(self) -> FinalApproachEpisodeTerminal | None:
+    def terminal_snapshot(self) -> GuidanceEpisodeTerminal | None:
         """The armed episode's terminal; None when none was armed or latched."""
         if self._identity is None or self._terminal is None:
             return None
-        return FinalApproachEpisodeTerminal(
+        return GuidanceEpisodeTerminal(
             self._identity,
             self._terminal,
             self._reason,
@@ -97,14 +97,14 @@ class FinalApproachEpisodeLatch:
     def latch_docked(self, event: DockContactEvent) -> bool:
         if self._terminal is not None or event.identity != self._identity:
             return False
-        self._latch(FinalApproachTerminal.DOCKED)
+        self._latch(GuidanceTerminal.DOCKED)
         return True
 
     def latch_missed(self) -> bool:
         if self._terminal is not None:
             return False
         self._reason = MISSED_DOCK_REASON
-        self._latch(FinalApproachTerminal.MISSED)
+        self._latch(GuidanceTerminal.MISSED)
         return True
 
     def latch_failure(self, reason: str | None = None) -> bool:
@@ -118,17 +118,17 @@ class FinalApproachEpisodeLatch:
         if self._reason is None:
             self._reason = reason
         if self._terminal is None:
-            self._latch(FinalApproachTerminal.FAILED)
+            self._latch(GuidanceTerminal.FAILED)
         return True
 
-    def _latch(self, terminal: FinalApproachTerminal) -> None:
+    def _latch(self, terminal: GuidanceTerminal) -> None:
         self._terminal = terminal
         if self._on_terminal is not None:
             self._on_terminal(terminal, self._identity)
 
     def consume_missed(self) -> bool:
         """True once after an aft-dock miss, for the NAV_FAIL report."""
-        if self._terminal is not FinalApproachTerminal.MISSED or self._miss_reported:
+        if self._terminal is not GuidanceTerminal.MISSED or self._miss_reported:
             return False
         self._miss_reported = True
         return True
@@ -141,9 +141,9 @@ class FinalApproachEpisodeLatch:
 
 
 __all__ = [
-    "FinalApproachEpisodeLatch",
-    "FinalApproachEpisodeTerminal",
-    "FinalApproachTerminal",
+    "GuidanceEpisodeLatch",
+    "GuidanceEpisodeTerminal",
+    "GuidanceTerminal",
     "MISSED_DOCK_REASON",
     "TerminalObserver",
     "UNNAMED_FAILURE_REASON",

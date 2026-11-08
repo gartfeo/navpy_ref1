@@ -7,7 +7,7 @@ from typing import Any
 
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from navpy.core.approach.vision_nav.command_freshness import (
-    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+    GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
 )
 
 
@@ -20,7 +20,7 @@ MAX_OBSERVATION_AGE_P95_PERIODS = 10.0
 MAX_COMMAND_AGE_P95_PERIODS = 12.0
 MAX_COMMAND_AGE_PERIODS = 20.0
 MIN_STAGE_ROWS = 10
-MAX_SOURCE_STAGE_GAP_MS = FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S * 1000.0
+MAX_SOURCE_STAGE_GAP_MS = GUIDANCE_COMMAND_MAX_SOURCE_AGE_S * 1000.0
 REQUIRED_SOURCE_STREAMS = (
     "attitude_arrival",
     "detector_pose",
@@ -82,27 +82,27 @@ def source_time_errors(
     fresh_observations = int(observation_outcomes.get("fresh", 0))
     if fresh_observations < MIN_STAGE_ROWS:
         errors.append(
-            f"fresh final-approach observations {fresh_observations} < "
+            f"fresh guidance observations {fresh_observations} < "
             f"{MIN_STAGE_ROWS}"
         )
     if int(observation.get("future_count", 0)):
-        errors.append("final-approach observations contain future source timestamps")
+        errors.append("guidance observations contain future source timestamps")
     if int(observation.get("nonmonotonic_count", 0)):
-        errors.append("final-approach observations contain nonmonotonic source timestamps")
+        errors.append("guidance observations contain nonmonotonic source timestamps")
     observation_gap = observation.get("source_gap_ms") or {}
     errors.extend(_positive_distribution_errors(
-        "final-approach observation source gap",
+        "guidance observation source gap",
         observation_gap,
     ))
     _maximum_error(
         errors,
-        "final-approach observation maximum source gap",
+        "guidance observation maximum source gap",
         observation_gap.get("max"),
         MAX_SOURCE_STAGE_GAP_MS,
     )
     _maximum_error(
         errors,
-        "final-approach observation age p95",
+        "guidance observation age p95",
         (observation.get("age_ms") or {}).get("p95"),
         MAX_OBSERVATION_AGE_P95_PERIODS * raw_period_ms,
     )
@@ -110,23 +110,23 @@ def source_time_errors(
     outcomes = worker.get("outcomes") or {}
     if int(outcomes.get("fresh", 0)) < MIN_STAGE_ROWS:
         errors.append(
-            f"fresh final-approach commands {int(outcomes.get('fresh', 0))} < "
+            f"fresh guidance commands {int(outcomes.get('fresh', 0))} < "
             f"{MIN_STAGE_ROWS}"
         )
     source_gap = worker.get("source_gap_ms") or {}
     errors.extend(_positive_distribution_errors(
-        "fresh final-approach command source gap",
+        "fresh guidance command source gap",
         source_gap,
     ))
     _maximum_error(
         errors,
-        "fresh final-approach command maximum source gap",
+        "fresh guidance command maximum source gap",
         source_gap.get("max"),
         MAX_SOURCE_STAGE_GAP_MS,
     )
     wall_gap = worker.get("wall_gap_ms") or {}
     errors.extend(_positive_distribution_errors(
-        "final-approach command wall gap",
+        "guidance command wall gap",
         wall_gap,
     ))
     # Fixed-grid scheduling has no positive lower bound on one isolated
@@ -135,32 +135,32 @@ def source_time_errors(
     # p99, and missed-slot replay is covered at the worker mechanism boundary.
     _minimum_error(
         errors,
-        "final-approach command wall-gap p50",
+        "guidance command wall-gap p50",
         wall_gap.get("p50"),
         MIN_COMMAND_P50_PERIODS * command_wall_period_ms,
     )
     _maximum_error(
         errors,
-        "final-approach command wall-gap p50",
+        "guidance command wall-gap p50",
         wall_gap.get("p50"),
         MAX_COMMAND_P50_PERIODS * command_wall_period_ms,
     )
     _maximum_error(
         errors,
-        "final-approach command wall-gap p99",
+        "guidance command wall-gap p99",
         wall_gap.get("p99"),
         MAX_COMMAND_P99_PERIODS * command_wall_period_ms,
     )
     age = worker.get("age_ms") or {}
     _maximum_error(
         errors,
-        "final-approach command age p95",
+        "guidance command age p95",
         age.get("p95"),
         MAX_COMMAND_AGE_P95_PERIODS * raw_period_ms,
     )
     _maximum_error(
         errors,
-        "final-approach command maximum age",
+        "guidance command maximum age",
         age.get("max"),
         MAX_COMMAND_AGE_PERIODS * raw_period_ms,
     )

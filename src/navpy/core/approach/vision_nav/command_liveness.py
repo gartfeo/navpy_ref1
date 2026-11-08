@@ -7,11 +7,11 @@ from typing import Protocol
 from navpy.core.kernel import runtime_time as rt
 
 
-class FinalApproachCommandFailureSink(Protocol):
+class GuidanceCommandFailureSink(Protocol):
     def mark_failed(self) -> None: ...
 
 
-class FinalApproachCommandLiveness:
+class GuidanceCommandLiveness:
     """Publish one failure until navigation consumes or reset clears it."""
 
     def __init__(self) -> None:
@@ -33,11 +33,11 @@ class FinalApproachCommandLiveness:
             self._failed = False
 
 
-class FinalApproachEpisodeFailureGate(Protocol):
+class GuidanceEpisodeFailureGate(Protocol):
     def latch_failure(self) -> bool: ...
 
 
-class FinalApproachEpisodeFailures:
+class GuidanceEpisodeFailures:
     """Worker failure sink: the episode latch first, then the liveness signal.
 
     A worker failure (stale frame, expired held command, law failure) ends the
@@ -49,8 +49,8 @@ class FinalApproachEpisodeFailures:
     def __init__(
         self,
         lock: rt.RLock,
-        episode: FinalApproachEpisodeFailureGate,
-        liveness: FinalApproachCommandLiveness,
+        episode: GuidanceEpisodeFailureGate,
+        liveness: GuidanceCommandLiveness,
     ) -> None:
         self._lock = lock
         self._episode = episode
@@ -69,7 +69,7 @@ class FinalApproachEpisodeFailures:
 
 
 __all__ = [
-    "FinalApproachCommandFailureSink",
-    "FinalApproachCommandLiveness",
-    "FinalApproachEpisodeFailures",
+    "GuidanceCommandFailureSink",
+    "GuidanceCommandLiveness",
+    "GuidanceEpisodeFailures",
 ]

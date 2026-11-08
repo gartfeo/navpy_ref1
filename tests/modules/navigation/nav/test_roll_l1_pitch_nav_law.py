@@ -308,7 +308,7 @@ class PitchPidPursuitTests(unittest.TestCase):
         self.assertAlmostEqual(cmd, -9.3, places=5)
 
     def test_too_shallow_commands_more_nose_down(self):
-        # The final-approach-orbit sample: los ~9 deg, nose 6.8 deg above the
+        # The guidance-orbit sample: los ~9 deg, nose 6.8 deg above the
         # LOS. The old tracker commanded ~-3 deg and orbited; pursuit
         # commands below the LOS.
         controller, kp = self._make_controller()
@@ -324,7 +324,7 @@ class PitchPidPursuitTests(unittest.TestCase):
         self.assertAlmostEqual(cmd, -9.3 + kp * 27.5, places=5)
         self.assertGreater(cmd, -9.3)
 
-    def test_steep_final_approach_los_tracks_full_dive(self):
+    def test_steep_guidance_los_tracks_full_dive(self):
         # Close-in over the POI the LOS steepens toward vertical: the
         # commanded pitch follows it (the nav law clips to airframe
         # limits downstream).

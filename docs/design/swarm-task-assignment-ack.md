@@ -75,12 +75,12 @@ UAV still bids, and a peer that does not bid stalls the auction.
    task and re-bids. A re-advertisement never drops an ASSIGNED task.
 6. **Busy UAVs do not take part in auctions**: no bid, reject step 3, drop a
    WAITING task. Busy = holds another UAV's task (WAITING/ASSIGNED) or is
-   flying a final approach. Searching, a found own POI not yet approached,
+   in guidance. Searching, a found own POI not yet approached,
    and the DDH return are free. Owners skip busy or silent peers.
 7. **Fuel is per task**: a UAV that cannot fly a task answers that advert
    with "can't do"; the owner leaves it out of that task instead of waiting.
 8. **A peer task has priority** over a found own POI (not yet approached) and
-   the DDH return. One final approach per flight: the own POI is dropped, not
+   the DDH return. One guidance per flight: the own POI is dropped, not
    offered to the other UAVs (owner ruling 2026-10-08: it may be the assigned
    dock itself, and task ids are numbered per UAV); the DDH return comes
    after the task.
@@ -136,7 +136,7 @@ Every accepted step-4 copy also counts as a BUSY report for its sender.
 | WAITING | APPLIED from owner, owner's boot, naming one of this WAITING's step-4 copies | **ASSIGNED**; log "Task T assigned by owner O" |
 | WAITING | RECEIVED naming one of its copies | EMPTY + warning |
 | WAITING | advert from same owner boot, newer than the accepted request, listing the task | EMPTY, then bid |
-| WAITING | own final approach starts | EMPTY + reject repeat (owner retries) |
+| WAITING | own guidance starts | EMPTY + reject repeat (owner retries) |
 | WAITING | 5 s without owner progress (PROCESSING of its copies) | EMPTY + ERROR log |
 | WAITING | `TaskActor.reset()` / `clear_selected_poi()` | unchanged |
 | ASSIGNED | any advert or ack | unchanged |
@@ -151,7 +151,7 @@ Reject repeats stop only on RECEIVED or APPLIED.
 **Node state** (`SwarmNodeState` in `swarm_heartbeat_msg.py`, sent in bit 0
 of the existing `SWARM_HEARTBEAT.state` byte; no dialect change):
 `FREE=0`, `BUSY=1`. BUSY = slot WAITING/ASSIGNED, or nav is **approaching**
-(committed phase NAV: flying a final approach). Everything else is FREE:
+(committed phase NAV: in guidance). Everything else is FREE:
 searching, CONFIRM of an own POI, DDH return, ONHOLD/RESET/RECOVERY.
 Receivers read bit 0 only; bits 1-7 carry nav's display phase and last
 outcome for the GCS (`gcs_mission_phase.md`). All UAVs of a fleet run one
@@ -523,10 +523,10 @@ in the backend's round registry; the helper slot status ignores it (todo
 ## Unchanged and out of scope
 
 - Comm hot path, `MessageFilter`, navlink dialect, nav readers,
-  final-approach path, Pure Vision constraint.
+  guidance path, Pure Vision constraint.
 - Owner RESET forgets tasks it handed out (accepted corner case, owner ruling
   2026-10-07); it now logs dropped CONFIRMING/CONFIRMED dispatches.
-- Residual strand: the own final approach starts after the owner is
+- Residual strand: the own guidance starts after the owner is
   CONFIRMED but before APPLIED arrives.
 - Free peers with no location, and the full-roster rule: separate tasks.
 - Message authentication: deferred, see

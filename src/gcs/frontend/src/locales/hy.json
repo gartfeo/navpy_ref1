@@ -320,7 +320,7 @@
     },
     "aas": {
       "sections": {
-        "finalApproach": "Վերջնական մոտեցում",
+        "guidance": "Ուղղորդում",
         "control": "Կառավարում",
         "logging": "Մատյանագրում",
         "confirmation": "Հաստատում",
@@ -751,7 +751,7 @@
     "ccChecking": "Ուղեկցողի կապ — ստուգվում է…",
     "ccDown": "Ուղեկցող համակարգիչը միացված չէ",
     "swarmBusy": "ԶԲԱՂՎԱԾ",
-    "swarmBusyTitle": "Զբաղված է այլ ԱԹՍ-ի առաջադրանքով կամ վերջնական մոտեցմամբ․ առաջադրանքների չի հավակնում",
+    "swarmBusyTitle": "Զբաղված է այլ ԱԹՍ-ի առաջադրանքով կամ ուղղորդման մեջ․ առաջադրանքների չի հավակնում",
     "swarmUnknown": "ԱՆՀԱՅՏ",
     "swarmUnknownTitle": "Ուղեկցողից թարմ տվյալ չի ստացվել․ վիճակն անհայտ է",
     "noUavsConnected": "ԱԹՍ-ներ միացված չեն",
@@ -1227,7 +1227,7 @@
       "navigation_rejected": "նավարկումը մերժվեց",
       "source_command_stale": "հրամանները հնացան",
       "discontinuity_source_missing": "տեսողական աղբյուրը կորավ",
-      "final_approach_record_unavailable": "մոտեցման գրառումը հասանելի չէ",
+      "guidance_record_unavailable": "մոտեցման գրառումը հասանելի չէ",
       "source_event_active_poi_missing": "POI-ն բացակայում է",
       "source_event_pump": "տեսողական աղբյուրը ձախողվեց",
       "internal_error": "NavPy-ի ներքին սխալ",

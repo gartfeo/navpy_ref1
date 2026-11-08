@@ -38,7 +38,7 @@ def compose_reset_workflows(
     approach: VehicleApproachOwnership,
     observation: DetectionReviewOwnership,
     navigation: NavCapabilities,
-    close_final_approach_source: Callable[[], None],
+    close_guidance_source: Callable[[], None],
 ) -> ResetWorkflows:
     state_reset = NavigationTaskStateReset(
         state.navigation_task,
@@ -71,11 +71,11 @@ def compose_reset_workflows(
     reset = NavigationTaskResetTransaction(
         state_reset,
         resource_reset,
-        close_final_approach_source,
+        close_guidance_source,
     )
     resume_auto = AutoMissionResume(
         AutoMissionResumePorts(
-            close_final_approach_source=close_final_approach_source,
+            close_guidance_source=close_guidance_source,
             pause_navigation=navigation.pause,
             clear_selected_poi=observation.network.clear_selected_poi,
             clear_flow_task=lambda: poi.mission.clear_navigation_task(),

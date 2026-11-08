@@ -1,4 +1,4 @@
-"""Side-effect-free final-approach confirmation followed by explicit recording."""
+"""Side-effect-free guidance confirmation followed by explicit recording."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from dataclasses import dataclass
 from typing import Callable, Protocol
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
+    GuidanceFrameProjector,
 )
-from navpy.plugins.laws.vision_pn.law_plan import FinalApproachLawPlan
+from navpy.plugins.laws.vision_pn.law_plan import GuidanceLawPlan
 from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
@@ -18,25 +18,25 @@ from navpy.core.approach.vision_nav.source_epoch import (
 from navpy.core.ports.detect_data import DetectedObject
 
 
-class FinalApproachConfirmationLaw(Protocol):
-    def preview(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None: ...
+class GuidanceConfirmationLaw(Protocol):
+    def preview(self, frame: GuidanceVisionFrame) -> GuidanceLawPlan | None: ...
 
-    def seed(self, frame: FinalApproachVisionFrame, roll_deg: float = 0.0) -> None: ...
+    def seed(self, frame: GuidanceVisionFrame, roll_deg: float = 0.0) -> None: ...
 
 
 @dataclass(frozen=True)
-class FinalApproachConfirmationPorts:
+class GuidanceConfirmationPorts:
     lock: rt.RLock
-    projector: FinalApproachFrameProjector
+    projector: GuidanceFrameProjector
     epochs: SourceEpochLedger
-    law: FinalApproachConfirmationLaw
+    law: GuidanceConfirmationLaw
     roll_anchor_deg: Callable[[], float] = lambda: 0.0
 
 
-class FinalApproachConfirmation:
+class GuidanceConfirmation:
     """Validate current measured authority without issuing a command."""
 
-    def __init__(self, ports: FinalApproachConfirmationPorts) -> None:
+    def __init__(self, ports: GuidanceConfirmationPorts) -> None:
         self._ports = ports
 
     def can_confirm_detection(self, poi: DetectedObject) -> bool:
@@ -44,7 +44,7 @@ class FinalApproachConfirmation:
             frame = self._project(poi)
             return frame is not None and self._can_confirm(frame)
 
-    def record_final_approach_confirmed_detection(self, poi: DetectedObject) -> bool:
+    def record_guidance_confirmed_detection(self, poi: DetectedObject) -> bool:
         with self._ports.lock:
             frame = self._project(poi)
             if frame is None or not self._can_record(frame):
@@ -56,7 +56,7 @@ class FinalApproachConfirmation:
                 self._ports.law.seed(frame, self._ports.roll_anchor_deg())
             return True
 
-    def _project(self, poi: DetectedObject) -> FinalApproachVisionFrame | None:
+    def _project(self, poi: DetectedObject) -> GuidanceVisionFrame | None:
         visual = poi.visual_detection()
         source_name = self._ports.projector.source_name(visual)
         if source_name is None:
@@ -67,7 +67,7 @@ class FinalApproachConfirmation:
             getattr(poi.timing, "source_air_speed_mps", None),
         )
 
-    def _can_confirm(self, frame: FinalApproachVisionFrame) -> bool:
+    def _can_confirm(self, frame: GuidanceVisionFrame) -> bool:
         plan = self._ports.law.preview(frame)
         return (
             self._ports.epochs.classify(frame) is FrameAdmission.FRESH
@@ -75,7 +75,7 @@ class FinalApproachConfirmation:
             and plan.within_limits
         )
 
-    def _can_record(self, frame: FinalApproachVisionFrame) -> bool:
+    def _can_record(self, frame: GuidanceVisionFrame) -> bool:
         """Accept the current valid frame after a flyable frame was reviewed."""
         return (
             self._ports.epochs.classify(frame) is FrameAdmission.FRESH
@@ -84,7 +84,7 @@ class FinalApproachConfirmation:
 
 
 __all__ = [
-    "FinalApproachConfirmation",
-    "FinalApproachConfirmationLaw",
-    "FinalApproachConfirmationPorts",
+    "GuidanceConfirmation",
+    "GuidanceConfirmationLaw",
+    "GuidanceConfirmationPorts",
 ]

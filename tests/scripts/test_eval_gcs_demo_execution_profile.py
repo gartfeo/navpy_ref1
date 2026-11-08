@@ -11,8 +11,8 @@ from scripts import eval_gcs_demo_analysis as analysis
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
     SNAP_WITHOUT_DOCKED,
-    parse_final_approach_command_episodes,
-    parse_final_approach_episodes,
+    parse_guidance_command_episodes,
+    parse_guidance_episodes,
 )
 from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_gate_profiles import (
@@ -57,7 +57,7 @@ def _mark_terminal_miss(log_dir: Path, sys_id: int, *, late_s: float = 0.0) -> N
     missed=True; ``late_s`` delays it after the previous row."""
     debug = log_dir / f"uav_{sys_id}_navigation_debug.csv"
     rows = debug.read_text(encoding="utf-8").splitlines(True)
-    last = max(i for i, row in enumerate(rows) if "EVENT:FINAL_APPROACH_CMD" in row)
+    last = max(i for i, row in enumerate(rows) if "EVENT:GUIDANCE_CMD" in row)
     assert "issued=False" in rows[last] and "missed=False" in rows[last], rows[last]
     row = rows[last].replace("missed=False", "missed=True")
     if late_s:
@@ -143,13 +143,13 @@ def test_a_certified_lockstep_run_analyzes_its_vehicles_on_the_resolved_profile(
 def test_the_parser_flags_an_undocked_episode_and_the_strict_parser_still_rejects_it(tmp_path):
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4)
     debug = tmp_path / "uav_1_navigation_debug.csv"
-    [docked] = parse_final_approach_episodes(debug, vehicle_id=1)
+    [docked] = parse_guidance_episodes(debug, vehicle_id=1)
     assert docked.docked is True and docked.commands
     _drop_docked(tmp_path, 1)
-    [undocked] = parse_final_approach_episodes(debug, vehicle_id=1)
+    [undocked] = parse_guidance_episodes(debug, vehicle_id=1)
     assert undocked.docked is False and undocked.commands == docked.commands
     with pytest.raises(ValueError, match=SNAP_WITHOUT_DOCKED):
-        parse_final_approach_command_episodes(debug, vehicle_id=1)
+        parse_guidance_command_episodes(debug, vehicle_id=1)
 
 
 def test_a_missed_dock_is_its_own_gate_and_hides_no_other_check(tmp_path):
@@ -162,7 +162,7 @@ def test_a_missed_dock_is_its_own_gate_and_hides_no_other_check(tmp_path):
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert report.passed is False
     assert SNAP_WITHOUT_DOCKED in report.errors
-    assert not any("invalid final-approach evidence" in e for e in report.errors), report.errors
+    assert not any("invalid guidance evidence" in e for e in report.errors), report.errors
     assert any("roll-command step" in e for e in report.errors), report.errors
     assert report.metrics.achieved_roll_reversals is not None  # the achieved-roll gate ran
     assert any("truth SNAP distance is non-finite" in e for e in report.errors), report.errors

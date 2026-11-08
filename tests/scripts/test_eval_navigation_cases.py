@@ -809,7 +809,7 @@ def test_commands_are_portable_isolated_and_apply_case_poi_variables():
     assert navpy[navpy.index("-twps") + 1] == "4,"
     assert navpy[navpy.index("-talt") + 1] == "135"
     assert navpy[navpy.index("-gsu") + 1] == "1"
-    # The final-approach roll-envelope raise was removed from NavPy (ef8b9a55), so
+    # The guidance roll-envelope raise was removed from NavPy (ef8b9a55), so
     # navpy.main rejects -trl and the companion never launches. Keep the
     # builder from re-introducing the dead argument.
     assert "-trl" not in navpy
@@ -1232,7 +1232,7 @@ def _err_log(tmp_path, text):
 
 
 def test_a_released_verdict_is_recovered_from_the_launcher_log(tmp_path):
-    # The reason the registry no longer has. A final-approach failure records its
+    # The reason the registry no longer has. A guidance failure records its
     # verdict, tears down, then retracts — and an eval slot owns nothing else,
     # so that retraction RELEASES the entry and the reason goes with it. An
     # evaluator that was busy across that window sees only a dead child.

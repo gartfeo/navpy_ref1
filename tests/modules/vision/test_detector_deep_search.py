@@ -1116,7 +1116,7 @@ class TestDetectorLifecycle(unittest.TestCase):
             self.assertIs(raised.exception, failure)
         lifecycle.stop()
 
-    def test_stop_retries_provider_before_final_approach_cleanup_failures(self):
+    def test_stop_retries_provider_before_guidance_cleanup_failures(self):
         provider_error = RuntimeError("provider stop failed")
         resource_error = RuntimeError("resource close failed")
         diagnostics_error = RuntimeError("diagnostics close failed")

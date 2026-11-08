@@ -1,8 +1,8 @@
-"""Isolated contact (hitl_final_approach.md section 9, step 26): only authenticated, run/vehicle/task/episode-bound
+"""Isolated contact (hitl_guidance.md section 9, step 26): only authenticated, run/vehicle/task/episode-bound
 contact events reach the episode latch, and none carries geometry.
 
 The contact service and navpy's HITL adapter talk through ``contact_rig.Rig`` (no sockets), with the real
-``FinalApproachDockContact`` and ``FinalApproachEpisodeLatch`` behind the adapter.
+``GuidanceDockContact`` and ``GuidanceEpisodeLatch`` behind the adapter.
 """
 from __future__ import annotations
 

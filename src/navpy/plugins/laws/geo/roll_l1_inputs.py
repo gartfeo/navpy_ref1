@@ -27,7 +27,7 @@ class RollL1AirframeLimits:
 
 @dataclass(frozen=True)
 class PitchLockSettings:
-    final_approach_angle_deg: float
+    guidance_angle_deg: float
     lock_distance_m: float
     roll_difference_deg: float
 

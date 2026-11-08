@@ -11,7 +11,7 @@ from scripts.eval_gcs_demo_command_bounds import (
 )
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import (
-    FINAL_APPROACH_ROLL_LIMIT_DEG,
+    GUIDANCE_ROLL_LIMIT_DEG,
     PARAM_HTTP_TIMEOUT_S,
     PARAM_REQUEST_BUDGET_S,
 )
@@ -100,10 +100,10 @@ def _ensure_roll_limit(context: StackContext, sys_id: int, snapshot: JsonValue) 
     """
     value = _snapshot_value(snapshot, "ROLL_LIMIT_DEG")
     if isinstance(value, (int, float)) and not isinstance(value, bool) and math.isclose(
-        float(value), FINAL_APPROACH_ROLL_LIMIT_DEG, abs_tol=1e-6
+        float(value), GUIDANCE_ROLL_LIMIT_DEG, abs_tol=1e-6
     ):
         return
-    change = {"name": "ROLL_LIMIT_DEG", "value": FINAL_APPROACH_ROLL_LIMIT_DEG}
+    change = {"name": "ROLL_LIMIT_DEG", "value": GUIDANCE_ROLL_LIMIT_DEG}
     written = context.api.put_json(
         f"/api/vehicles/{sys_id}/parameters", {"changes": [change]}, timeout=60.0
     )
@@ -130,7 +130,7 @@ def configure_vehicle_params(
         bounds.append(command_bounds_from_snapshot(
             sys_id,
             snapshot,
-            roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG,
+            roll_limit_deg=GUIDANCE_ROLL_LIMIT_DEG,
         ))
         _ensure_roll_limit(context, sys_id, snapshot)
         aas = aas_params_for(scenario, sys_id, owner)

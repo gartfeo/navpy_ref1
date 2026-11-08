@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Static ideal-camera point-mass diagnostics for final approach."""
+"""Static ideal-camera point-mass diagnostics for guidance."""
 
 from __future__ import annotations
 

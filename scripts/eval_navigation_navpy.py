@@ -25,7 +25,7 @@ def build_navpy_command(
     poi_rel_alt_m: float,
     args: argparse.Namespace,
 ) -> list[str]:
-    """Build one headless final approach NavPy command."""
+    """Build one headless guidance NavPy command."""
     del speedup
     return [
         str(python),

@@ -99,13 +99,13 @@ class PeerApproachStarter:
         ports: PeerApproachPorts,
         navigation_task: NavigationTaskState,
         geo_tracker: PeerGeoTracker,
-        final_approach_running: Callable[[], bool],
+        guidance_running: Callable[[], bool],
         logger: ILogger,
     ) -> None:
         self._ports = ports
         self._navigation_task = navigation_task
         self._geo_tracker = geo_tracker
-        self._final_approach_running = final_approach_running
+        self._guidance_running = guidance_running
         self._logger = logger
 
     def start(
@@ -129,7 +129,7 @@ class PeerApproachStarter:
             )
         self._ports.request_guided()
         geo_armed = False
-        if plan.kind == ApproachKind.ORBIT and not self._final_approach_running():
+        if plan.kind == ApproachKind.ORBIT and not self._guidance_running():
             geo_armed = self._geo_tracker.start(navigation_location)
             if geo_armed:
                 geo_armed = self._geo_tracker.prime()

@@ -1,4 +1,4 @@
-"""The commissioning fault of one HITL run (hitl_final_approach.md section 9, stage 1 step 15).
+"""The commissioning fault of one HITL run (hitl_guidance.md section 9, stage 1 step 15).
 
 The runner's explicit ``--commission-fault`` flag writes it into the run record's ``commissioning`` section; the
 injector (media_fault_injector.py) reads it back from there, so the record names the fault the run had. Spellings:

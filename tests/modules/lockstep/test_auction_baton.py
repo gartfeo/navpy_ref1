@@ -269,7 +269,7 @@ def test_a_rejected_offer_is_retried_with_the_next_peer():
     with baton_swarm() as swarm:
         swarm.rule = rule
         swarm.run(400, {DETECT_TICK: _detect(swarm), DETECT_TICK + 20: _set_approaching(swarm, NEAR_PEER, True)})
-        assert _ticks(swarm, NEAR_PEER, "Own final approach started; rejecting task 2 from owner 1")
+        assert _ticks(swarm, NEAR_PEER, "Own guidance started; rejecting task 2 from owner 1")
         assert [peer for _k, peer in _owner_requests(swarm)][:1] == [NEAR_PEER]
         assert _ticks(swarm, OWNER, "Task 2 rejected by 2")
         assert _confirmed_to(swarm, FAR_PEER)

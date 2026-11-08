@@ -1,6 +1,6 @@
-# Missed final approach ends as "dock failed" (v3.1, 2026-10-18, Codex- and owner-approved)
+# Missed guidance ends as "dock failed" (v3.1, 2026-10-18, Codex- and owner-approved)
 
-Owner ruling 2026-10-18 (todo 74): a missed final approach is a failed dock. The UAV must not RESET, restart its
+Owner ruling 2026-10-18 (todo 74): a missed guidance is a failed dock. The UAV must not RESET, restart its
 mission or search. It ends with the same behaviour as DOCKED but reports "dock failed" (status, log, GCS); the cause
 is investigated later from the logs. The approach is over once it stops closing (it passed the closest point):
 contact means docked, no contact means dock failed. Builds on `docked_state.md` and `physical_docking.md`.
@@ -23,9 +23,9 @@ approach can no longer be flown; it may come before the pass (owner question 1).
 truth to time the end.
 
 ## Rules
-1. **Scope (simulation, this step).** A vision final-approach episode armed with the sim contact sensor, whose GUIDED
+1. **Scope (simulation, this step).** A vision guidance episode armed with the sim contact sensor, whose GUIDED
    session was observed
-   (`final_approach_navigation_active`) and which ends by a NAV_FAIL (the NAV decision's RESET request) ends as a dock:
+   (`guidance_navigation_active`) and which ends by a NAV_FAIL (the NAV decision's RESET request) ends as a dock:
    contact kept → DOCKED (today), otherwise DOCK FAILED with the NAV_FAIL reason. Everything else keeps today's flow:
    GUIDED not accepted (→ DETECT), operator exits (disarm, manual mode, GUIDED departure: the inactive guard first),
    builds without the vision runtime, and the real build (no sensor, so no episode is armed today). The real build
@@ -38,7 +38,7 @@ truth to time the end.
    does not: RESET retires the work as today. Under the same runtime lock held
    and queued work is retired (as `retire_after_docking`). Today RESET does that a tick later.
 4. **Outcome is decided once, at NAV exit.** Cleanup snapshots the episode terminal (identity, terminal, reason;
-   `FinalApproachDockOutcome`, its own NAV-exit port)
+   `GuidanceDockOutcome`, its own NAV-exit port)
    before `navigation_reset` clears the latch, into `NavCleanupResult.dock_terminal`, next to the kept contact
    (`own_dock_contact`). Contact kept → DOCKED; FAILED/MISSED terminal → DOCK FAILED.
    First latch still wins (`physical_docking.md` unchanged): a contact after the NAV_FAIL is not counted. Hit or miss

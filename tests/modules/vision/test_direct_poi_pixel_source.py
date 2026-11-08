@@ -34,8 +34,8 @@ from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorkerPorts,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.sim.determinism import determinism_command_log
 from navpy.sim.determinism import determinism_events
@@ -149,7 +149,7 @@ def _pixel_from(vehicle: Mock, message_types: tuple[str, ...]) -> tuple:
     return (delivered[-1].pixel.u_px, delivered[-1].pixel.v_px)
 
 
-def test_known_geo_poi_becomes_pixel_then_geo_free_final_approach_frame() -> None:
+def test_known_geo_poi_becomes_pixel_then_geo_free_guidance_frame() -> None:
     attitude = Attitude(-4.0, 123.0, 3.0)
     vehicle = _vehicle(truth_attitude=attitude, telemetry_attitude=attitude)
     delivered: list = []
@@ -163,8 +163,8 @@ def test_known_geo_poi_becomes_pixel_then_geo_free_final_approach_frame() -> Non
     assert len(delivered) == 1
     detection = delivered[0]
     assert detection.pixel.source_name == DIRECT_PIXEL_SOURCE_NAME
-    frame = FinalApproachFrameProjector(
-        FinalApproachProjectionConfig("ZYX", True)
+    frame = GuidanceFrameProjector(
+        GuidanceProjectionConfig("ZYX", True)
     ).project(detection.visual_detection(), 0)
     assert frame is not None
     assert frame.source_timestamp_s == 12.5
@@ -1898,7 +1898,7 @@ class _ProxyLaw:
     """A consumer with MEMORY, so which frame came BEFORE is visible in what
     it emits.
 
-    It differences consecutive frames the way the real final-approach law forms a
+    It differences consecutive frames the way the real guidance law forms a
     rate. On this bench the aircraft pose is held fixed, so the pixel never
     moves and only the source clock carries information -- the span back to
     the previous frame is what a different coalescing choice would alter, so

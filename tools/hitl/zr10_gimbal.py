@@ -2,7 +2,7 @@
 
 The plant is navpy's deterministic sim plant (gimbal_angles.py, gimbal_zoom_plant.py,
 gimbal_frame_transform.body_readback), so the emulator and navpy's sim share their dynamics. Added here: 0x07 dead
-time and deadband, report lag (0x0D and 0x18 apart), report scale (hitl_final_approach.md section 4).
+time and deadband, report lag (0x0D and 0x18 apart), report scale (hitl_guidance.md section 4).
 
 Angles. The plant holds the camera's rotation; body_readback gives it relative to the aircraft as a yaw-outer
 gimbal (body = Rz(yaw) Ry(pitch) Rx(roll), navpy's SIYI convention, siyi_convention.py), the order Unreal composes
@@ -13,7 +13,7 @@ Roll keeps the plant's sign (TBC: the real unit reported roll 0.00 throughout). 
 (``true_state``) is the same body rotation without report lag or scale (yaw right, pitch up, roll right wing down:
 the vehicle_state convention), the zoom reading and the lens setting: how the lens got there (the last accepted 0x0F
 command, none after a manual zoom: no lens row exists for an arbitrary stop) and whether it has settled. Unreal picks
-its lens row by them (hitl_final_approach.md section 9, step 5); the wire carries neither. The 1.0 wide stop is not
+its lens row by them (hitl_guidance.md section 9, step 5); the wire carries neither. The 1.0 wide stop is not
 modelled: the plant's floor is the table's lowest reading (1.1).
 
 Ordering: with a 0x07 dead time each rate command (a stop included) waits its own dead time in arrival order;

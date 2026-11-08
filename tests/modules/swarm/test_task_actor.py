@@ -360,7 +360,7 @@ class TaskActorTest(unittest.TestCase):
 
         # Assert
         self.logger.info.assert_called_with(
-            "Busy (holding a task or flying a final approach); not bidding."
+            "Busy (holding a task or in guidance); not bidding."
         )
         self.network.broadcast.assert_not_called()
 

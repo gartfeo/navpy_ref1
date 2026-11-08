@@ -16,7 +16,7 @@ from scripts.eval_certificate_source_time import (
     source_time_summary,
 )
 from scripts.eval_gcs_demo_cadence import cadence_annotation
-from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_final_approach_outcomes
+from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_guidance_outcomes
 from scripts.eval_gcs_demo_gates import sensor_config_errors
 
 NO_END = "no DOCKED or DOCK_FAILED row"
@@ -82,7 +82,7 @@ def _require_debug_header(path: Path) -> None:
 
 def approach_outcomes(path: Path, uav: int) -> list[Outcome]:
     _require_debug_header(path)
-    episodes, failures = parse_final_approach_outcomes(path, vehicle_id=uav)
+    episodes, failures = parse_guidance_outcomes(path, vehicle_id=uav)
     reasons = {failure.identity: failure.reason for failure in failures}
     outcomes = []
     for episode in episodes:

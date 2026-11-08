@@ -427,7 +427,7 @@ class TestSimulatorControls:
         navigation = Mock()
         navigation.is_zoom_stable = False
         navigation.zoom_result = object()
-        navigation.freeze_final_approach_zoom_at_min.return_value = True
+        navigation.freeze_guidance_zoom_at_min.return_value = True
         navigation.tracking_obj_id = 7
         navigation.is_detection_armed = True
         navigation.is_geo_armed = True
@@ -438,7 +438,7 @@ class TestSimulatorControls:
         geo = SimGeoControls(navigation)
 
         tracking.start_tracking(7)
-        zoom.freeze_final_approach_zoom_at_min()
+        zoom.freeze_guidance_zoom_at_min()
         geo.prepare_geo_acquisition(Location(0, 0, 0), Attitude(0, 0, 0), 0, 10)
 
         assert capture.enabled is False
@@ -448,7 +448,7 @@ class TestSimulatorControls:
         assert zoom.get_zoom_result(7) is navigation.zoom_result
         assert geo.is_geo_armed is True
         navigation.start_tracking.assert_called_once_with(7)
-        navigation.freeze_final_approach_zoom_at_min.assert_called_once_with()
+        navigation.freeze_guidance_zoom_at_min.assert_called_once_with()
 
     def test_tracking_start_restores_capture_state_when_navigation_raises(self):
         navigation = Mock()

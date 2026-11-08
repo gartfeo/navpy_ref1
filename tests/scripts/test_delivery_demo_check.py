@@ -26,7 +26,7 @@ def _command(time="18:13:33.100", obs_ts=4034.3):
         f"source=gimbal_0;generation=0;task=1;obj=0;obs_ts={obs_ts};dt_wall_ms=;body_bearing_deg=89.0;"
         "cmd_roll=16.0;cmd_pitch=-3.0;cmd_thr=0.55;issued=True;missed=False"
     )
-    return f"{time},EVENT:FINAL_APPROACH_CMD,{payload}\n"
+    return f"{time},EVENT:GUIDANCE_CMD,{payload}\n"
 
 
 def _docked(vehicle, aircraft_ts=4034.4):
@@ -217,7 +217,7 @@ def test_an_open_episode_and_a_broken_debug_file_do_not_stop_the_report(tmp_path
 
     text = check.report(run_dir)
 
-    assert "approach: could not read: final-approach episode did not terminate" in text
+    assert "approach: could not read: guidance episode did not terminate" in text
     assert "Approaches not read: UAV 4, 5" in text
     assert "cadence: episode 1, ended by log_end" in text  # the open approach still shows
     assert "UAV 6" in text

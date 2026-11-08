@@ -1,4 +1,4 @@
-"""The HITL terminal handoff (docs/design/hitl_final_approach.md sections 2-3; only with --router-control).
+"""The HITL terminal handoff (docs/design/hitl_guidance.md sections 2-3; only with --router-control).
 
 On the approach's first terminal outcome (DOCKED, MISSED or FAILED: episode_latch.py) navpy
 1. fences its MAVLink link: every later write is dropped and counted (LinkFence wraps the connection's ``write``,
@@ -13,7 +13,7 @@ On the approach's first terminal outcome (DOCKED, MISSED or FAILED: episode_latc
 Then it holds: the fences stay closed until the process stops (RESET's AUTO restart never reaches the board, and
 no gimbal or zoom command reaches the gimbal).
 
-The same quiesce, once per process, runs when navpy stops without an outcome (hitl_final_approach.md step 16): first
+The same quiesce, once per process, runs when navpy stops without an outcome (hitl_guidance.md step 16): first
 in its cleanup, trigger ``stop`` after a stop request (the runner's deadline or abort) and ``shutdown`` after an error
 or an interrupt, so the fences close before navigation, vision and the vehicle stop and the gimbal gets its stop while
 its SDK is still open. Such a record has no outcome, and an outcome latched after the quiesce began is never reported:
@@ -29,7 +29,7 @@ from collections.abc import Callable
 from pymavlink import mavutil
 
 from navpy.app.router_barrier import BARRIER_TIMEOUT_S, RouterBarrier, parse_address
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal, TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import GuidanceTerminal, TerminalObserver
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.dock_contact import DockContactIdentity
 from navpy.plugins.gimbal.siyi.hardware.command_fence import GIMBAL_STOP_TIMEOUT_S, SiyiCommandFence
@@ -150,8 +150,8 @@ class TerminalHandoff:
         self._thread = None
         self._published = False
 
-    def on_terminal(self, outcome: FinalApproachTerminal, identity: DockContactIdentity | None) -> None:
-        """Any thread, under the final-approach lock: closes the fence at once; the rest runs on its own thread."""
+    def on_terminal(self, outcome: GuidanceTerminal, identity: DockContactIdentity | None) -> None:
+        """Any thread, under the guidance lock: closes the fence at once; the rest runs on its own thread."""
         self._begin(TRIGGER_TERMINAL, outcome, identity)
 
     def quiesce(self, trigger: str) -> None:
@@ -163,7 +163,7 @@ class TerminalHandoff:
         self.quiesce(trigger)
         return self.join(timeout_s)
 
-    def _begin(self, trigger: str, outcome: FinalApproachTerminal | None,
+    def _begin(self, trigger: str, outcome: GuidanceTerminal | None,
                identity: DockContactIdentity | None) -> None:
         with self._lock:
             if self._thread is not None:
@@ -184,7 +184,7 @@ class TerminalHandoff:
         thread.join(timeout_s)
         return not thread.is_alive() and self._published
 
-    def _handoff(self, trigger: str, outcome: FinalApproachTerminal | None,
+    def _handoff(self, trigger: str, outcome: GuidanceTerminal | None,
                  identity: DockContactIdentity | None) -> None:
         self.fence.wait_idle()
         gimbal_stop = self.gimbal_fence.quiesce_and_stop()

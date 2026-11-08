@@ -65,7 +65,7 @@ def compose_roll_l1_nav(
 
     def lock_settings() -> PitchLockSettings:
         return PitchLockSettings(
-            final_approach_angle_deg=float(args.final_approach_angle),
+            guidance_angle_deg=float(args.guidance_angle),
             lock_distance_m=float(args.pitch_lock_dist),
             roll_difference_deg=float(args.pitch_lock_roll_diff),
         )
@@ -84,7 +84,7 @@ def compose_roll_l1_nav(
         PitchLockPolicy(lock_settings),
         attitude,
         limits,
-        lambda: args.final_approach_throttle,
+        lambda: args.guidance_throttle,
     )
 
 

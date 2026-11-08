@@ -46,7 +46,7 @@ from tests.modules.navigation.test_gimbal_navigation import (
 _TASK_LOCATION = Location(40.5, -74.5, 900.0, is_absolute=True)
 
 
-def _final_approach_running(phase: NavPhaseState):
+def _guidance_running(phase: NavPhaseState):
     return lambda: phase.is_current(NavState.NAV)
 
 
@@ -72,7 +72,7 @@ class TestPeerApproachStartGate(unittest.TestCase):
             ports,
             NavigationTaskState(),
             tracker,
-            _final_approach_running(phase),
+            _guidance_running(phase),
             Mock(),
         )
         return starter, tracker
@@ -110,7 +110,7 @@ class TestPeerGeoTickGate(unittest.TestCase):
             GeoHoldState(poi_location=_TASK_LOCATION),
             pointing,
             acquisition,
-            _final_approach_running(phase),
+            _guidance_running(phase),
             Mock(return_value=Location(40.0, -74.0, 1500.0, is_absolute=True)),
             Mock(return_value=Mock()),
         )
@@ -242,13 +242,13 @@ class TestNavEntryGeoFence(unittest.TestCase):
         ports = NavEntryPorts(
             request_guided=Mock(side_effect=lambda: events.append("guided")),
             navigation_init=Mock(),
-            final_approach_active=Mock(return_value=True),
+            guidance_active=Mock(return_value=True),
             arm_dock_contact=Mock(),
             stop_geo_tracking=stop_geo,
             is_geo_armed=is_geo_armed,
         )
         zoom = Mock()
-        zoom.freeze_final_approach_wide.return_value = True
+        zoom.freeze_guidance_wide.return_value = True
         return NavEntry(ports, NavigationTaskState(), zoom, Mock()), ports
 
     def test_leftover_geo_session_is_stopped_before_guided(self):

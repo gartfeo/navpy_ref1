@@ -46,7 +46,7 @@ for directory in (ROOT, ROOT / "src"):
         sys.path.insert(0, str(directory))
 
 from gcs.backend.cpu_share_background import apply_background
-from navpy.core.approach.vision_nav.command_freshness import FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S
+from navpy.core.approach.vision_nav.command_freshness import GUIDANCE_COMMAND_MAX_SOURCE_AGE_S
 from navpy.sim.lockstep.sim_profile import load_profile, profile_names
 from scripts.eval_seed_sweep import Job, Runner, run_eval, settle
 from scripts.wall_bug_logs import (
@@ -63,7 +63,7 @@ from scripts.wall_bug_logs import (
 
 TICK_MS = 20
 #: A command's source may be this old (``command_freshness``); a longer stall in NAV fails it stale.
-SOURCE_AGE_MS = round(1000 * FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S)
+SOURCE_AGE_MS = round(1000 * GUIDANCE_COMMAND_MAX_SOURCE_AGE_S)
 #: A UAV in the certified scenario.
 UAVS = (1, 2, 3)
 MODELS = ("process_freeze", "reader_lag")

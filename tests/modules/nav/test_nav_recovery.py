@@ -519,7 +519,7 @@ def _decision(
         clock_s=lambda: 0.0,
         clear_navigation_task=Mock(),
         request_guided=Mock(),
-        final_approach_active=lambda: True,
+        guidance_active=lambda: True,
         holding=lambda: holding,
         take_resumed=take_resumed,
     )

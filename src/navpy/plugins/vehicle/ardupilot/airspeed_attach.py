@@ -1,4 +1,4 @@
-"""Attach the eligible airspeed source to a vehicle (hitl_final_approach.md section 9, step 20): subscribe to the own
+"""Attach the eligible airspeed source to a vehicle (hitl_guidance.md section 9, step 20): subscribe to the own
 autopilot's AIRSPEED, SYS_STATUS, PARAM_VALUE and COMMAND_ACK, claim AIRSPEED at 20 Hz, wait for the claim's ack,
 then read the pinned parameters back from the board."""
 from __future__ import annotations

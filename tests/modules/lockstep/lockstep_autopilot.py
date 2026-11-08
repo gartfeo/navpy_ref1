@@ -15,7 +15,7 @@ It serves MAVFTP as ``GCS_FTP.cpp`` does for one file, ``@PARAM/param.pck``
 ``FTP_BURST_PACKETS`` replies per tick until the end of the file, and
 session ends. ``TERRAIN_CHECK`` is never answered, as by an autopilot with
 ``TERRAIN_ENABLE 0`` (the lockstep defaults keep terrain on since step 9h). :func:`navpy_parameters` adds what a NavPy companion
-reads at boot: the firmware's ``SYSID_THISMAV``, its final-approach airframe
+reads at boot: the firmware's ``SYSID_THISMAV``, its guidance airframe
 limits and the AAS table that the SITL's ``aas_params.lua`` adds. With ``forward``, it routes as ArduPilot
 does between its MAVLink channels: a packet with no target, a broadcast
 target, a foreign system's target or this system's without one of its own
@@ -62,7 +62,7 @@ def aas_lua_parameters() -> dict[str, float]:
 
 
 #: ArduPlane's defaults (``ArduPlane/config.h``, ``AP_PitchController.cpp``) for
-#: what the final-approach law reads (``final_approach_airframe_config.py``).
+#: what the guidance law reads (``guidance_airframe_config.py``).
 #: A real autopilot answers them; a missing one costs each law reset a full
 #: parameter-read timeout.
 AIRFRAME_PARAMETERS = {"PTCH_LIM_MIN_DEG": -25.0, "PTCH_LIM_MAX_DEG": 20.0, "ROLL_LIMIT_DEG": 45.0,

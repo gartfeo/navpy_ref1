@@ -1,4 +1,4 @@
-"""Run record of one HITL approach (hitl_final_approach.md section 9, stage 1 step 1).
+"""Run record of one HITL approach (hitl_guidance.md section 9, stage 1 step 1).
 
 One JSON manifest per run, approach_record.json, in the run's folder under the private folder
 (tools/tuning/private_data.py), never in a repository checkout. It names what the run used: the run's identity and
@@ -51,7 +51,7 @@ MODE_SUBSTITUTIONS: Mapping[str, Mapping[str, str]] = {
         "links": "PC router over local sockets, not the flight radios and companion UART",
     },
 }
-# The final approach flies the pure-vision law only; the legacy laws read dock geometry.
+# The guidance flies the pure-vision law only; the legacy laws read dock geometry.
 APPROACH_LAWS = (NavigationAlgorithm.VISION_NAV_PN.value,)
 
 # The host each mode runs navpy's video on; its media runtime check must have passed there.

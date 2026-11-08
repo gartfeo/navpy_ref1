@@ -59,7 +59,7 @@ class _Clock:
         self.now += seconds
 
 
-def _final_approach_row(
+def _guidance_row(
     wall: str,
     *,
     obs: float,
@@ -91,7 +91,7 @@ def _final_approach_row(
             f"missed={missed}",
         )
     )
-    return f"{wall},EVENT:FINAL_APPROACH_CMD,{payload},,,,,,,,,\n"
+    return f"{wall},EVENT:GUIDANCE_CMD,{payload},,,,,,,,,\n"
 
 
 def test_confirmation_ws_is_open_before_trigger_and_echoes_exact_round_uid():
@@ -187,20 +187,20 @@ def test_confirmation_rejects_legacy_uid_for_certification():
         )
 
 
-def test_final_approach_command_rows_are_atomic_ordered_and_retain_unissued(tmp_path):
+def test_guidance_command_rows_are_atomic_ordered_and_retain_unissued(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         "ts,event,payload,,,,,,,,,\n"
-        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _final_approach_row("12:00:00.010", obs=1.1, roll="", issued="False")
-        + _final_approach_row(
+        + _guidance_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _guidance_row("12:00:00.010", obs=1.1, roll="", issued="False")
+        + _guidance_row(
             "12:00:00.020", obs=1.2, roll="", issued="False", missed="True"
         ),
         encoding="utf-8",
     )
 
-    records = evidence.parse_final_approach_commands(path)
+    records = evidence.parse_guidance_commands(path)
 
     assert len(records) == 3
     assert [record.obs_ts for record in records] == [1.0, 1.1, 1.2]
@@ -220,37 +220,37 @@ DOCKED_ROW = (
 SNAP_ROW = "12:00:00.030,EVENT:SNAP_COMPONENTS,algorithm=VISION-NAV-PN,,,,,,,,,\n"
 
 
-def test_final_approach_episode_allows_unissued_rows_before_docked(tmp_path):
+def test_guidance_episode_allows_unissued_rows_before_docked(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         ARMED_ROW
-        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _final_approach_row("12:00:00.010", obs=1.1, roll="", issued="False")
-        + _final_approach_row("12:00:00.020", obs=1.2, roll="", issued="False")
+        + _guidance_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _guidance_row("12:00:00.010", obs=1.1, roll="", issued="False")
+        + _guidance_row("12:00:00.020", obs=1.2, roll="", issued="False")
         + DOCKED_ROW
         + SNAP_ROW,
         encoding="utf-8",
     )
 
-    episodes = evidence.parse_final_approach_command_episodes(path, vehicle_id=7)
+    episodes = evidence.parse_guidance_command_episodes(path, vehicle_id=7)
 
     assert len(episodes) == 1
     assert [command.issued for command in episodes[0]] == [True, False, False]
-    assert metrics.score_final_approach_commands(
+    assert metrics.score_guidance_commands(
         episodes[0],
         roll_limit_deg=45.0,
         saturation_margin_deg=0.5,
         significant_roll_deg=10.0,
     ).sample_count == 1
-    assert metrics.final_approach_timing(episodes[0]).observed_speedup == pytest.approx(
+    assert metrics.guidance_timing(episodes[0]).observed_speedup == pytest.approx(
         10.0
     )
 
 
 @pytest.mark.parametrize(("issued", "roll"), (("True", "11.0"), ("False", "")))
-def test_final_approach_episode_rejects_any_command_row_after_docked(
+def test_guidance_episode_rejects_any_command_row_after_docked(
     tmp_path, issued, roll,
 ):
     """Rows after DOCKED would also dilute the cadence score: rejected."""
@@ -258,15 +258,15 @@ def test_final_approach_episode_rejects_any_command_row_after_docked(
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         ARMED_ROW
-        + _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _guidance_row("12:00:00.000", obs=1.0, roll="10.0")
         + DOCKED_ROW
-        + _final_approach_row("12:00:00.027", obs=1.3, roll=roll, issued=issued)
+        + _guidance_row("12:00:00.027", obs=1.3, roll=roll, issued=issued)
         + SNAP_ROW,
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="after DOCKED"):
-        evidence.parse_final_approach_command_episodes(path, vehicle_id=7)
+        evidence.parse_guidance_command_episodes(path, vehicle_id=7)
 
 
 def test_a_missed_dock_episode_cannot_be_scored(tmp_path):
@@ -274,26 +274,26 @@ def test_a_missed_dock_episode_cannot_be_scored(tmp_path):
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _final_approach_row("12:00:00.000", obs=1.0, roll="10.0")
-        + _final_approach_row(
+        _guidance_row("12:00:00.000", obs=1.0, roll="10.0")
+        + _guidance_row(
             "12:00:00.010", obs=1.1, roll="", issued="False", missed="True"
         ),
         encoding="utf-8",
     )
 
     with pytest.raises(ValueError, match="missed its dock"):
-        metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
+        metrics.guidance_timing(evidence.parse_guidance_commands(path))
 
 
-def test_final_approach_bool_tokens_are_strict(tmp_path):
+def test_guidance_bool_tokens_are_strict(tmp_path):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _final_approach_row("12:00:00.000", obs=1.0, roll="10", issued="1"),
+        _guidance_row("12:00:00.000", obs=1.0, roll="10", issued="1"),
         encoding="utf-8",
     )
     with pytest.raises(ValueError, match="issued"):
-        evidence.parse_final_approach_commands(path)
+        evidence.parse_guidance_commands(path)
 
 
 @pytest.mark.parametrize(
@@ -307,14 +307,14 @@ def test_final_approach_bool_tokens_are_strict(tmp_path):
         ({"throttle": "1.1"}, "cmd_thr"),
     ],
 )
-def test_final_approach_command_domains_are_strict(tmp_path, overrides, message):
+def test_guidance_command_domains_are_strict(tmp_path, overrides, message):
     evidence = importlib.import_module("scripts.eval_gcs_demo_evidence")
     values = {"obs": 1.0, "roll": "10.0", **overrides}
     path = tmp_path / "navigation_debug.csv"
-    path.write_text(_final_approach_row("12:00:00.000", **values), encoding="utf-8")
+    path.write_text(_guidance_row("12:00:00.000", **values), encoding="utf-8")
 
     with pytest.raises(ValueError, match=message):
-        evidence.parse_final_approach_commands(path)
+        evidence.parse_guidance_commands(path)
 
 
 def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
@@ -322,12 +322,12 @@ def test_source_gap_is_raw_and_observed_speedup_is_a_ratio(tmp_path):
     metrics = importlib.import_module("scripts.eval_gcs_demo_metrics")
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
-        _final_approach_row("12:00:00.000", obs=1.0, roll="10")
-        + _final_approach_row("12:00:00.010", obs=1.1, roll="11")
-        + _final_approach_row("12:00:00.020", obs=1.2, roll="", issued="False"),
+        _guidance_row("12:00:00.000", obs=1.0, roll="10")
+        + _guidance_row("12:00:00.010", obs=1.1, roll="11")
+        + _guidance_row("12:00:00.020", obs=1.2, roll="", issued="False"),
         encoding="utf-8",
     )
-    timing = metrics.final_approach_timing(evidence.parse_final_approach_commands(path))
+    timing = metrics.guidance_timing(evidence.parse_guidance_commands(path))
     assert timing.max_source_gap_s == pytest.approx(0.1)
     assert timing.observed_speedup == pytest.approx(10.0)
 
@@ -338,16 +338,16 @@ def test_saturation_touching_the_unissued_tail_is_still_scored(tmp_path):
     path = tmp_path / "navigation_debug.csv"
     path.write_text(
         "".join(
-            _final_approach_row(
+            _guidance_row(
                 f"12:00:00.0{index}0", obs=1.0 + index / 10, roll="45.0"
             )
             for index in range(3)
         )
-        + _final_approach_row("12:00:00.030", obs=1.3, roll="", issued="False"),
+        + _guidance_row("12:00:00.030", obs=1.3, roll="", issued="False"),
         encoding="utf-8",
     )
-    score = metrics.score_final_approach_commands(
-        evidence.parse_final_approach_commands(path),
+    score = metrics.score_guidance_commands(
+        evidence.parse_guidance_commands(path),
         roll_limit_deg=45.0,
         saturation_margin_deg=0.5,
         significant_roll_deg=10.0,

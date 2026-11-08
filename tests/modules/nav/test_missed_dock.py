@@ -1,4 +1,4 @@
-"""A missed final approach ends as "dock failed" (docs/design/missed_dock.md)."""
+"""A missed guidance ends as "dock failed" (docs/design/missed_dock.md)."""
 
 from __future__ import annotations
 
@@ -14,12 +14,12 @@ from navpy.core.approach.nav_exit_cleanup import (
 )
 from navpy.core.approach.vision_nav.episode_latch import (
     MISSED_DOCK_REASON,
-    FinalApproachEpisodeLatch,
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeLatch,
+    GuidanceEpisodeTerminal,
+    GuidanceTerminal,
 )
-from navpy.core.approach.vision_nav.dock_outcome import FinalApproachDockOutcome
-from navpy.core.approach.vision_nav.runtime import FinalApproachSessionRuntime
+from navpy.core.approach.vision_nav.dock_outcome import GuidanceDockOutcome
+from navpy.core.approach.vision_nav.runtime import GuidanceSessionRuntime
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 from navpy.core.flow.nav_transition import NavExitOutcome, NavTransition
 from navpy.core.kernel import runtime_time as rt
@@ -39,15 +39,15 @@ def _contact() -> DockContactEvent:
     )
 
 
-def _failed(reason="no_detection", terminal=FinalApproachTerminal.FAILED):
-    return FinalApproachEpisodeTerminal(IDENTITY, terminal, reason)
+def _failed(reason="no_detection", terminal=GuidanceTerminal.FAILED):
+    return GuidanceEpisodeTerminal(IDENTITY, terminal, reason)
 
 
 # Episode latch
 
 
 def test_a_failure_ends_commands_and_keeps_its_reason():
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
 
     assert latch.latch_failure("no_detection")
@@ -57,19 +57,19 @@ def test_a_failure_ends_commands_and_keeps_its_reason():
 
 
 def test_a_miss_stays_the_terminal_when_its_nav_fail_follows():
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     latch.latch_missed()
 
     assert latch.latch_failure("missed_dock")
 
     assert latch.terminal_snapshot() == _failed(
-        MISSED_DOCK_REASON, FinalApproachTerminal.MISSED,
+        MISSED_DOCK_REASON, GuidanceTerminal.MISSED,
     )
 
 
 def test_the_first_named_reason_wins_over_a_repeated_nav_fail():
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     latch.latch_failure()  # an unnamed command failure latched first
     latch.latch_failure("source_command_stale")
@@ -79,13 +79,13 @@ def test_the_first_named_reason_wins_over_a_repeated_nav_fail():
 
 
 def test_a_failure_after_contact_is_refused_and_a_contact_after_failure_too():
-    docked = FinalApproachEpisodeLatch()
+    docked = GuidanceEpisodeLatch()
     docked.begin(IDENTITY)
     docked.latch_docked(_contact())
     assert docked.latch_failure("no_detection") is False
-    assert docked.terminal_snapshot().terminal is FinalApproachTerminal.DOCKED
+    assert docked.terminal_snapshot().terminal is GuidanceTerminal.DOCKED
 
-    failed = FinalApproachEpisodeLatch()
+    failed = GuidanceEpisodeLatch()
     failed.begin(IDENTITY)
     failed.latch_failure("no_detection")
     assert failed.latch_docked(_contact()) is False  # late contact not counted
@@ -93,12 +93,12 @@ def test_a_failure_after_contact_is_refused_and_a_contact_after_failure_too():
 
 
 def test_no_snapshot_without_an_armed_episode_or_after_reset():
-    unarmed = FinalApproachEpisodeLatch()  # real build: no sensor, no episode
+    unarmed = GuidanceEpisodeLatch()  # real build: no sensor, no episode
     unarmed.latch_failure("no_detection")
     assert not unarmed.commands_ended  # today's flow: RESET retires commands
     assert unarmed.terminal_snapshot() is None
 
-    armed = FinalApproachEpisodeLatch()
+    armed = GuidanceEpisodeLatch()
     armed.begin(IDENTITY)
     armed.latch_failure("no_detection")
     armed.reset()
@@ -109,17 +109,17 @@ def test_no_snapshot_without_an_armed_episode_or_after_reset():
 # Session runtime: a failure retires work under the runtime lock
 
 
-def _session(episode: FinalApproachEpisodeLatch):
+def _session(episode: GuidanceEpisodeLatch):
     command_reset = Mock()
     evidence = Mock()
-    session = FinalApproachSessionRuntime(
+    session = GuidanceSessionRuntime(
         rt.RLock(), Mock(), command_reset, episode, Mock(), Mock(), evidence,
     )
     return session, command_reset, evidence
 
 
 def test_a_failure_retires_held_and_queued_work_at_once():
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     episode.begin(IDENTITY)
     session, command_reset, _ = _session(episode)
 
@@ -131,14 +131,14 @@ def test_a_failure_retires_held_and_queued_work_at_once():
 
 def test_an_unarmed_failure_retires_nothing_before_reset():
     """The real build arms no episode: RESET retires its work, as before."""
-    session, command_reset, _ = _session(FinalApproachEpisodeLatch())
+    session, command_reset, _ = _session(GuidanceEpisodeLatch())
 
     assert session.latch_failure("no_detection") is True
     command_reset.retire_after_terminal.assert_not_called()
 
 
 def test_a_refused_failure_retires_nothing_more():
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     episode.begin(IDENTITY)
     episode.latch_docked(_contact())
     session, command_reset, _ = _session(episode)
@@ -148,9 +148,9 @@ def test_a_refused_failure_retires_nothing_more():
 
 
 def test_the_dock_outcome_reads_the_terminal_and_records_the_failed_row():
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     record = Mock()
-    outcome = FinalApproachDockOutcome(rt.RLock(), episode, record)
+    outcome = GuidanceDockOutcome(rt.RLock(), episode, record)
     assert outcome.terminal() is None
     episode.begin(IDENTITY)
     episode.latch_failure("no_detection")
@@ -164,13 +164,13 @@ def test_the_dock_outcome_reads_the_terminal_and_records_the_failed_row():
 
 
 def test_cleanup_reads_the_terminal_before_the_navigation_reset():
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     latch.latch_failure("no_detection")
     order = []
     ports = NavExitCleanupPorts(
         disarm_dock_contact=lambda: order.append("disarm"),
-        close_final_approach_source=lambda: order.append("close"),
+        close_guidance_source=lambda: order.append("close"),
         navigation_reset=lambda: order.append("reset") or latch.reset(),
         detector_stop=lambda: None,
         dock_outcome=Mock(
@@ -190,7 +190,7 @@ def test_cleanup_reads_the_terminal_before_the_navigation_reset():
 def test_a_terminal_read_error_is_a_cleanup_error():
     ports = NavExitCleanupPorts(
         disarm_dock_contact=lambda: None,
-        close_final_approach_source=lambda: None,
+        close_guidance_source=lambda: None,
         navigation_reset=lambda: None,
         detector_stop=lambda: None,
         dock_outcome=Mock(terminal=Mock(side_effect=RuntimeError("terminal"))),
@@ -215,7 +215,7 @@ def _exit(
     oneshot=False,
     errors=(),
 ):
-    navigation_task = NavigationTaskState(final_approach_navigation_active=active)
+    navigation_task = NavigationTaskState(guidance_navigation_active=active)
     cleanup = Mock()
     cleanup.run.return_value = NavCleanupResult(
         snap=ClosestSnap(dist=0.7),
@@ -246,7 +246,7 @@ def test_each_nav_fail_reason_ends_in_docked_with_one_status_line(reason):
 
 
 def test_an_aft_dock_miss_reports_missed_dock():
-    terminal = _failed(MISSED_DOCK_REASON, FinalApproachTerminal.MISSED)
+    terminal = _failed(MISSED_DOCK_REASON, GuidanceTerminal.MISSED)
     outcome, logger, _, _ = _exit(terminal)
 
     assert outcome.redirect is NavState.DOCKED
@@ -283,7 +283,7 @@ def test_one_shot_failed_dock_disarms_and_stays_final():
         {"requested": NavState.ONHOLD},  # inactive guard: the operator wins
         {"requested": NavState.DETECT},  # GUIDED departure
         {"requested": None},
-        {"terminal": _failed(terminal=FinalApproachTerminal.DOCKED)},
+        {"terminal": _failed(terminal=GuidanceTerminal.DOCKED)},
     ],
 )
 def test_out_of_scope_endings_keep_todays_flow(kwargs):
@@ -303,7 +303,7 @@ def test_cleanup_records_the_failed_row_through_its_port():
     outcome = Mock()
     ports = NavExitCleanupPorts(
         disarm_dock_contact=lambda: None,
-        close_final_approach_source=lambda: None,
+        close_guidance_source=lambda: None,
         navigation_reset=lambda: None,
         detector_stop=lambda: None,
         dock_outcome=outcome,
@@ -325,14 +325,14 @@ def test_cleanup_records_the_failed_row_through_its_port():
     ],
 )
 def test_each_nav_fail_passes_its_reason_to_the_latch(mark, reason):
-    from navpy.core.approach.final_approach_command_dispatch import (
-        FinalApproachCommandDispatch,
-        FinalApproachCommandPorts,
+    from navpy.core.approach.guidance_command_dispatch import (
+        GuidanceCommandDispatch,
+        GuidanceCommandPorts,
     )
 
     mark_failed = Mock(return_value=True)
-    dispatch = FinalApproachCommandDispatch(
-        FinalApproachCommandPorts(nav=Mock(), mark_failed=mark_failed, logger=Mock()),
+    dispatch = GuidanceCommandDispatch(
+        GuidanceCommandPorts(nav=Mock(), mark_failed=mark_failed, logger=Mock()),
         Mock(),
     )
 
@@ -342,13 +342,13 @@ def test_each_nav_fail_passes_its_reason_to_the_latch(mark, reason):
 
 
 def test_a_missing_active_poi_names_its_reason():
-    from navpy.core.approach.final_approach_source_event_handler import (
-        FinalApproachSourceEventHandler,
-        FinalApproachSourceEventHandlerPorts,
+    from navpy.core.approach.guidance_source_event_handler import (
+        GuidanceSourceEventHandler,
+        GuidanceSourceEventHandlerPorts,
     )
 
     mark_failed = Mock(return_value=True)
-    handler = FinalApproachSourceEventHandler(FinalApproachSourceEventHandlerPorts(
+    handler = GuidanceSourceEventHandler(GuidanceSourceEventHandlerPorts(
         active_poi=lambda: None, session_active=lambda: True, reset_source=Mock(),
         admission=Mock(), mark_failed=mark_failed, logger=Mock(), commands=Mock(),
     ))
@@ -358,27 +358,27 @@ def test_a_missing_active_poi_names_its_reason():
 
 
 def test_the_record_deadline_names_its_reason():
-    from navpy.core.approach.final_approach_record_deadline import (
-        FinalApproachRecordDeadline,
+    from navpy.core.approach.guidance_record_deadline import (
+        GuidanceRecordDeadline,
     )
-    from navpy.core.flow.nav_constants import FINAL_APPROACH_RECORD_TIMEOUT_S
-    from navpy.core.flow.nav_state import FinalApproachNavState
+    from navpy.core.flow.nav_constants import GUIDANCE_RECORD_TIMEOUT_S
+    from navpy.core.flow.nav_state import GuidanceNavState
 
     now_s = [0.0]
     mark_failed = Mock()
-    deadline = FinalApproachRecordDeadline(
-        FinalApproachNavState(), mark_failed, lambda: now_s[0], Mock(), Mock(),
+    deadline = GuidanceRecordDeadline(
+        GuidanceNavState(), mark_failed, lambda: now_s[0], Mock(), Mock(),
     )
     poi = Mock()
     deadline.defer_or_fail(poi)
-    now_s[0] = FINAL_APPROACH_RECORD_TIMEOUT_S + 0.1
+    now_s[0] = GUIDANCE_RECORD_TIMEOUT_S + 0.1
     deadline.defer_or_fail(poi)
 
-    mark_failed.assert_called_once_with("final_approach_record_unavailable")
+    mark_failed.assert_called_once_with("guidance_record_unavailable")
 
 
 def test_a_source_pump_failure_names_its_reason():
-    from navpy.app.flow.nav_final_approach_composition import _report_pump_failure
+    from navpy.app.flow.nav_guidance_composition import _report_pump_failure
 
     state = Mock()
     _report_pump_failure(Mock(reason="crashed", error=None), state, Mock())
@@ -401,13 +401,13 @@ def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
     )
 
     events: list = []
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     if contact_first:
         latch.latch_docked(_contact())
     latch.latch_failure("no_detection")
     latch.latch_docked(_contact())  # a contact after the NAV_FAIL is not counted
-    outcome = FinalApproachDockOutcome(
+    outcome = GuidanceDockOutcome(
         rt.RLock(), latch, lambda identity, reason: events.append(("row", identity, reason)),
     )
     speedup = Mock()
@@ -415,7 +415,7 @@ def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
             disarm_dock_contact=lambda: _contact() if contact_first else None,
-            close_final_approach_source=lambda: None,
+            close_guidance_source=lambda: None,
             navigation_reset=lambda: events.append("reset") or latch.reset(),
             detector_stop=lambda: None,
             dock_outcome=outcome,
@@ -436,7 +436,7 @@ def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
     logger = Mock()
     nav = NavTransition(
         Mock(), cleanup, Mock(), completion.run,
-        NavigationTaskState(final_approach_navigation_active=True),
+        NavigationTaskState(guidance_navigation_active=True),
         lambda: oneshot, logger=logger,
     )
     ports = TransitionPorts(

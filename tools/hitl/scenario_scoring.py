@@ -1,4 +1,4 @@
-"""Scoring of one seed's scenario (hitl_final_approach.md section 9, stage 1 step 14): did Unreal build the delivered
+"""Scoring of one seed's scenario (hitl_guidance.md section 9, stage 1 step 14): did Unreal build the delivered
 scene, and did the dock pose reach anyone but the allowed consumers?
 
 Scoring is one of the three consumers (scenario_public.ALLOWED_CONSUMERS): it reads its own private file and Unreal's

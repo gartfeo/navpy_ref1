@@ -1,7 +1,7 @@
-"""The pre-series orbit check (hitl_final_approach.md section 9, stage 1 step 23; section 4 "Feasibility contract").
+"""The pre-series orbit check (hitl_guidance.md section 9, stage 1 step 23; section 4 "Feasibility contract").
 
 Before a ten-run series, pure arithmetic on the HITL profile, the series' public half and the aircraft's inputs
-decides whether the explicit HITL orbit (``final_approach_orbit.radius_m``, core/skills/acquire/
+decides whether the explicit HITL orbit (``guidance_orbit.radius_m``, core/skills/acquire/
 orbit_radius_setting.py) can be flown and read. Any failed check refuses the series (exit 1); so does any input it
 cannot read. The approach runner (tools/tuning/approach.py) runs it before each run's folder exists and refuses
 the run on any failure. Nothing here reaches navpy: navpy gets only the profile radius, and this check reads no dock

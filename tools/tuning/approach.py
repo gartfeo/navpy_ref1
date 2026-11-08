@@ -1,4 +1,4 @@
-"""``sitl_driver approach``: one approach run of the HITL chain (hitl_final_approach.md sections 1 and 9, steps 13, 16).
+"""``sitl_driver approach``: one approach run of the HITL chain (hitl_guidance.md sections 1 and 9, steps 13, 16).
 
 Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
 

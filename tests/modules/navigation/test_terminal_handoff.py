@@ -1,4 +1,4 @@
-"""The HITL terminal handoff (navpy.app.terminal_handoff, navpy.app.router_barrier; design hitl_final_approach.md
+"""The HITL terminal handoff (navpy.app.terminal_handoff, navpy.app.router_barrier; design hitl_guidance.md
 sections 2-3): the episode latch reports its first outcome, the fence drops every later MAVLink write, the barrier
 client waits bounded for the router's ack, and the record comes only after the fence and the barrier."""
 from __future__ import annotations
@@ -18,8 +18,8 @@ from navpy.app.router_barrier import BarrierResult, RouterBarrier, parse_address
 from navpy.app.terminal_handoff import (NAVPY_TERMINAL_MARKER, LinkFence, TerminalHandoff, build_terminal_handoff,
                                         fenced_opener, parse_terminal_record, print_terminal_record,
                                         siyi_fence, terminal_observer)
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
+from navpy.core.approach.vision_nav.episode_latch import GuidanceTerminal as Terminal
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 from navpy.plugins.gimbal.siyi.siyi_message import SIYIMESSAGE
@@ -34,9 +34,9 @@ def contact(identity: DockContactIdentity = IDENTITY) -> DockContactEvent:
 
 
 # ---- the episode latch's observer ----------------------------------------------------------------
-def observed_latch() -> tuple[FinalApproachEpisodeLatch, list]:
+def observed_latch() -> tuple[GuidanceEpisodeLatch, list]:
     seen: list = []
-    return FinalApproachEpisodeLatch(lambda outcome, identity: seen.append((outcome, identity))), seen
+    return GuidanceEpisodeLatch(lambda outcome, identity: seen.append((outcome, identity))), seen
 
 
 def test_the_first_latch_is_reported_once_with_the_armed_identity():
@@ -283,7 +283,7 @@ def scripted(result: BarrierResult) -> tuple[TerminalHandoff, ScriptedBarrier, l
 def test_the_record_follows_the_fence_and_the_barrier_ack():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy", "dropped_queued": 2}))
     lock = threading.Lock()
-    with lock:                                   # the latch calls under the final-approach lock: it must not block
+    with lock:                                   # the latch calls under the guidance lock: it must not block
         handoff.on_terminal(Terminal.DOCKED, IDENTITY)
     assert handoff.fence.closed
     assert not handoff.join(0.2)                 # the barrier is waiting: no record yet

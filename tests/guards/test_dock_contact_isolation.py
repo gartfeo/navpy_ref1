@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.ports.dock_contact import DockContactEvent
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
@@ -37,7 +37,7 @@ CONTACT_VALUE_READERS = frozenset({
     # The DOCKED state line, after the command fence (docked_state.md).
     "src/navpy/core/flow/nav_transition.py",
 })
-# The final-approach command path: frames, projection, admission, the law
+# The guidance command path: frames, projection, admission, the law
 # and every file that can reach the actuator.
 COMMAND_PATH = (
     "src/navpy/core/ports/frame.py",
@@ -87,7 +87,7 @@ def test_the_event_carries_its_values_under_the_guarded_names():
 
 
 def test_frames_carry_no_contact_dock_or_distance_field():
-    names = {field.name for field in fields(FinalApproachVisionFrame)}
+    names = {field.name for field in fields(GuidanceVisionFrame)}
     assert not {
         name for name in names
         if any(word in name for word in ("dock", "contact", "closest", "dist"))

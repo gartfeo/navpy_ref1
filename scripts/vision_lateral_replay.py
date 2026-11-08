@@ -41,7 +41,7 @@ class CompactSample:
 
 
 @dataclass(frozen=True)
-class FinalApproachFeatures:
+class GuidanceFeatures:
     count: int
     yaw_mean_deg: float
     yaw_integral_deg_s: float
@@ -64,7 +64,7 @@ class CandidateScore:
 @dataclass(frozen=True)
 class CaseDiagnostics:
     case: FinalCase
-    features: FinalApproachFeatures
+    features: GuidanceFeatures
     need_roll_sign: int
     baseline: CandidateScore
     candidates: List[CandidateScore]
@@ -189,8 +189,8 @@ def parse_compact_csv(path: Path) -> List[CompactSample]:
     return rows
 
 
-def final_approach_window(samples: Sequence[CompactSample], final_approach_dist_m: float) -> List[CompactSample]:
-    selected = [sample for sample in samples if sample.dist <= final_approach_dist_m]
+def guidance_window(samples: Sequence[CompactSample], guidance_dist_m: float) -> List[CompactSample]:
+    selected = [sample for sample in samples if sample.dist <= guidance_dist_m]
     if selected:
         return selected
     tail_count = max(1, len(samples) // 5)
@@ -218,11 +218,11 @@ def integrate_by_time(samples: Sequence[CompactSample], selector: Callable[[Comp
     return total
 
 
-def compute_final_approach_features(samples: Sequence[CompactSample], final_approach_dist_m: float = 300.0) -> FinalApproachFeatures:
-    window = final_approach_window(samples, final_approach_dist_m)
+def compute_guidance_features(samples: Sequence[CompactSample], guidance_dist_m: float = 300.0) -> GuidanceFeatures:
+    window = guidance_window(samples, guidance_dist_m)
     if not window:
-        return FinalApproachFeatures(0, 0.0, 0.0, 0, 0.0, 0.0, 0.0)
-    return FinalApproachFeatures(
+        return GuidanceFeatures(0, 0.0, 0.0, 0, 0.0, 0.0, 0.0)
+    return GuidanceFeatures(
         count=len(window),
         yaw_mean_deg=statistics.fmean(sample.yaw_err for sample in window),
         yaw_integral_deg_s=integrate_by_time(window, lambda sample: sample.yaw_err),
@@ -241,7 +241,7 @@ def candidate_visual_p(samples: Sequence[CompactSample], gain: float, cap_deg: f
     return [_clip(gain * sample.yaw_err, -cap_deg, cap_deg) for sample in samples]
 
 
-def candidate_final_approach_leaky_i(
+def candidate_guidance_leaky_i(
     samples: Sequence[CompactSample],
     gain: float = 1.1,
     leak_s: float = 2.5,
@@ -284,8 +284,8 @@ def default_candidates(samples: Sequence[CompactSample]) -> Dict[str, List[float
     return {
         "visual_p_pos": candidate_visual_p(samples, gain=1.0, cap_deg=20.0),
         "visual_p_neg": candidate_visual_p(samples, gain=-1.0, cap_deg=20.0),
-        "final_approach_leaky_i": candidate_final_approach_leaky_i(samples),
-        "final_approach_leaky_i_neg": [-value for value in candidate_final_approach_leaky_i(samples)],
+        "guidance_leaky_i": candidate_guidance_leaky_i(samples),
+        "guidance_leaky_i_neg": [-value for value in candidate_guidance_leaky_i(samples)],
     }
 
 
@@ -294,9 +294,9 @@ def score_values(
     samples: Sequence[CompactSample],
     values: Sequence[float],
     need_roll_sign: int,
-    final_approach_dist_m: float = 300.0,
+    guidance_dist_m: float = 300.0,
 ) -> CandidateScore:
-    selected_pairs = [(sample, value) for sample, value in zip(samples, values) if sample.dist <= final_approach_dist_m]
+    selected_pairs = [(sample, value) for sample, value in zip(samples, values) if sample.dist <= guidance_dist_m]
     if not selected_pairs:
         selected_pairs = list(zip(samples[-max(1, len(samples) // 5) :], values[-max(1, len(values) // 5) :]))
     selected_values = [value for _, value in selected_pairs]
@@ -338,7 +338,7 @@ def analyze_case(
     case: FinalCase,
     samples: Sequence[CompactSample],
     gates_m: Sequence[float],
-    final_approach_dist_m: float = 300.0,
+    guidance_dist_m: float = 300.0,
     lateral_deadband_m: float = 0.1,
 ) -> CaseDiagnostics:
     need_roll_sign = -_sign(case.signed_lateral_m, lateral_deadband_m)
@@ -346,11 +346,11 @@ def analyze_case(
     baseline_values = candidate_baseline_cmd(samples)
     return CaseDiagnostics(
         case=case,
-        features=compute_final_approach_features(samples, final_approach_dist_m),
+        features=compute_guidance_features(samples, guidance_dist_m),
         need_roll_sign=need_roll_sign,
-        baseline=score_values("baseline_cmd", samples, baseline_values, need_roll_sign, final_approach_dist_m),
+        baseline=score_values("baseline_cmd", samples, baseline_values, need_roll_sign, guidance_dist_m),
         candidates=[
-            score_values(name, samples, values, need_roll_sign, final_approach_dist_m)
+            score_values(name, samples, values, need_roll_sign, guidance_dist_m)
             for name, values in candidates.items()
         ],
         gates=gate_samples(samples, {"baseline_cmd": baseline_values, **candidates}, gates_m),
@@ -444,7 +444,7 @@ def print_diagnostics(diags: Sequence[CaseDiagnostics], show_gates: bool = True)
         return
     print()
     print("Gate samples")
-    print("name,gate_m,dist_m,yaw_err,cmd_r,act_r,visual_p_pos,visual_p_neg,final_approach_leaky_i,final_approach_leaky_i_neg")
+    print("name,gate_m,dist_m,yaw_err,cmd_r,act_r,visual_p_pos,visual_p_neg,guidance_leaky_i,guidance_leaky_i_neg")
     for diag in diags:
         for gate, sample, candidates in diag.gates:
             row = (
@@ -456,8 +456,8 @@ def print_diagnostics(diags: Sequence[CaseDiagnostics], show_gates: bool = True)
                 _fmt_float(sample.act_r, 2),
                 _fmt_float(candidates["visual_p_pos"], 2),
                 _fmt_float(candidates["visual_p_neg"], 2),
-                _fmt_float(candidates["final_approach_leaky_i"], 2),
-                _fmt_float(candidates["final_approach_leaky_i_neg"], 2),
+                _fmt_float(candidates["guidance_leaky_i"], 2),
+                _fmt_float(candidates["guidance_leaky_i_neg"], 2),
             )
             print(",".join(row))
 
@@ -480,7 +480,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
         default="500,300,200,150,100,80,60,50,40,30,20",
         help="Comma-separated distance gates for trace samples.",
     )
-    parser.add_argument("--del-dist", type=float, default=300.0, help="Final approach window distance in meters.")
+    parser.add_argument("--del-dist", type=float, default=300.0, help="Guidance window distance in meters.")
     parser.add_argument("--no-gates", action="store_true", help="Only print case and candidate summaries.")
     return parser
 
@@ -500,7 +500,7 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
         samples = parse_compact_csv(case.compact)
         if not samples:
             continue
-        diagnostics.append(analyze_case(case, samples, gates, final_approach_dist_m=args.del_dist))
+        diagnostics.append(analyze_case(case, samples, gates, guidance_dist_m=args.del_dist))
     if missing_logs:
         for path in missing_logs:
             print(f"warning: missing compact log: {path}")

@@ -1,4 +1,4 @@
-"""The approach runner's orbit gate (hitl_final_approach.md step 23): refuse a run whose HITL orbit cannot be flown
+"""The approach runner's orbit gate (hitl_guidance.md step 23): refuse a run whose HITL orbit cannot be flown
 or read, before the record or the run folder exists (tools/hitl/scenario_checks.py)."""
 from __future__ import annotations
 

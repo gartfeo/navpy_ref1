@@ -14,72 +14,72 @@ from navpy.core.command.navigation_command_slot import (
 )
 from navpy.core.kernel.resource_cleanup import CleanupStack
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachCommandOutcome,
-    FinalApproachCommandResult,
-    FinalApproachCommandTransaction,
+    GuidanceCommandOutcome,
+    GuidanceCommandResult,
+    GuidanceCommandTransaction,
 )
 from navpy.core.approach.vision_nav.command_hold import (
-    FinalApproachCommandHoldStore,
+    GuidanceCommandHoldStore,
 )
 from navpy.core.approach.vision_nav.command_freshness import (
-    FinalApproachCommandFreshness,
-    FinalApproachCommandTiming,
-    FinalApproachFreshnessCheck,
+    GuidanceCommandFreshness,
+    GuidanceCommandTiming,
+    GuidanceFreshnessCheck,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
-    FinalApproachCommandFailureSink,
+    GuidanceCommandFailureSink,
 )
 from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.approach.vision_nav.command_postprocess import (
-    FinalApproachPostprocessFence,
+    GuidancePostprocessFence,
 )
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
-    FinalApproachDiagnosticEntry,
-    FinalApproachDiagnosticMailbox,
+    GuidanceDiagnosticEntry,
+    GuidanceDiagnosticMailbox,
 )
 from navpy.core.approach.vision_nav.diagnostics import (
-    FinalApproachCommandDiagnostics,
+    GuidanceCommandDiagnostics,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.ports.frame import GuidanceVisionFrame
+from navpy.core.approach.vision_nav.runtime_state import GuidanceRuntimeStatus
 from navpy.core.approach.vision_nav.source_time_ports import (
-    FinalApproachCommandSourceTimeObserver,
+    GuidanceCommandSourceTimeObserver,
 )
 
 
 @dataclass(frozen=True)
-class FinalApproachDiagnosticCompletion:
+class GuidanceDiagnosticCompletion:
     diagnostic: object | None
     evidence_errors: tuple[BaseException, ...]
 
 
 @dataclass
-class FinalApproachCommandWork:
-    frame: FinalApproachVisionFrame
+class GuidanceCommandWork:
+    frame: GuidanceVisionFrame
     diagnostic_token: int
     lease: NavigationCommandLease
-    _postprocess_fence: FinalApproachPostprocessFence | None = field(
+    _postprocess_fence: GuidancePostprocessFence | None = field(
         default=None,
         init=False,
         repr=False,
         compare=False,
     )
-    _completion: FinalApproachDiagnosticCompletion | None = field(
+    _completion: GuidanceDiagnosticCompletion | None = field(
         default=None,
         init=False,
         repr=False,
         compare=False,
     )
 
-    def begin_postprocess(self, fence: FinalApproachPostprocessFence) -> None:
+    def begin_postprocess(self, fence: GuidancePostprocessFence) -> None:
         if self._postprocess_fence is not None:
-            raise RuntimeError("final-approach command work executed twice")
+            raise RuntimeError("guidance command work executed twice")
         self._postprocess_fence = fence
         fence.begin()
 
     def capture_completion(
         self,
-        completion: FinalApproachDiagnosticCompletion,
+        completion: GuidanceDiagnosticCompletion,
     ) -> None:
         self._completion = completion
 
@@ -89,7 +89,7 @@ class FinalApproachCommandWork:
 
     def take_completion(
         self,
-    ) -> tuple[FinalApproachPostprocessFence, FinalApproachDiagnosticCompletion | None] | None:
+    ) -> tuple[GuidancePostprocessFence, GuidanceDiagnosticCompletion | None] | None:
         fence = self._postprocess_fence
         if fence is None:
             return None
@@ -100,29 +100,29 @@ class FinalApproachCommandWork:
 
 
 @dataclass(frozen=True)
-class FinalApproachExecutorPorts:
+class GuidanceExecutorPorts:
     slot: NavigationCommandSlot
-    transaction: FinalApproachCommandTransaction
-    mailbox: FinalApproachDiagnosticMailbox
-    diagnostics: FinalApproachCommandDiagnostics
-    status: FinalApproachRuntimeStatus
-    source_time: FinalApproachCommandSourceTimeObserver
-    hold: FinalApproachCommandHoldStore
-    failures: FinalApproachCommandFailureSink
-    freshness: FinalApproachCommandFreshness
-    postprocess_fence: FinalApproachPostprocessFence
-    report_stale: Callable[[FinalApproachFreshnessCheck], None] = lambda check: None
+    transaction: GuidanceCommandTransaction
+    mailbox: GuidanceDiagnosticMailbox
+    diagnostics: GuidanceCommandDiagnostics
+    status: GuidanceRuntimeStatus
+    source_time: GuidanceCommandSourceTimeObserver
+    hold: GuidanceCommandHoldStore
+    failures: GuidanceCommandFailureSink
+    freshness: GuidanceCommandFreshness
+    postprocess_fence: GuidancePostprocessFence
+    report_stale: Callable[[GuidanceFreshnessCheck], None] = lambda check: None
 
 
-class FinalApproachCommandExecutor:
+class GuidanceCommandExecutor:
     """Keep the lease fence limited to plan/issue/commit."""
 
-    def __init__(self, ports: FinalApproachExecutorPorts) -> None:
+    def __init__(self, ports: GuidanceExecutorPorts) -> None:
         self._ports = ports
 
-    def execute(self, work: FinalApproachCommandWork) -> CalcData | None:
-        result: FinalApproachCommandResult | None = None
-        entry: list[FinalApproachDiagnosticEntry | None] = [None]
+    def execute(self, work: GuidanceCommandWork) -> CalcData | None:
+        result: GuidanceCommandResult | None = None
+        entry: list[GuidanceDiagnosticEntry | None] = [None]
         timing = self._ports.mailbox.timing(work.diagnostic_token)
         entry_s = rt.perf_counter()
         entry_cpu_s = rt.thread_time()
@@ -156,7 +156,7 @@ class FinalApproachCommandExecutor:
             )
         return None if result is None else result.calc_data
 
-    def postprocess_job(self, work: FinalApproachCommandWork) -> PostprocessJob | None:
+    def postprocess_job(self, work: GuidanceCommandWork) -> PostprocessJob | None:
         if not work.has_postprocess:
             return None
         return PostprocessJob(
@@ -165,14 +165,14 @@ class FinalApproachCommandExecutor:
         )
 
     @staticmethod
-    def abandon_postprocess(work: FinalApproachCommandWork) -> None:
+    def abandon_postprocess(work: GuidanceCommandWork) -> None:
         owned = work.take_completion()
         if owned is None:
             return
         fence, _completion = owned
         fence.finish()
 
-    def postprocess(self, work: FinalApproachCommandWork) -> None:
+    def postprocess(self, work: GuidanceCommandWork) -> None:
         owned = work.take_completion()
         if owned is None:
             return
@@ -184,7 +184,7 @@ class FinalApproachCommandExecutor:
                 if len(completion.evidence_errors) == 1:
                     raise completion.evidence_errors[0]
                 raise BaseExceptionGroup(
-                    "final-approach command evidence capture failed",
+                    "guidance command evidence capture failed",
                     completion.evidence_errors,
                 )
             if completion.diagnostic is not None:
@@ -194,9 +194,9 @@ class FinalApproachCommandExecutor:
 
     def _capture_completion(
         self,
-        work: FinalApproachCommandWork,
-        result: FinalApproachCommandResult | None,
-        entry: FinalApproachDiagnosticEntry | None,
+        work: GuidanceCommandWork,
+        result: GuidanceCommandResult | None,
+        entry: GuidanceDiagnosticEntry | None,
     ) -> None:
         status_error: BaseException | None = None
         try:
@@ -215,7 +215,7 @@ class FinalApproachCommandExecutor:
             )
         except BaseException as error:
             evidence_errors.append(error)
-        work.capture_completion(FinalApproachDiagnosticCompletion(
+        work.capture_completion(GuidanceDiagnosticCompletion(
             diagnostic=diagnostic,
             evidence_errors=tuple(evidence_errors),
         ))
@@ -224,9 +224,9 @@ class FinalApproachCommandExecutor:
 
     def _execute_current(
         self,
-        work: FinalApproachCommandWork,
-        timing: FinalApproachCommandTiming | None,
-    ) -> FinalApproachCommandResult | None:
+        work: GuidanceCommandWork,
+        timing: GuidanceCommandTiming | None,
+    ) -> GuidanceCommandResult | None:
         ports = self._ports
         ports.hold.clear()
         terminal = ports.transaction.terminal_result()
@@ -240,7 +240,7 @@ class FinalApproachCommandExecutor:
         except Exception:
             ports.failures.mark_failed()
             raise
-        if result.outcome is FinalApproachCommandOutcome.LAW_UNAVAILABLE:
+        if result.outcome is GuidanceCommandOutcome.LAW_UNAVAILABLE:
             ports.failures.mark_failed()
         if result.issued and result.calc_data is not None:
             ports.hold.remember(
@@ -251,9 +251,9 @@ class FinalApproachCommandExecutor:
 
     def _record_source_time(
         self,
-        work: FinalApproachCommandWork,
-        result: FinalApproachCommandResult | None,
-        entry: FinalApproachDiagnosticEntry | None,
+        work: GuidanceCommandWork,
+        result: GuidanceCommandResult | None,
+        entry: GuidanceDiagnosticEntry | None,
         entry_s: float,
         entry_cpu_s: float,
     ) -> None:
@@ -292,8 +292,8 @@ class FinalApproachCommandExecutor:
 
 
 __all__ = [
-    "FinalApproachCommandExecutor",
-    "FinalApproachCommandWork",
-    "FinalApproachDiagnosticCompletion",
-    "FinalApproachExecutorPorts",
+    "GuidanceCommandExecutor",
+    "GuidanceCommandWork",
+    "GuidanceDiagnosticCompletion",
+    "GuidanceExecutorPorts",
 ]

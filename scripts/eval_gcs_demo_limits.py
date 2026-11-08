@@ -33,7 +33,7 @@ def _non_negative_int(name: str, value: object) -> int:
 
 @dataclass(frozen=True)
 class CadenceLimits:
-    """Final-approach-event count, wall cadence, and clock-ratio gates."""
+    """Guidance-event count, wall cadence, and clock-ratio gates."""
 
     min_observations: int = 10
     max_median_wall_gap_s: float = 0.20
@@ -72,7 +72,7 @@ class RollQualityLimits:
     """Achieved-roll reversal, saturation, and command-step quality gates.
 
     The reversal gate counts sign changes of the achieved roll (the measured
-    `aircraft_roll_deg` of each issued command's FINAL_APPROACH_RESPONSE_STATE)
+    `aircraft_roll_deg` of each issued command's GUIDANCE_RESPONSE_STATE)
     among samples of at least `significant_roll_deg`, over the whole episode,
     and fails above `max_achieved_roll_reversals`. Commanded-roll reversals
     are reported as a diagnostic only: single-frame LOS-rate spikes and the

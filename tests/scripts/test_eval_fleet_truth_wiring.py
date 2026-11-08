@@ -90,7 +90,7 @@ def _wire_setup(monkeypatch, events: list, *, truth_ack: bool = True) -> None:
     )
     monkeypatch.setattr(
         setup,
-        "final_approach_speed_plan",
+        "guidance_speed_plan",
         lambda args, speedup, mission, home_alt: ("plan", mission),
     )
 

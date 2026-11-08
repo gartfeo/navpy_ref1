@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeTerminal,
+    GuidanceEpisodeTerminal,
 )
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.dock_contact import DockContactEvent
@@ -17,15 +17,15 @@ from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
 class DockOutcomePort(Protocol):
     """How the armed episode ended (missed_dock.md); never a command input."""
 
-    def terminal(self) -> Optional[FinalApproachEpisodeTerminal]: ...
+    def terminal(self) -> Optional[GuidanceEpisodeTerminal]: ...
 
-    def record_failed(self, terminal: FinalApproachEpisodeTerminal, reason: str) -> None: ...
+    def record_failed(self, terminal: GuidanceEpisodeTerminal, reason: str) -> None: ...
 
 
 @dataclass(frozen=True)
 class NavExitCleanupPorts:
     disarm_dock_contact: Callable[[], Optional[DockContactEvent]]
-    close_final_approach_source: Callable[[], None]
+    close_guidance_source: Callable[[], None]
     navigation_reset: Callable[[], object]
     detector_stop: Callable[[], None]
     # Its terminal is read before the reset clears it; None: no vision runtime.
@@ -39,7 +39,7 @@ class NavCleanupResult:
     # The armed episode's own-dock contact, captured before the reset.
     own_dock_contact: DockContactEvent | None = None
     # The armed episode's first terminal (missed_dock.md), before the reset.
-    dock_terminal: FinalApproachEpisodeTerminal | None = None
+    dock_terminal: GuidanceEpisodeTerminal | None = None
 
 
 class NavExitCleanup:
@@ -72,7 +72,7 @@ class NavExitCleanup:
             errors.append(error)
         source_closed = False
         try:
-            self._ports.close_final_approach_source()
+            self._ports.close_guidance_source()
             source_closed = True
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
@@ -105,7 +105,7 @@ class NavExitCleanup:
 
     def record_dock_failed(
         self,
-        terminal: FinalApproachEpisodeTerminal,
+        terminal: GuidanceEpisodeTerminal,
         reason: str,
     ) -> None:
         """The DOCK_FAILED row, once the NAV exit succeeded."""

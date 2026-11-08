@@ -1,7 +1,7 @@
 """Video is operator display only (docs/design/gcs_video_streams.md).
 
 No NavPy module may import the GCS video-stream discovery code, so stream
-state can never reach navigation or the final-approach command path.
+state can never reach navigation or the guidance command path.
 """
 
 from __future__ import annotations

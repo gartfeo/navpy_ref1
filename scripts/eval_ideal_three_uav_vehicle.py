@@ -13,17 +13,17 @@ from scripts.eval_gcs_demo_command_bounds import (
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
     mission_navigation_segment,
-    parse_final_approach_command_episodes,
+    parse_guidance_command_episodes,
 )
 from scripts.eval_gcs_demo_limits import CadenceLimits
-from scripts.eval_gcs_demo_metrics import score_final_approach_commands, final_approach_timing
+from scripts.eval_gcs_demo_metrics import score_guidance_commands, guidance_timing
 from scripts.eval_gcs_demo_models import EpisodeMetrics, VehicleReport
 from scripts.eval_gcs_demo_snap import (
     navigation_snap_distance,
     parse_compact_snap_distances,
     parse_debug_snap_distances,
 )
-from scripts.eval_gcs_demo_final_approach_gates import cadence_errors
+from scripts.eval_gcs_demo_guidance_gates import cadence_errors
 from scripts.eval_gcs_demo_gates import evidence_failure_errors
 from scripts.eval_gcs_demo_vehicle import navigation_log
 
@@ -138,25 +138,25 @@ def analyze_ideal_vehicle(
     if approval_count != 1:
         errors.append(f"expected exactly one approval, found {approval_count}")
     try:
-        episodes = parse_final_approach_command_episodes(
+        episodes = parse_guidance_command_episodes(
             paths["debug"], vehicle_id=sys_id
         )
         if len(episodes) != 1:
             errors.append(
-                f"expected exactly one final-approach command episode, found {len(episodes)}"
+                f"expected exactly one guidance command episode, found {len(episodes)}"
             )
         if episodes:
             commands = episodes[-1]
             bounds = load_command_bounds(
                 log_dir / "demo_command_bounds.json"
             ).for_vehicle(sys_id)
-            score = score_final_approach_commands(
+            score = score_guidance_commands(
                 commands,
                 roll_limit_deg=bounds.roll_limit_deg,
                 saturation_margin_deg=0.5,
                 significant_roll_deg=10.0,
             )
-            timing = final_approach_timing(commands)
+            timing = guidance_timing(commands)
             metrics.sample_count = score.sample_count
             metrics.median_wall_gap_s = timing.median_wall_gap_s
             metrics.max_wall_gap_s = timing.max_wall_gap_s
@@ -174,11 +174,11 @@ def analyze_ideal_vehicle(
             issued_count = sum(command.issued for command in commands)
             if issued_count < MIN_ISSUED_COMMANDS:
                 errors.append(
-                    f"issued final-approach command count {issued_count} < "
+                    f"issued guidance command count {issued_count} < "
                     f"{MIN_ISSUED_COMMANDS}"
                 )
         else:
-            errors.append("issued final-approach command count 0 < 10")
+            errors.append("issued guidance command count 0 < 10")
         errors.extend(
             _truth_errors(
                 metrics,
@@ -188,7 +188,7 @@ def analyze_ideal_vehicle(
             )
         )
     except (OSError, UnicodeError, ValueError) as error:
-        errors.append(f"invalid final-approach evidence: {error}")
+        errors.append(f"invalid guidance evidence: {error}")
     return VehicleReport(sys_id, role, not errors, metrics, errors)
 
 

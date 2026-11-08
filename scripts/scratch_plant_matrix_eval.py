@@ -107,7 +107,7 @@ FLIGHTS: dict[str, dict] = {
     "C2-thr75": {"segments": "-20:0:8,-45:0:5", "alt": 500.0, "throttle": 0.75},
     # D. SMALL-SIGNAL. The law commands increments of a fraction of a degree to
     # a few degrees, never 20 deg steps, so this is the regime that actually
-    # governs final-approach accuracy -- and the one the single-step plant ID missed.
+    # governs guidance accuracy -- and the one the single-step plant ID missed.
     "D1-small-20": {
         "segments": "-20:0:5,-19:0:3,-20:0:3,-18:0:3,-20:0:3,"
                     "-15:0:3,-20:0:3,-10:0:3,-20:0:3",
@@ -369,7 +369,7 @@ def _print_tables(rows: list[dict]) -> None:
                   f"{f(r.get('gamma_settle_band_deg'),'.2f'):>6}"
                   f"{f(r.get('gamma_overshoot_frac'),'.2f'):>7}{reach}")
     print("\nm@25 / m@39 = range consumed before gamma SETTLES, at the closing")
-    print("speeds measured in the final-approach phase. Computed from g_settle, not")
+    print("speeds measured in the guidance phase. Computed from g_settle, not")
     print("from g_t90: the response overshoots, so the first 90% crossing")
     print("happens on the way up and is not a completion time.")
     print("band = settling band in degrees, max(10% of step, 0.20 deg floor).")

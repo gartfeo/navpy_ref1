@@ -1,6 +1,6 @@
 """A peer task assigned to this UAV outranks its own unapproached POI.
 
-One final approach per flight: once the swarm assigns a peer task, an own
+One guidance per flight: once the swarm assigns a peer task, an own
 POI found but not yet approached is dropped, not offered to the other UAVs
 (it may be the assigned dock itself, and task ids are numbered per UAV, so
 offering it could send a second UAV there), and a mission module's own

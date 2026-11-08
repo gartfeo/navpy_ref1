@@ -163,7 +163,7 @@ class _PeerCamera:
         self.entry = NavEntry(NavEntryPorts(
             request_guided=lambda: run.note(f"nav entry: guided, geo armed {self.fleet.is_geo_armed}"),
             navigation_init=lambda: run.note("nav entry: init"),
-            final_approach_active=lambda: True,
+            guidance_active=lambda: True,
             arm_dock_contact=lambda: run.note("nav entry: dock contact armed"),
             stop_geo_tracking=self._stop_geo,
             is_geo_armed=lambda: self.fleet.is_geo_armed,

@@ -1,4 +1,4 @@
-"""The final-approach command core keeps no prediction or gap modules."""
+"""The guidance command core keeps no prediction or gap modules."""
 
 from pathlib import Path
 
@@ -41,7 +41,7 @@ VISION_NAV_FILES = (
 GAP_MODULES = ("prediction.py", "runtime_support.py", "command_pipeline.py")
 
 
-def test_final_approach_command_core_has_no_prediction_or_gap_modules():
+def test_guidance_command_core_has_no_prediction_or_gap_modules():
     missing = [relative for relative in VISION_NAV_FILES
                if not (ROOT / relative).is_file()]
     assert not missing, missing

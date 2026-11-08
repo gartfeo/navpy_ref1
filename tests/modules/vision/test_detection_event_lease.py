@@ -96,7 +96,7 @@ def test_lease_atomically_claims_prefix_and_coalesces_to_latest_publication():
     lease.close()
 
 
-def test_final_approach_lease_dispatches_latest_publication_from_backlog():
+def test_guidance_lease_dispatches_latest_publication_from_backlog():
     store = DetectionPublicationStore(source_driven=True, capacity=4)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -107,7 +107,7 @@ def test_final_approach_lease_dispatches_latest_publication_from_backlog():
     lease.close()
 
 
-def test_final_approach_lease_preserves_discontinuity_before_latest_state():
+def test_guidance_lease_preserves_discontinuity_before_latest_state():
     store = DetectionPublicationStore(source_driven=True, capacity=4)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -124,7 +124,7 @@ def test_final_approach_lease_preserves_discontinuity_before_latest_state():
     lease.close()
 
 
-def test_final_approach_lease_preserves_each_discontinuity_before_latest_state():
+def test_guidance_lease_preserves_each_discontinuity_before_latest_state():
     store = DetectionPublicationStore(source_driven=True, capacity=5)
     lease = store.open_event_lease()
     _publish(store, 1.0)
@@ -145,7 +145,7 @@ def test_final_approach_lease_preserves_each_discontinuity_before_latest_state()
     lease.close()
 
 
-def test_final_approach_lease_dispatches_latest_empty_state():
+def test_guidance_lease_dispatches_latest_empty_state():
     store = DetectionPublicationStore(source_driven=True, capacity=3)
     lease = store.open_event_lease()
     _publish(store, 1.0)

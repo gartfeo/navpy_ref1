@@ -173,7 +173,7 @@ class NavTestRig:
         self.confirmation_action = (
             self.actions._actions[NavState.CONFIRM].__self__
         )
-        self.final_approach_nav = self.actions._actions[NavState.NAV].__self__
+        self.guidance_nav = self.actions._actions[NavState.NAV].__self__
         self.transitions = self.actions._transitions
         self.selector = self.detect_action._selector
         self.work_source = self.detect_action._choose_work.__self__
@@ -185,23 +185,23 @@ class NavTestRig:
         self.peer_geo_tracker = self.peer_navigation._approach._geo_tracker
         self.fallback_navigation = self.work_source._fallback_navigation
         self.self_approach = self.navigation_task_action._self_approach
-        self.final_approach = self.navigation_task_action._final_approach
+        self.guidance = self.navigation_task_action._guidance
         self.speedup = self.navigation_task_action._speedup
         self.vehicle_navigation = self.fallback_navigation._commands
         self.approach_planner = self.fallback_navigation._approach_planner
         self.mission = self.fallback_navigation._catalog
 
         self.frame_policy = self.confirmation_action._frame_policy
-        self.final_approach_admission = self.confirmation_action._final_approach_admission
+        self.guidance_admission = self.confirmation_action._guidance_admission
         self.recognition = self.confirmation_action._recognition_gate
         self.blocked = self.confirmation_action._blocked
         self.debug = self.confirmation_action._debug
         self.confirmation_geo_hold = self.confirmation_action._geo_hold
         self.review = self.recognition._review
 
-        self.final_approach_commands = self.final_approach_nav._commands
-        self.deadline = self.final_approach_nav._record._deadline
-        self.nav_peers = self.final_approach_nav._peers
+        self.guidance_commands = self.guidance_nav._commands
+        self.deadline = self.guidance_nav._record._deadline
+        self.nav_peers = self.guidance_nav._peers
         self.nav_transition = self.transitions._nav
         self.zoom = self.nav_transition._entry._zoom
 

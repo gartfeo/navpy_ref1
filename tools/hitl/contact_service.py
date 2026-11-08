@@ -1,4 +1,4 @@
-"""The isolated contact service (hitl_final_approach.md section 9, stage 1 step 26).
+"""The isolated contact service (hitl_guidance.md section 9, stage 1 step 26).
 
 Simulator truth ends here. The service reads the dock's pose (Unreal's applied board centre, for the scene the
 scenario service delivered to it, step 14) and the plant's true pose (the bridge's vehicle_state datagrams, a

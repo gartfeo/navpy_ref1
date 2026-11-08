@@ -1,4 +1,4 @@
-"""Narrow final-approach capabilities used outside the final-approach package."""
+"""Narrow guidance capabilities used outside the guidance package."""
 
 from __future__ import annotations
 
@@ -37,7 +37,7 @@ class VisionNavStatus(Protocol):
 class VisionNavConfirmation(Protocol):
     def can_confirm_detection(self, detect_data: DetectedObject) -> bool: ...
 
-    def record_final_approach_confirmed_detection(
+    def record_guidance_confirmed_detection(
         self,
         detect_data: DetectedObject,
     ) -> bool: ...

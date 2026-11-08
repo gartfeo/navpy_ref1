@@ -17,11 +17,11 @@ modules/nav/nav_controller.py	38	NavState	navpy.modules.nav.nav_state	re-export 
 modules/navigation/geo/zc_util.py	12	DemData	navpy.modules.navigation.geo.dem_data	re-export (2 outside); origin core/perception/geo/dem_data.py
 modules/navigation/gimbal_navigation.py	17	MODE_FOLLOW	navpy.modules.navigation.gimbal_tracking_constants	re-export (1 outside); origin core/command/gimbal/gimbal_tracking_constants.py
 modules/navigation/gimbal_navigation.py	17	MODE_LOCK	navpy.modules.navigation.gimbal_tracking_constants	re-export (1 outside); origin core/command/gimbal/gimbal_tracking_constants.py
-modules/navigation/nav/nav_law_factory.py	9	VehicleFinalApproachLawConfigProvider	navpy.modules.navigation.nav.final_approach_airframe_config	wrong-way after the move (2 outside); origin plugins/vehicle/ardupilot/final_approach_airframe_config.py
+modules/navigation/nav/nav_law_factory.py	9	VehicleGuidanceLawConfigProvider	navpy.modules.navigation.nav.guidance_airframe_config	wrong-way after the move (2 outside); origin plugins/vehicle/ardupilot/guidance_airframe_config.py
 modules/navigation/nav/vision_nav/law.py	7	PITCH_CEILING_DEG	navpy.modules.navigation.nav.vision_nav.command_anchor	re-export (1 outside); origin plugins/laws/vision_pn/command_anchor.py
 modules/navigation/nav/vision_nav/law.py	7	ROLL_LIMIT_CAP_DEG	navpy.modules.navigation.nav.vision_nav.command_anchor	re-export (2 outside); origin plugins/laws/vision_pn/command_anchor.py
-modules/navigation/nav/vision_nav/law.py	23	FinalApproachLawConfig	navpy.modules.navigation.nav.vision_nav.law_config	re-export (navpy; 6 outside); origin core/ports/law_config.py
-modules/navigation/nav/vision_nav/law.py	23	FixedFinalApproachLawConfigProvider	navpy.modules.navigation.nav.vision_nav.law_config	re-export (6 outside); origin core/ports/law_config.py
+modules/navigation/nav/vision_nav/law.py	23	GuidanceLawConfig	navpy.modules.navigation.nav.vision_nav.law_config	re-export (navpy; 6 outside); origin core/ports/law_config.py
+modules/navigation/nav/vision_nav/law.py	23	FixedGuidanceLawConfigProvider	navpy.modules.navigation.nav.vision_nav.law_config	re-export (6 outside); origin core/ports/law_config.py
 modules/navigation/peer_offset.py	25	MIN_APPROACH_STANDOFF_M	navpy.modules.navigation.peer_orbit_plan	re-export (navpy; 4 outside); origin core/skills/acquire/peer_orbit_plan.py
 modules/navigation/peer_offset.py	25	MIN_TRACK_PIXELS	navpy.modules.vision.vision_class_profile	re-export (2 outside); origin core/perception/profile/vision_class_profile.py
 modules/navigation/peer_offset.py	25	_ORBIT_PIXEL_MARGIN	navpy.modules.navigation.peer_orbit_plan	re-export (2 outside); origin core/skills/acquire/peer_orbit_plan.py

@@ -48,8 +48,8 @@ def test_point_mass_facade_uses_production_pixel_sensor_exactly() -> None:
         if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)
     }
     assert "body_ray_to_pixel" in called
-    assert "FinalApproachVisionFrame" not in called
-    assert "FinalApproachFrameProjector" not in {
+    assert "GuidanceVisionFrame" not in called
+    assert "GuidanceFrameProjector" not in {
         node.id for node in ast.walk(tree) if isinstance(node, ast.Name)
     }
     run_tree = ast.parse(
@@ -57,7 +57,7 @@ def test_point_mass_facade_uses_production_pixel_sensor_exactly() -> None:
             encoding="utf-8"
         )
     )
-    assert "FinalApproachFrameProjector" in {
+    assert "GuidanceFrameProjector" in {
         node.id for node in ast.walk(run_tree) if isinstance(node, ast.Name)
     }
 

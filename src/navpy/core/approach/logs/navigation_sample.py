@@ -25,7 +25,7 @@ class NavigationSample:
     actual_pitch: Optional[float]
     x_error: Optional[int]
     y_error: Optional[int]
-    final_approach_angle: Optional[float]
+    guidance_angle: Optional[float]
     detected_current_location: Optional[Location]
     detected_poi_location: Optional[Location]
     camera_matrix: Optional[np.ndarray]

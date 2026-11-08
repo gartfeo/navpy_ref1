@@ -1,4 +1,4 @@
-"""The run's quiesce (hitl_final_approach.md section 9, step 16): one idempotent step for terminal, deadline, crash
+"""The run's quiesce (hitl_guidance.md section 9, step 16): one idempotent step for terminal, deadline, crash
 and abort, at the board boundary (the real router with navpy as its reader, the real barrier, the router's write
 log), with late queues and reconnects; navpy's own quiesce when it is stopped without an outcome; the runner's exit
 paths; and the rule that a deadline never yields DOCKED."""
@@ -17,7 +17,7 @@ from navpy.app.router_barrier import BarrierResult, RouterBarrier
 from navpy.app.runtime_resources import RuntimeResourceStack
 from navpy.app.terminal_handoff import (TRIGGER_SHUTDOWN, TRIGGER_STOP, LinkFence, TerminalHandoff, own_quiesce,
                                         print_terminal_record)
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
+from navpy.core.approach.vision_nav.episode_latch import GuidanceTerminal as Terminal
 from tests.modules.navigation.test_terminal_handoff import IDENTITY, RecordingGimbal, ScriptedBarrier
 from tests.tools.tuning import test_approach_runner as runner_rig
 from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, GatedBoard, UdpClient, heartbeat, receivers_current,

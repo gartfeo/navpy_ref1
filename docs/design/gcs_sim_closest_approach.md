@@ -11,7 +11,7 @@ check: every near miss read "aborted (no_detection)", and the fly-to ended
 underground under Ion terrain (section 4).
 
 Owner request (2026-10-20): in simulation mode the GCS map shows each UAV's
-closest approach point to its dock after a final approach: the point on the
+closest approach point to its dock after guidance: the point on the
 flight path nearest the true dock, with the miss distance, so the owner can
 see how close each approach came.
 
@@ -28,7 +28,7 @@ Display only. Simulation never proves physical docking.
   `c_star`) only for segments that could touch the 0.5 m net.
 - On contact it publishes one `DockContactEvent` (3D, h, v distance; no
   position) to the lifecycle, which may still reject it (a `NAV_FAIL` latched
-  first, `test_final_approach_docked_flow.py:233`).
+  first, `test_guidance_docked_flow.py:233`).
 - The sensor keeps **no episode minimum**, so a miss leaves no distance.
 - **Nothing reaches the GCS backend.** In wall-clock sim the backend starts
   every NavPy itself (`NavpyProcessManager`, from `navpy_sim_runtime`) and reads
@@ -66,7 +66,7 @@ While armed, the sensor keeps the episode's best segment by **exact** distance:
   |h| / R. Without that term an elevated dock could drop the true minimum.
 - The contact segment is kept separately, as today.
 
-**Outcome comes from the lifecycle, not the sensor.** `FinalApproachDockContact`
+**Outcome comes from the lifecycle, not the sensor.** `GuidanceDockContact`
 remembers whether its latch accepted DOCKED for the current episode and tells
 the sensor at the end: `DockContactSensor.disarm(end: DockEpisodeEnd)` (how
 the lifecycle saw the end; nothing flows back). `dock_episode_end` builds it
@@ -77,7 +77,7 @@ the GCS cancelled the confirmed task), or nothing known.
 
 **Evidence cut (v6).** NAV ends the approach itself when its episode latch
 records FAILED or MISSED. The latch's existing observer
-(`FinalApproachEpisodeLatch(on_terminal)`, today the HITL terminal handoff)
+(`GuidanceEpisodeLatch(on_terminal)`, today the HITL terminal handoff)
 then also calls `DockContactSensor.end_evidence(identity)`, display only.
 The latch is NAV endgame code and is not changed.
 - **Boundary.** `end_evidence` only stores the identity: one attribute store,
@@ -102,7 +102,7 @@ The latch is NAV endgame code and is not changed.
   boundary needs one of: a hook in the latch before it records the terminal
   (endgame code, which this work must not change), or reading NAV's terminal
   on every position sample, which makes the telemetry reader thread take the
-  final-approach command lock 40 times a second (held during law planning
+  guidance command lock 40 times a second (held during law planning
   and command sends) and so changes NAV timing in the sim. Both are left
   out; Codex design round 5 accepts the store as the boundary only with the
   owner's acceptance of this gap.
@@ -179,7 +179,7 @@ The latch is NAV endgame code and is not changed.
 - No joined segment in the episode: no report.
 
 **Threads.** The outcome and the end of the episode are decided in one place,
-under a lock in `FinalApproachDockContact`:
+under a lock in `GuidanceDockContact`:
 
 - The contact callback, under that lock, checks the event's identity is still
   the armed episode, then calls the latch and records whether it accepted.

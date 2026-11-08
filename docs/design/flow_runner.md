@@ -75,7 +75,7 @@ No queue: each input is a latest-value slot or a consume-once latch read at a fi
 |---|---|---|
 | review verdict | review workers, network listener (`core/review/confirmation_coordinator.py:47-54`) | the waiting node's outcome; a deny after CONFIRMED is the late-deny cancel |
 | PEER_NOTIFIED | peer-dispatch worker (`core/swarm/nav_network.py:84-87`) | delivery: pending or lost, like no status |
-| failure latch, visual pass | final-approach worker | failed, passed |
+| failure latch, visual pass | guidance worker | failed, passed |
 | assignment | network listener (`core/swarm/task_actor.py:133-137`) | delivery: inside DETECT's act; pickup: `assigned`, only after APPLIED |
 | cancel (pickup) | network listener; free request_type, acked | operator check `cancel` |
 
@@ -96,7 +96,7 @@ At composition (startup fails) and in one parametrized test per graph:
    outcomes leaves only by platform or module edges.
 5. No node declares a platform-guard outcome; no module check reuses one.
 6. Redirect and refusal edges end at safe nodes; a safe node cannot refuse.
-7. (Node graphs) Safety checks (`operator=False`) end at safe nodes and never scope a final_approach node:
+7. (Node graphs) Safety checks (`operator=False`) end at safe nodes and never scope a guidance node:
    the approach ends only by its vision outcomes, the platform guard or an operator cancel
    (`docs/design/mission_modules.md:169`).
 8. (Label graphs) One node per label; one action list per (from, to) label pair; hook tables and action
@@ -107,7 +107,7 @@ legacy law (`core/flow/recovery.py:50-51`). **Invariant:** act (and tick) runs o
 
 ## 6. NavState view
 - The label is published at take() and committed after enter(), as today: the event pump's session check
-  reads the published label (`app/flow/nav_final_approach_composition.py:217-226`).
+  reads the published label (`app/flow/nav_guidance_composition.py:217-226`).
 - Delivery: NavPhaseState stays the runner's state and graph-free. Kept: StateActionDispatcher's act rule and
   ValueError (its constructor only gains an optional label set, default every NavState); `_actions` keyed by
   NavState with bound methods (`tests/modules/nav/nav_test_rig.py:179-183`); the handler's on_change,
@@ -187,7 +187,7 @@ catcher  hold     DETECT safe  assigned -> acquire {task := catch; passes := 0}
   (`docs/design/mission_modules.md:168`). Backup: the catcher graph with role=backup, bidding the sentinel.
   Handover is one GCS action: cancel the catcher, wait until the owner (scout) applied its release, then
   the owner assigns the backup under a new generation (`docs/design/swarm-task-assignment-ack.md:44`).
-- The approach gets only FinalApproachRequest(profile, track_id), never the context view; `passed` comes
+- The approach gets only GuidanceRequest(profile, track_id), never the context view; `passed` comes
   only from the vision pass detector; the pure-vision AST scan extends to the runner, guards and approach.
 - Role latch at the arming edge; NavPy cannot refuse arming. Armed without a valid latch (forced arm,
   `src/gcs/backend/routes/control_vehicle_commands.py:74-90`, or a restart in flight): onhold for the sortie, with a status text; plans without module metadata get delivery.
@@ -285,7 +285,7 @@ stateDiagram-v2
 | F2 | take() at the 20 sites in place; `_teardown(outcome)`; the recovery split; a guard that only the runner calls `NavPhaseState.request` | none | with F1 | M |
 | P1 | Node graphs: labels, recorded edges, data guards, platform edges, module checks with exit(aborted:...), refusals, payloads, staged context, idempotent services, cancel slot, sortie-done latch, write fence, exit at shutdown, one row per commit | none for delivery | after F2 | M |
 | P2 | Role latch at arming; onhold on a missing or invalid latch | none for plans without module metadata | with P1 | M |
-| P3 | Final-approach engine only for roles with an approach node (`docs/design/architecture_split.md:180-181`) | none for delivery | pickup step | M |
+| P3 | Guidance engine only for roles with an approach node (`docs/design/architecture_split.md:180-181`) | none for delivery | pickup step | M |
 | P4 | Pickup graphs; skills hold, acquire, circle, line_up, line_dive, end_pass, verify, observe, clear; CATCH, cancel, handover, capture review; GCS plugin. Needs S11 (LOITER hold), the A6 airspeed task and P1's fence | new module only | after P1-P3 | L |
 | D1 | Delivery's CONFIRM binds the vision circle from P4 | CHANGE | when delivery resumes | M |
 

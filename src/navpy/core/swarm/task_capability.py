@@ -121,7 +121,7 @@ class TaskParticipationCoordinator:
                 )
             if self._selection.node_state() is not SwarmNodeState.FREE:
                 self._logger.info(
-                    "Busy (holding a task or flying a final approach); "
+                    "Busy (holding a task or in guidance); "
                     "not bidding."
                 )
                 return
@@ -192,7 +192,7 @@ class TaskParticipationCoordinator:
         """Nav becoming busy drops a WAITING offer; the owner retries.
 
         DOCKED follows NAV, which already made the slot busy, so in practice
-        only a final approach start drops one.
+        only a guidance start drops one.
         """
         with self._lock:
             dropped = self._selection.set_participation(
@@ -203,7 +203,7 @@ class TaskParticipationCoordinator:
             self._replies.stop_accept()
             self._replies.start_reject(*dropped.key)
             self._logger.warning(
-                f"Own final approach started; rejecting task "
+                f"Own guidance started; rejecting task "
                 f"{dropped.task.task_id} from owner {dropped.owner.owner_id}."
             )
 

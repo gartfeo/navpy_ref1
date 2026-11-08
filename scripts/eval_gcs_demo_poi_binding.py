@@ -1,4 +1,4 @@
-"""Bind final-approach command episodes to their assigned physical POIs."""
+"""Bind guidance command episodes to their assigned physical POIs."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from pathlib import Path
 
 from scripts.eval_gcs_demo_evidence import (
     mission_navigation_segment,
-    parse_final_approach_episodes,
+    parse_guidance_episodes,
 )
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan
 from scripts.eval_gcs_demo_vehicle import navigation_log
@@ -30,7 +30,7 @@ _CONFIRMED_RE = re.compile(
 )
 
 
-def final_approach_poi_binding_errors(
+def guidance_poi_binding_errors(
     log_dir: Path,
     plan: DemoMissionPlan,
     global_assignments: dict[int, int],
@@ -39,7 +39,7 @@ def final_approach_poi_binding_errors(
     """Certify selection -> command identity -> truth-coordinate continuity.
 
     The POI coordinate is simulator-only scoring evidence read after the
-    command is formed.  It is never supplied to the final approach law.
+    command is formed.  It is never supplied to the guidance law.
     """
     expected_by_id = {
         poi.task_id: (poi.lat, poi.lon)
@@ -61,13 +61,13 @@ def final_approach_poi_binding_errors(
                 )
             )
             # Docking is the vehicle's own gate; the binding reads the commands.
-            episodes = [list(episode.commands) for episode in parse_final_approach_episodes(
+            episodes = [list(episode.commands) for episode in parse_guidance_episodes(
                 log_dir / f"uav_{sys_id}_navigation_debug.csv",
                 vehicle_id=sys_id,
             )]
         except (OSError, UnicodeError, ValueError) as error:
             errors.append(
-                f"vehicle {sys_id} has invalid final-approach-POI evidence: {error}"
+                f"vehicle {sys_id} has invalid guidance-POI evidence: {error}"
             )
             continue
         errors.extend(vehicle_poi_binding_errors(
@@ -145,7 +145,7 @@ def vehicle_poi_binding_errors(
         )
     if len(episodes) != 1:
         return [
-            f"vehicle {sys_id} expected one final-approach command episode for "
+            f"vehicle {sys_id} expected one guidance command episode for "
             f"selected P{selected_identity[0]}/obj{selected_identity[1]}, "
             f"found {len(episodes)}"
         ]
@@ -153,7 +153,7 @@ def vehicle_poi_binding_errors(
     identities = {(command.task, command.obj) for command in commands}
     if identities != {selected_identity}:
         errors.append(
-            f"vehicle {sys_id} final-approach command identity {sorted(identities)} "
+            f"vehicle {sys_id} guidance command identity {sorted(identities)} "
             f"does not match selected P{selected_identity[0]}/"
             f"obj{selected_identity[1]}"
         )
@@ -177,7 +177,7 @@ def vehicle_poi_binding_errors(
     ]
     if wrong:
         errors.append(
-            f"vehicle {sys_id} final-approach truth POI differs from assigned "
+            f"vehicle {sys_id} guidance truth POI differs from assigned "
             f"coordinate by up to {max(wrong):.3f}m"
         )
     return errors
@@ -212,6 +212,6 @@ def _valid_coordinate(coordinate: tuple[float, float]) -> bool:
 
 __all__ = [
     "MAX_POI_COORD_ERROR_M",
-    "final_approach_poi_binding_errors",
+    "guidance_poi_binding_errors",
     "vehicle_poi_binding_errors",
 ]

@@ -68,7 +68,7 @@ class LegacyNavigationRuntime(NavigationRuntime):
         return True
 
     def take_work(self) -> Optional[Any]:
-        # Peek, do not consume: the legacy PN/PID final-approach loop streams
+        # Peek, do not consume: the legacy PN/PID guidance loop streams
         # commands continuously from the freshest detection between frames
         # (detections can arrive slower than the command loop). Consuming
         # here turns the loop one-shot and starves the autopilot of attitude

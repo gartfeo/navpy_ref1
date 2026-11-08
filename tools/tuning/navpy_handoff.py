@@ -1,4 +1,4 @@
-"""The runner's end of a HITL approach (design hitl_final_approach.md section 2, "Handoff at the end").
+"""The runner's end of a HITL approach (design hitl_guidance.md section 2, "Handoff at the end").
 
 Before any RTL the runner stops navpy (NAVPY_STOP_V1 on its stdin, bounded wait; on timeout it terminates the navpy
 process it started) and then closes navpy's router endpoint itself: the barrier navpy passes before its terminal

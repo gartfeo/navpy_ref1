@@ -1,4 +1,4 @@
-r"""Ray fixtures for the Unreal lens table (HITL stage 1 step 5, hitl_final_approach.md section 9).
+r"""Ray fixtures for the Unreal lens table (HITL stage 1 step 5, hitl_guidance.md section 9).
 
 The Unreal camera actor renders each frame through the pinhole of one row of navpy's siyi_zr10
 ``camera.reading_intrinsics`` (no distortion: the encoder adds it, step 8). This writes the fixture its automation

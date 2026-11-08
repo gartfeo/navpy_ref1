@@ -2,7 +2,7 @@
 
 These exercise `pitch_law.py`'s pure function directly, independent of the
 frame/anchor plumbing in `law.py`, so the integrator's defining property is
-isolated from everything else in the final-approach law.
+isolated from everything else in the guidance law.
 
 An `AAS_PITCH_LAW` selector with three alternative formulations was removed on
 2026-08-20 after all three were measured and rejected; the tests that covered

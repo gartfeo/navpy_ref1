@@ -78,7 +78,7 @@ class NavigationTaskStateReset:
         self._navigation_task.nav_mode_observed = False
         self._navigation_task.guided_last_attempt_at = None
         self._navigation_task.guided_request_started_at = None
-        # NAV exit consumes final-approach navigation task/completion before the next
+        # NAV exit consumes guidance navigation task/completion before the next
         # NAV entry resets them.  Teardown must not erase that evidence.
         self._navigation_task.peer_navigation = False
         self._navigation_task.peer_approach_distance_m = PEER_APPROACH_DIST
@@ -181,15 +181,15 @@ class NavigationTaskResetTransaction:
         self,
         state: NavigationTaskStateReset,
         resources: NavigationTaskResourceReset,
-        close_final_approach_source: Callable[[], None],
+        close_guidance_source: Callable[[], None],
     ) -> None:
         self._state = state
         self._resources = resources
-        self._close_final_approach_source = close_final_approach_source
+        self._close_guidance_source = close_guidance_source
 
     def clear(self) -> None:
         try:
-            self._close_final_approach_source()
+            self._close_guidance_source()
         except Exception as error:
             raise ExceptionGroup(
                 "navigation task source fence failed",
@@ -206,7 +206,7 @@ class NavigationTaskResetTransaction:
 
 @dataclass(frozen=True)
 class AutoMissionResumePorts:
-    close_final_approach_source: Callable[[], None]
+    close_guidance_source: Callable[[], None]
     pause_navigation: Callable[[], None]
     clear_selected_poi: Callable[[], None]
     clear_flow_task: Callable[[], None]
@@ -240,7 +240,7 @@ class AutoMissionResume:
         self._loiter_radius = loiter_radius
 
     def run(self) -> None:
-        self._ports.close_final_approach_source()
+        self._ports.close_guidance_source()
         resume_waypoint = self._ports.resume_waypoint(self._vehicle.mission_items_next)
         self._ports.pause_navigation()
         self._geo_pointing.stop_geo_tracking()

@@ -668,7 +668,7 @@ def test_the_runner_refuses_an_infeasible_orbit_before_its_run_folder_exists(tmp
 
 def test_a_feasible_orbit_passes_and_is_kept_for_the_run(tmp_path, monkeypatch):
     args = _orbit_inputs(tmp_path, monkeypatch)
-    monkeypatch.setattr(orbit_plan, "final_approach_orbit_setting", lambda profile: 180.0)
+    monkeypatch.setattr(orbit_plan, "guidance_orbit_setting", lambda profile: 180.0)
     scenario = {**PUBLIC, "lane": {**PUBLIC["lane"], "height_m": 100.0}, "limits": {**PUBLIC["limits"],
                                                                                     "min_height_m": 1.0}}
     result = approach_orbit.orbit_check(args, scenario)

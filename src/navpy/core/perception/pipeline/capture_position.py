@@ -4,7 +4,7 @@ The latest GLOBAL_POSITION_INT fix is moved along its own NED ground
 velocity to the capture instant. Both stamps are on the autopilot's boot
 clock (the fix's ``time_boot_ms`` and the capture-time ATTITUDE
 interpolation), so link delay does not enter the shift. Acquisition
-evidence only: the final-approach command path never reads it.
+evidence only: the guidance command path never reads it.
 """
 
 from __future__ import annotations

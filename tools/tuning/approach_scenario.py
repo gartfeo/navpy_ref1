@@ -1,4 +1,4 @@
-"""The approach runner's side of a run's scenario (hitl_final_approach.md section 9, stage 1 step 14).
+"""The approach runner's side of a run's scenario (hitl_guidance.md section 9, stage 1 step 14).
 
 The runner never imports the scenario service or scoring: it runs each in its own process and reads only the one JSON
 line it prints, which never holds a pose. ``public`` gets the seed's public half (scenario_public.py): a dry run before

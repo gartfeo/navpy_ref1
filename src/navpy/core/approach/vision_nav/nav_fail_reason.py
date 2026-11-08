@@ -16,7 +16,7 @@ MISSED_DOCK = "missed_dock"
 NAVIGATION_REJECTED = "navigation_rejected"
 SOURCE_COMMAND_STALE = "source_command_stale"
 DISCONTINUITY_SOURCE_MISSING = "discontinuity_source_missing"
-FINAL_APPROACH_RECORD_UNAVAILABLE = "final_approach_record_unavailable"
+GUIDANCE_RECORD_UNAVAILABLE = "guidance_record_unavailable"
 SOURCE_EVENT_ACTIVE_POI_MISSING = "source_event_active_poi_missing"
 SOURCE_EVENT_PUMP = "source_event_pump"
 # An unexpected NavPy error aborted the approach (navigation_loop recovery).
@@ -32,7 +32,7 @@ NAV_FAIL_REASON_INDEX: Mapping[str, int] = {
     NAVIGATION_REJECTED: 4,
     SOURCE_COMMAND_STALE: 5,
     DISCONTINUITY_SOURCE_MISSING: 6,
-    FINAL_APPROACH_RECORD_UNAVAILABLE: 7,
+    GUIDANCE_RECORD_UNAVAILABLE: 7,
     SOURCE_EVENT_ACTIVE_POI_MISSING: 8,
     SOURCE_EVENT_PUMP: 9,
     INTERNAL_ERROR: 10,
@@ -45,7 +45,7 @@ def reason_index(reason: Optional[str]) -> int:
 
 __all__ = [
     "DISCONTINUITY_SOURCE_MISSING",
-    "FINAL_APPROACH_RECORD_UNAVAILABLE",
+    "GUIDANCE_RECORD_UNAVAILABLE",
     "INTERNAL_ERROR",
     "MAX_REASON_INDEX",
     "MISSED_DOCK",

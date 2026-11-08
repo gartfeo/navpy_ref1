@@ -1,4 +1,4 @@
-"""The approach runner's side of eligible airspeed (hitl_final_approach.md section 9, step 20).
+"""The approach runner's side of eligible airspeed (hitl_guidance.md section 9, step 20).
 
 Before arming (``approach._fly``, before ``takeoff``) ``pin_board`` refuses a board whose effective pitot parameters
 are not the simulated profile navpy admits (``airspeed_profile.SIMULATED_PROFILES``), or whose firmware is not the

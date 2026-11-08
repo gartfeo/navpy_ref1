@@ -1,0 +1,164 @@
+"""Guidance record commit and measured-frame command dispatch."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import Callable, Optional, Protocol
+
+from navpy.core.kernel.config.logger_args import LogStatusDest
+from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.approach.guidance_source_contracts import NavSourceBatch
+from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.ports.detection_publication import DetectionPublication
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
+
+
+@dataclass(frozen=True)
+class GuidanceCommandPorts:
+    nav: Callable[[Optional[DetectedObject]], bool]
+    # Takes the NAV_FAIL reason; False when the episode already docked: the
+    # failure is ignored.
+    mark_failed: Callable[[str], Optional[bool]]
+    logger: ILogger
+
+
+class GuidanceCommandPoiResolver(Protocol):
+    def source_event_poi(
+        self,
+        event: Optional[DetectionPublication],
+        active_poi: DetectedObject,
+    ) -> Optional[DetectedObject]: ...
+
+
+class GuidanceCommandDispatch:
+    """Own measured-frame dispatch and guidance failure reporting."""
+
+    def __init__(
+        self,
+        ports: GuidanceCommandPorts,
+        source: GuidanceCommandPoiResolver,
+    ) -> None:
+        self._ports = ports
+        self._source = source
+
+    def dispatch(
+        self,
+        batch: NavSourceBatch,
+        fresh_poi: Optional[DetectedObject],
+        active_poi: DetectedObject,
+    ) -> bool:
+        if not batch.source_driven:
+            if not self._ports.nav(fresh_poi):
+                self.mark_navigation_rejected(fresh_poi or active_poi)
+                return False
+            return True
+        if batch.latest_event is None:
+            self.mark_navigation_rejected(active_poi)
+            return False
+        return self.dispatch_source_publication(
+            batch.latest_event,
+            active_poi,
+        )
+
+    def dispatch_source_publication(
+        self,
+        publication: DetectionPublication,
+        active_poi: DetectedObject,
+    ) -> bool:
+        nav_poi = self.source_publication_poi(
+            publication,
+            active_poi,
+        )
+        if nav_poi is None:
+            self.mark_navigation_rejected(active_poi)
+            return False
+        return self.dispatch_poi(nav_poi)
+
+    def source_publication_poi(
+        self,
+        publication: DetectionPublication,
+        active_poi: DetectedObject,
+    ) -> DetectedObject | None:
+        return self._source.source_event_poi(publication, active_poi)
+
+    def dispatch_poi(self, nav_poi: DetectedObject) -> bool:
+        if not self._ports.nav(nav_poi):
+            self.mark_navigation_rejected(nav_poi)
+            return False
+        return True
+
+    def mark_no_detection(self, active_poi: DetectedObject) -> None:
+        # Losing the dock is never success: only contact completes.
+        self._mark_failed_and_log(
+            fail_reason.NO_DETECTION,
+            lambda: (
+                f"NAV_FAIL: no_detection "
+                f"task={get_poi_task_id(active_poi)} "
+                f"obj={active_poi.identity.obj_id}"
+            )
+        )
+
+    def mark_missed_dock(self, poi: DetectedObject | None) -> None:
+        """The armed dock went aft: the approach missed it."""
+        self._mark_failed_and_log(
+            fail_reason.MISSED_DOCK,
+            lambda: "NAV_FAIL: missed_dock " + self._poi_identity(poi)
+        )
+
+    def mark_navigation_rejected(self, poi: DetectedObject) -> None:
+        self._mark_failed_and_log(
+            fail_reason.NAVIGATION_REJECTED,
+            lambda: (
+                f"NAV_FAIL: navigation_rejected "
+                f"task={get_poi_task_id(poi)} "
+                f"obj={poi.identity.obj_id}"
+            )
+        )
+
+    def mark_source_liveness_expired(
+        self,
+        poi: DetectedObject | None,
+    ) -> None:
+        self._mark_failed_and_log(
+            fail_reason.SOURCE_COMMAND_STALE,
+            lambda: (
+                "NAV_FAIL: source_command_stale "
+                + self._poi_identity(poi)
+            )
+        )
+
+    def _mark_failed_and_log(
+        self,
+        reason: str,
+        message: Callable[[], str],
+    ) -> None:
+        if self._ports.mark_failed(reason) is False:
+            return
+        self._log(message)
+
+    def _log(self, message: Callable[[], str]) -> None:
+        try:
+            self._ports.logger.info(
+                message(),
+                key="nav",
+                dest=LogStatusDest.DRONE,
+            )
+        except Exception:  # noqa: BLE001 - diagnostic sink is non-authoritative
+            return
+
+    @staticmethod
+    def _poi_identity(poi: DetectedObject | None) -> str:
+        if poi is None:
+            return "active_poi=missing"
+        return (
+            f"task={get_poi_task_id(poi)} "
+            f"obj={poi.identity.obj_id}"
+        )
+
+
+__all__ = [
+    "GuidanceCommandDispatch",
+    "GuidanceCommandPorts",
+    "GuidanceCommandPoiResolver",
+]

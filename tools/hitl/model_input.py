@@ -1,4 +1,4 @@
-"""Layer 1's aircraft model as a read-only plug-in of the HITL bridge (hitl_final_approach.md sections 9, 10).
+"""Layer 1's aircraft model as a read-only plug-in of the HITL bridge (hitl_guidance.md sections 9, 10).
 
 Layer 1 supplies a JSBSim model folder (the bridge's --model-dir; jsbsim_files.prepare_run_folder copies all
 of it) and a private JSON declaration of that folder, its "model input":

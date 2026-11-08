@@ -51,22 +51,22 @@ from navpy.core.flow.nav_state import (
     GeoHoldState,
     NavigationFailureLatch,
     NavPhaseState,
-    FinalApproachNavState,
+    GuidanceNavState,
 )
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.flow.navigation_zoom import ZoomController
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
-from navpy.core.approach.final_approach_source_admission import (
-    FinalApproachSourceAdmission,
-    FinalApproachSourcePorts,
+from navpy.core.approach.guidance_source_admission import (
+    GuidanceSourceAdmission,
+    GuidanceSourcePorts,
 )
-from navpy.core.approach.final_approach_publication_admission import (
-    FinalApproachPublicationAdmission,
-    FinalApproachPublicationAdmissionPorts,
+from navpy.core.approach.guidance_publication_admission import (
+    GuidancePublicationAdmission,
+    GuidancePublicationAdmissionPorts,
 )
-from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
+from navpy.core.approach.guidance_source_session import GuidanceSourceSession
 from navpy.core.skills.acquire.vehicle_navigation import (
     ApproachCommandPorts,
     LoiterRadiusLease,
@@ -92,7 +92,7 @@ def compose_state_ownership(
         detections=DetectionSnapshot(),
         navigation_task=NavigationTaskState(),
         navigation_failures=NavigationFailureLatch(admit_failure),
-        final_approach=FinalApproachNavState(),
+        guidance=GuidanceNavState(),
         geo_hold=GeoHoldState(),
         confirm=ConfirmGateState(),
         overrides=ConfirmOverrideInbox(),
@@ -133,7 +133,7 @@ def compose_poi_mission_ownership(
         pass_tracker=pass_tracker,
         retry_state=retry_state,
         confirmation_manager=confirmation_manager,
-        source_session=FinalApproachSourceSession(detection.events),
+        source_session=GuidanceSourceSession(detection.events),
     )
 
 
@@ -152,7 +152,7 @@ def compose_vehicle_approach_ownership(
     planner = ApproachPlanner(
         vehicle,
         lambda: detection.mounts.mounts,
-        lambda: navigation.final_approach.is_active,
+        lambda: navigation.guidance.is_active,
         profile,
         logger,
         approach_kind,
@@ -205,17 +205,17 @@ def compose_detection_review_ownership(
         state.overrides,
         logger,
     )
-    publication_admission = FinalApproachPublicationAdmission(
-        FinalApproachPublicationAdmissionPorts(
+    publication_admission = GuidancePublicationAdmission(
+        GuidancePublicationAdmissionPorts(
             clear_discontinuity=(
-                navigation.final_approach.clear_source_discontinuity
+                navigation.guidance.clear_source_discontinuity
             ),
             mark_failed=state.navigation_failures.mark_failed,
             logger=logger,
         )
     )
-    source = FinalApproachSourceAdmission(
-        FinalApproachSourcePorts(
+    source = GuidanceSourceAdmission(
+        GuidanceSourcePorts(
             source_session=poi.source_session,
             active_poi=lambda: poi.confirmation_manager.active_poi,
             event_inbox=state.detections,

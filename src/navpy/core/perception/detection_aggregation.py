@@ -175,7 +175,7 @@ class DetectionAggregator:
             return None
         if len(source_children) != 1:
             raise RuntimeError(
-                "final-approach source lease requires exactly one source-driven detector"
+                "guidance source lease requires exactly one source-driven detector"
             )
         lease = source_children[0].open_detection_event_lease(
             request,

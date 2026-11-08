@@ -133,9 +133,9 @@ def test_invalid_navigation_algorithm_param_warns_and_falls_back_to_pure_vision(
     assert logger.warnings
 
 
-def test_removed_final_approach_calibration_and_roll_pid_are_not_configs():
+def test_removed_guidance_calibration_and_roll_pid_are_not_configs():
     _, navigation_args = _navigation_args(params={"AAS_DEL_FPAOFF": 9.9})
-    assert not hasattr(navigation_args, "final_approach_fpa_offset_deg")
+    assert not hasattr(navigation_args, "guidance_fpa_offset_deg")
     assert not hasattr(navigation_args, "roll_args")
     assert not hasattr(navigation_args, "pitch_kp")
     assert "AAS_DEL_FPAOFF" not in NavigationArgs.PARAMS

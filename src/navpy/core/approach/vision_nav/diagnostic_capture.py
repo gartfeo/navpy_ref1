@@ -1,4 +1,4 @@
-"""Pure copy/format helpers for final-approach command diagnostics."""
+"""Pure copy/format helpers for guidance command diagnostics."""
 
 from __future__ import annotations
 
@@ -9,18 +9,18 @@ import numpy as np
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachLawEvidence,
+    GuidanceLawEvidence,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.detect_data import DetectedObject
 
 
-def body_bearing_deg(frame: FinalApproachVisionFrame) -> float:
+def body_bearing_deg(frame: GuidanceVisionFrame) -> float:
     return math.degrees(math.atan2(frame.body_y, frame.body_x))
 
 
 def law_evidence_payload(
-    evidence: FinalApproachLawEvidence | None,
+    evidence: GuidanceLawEvidence | None,
 ) -> dict[str, object]:
     names = (
         "control_bearing_deg", "lateral_rate_deg_s",

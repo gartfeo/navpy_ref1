@@ -1,5 +1,5 @@
 #!/usr/bin/env python
-"""Fly one SITL aircraft at a fixed POI using the final-approach law and no vision.
+"""Fly one SITL aircraft at a fixed POI using the guidance law and no vision.
 
 WHAT THIS ISOLATES
 ------------------
@@ -76,8 +76,8 @@ if not __package__:
         sys.path.insert(0, import_path)
 
 from navpy.core.ports.law_config import (  # noqa: E402
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw  # noqa: E402
 from navpy.core.ports.pixel_observation import (  # noqa: E402
@@ -103,9 +103,9 @@ from scripts.scratch_navigation_result import (  # noqa: E402,F401
     entry_state,
     initial_result,
 )
-from scripts.scratch_navigation_final_approach import (  # noqa: E402,F401
+from scripts.scratch_navigation_guidance import (  # noqa: E402,F401
     RollRecord,
-    FinalApproachGeometry,
+    GuidanceGeometry,
 )
 from scripts.scratch_navigation_oracle import (  # noqa: E402
     MODES as ORACLE_MODES,
@@ -598,8 +598,8 @@ def resolve_poi(
 
 def _law(options: argparse.Namespace) -> VisionNavLaw:
     return VisionNavLaw(
-        FixedFinalApproachLawConfigProvider(
-            FinalApproachLawConfig(
+        FixedGuidanceLawConfigProvider(
+            GuidanceLawConfig(
                 pitch_min_deg=options.pitch_min_deg,
                 pitch_max_deg=options.pitch_max_deg,
                 roll_limit_deg=options.roll_limit_deg,

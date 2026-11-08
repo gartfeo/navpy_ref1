@@ -42,7 +42,7 @@ const LABEL_STATUSES = {
 const FAIL_REASON_KEYS = new Set([
   'nav_fail', 'no_detection', 'missed_dock', 'navigation_rejected',
   'source_command_stale', 'discontinuity_source_missing',
-  'final_approach_record_unavailable', 'source_event_active_poi_missing',
+  'guidance_record_unavailable', 'source_event_active_poi_missing',
   'source_event_pump', 'internal_error',
 ]);
 

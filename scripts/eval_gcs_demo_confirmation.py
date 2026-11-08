@@ -58,7 +58,7 @@ class ConfirmationTimeout(TimeoutError):
         observed = {request.sys_id for request in self.requests}
         approved = {int(row["sys_id"]) for row in self.approvals}
         message = (
-            "timed out waiting for operator-confirmed final-approach SNAPs; "
+            "timed out waiting for operator-confirmed guidance SNAPs; "
             f"missing confirmation request sysids {sorted(expected_sys_ids - observed)}; "
             f"request seen but unapproved sysids {sorted(observed - approved)}; "
             f"approved sysids {sorted(approved)}"

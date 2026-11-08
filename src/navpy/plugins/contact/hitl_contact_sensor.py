@@ -1,4 +1,4 @@
-"""The HITL-only ``DockContactSensor``: contact events from the PC contact service (hitl_final_approach.md step 26).
+"""The HITL-only ``DockContactSensor``: contact events from the PC contact service (hitl_guidance.md step 26).
 
 The service (``tools/hitl/contact_service.py``) holds the dock pose and the plant's true pose; navpy never does. This
 adapter tells it which episode is armed (``arm`` with a fresh ``arm_id``; ``disarm`` at NAV exit) and accepts at most
@@ -12,7 +12,7 @@ one ``contact`` per arm, and only when it is
   ``CONTACT_MAX_AGE_S`` behind that clock now and at most ``CONTACT_MAX_LEAD_S`` ahead of it; no board time on
   either side refuses.
 
-An accepted contact goes to the existing path unchanged (``FinalApproachDockContact``: the armed identity, then the
+An accepted contact goes to the existing path unchanged (``GuidanceDockContact``: the armed identity, then the
 episode latch, which ignores it after a NAV_FAIL, a miss or an earlier contact, then the terminal handoff's fences).
 The event carries no geometry: the service sends none, so its distances are NaN.
 """

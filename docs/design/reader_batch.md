@@ -1,7 +1,7 @@
 # MAVLink reader: yield per batch (design v3, todo 31/34/38)
 
 ## Problem
-During the vision final approach (NAV) at 10x the MAVLink reader handles
+During the vision guidance (NAV) at 10x the MAVLink reader handles
 ~400-540 packets/s against ~3000/s offered (all types; ~820/s ATTITUDE +
 position), falls up to 2.7 s behind, and approaches fly on old attitude:
 pitch runs away, `missed_dock`/`no_detection` (`.logs/quiet-1`, `-2`, quiet

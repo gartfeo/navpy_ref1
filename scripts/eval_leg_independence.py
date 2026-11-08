@@ -1,6 +1,6 @@
 """Vary only the scored leg length, holding the approach geometry constant.
 
-A converging final-approach law should return the same miss from a short leg as from
+A converging guidance law should return the same miss from a short leg as from
 a long one.  If the miss tracks leg length instead, the law is not nulling the
 error -- it is decaying towards it, and the result is whatever the clock
 happened to reach.  That is the claim this measures.

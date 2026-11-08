@@ -1,16 +1,16 @@
-"""Primitive frame payload admitted to the final-approach command slot."""
+"""Primitive frame payload admitted to the guidance command slot."""
 
 from __future__ import annotations
 
 from dataclasses import dataclass
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 
 @dataclass(frozen=True)
-class FinalApproachQueuedFrame:
-    frame: FinalApproachVisionFrame
+class GuidanceQueuedFrame:
+    frame: GuidanceVisionFrame
     diagnostic_token: int
 
 
-__all__ = ["FinalApproachQueuedFrame"]
+__all__ = ["GuidanceQueuedFrame"]

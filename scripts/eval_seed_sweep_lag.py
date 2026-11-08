@@ -28,7 +28,7 @@ from scripts.eval_gcs_demo_lockstep import EPOCH_US, JOURNAL_FILE
 #: A reader this far behind its best delivery is falling behind, not jittering. Measured
 #: maxima of healthy runs: NavPy 361 ms, backend 260 ms at B 6 and above; the failure mode
 #: reached 3-27 s (``todo65_root_cause.md``, "Why low B fails"). 0.5 s is the link jitter
-#: budget the product is built for (``final_approach_delivery_fix.md``).
+#: budget the product is built for (``guidance_delivery_fix.md``).
 READER_LAG_LIMIT_MS = 500.0
 ARRIVAL_DIR = "source-time"
 _FILE = re.compile(r"pose_cadence_attitude_arrival_uav_(\d+)_(navpy|gcs)\.csv")

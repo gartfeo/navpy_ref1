@@ -5,7 +5,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Optional
 
-from navpy.core.approach.final_approach_source_contracts import DetectionInboxLease
+from navpy.core.approach.guidance_source_contracts import DetectionInboxLease
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.detection_publication import DetectionPublication

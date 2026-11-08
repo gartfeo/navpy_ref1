@@ -3,7 +3,7 @@
 The harnesses fly one known POI outside the NAV state machine, so nothing
 there arms the contact sensor. This wires the sim contact sensor on the
 vehicle's position stream, with the harness POI as the only dock, and arms it
-once the first frame is recorded for final approach. Completion is then the
+once the first frame is recorded for guidance. Completion is then the
 same as in the app: `poi_passed_override()` turns true only on contact.
 """
 
@@ -12,9 +12,9 @@ from __future__ import annotations
 from collections.abc import Callable
 from typing import Any, Protocol
 
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
-from navpy.core.approach.navigation_final_approach import (
-    FinalApproachNavigationService,
+from navpy.core.approach.dock_contact_episode import GuidanceDockContact
+from navpy.core.approach.navigation_guidance import (
+    GuidanceNavigationService,
 )
 from navpy.core.kernel.location import Location
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -42,18 +42,18 @@ class HarnessDockContact:
         self,
         vehicle: HarnessVehicle,
         poi: Location,
-        final_approach: FinalApproachNavigationService,
+        guidance: GuidanceNavigationService,
         logger: ILogger,
     ) -> None:
         self._poi = poi
         self._docks: tuple[SimulationObject, ...] = ()
         rate_hz = resolve_pose_stream_rate_hz(vehicle)
         sensor = SimDockContactSensor(lambda: self._docks, rate_hz)
-        self._contact = FinalApproachDockContact(
+        self._contact = GuidanceDockContact(
             sensor,
             lambda: vehicle.target_system,
-            final_approach.begin_dock_episode,
-            final_approach.latch_docked,
+            guidance.begin_dock_episode,
+            guidance.latch_docked,
             logger,
         )
         self._feed = SimDockContactFeed(sensor, vehicle.on_message, max_segment_s(rate_hz))
@@ -71,17 +71,17 @@ class HarnessDockContact:
 
 
 def recording_dispatch(
-    final_approach: FinalApproachNavigationService,
+    guidance: GuidanceNavigationService,
     nav: Callable[[DetectedObject], bool],
     dock_contact: HarnessDockContact,
 ) -> Callable[[DetectedObject], bool]:
-    """Record the first frame for final approach, arm contact, then navigate."""
+    """Record the first frame for guidance, arm contact, then navigate."""
     recorded = False
 
     def dispatch(detection: DetectedObject) -> bool:
         nonlocal recorded
         if not recorded:
-            recorded = final_approach.record_confirmed_detection(detection)
+            recorded = guidance.record_confirmed_detection(detection)
             if not recorded:
                 return False
             dock_contact.arm(detection)

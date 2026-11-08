@@ -760,10 +760,10 @@
     "siyi_zr10_hitl_encoded": {
       "extends": "siyi_zr10",
       "hitl_contact": true,
-      "final_approach_orbit": {
+      "guidance_orbit": {
         "radius_m": 300.0
       },
-      "final_approach_gates": {
+      "guidance_gates": {
         "lock_dwell_s": 2.0,
         "lock_max_image_error_deg": 1.0,
         "lock_max_frame_gap_s": 0.5,

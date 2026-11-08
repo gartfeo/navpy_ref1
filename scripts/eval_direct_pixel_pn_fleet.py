@@ -80,7 +80,7 @@ from scripts.eval_navigation_cases import (  # noqa: E402
 from scripts.eval_sim_cpa_config import resolve_mode  # noqa: E402
 from scripts.eval_sim_parameters import sim_parameters  # noqa: E402
 from scripts.eval_sim_cpa_stage import SimCpaStage  # noqa: E402
-from scripts.pixel_pn_final_approach_speed import launch_speedup  # noqa: E402
+from scripts.pixel_pn_guidance_speed import launch_speedup  # noqa: E402
 
 
 def gate_preboot_defaults(

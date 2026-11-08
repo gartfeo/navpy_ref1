@@ -1,4 +1,4 @@
-"""Live check of the encoded capture (hitl_final_approach.md section 9, stage 1 step 9).
+"""Live check of the encoded capture (hitl_guidance.md section 9, stage 1 step 9).
 
 Runs navpy's real detector and tracker on the RTSP stream, through the same factory a flight uses, and scores what came
 out against the publisher's own records (aas-hitl aas_hitl/video/gstreamer_encoder.py, encoded-NNN.csv):

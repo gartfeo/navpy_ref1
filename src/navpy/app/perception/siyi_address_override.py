@@ -1,7 +1,7 @@
 """The SIYI gimbal address from the command line, over the profile's ``siyi_ip``.
 
 HITL runner only (tools/tuning/approach.py): navpy runs in WSL and its ZR10 emulator on Windows, which stamps the
-PC's one clock (hitl_final_approach.md, "One time axis"); the Windows host's address seen from WSL changes when
+PC's one clock (hitl_guidance.md, "One time axis"); the Windows host's address seen from WSL changes when
 WSL restarts, so no profile can hold it. The profile file itself is untouched.
 """
 

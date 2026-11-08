@@ -1,4 +1,4 @@
-"""Offline timing validity of explicit integration timing (hitl_final_approach.md section 9, stage 1 step 12).
+"""Offline timing validity of explicit integration timing (hitl_guidance.md section 9, stage 1 step 12).
 
     python -m tools.hitl.check_integration_timing fit   --run-record R.json --navpy N.jsonl --publisher F.csv ...
         --unreal U.log --emulator E.jsonl --out constants.json

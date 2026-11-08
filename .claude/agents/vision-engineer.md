@@ -33,7 +33,7 @@ You are the **Vision Engineer** for NavPy, a cooperative UAV swarm framework. Yo
 - POI zoom (`zoom/poi_zoom_*.py`) for adaptive FOV
 
 ### Data Flow
-Detection frame -> detector -> bounding box -> frame-local LOS/pixels for final approach (geo-reference only outside the final-approach command path) -> navigation
+Detection frame -> detector -> bounding box -> frame-local LOS/pixels for guidance (geo-reference only outside the guidance command path) -> navigation
 
 ## Standards
 

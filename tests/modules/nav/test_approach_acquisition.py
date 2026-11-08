@@ -23,7 +23,7 @@ from navpy.core.ports.pixel_observation import PixelProjectionKind
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.confirm.acquisition_gate_settings import (
-    FINAL_APPROACH_GATES_KEY,
+    GUIDANCE_GATES_KEY,
     AcquisitionGateSettings,
     acquisition_gate_settings,
 )
@@ -90,7 +90,7 @@ def test_only_the_hitl_profile_sets_the_gates() -> None:
 ])
 def test_a_malformed_block_is_refused(block) -> None:
     with pytest.raises(ValueError):
-        acquisition_gate_settings({FINAL_APPROACH_GATES_KEY: block})
+        acquisition_gate_settings({GUIDANCE_GATES_KEY: block})
 
 
 # --- fresh visual lock ---------------------------------------------------------------------------------------------
@@ -393,7 +393,7 @@ def test_the_gates_need_the_orbit_approach_and_a_well_formed_block() -> None:
     with pytest.raises(ValueError, match="ORBIT"):
         AcquisitionRig(approach_kind=ApproachKind.OFFSET)
     with pytest.raises(ValueError):
-        AcquisitionRig(profile={FINAL_APPROACH_GATES_KEY: {"lock_dwell_s": 2.0}})
+        AcquisitionRig(profile={GUIDANCE_GATES_KEY: {"lock_dwell_s": 2.0}})
 
 
 # --- through the real navigation graph -----------------------------------------------------------------------------
@@ -416,7 +416,7 @@ def test_without_a_lock_nothing_is_confirmed_orbited_or_flown() -> None:
     rig.world.position = offset(OWN_CENTRE, 300.0, 0.0)  # even on the circle already
     assert _drive(rig, 0.0, 60.0, error=1.5) is None
     assert rig.orbit_calls() == [] and not rig.confirmed()
-    rig.navigation.final_approach.record_confirmed_detection.assert_not_called()
+    rig.navigation.guidance.record_confirmed_detection.assert_not_called()
 
 
 def test_without_an_established_orbit_nothing_is_confirmed_or_flown() -> None:

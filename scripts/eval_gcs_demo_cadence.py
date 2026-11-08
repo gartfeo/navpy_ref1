@@ -1,4 +1,4 @@
-"""Observation cadence inside each final-approach window (annotation, no gate).
+"""Observation cadence inside each guidance window (annotation, no gate).
 
 Whole-run poll-gap medians hide the approach window, so cadence is measured
 per approach episode, all in companion source time (ATTITUDE time_boot, the

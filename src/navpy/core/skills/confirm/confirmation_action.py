@@ -1,4 +1,4 @@
-"""CONFIRM tick orchestration and final-approach/local admission."""
+"""CONFIRM tick orchestration and guidance/local admission."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.flow.nav_state import (
     GeoHoldState,
-    FinalApproachNavState,
+    GuidanceNavState,
 )
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.core.review.confirmation_manager import ConfirmationManager
@@ -28,38 +28,38 @@ from navpy.core.ports.detect_data import DetectedObject
 
 
 @dataclass(frozen=True)
-class FinalApproachConfirmationPorts:
-    final_approach_active: Callable[[], bool]
+class GuidanceConfirmationPorts:
+    guidance_active: Callable[[], bool]
     can_confirm: Callable[[DetectedObject], bool]
     record_confirmed: Callable[[DetectedObject], bool]
     auto_confirm: Callable[[], bool]
 
 
-class FinalApproachConfirmationAdmission:
+class GuidanceConfirmationAdmission:
     def __init__(
         self,
-        ports: FinalApproachConfirmationPorts,
-        final_approach_state: FinalApproachNavState,
+        ports: GuidanceConfirmationPorts,
+        guidance_state: GuidanceNavState,
         review: ConfirmationReview,
         debug: ConfirmDebugReporter,
     ) -> None:
         self._ports = ports
-        self._final_approach_state = final_approach_state
+        self._guidance_state = guidance_state
         self._review = review
         self._debug = debug
 
     def handle(self, poi: DetectedObject) -> bool:
-        if not self._ports.final_approach_active():
+        if not self._ports.guidance_active():
             return False
         if not self._ports.can_confirm(poi):
-            self._debug.log(f"final_approach_los_unavailable obj={poi.identity.obj_id}")
+            self._debug.log(f"guidance_los_unavailable obj={poi.identity.obj_id}")
             return True
         if not self._ports.auto_confirm():
             return False
         if not self._ports.record_confirmed(poi):
-            self._debug.log(f"final_approach_record_unavailable obj={poi.identity.obj_id}")
+            self._debug.log(f"guidance_record_unavailable obj={poi.identity.obj_id}")
             return True
-        self._final_approach_state.confirmed_recorded = True
+        self._guidance_state.confirmed_recorded = True
         self._review.confirm_local(poi)
         return True
 
@@ -125,7 +125,7 @@ class ConfirmationAction:
         confirmation_manager: ConfirmationManager,
         source: ActivePoiDetectionQuery,
         frame_policy: ConfirmationFramePolicy,
-        final_approach_admission: FinalApproachConfirmationAdmission,
+        guidance_admission: GuidanceConfirmationAdmission,
         recognition_gate: RecognitionGate,
         blocked: ConfirmBlockedReporter,
         debug: ConfirmDebugReporter,
@@ -138,7 +138,7 @@ class ConfirmationAction:
         self._confirmation_manager = confirmation_manager
         self._source = source
         self._frame_policy = frame_policy
-        self._final_approach_admission = final_approach_admission
+        self._guidance_admission = guidance_admission
         self._recognition_gate = recognition_gate
         self._blocked = blocked
         self._debug = debug
@@ -176,7 +176,7 @@ class ConfirmationAction:
             # established orbit on the own-detected pose.
             self._debug.log(f"acquisition_gate_waiting obj={fresh.identity.obj_id}")
             return
-        if self._final_approach_admission.handle(fresh):
+        if self._guidance_admission.handle(fresh):
             return
         if not self._frame_policy.is_ready(fresh):
             return
@@ -187,6 +187,6 @@ __all__ = [
     "ActivePoiDetectionQuery",
     "ConfirmationAction",
     "ConfirmationGeoHold",
-    "FinalApproachConfirmationAdmission",
-    "FinalApproachConfirmationPorts",
+    "GuidanceConfirmationAdmission",
+    "GuidanceConfirmationPorts",
 ]

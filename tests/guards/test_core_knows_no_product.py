@@ -28,7 +28,7 @@ ALLOWED = (
     (_ARDUPILOT + "mission_encoding.py", "delivery", 3, "the wire codec the GCS imports"),
     (_ARDUPILOT + "mission_encoding.py", "hub", 3, "the wire codec the GCS imports"),
     ("src/navpy/core/approach/vision_nav/command_hold.py", "delivery", 1,
-     "names the design file final_approach_delivery_fix"),
+     "names the design file guidance_delivery_fix"),
 )
 _RUN = re.compile(r"[A-Za-z0-9_]+(?:-[A-Za-z0-9_]+)*")
 _JOINER = re.compile(r"[-_]")

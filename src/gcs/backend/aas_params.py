@@ -6,7 +6,7 @@ parameter names stored on the autopilot, plus the type-coercion sets used
 when crossing that boundary.
 
 AAS_TARG_* / targ_* identify simulator POIs; AAS_DEL_* /
-del_* describe final-approach controls.
+del_* describe guidance controls.
 
 Vehicle-side AAS parameters are owned by the autopilot, not by GCS settings,
 so this module deliberately lives outside `settings_model`.

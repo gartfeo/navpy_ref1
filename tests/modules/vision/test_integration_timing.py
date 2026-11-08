@@ -36,7 +36,7 @@ from navpy.core.perception.pipeline.integration_association import (
     interpolate_gimbal_at,
 )
 from navpy.core.perception.pipeline.real_frame_association import FrameAssociationBuilder
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.frame_capture_ports import (
     CaptureStamp,
     CaptureStampKind,
@@ -517,7 +517,7 @@ def test_gimbal_history_keeps_only_newer_sequences_per_session():
 def _frame(source_s, interval_s, elevation):
     z = math.sin(elevation)
     x = math.cos(elevation)
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         source_name="zr10", source_generation=1, task_id=1, obj_id=1,
         source_timestamp_s=source_s, body_x=x, body_y=0.0, body_z=z,
         control_x=x, control_y=0.0, control_z=z, interval_timestamp_s=interval_s,

@@ -1,4 +1,4 @@
-"""ZR10 emulator settings: ideal defaults, each value with its source (hitl_final_approach.md section 4).
+"""ZR10 emulator settings: ideal defaults, each value with its source (hitl_guidance.md section 4).
 
 Runs start ideal (no dead time, no lag, scale 1, instant 0x0F) and add one effect at a time, so a failure is
 attributed. A setting that differs from its ideal value is listed by ``non_ideal`` and written to the run's log

@@ -11,8 +11,8 @@ from typing import Optional
 
 from navpy.core.approach.vision_nav.episode_latch import (
     UNNAMED_FAILURE_REASON,
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeTerminal,
+    GuidanceTerminal,
 )
 from navpy.core.ports.dock_contact import DockContactIdentity, DockEpisodeEnd
 
@@ -23,16 +23,16 @@ CANCELLED_REASON = "cancelled"
 def dock_episode_end(
     identity: DockContactIdentity,
     docked: bool,
-    terminal: Optional[FinalApproachEpisodeTerminal],
+    terminal: Optional[GuidanceEpisodeTerminal],
     cancelled: bool,
 ) -> DockEpisodeEnd:
     """Docked wins; then the episode's own terminal; then a cancel."""
     if docked:
         return DockEpisodeEnd(docked=True)
     if terminal is not None and terminal.identity == identity:
-        if terminal.terminal is FinalApproachTerminal.MISSED:
+        if terminal.terminal is GuidanceTerminal.MISSED:
             return DockEpisodeEnd(missed=True)
-        if terminal.terminal is FinalApproachTerminal.FAILED:
+        if terminal.terminal is GuidanceTerminal.FAILED:
             return DockEpisodeEnd(
                 failed=True,
                 abort_reason=terminal.reason or UNNAMED_FAILURE_REASON,

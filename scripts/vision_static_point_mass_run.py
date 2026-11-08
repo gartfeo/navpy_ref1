@@ -9,12 +9,12 @@ from typing import Iterable, Protocol
 import numpy as np
 
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.pixel_observation import VisualDetection
@@ -54,8 +54,8 @@ class StaticDetectionFactory(Protocol):
     ) -> VisualDetection: ...
 
 
-_FINAL_APPROACH_PROJECTOR = FinalApproachFrameProjector(
-    FinalApproachProjectionConfig("ZYX", True),
+_GUIDANCE_PROJECTOR = GuidanceFrameProjector(
+    GuidanceProjectionConfig("ZYX", True),
 )
 
 
@@ -70,8 +70,8 @@ def run_case_analysis(
 ) -> StaticPointMassRun:
     with undelayed_truth_gyro():
         law = VisionNavLaw(
-            FixedFinalApproachLawConfigProvider(
-                FinalApproachLawConfig(
+            FixedGuidanceLawConfigProvider(
+                GuidanceLawConfig(
                     pitch_min_deg=-55.0,
                     pitch_max_deg=30.0,
                     roll_limit_deg=case.roll_limit_deg,
@@ -123,7 +123,7 @@ def run_case_analysis(
             )
             if not isinstance(detection, VisualDetection):
                 raise TypeError("point-mass sensor must publish VisualDetection")
-            observation = _FINAL_APPROACH_PROJECTOR.project(
+            observation = _GUIDANCE_PROJECTOR.project(
                 detection,
                 source_generation=0,
                 air_speed_mps=case.airspeed_mps,

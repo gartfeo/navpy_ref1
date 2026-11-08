@@ -1,4 +1,4 @@
-"""Eligible airspeed values, revoke reasons and the simulated pitot profile (hitl_final_approach.md section 9, step 20).
+"""Eligible airspeed values, revoke reasons and the simulated pitot profile (hitl_guidance.md section 9, step 20).
 
 The profile is simulator-only: ``profile_for_mode`` knows only pc-sitl, so any flight or Qualification mode refuses
 it. The approach runner pins the same profile and the firmware mapping on the board before arming

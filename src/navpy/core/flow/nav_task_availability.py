@@ -1,6 +1,6 @@
-"""Whether nav flies a final approach, for swarm task availability.
+"""Whether nav is in guidance, for swarm task availability.
 
-A UAV flying a final approach is BUSY for swarm auctions; every other
+A UAV in guidance is BUSY for swarm auctions; every other
 phase leaves it free for a peer task: searching, CONFIRM of an own POI,
 a mission module's own flight (such as a return), ONHOLD, RESET and
 RECOVERY (docs/design/

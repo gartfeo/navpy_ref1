@@ -14,11 +14,11 @@ from dataclasses import fields, replace
 from pathlib import Path
 
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.gimbal_abc import GimbalData
 from tests.detection_factory import make_detected_poi
 
@@ -89,7 +89,7 @@ def test_no_nav_law_module_is_an_owner():
 
 
 def test_the_command_record_has_no_metric_field():
-    names = {field.name for field in fields(FinalApproachVisionFrame)}
+    names = {field.name for field in fields(GuidanceVisionFrame)}
     assert not names & METRIC_NAMES
     assert not {name for name in names if "location" in name or "range" in name or "pose" in name}
 
@@ -104,8 +104,8 @@ class _Poison:
         raise AssertionError("command path tested a metric value")
 
 
-def _frame(poi) -> FinalApproachVisionFrame:
-    projector = FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
+def _frame(poi) -> GuidanceVisionFrame:
+    projector = GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True))
     return projector.project(poi.visual_detection(), source_generation=1)
 
 

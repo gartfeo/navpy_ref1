@@ -1,6 +1,6 @@
 """A camera's announced video stream: operator display only.
 
-Nothing here feeds navigation or the final-approach command path
+Nothing here feeds navigation or the guidance command path
 (docs/design/gcs_video_streams.md).
 """
 

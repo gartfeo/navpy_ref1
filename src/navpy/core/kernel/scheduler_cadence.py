@@ -105,7 +105,7 @@ class SchedulerCadence:
     def set_command_cadence_active(self, active: bool) -> None:
         """Tighten the process thread quantum only while commands are issued.
 
-        Accelerated detector and MAVLink ingestion run before final approach.
+        Accelerated detector and MAVLink ingestion run before guidance.
         Applying the command-loop quantum to the whole process during that
         phase can overload those threads and bury confirmation responses behind
         telemetry.  The frequency adapter remains active at all times; only the

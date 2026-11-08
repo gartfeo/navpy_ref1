@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import Optional
 
 from navpy.core.approach.vision_nav.command_freshness import (
-    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+    GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
 )
 from navpy.sim.detection.sim_runtime_ports import WarningSink
 
@@ -34,7 +34,7 @@ class UnpairedPoseMonitor:
             # First unpaired poll, or the source clock restarted.
             self._unpaired_since_s = source_time_s
         unpaired_s = source_time_s - self._unpaired_since_s
-        if self._warned or unpaired_s < FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S:
+        if self._warned or unpaired_s < GUIDANCE_COMMAND_MAX_SOURCE_AGE_S:
             return
         self._warned = True
         self._warning(

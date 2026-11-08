@@ -1,4 +1,4 @@
-"""Authoritative reset of queued and retained final-approach command state."""
+"""Authoritative reset of queued and retained guidance command state."""
 
 from __future__ import annotations
 
@@ -7,44 +7,44 @@ from typing import Protocol
 
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.approach.vision_nav.command_hold import (
-    FinalApproachCommandHoldStore,
+    GuidanceCommandHoldStore,
 )
 from navpy.core.approach.vision_nav.command_postprocess import (
-    FinalApproachPostprocessFence,
+    GuidancePostprocessFence,
 )
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
-    FinalApproachDiagnosticMailbox,
+    GuidanceDiagnosticMailbox,
 )
 from navpy.core.approach.vision_nav.docked_evidence import (
-    FinalApproachDockedEvidence,
+    GuidanceDockedEvidence,
 )
-from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.approach.vision_nav.queued_frame import GuidanceQueuedFrame
 from navpy.core.kernel import runtime_time as rt
 
 
-class FinalApproachResettableState(Protocol):
+class GuidanceResettableState(Protocol):
     def reset(self) -> None: ...
 
 
 @dataclass(frozen=True)
-class FinalApproachCommandResetPorts:
+class GuidanceCommandResetPorts:
     lock: rt.RLock
     slot: NavigationCommandSlot
-    mailbox: FinalApproachDiagnosticMailbox
-    hold: FinalApproachCommandHoldStore
-    law: FinalApproachResettableState
-    visual_pass: FinalApproachResettableState
-    status: FinalApproachResettableState
-    liveness: FinalApproachResettableState
-    postprocess_fence: FinalApproachPostprocessFence
-    docked_evidence: FinalApproachDockedEvidence
-    episode: FinalApproachResettableState
+    mailbox: GuidanceDiagnosticMailbox
+    hold: GuidanceCommandHoldStore
+    law: GuidanceResettableState
+    visual_pass: GuidanceResettableState
+    status: GuidanceResettableState
+    liveness: GuidanceResettableState
+    postprocess_fence: GuidancePostprocessFence
+    docked_evidence: GuidanceDockedEvidence
+    episode: GuidanceResettableState
 
 
-class FinalApproachCommandReset:
+class GuidanceCommandReset:
     """Reset every state owner that can affect the next actuator call."""
 
-    def __init__(self, ports: FinalApproachCommandResetPorts) -> None:
+    def __init__(self, ports: GuidanceCommandResetPorts) -> None:
         self._ports = ports
 
     def invalidate_commands(self) -> None:
@@ -84,7 +84,7 @@ class FinalApproachCommandReset:
 
     def _invalidate_locked(self) -> None:
         pending = self._ports.slot.invalidate()
-        if isinstance(pending, FinalApproachQueuedFrame):
+        if isinstance(pending, GuidanceQueuedFrame):
             self._ports.mailbox.discard(pending.diagnostic_token)
 
     def _reset_control_locked(self) -> None:
@@ -95,7 +95,7 @@ class FinalApproachCommandReset:
 
 
 __all__ = [
-    "FinalApproachCommandReset",
-    "FinalApproachCommandResetPorts",
-    "FinalApproachResettableState",
+    "GuidanceCommandReset",
+    "GuidanceCommandResetPorts",
+    "GuidanceResettableState",
 ]

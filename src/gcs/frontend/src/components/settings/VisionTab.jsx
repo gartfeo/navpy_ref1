@@ -64,7 +64,7 @@ export default function VisionTab({ draft, setDraft, preSaveRef, preResetRef }) 
             </div>
             {/* Per-class confirmation pixel threshold. Persists to the profile's
                 detector.dock_presets[*].min_pixel_size via the same PUT flush;
-                a low value lets final approach confirm on fixed/low-zoom
+                a low value lets guidance confirm on fixed/low-zoom
                 cameras that can't reach recognition-size pixels. */}
             <div style={{ display: 'flex', gap: 12, alignItems: 'flex-end', marginBottom: 4 }}>
               <span style={{ fontSize: 12, color: colors.text, minWidth: 200, paddingBottom: 4 }}>{t('visionTab.minPixelSize')}</span>

@@ -67,10 +67,10 @@ class DetectorTrackingControl:
         if self._navigation is not None:
             self._navigation.set_zoom_size_demand(enabled)
 
-    def freeze_final_approach_zoom_at_min(self) -> bool:
+    def freeze_guidance_zoom_at_min(self) -> bool:
         if self._navigation is None:
             return True
-        return self._navigation.freeze_final_approach_zoom_at_min()
+        return self._navigation.freeze_guidance_zoom_at_min()
 
     def start_tracking(self, obj_id: int) -> None:
         if obj_id < 0:

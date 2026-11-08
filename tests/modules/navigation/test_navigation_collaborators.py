@@ -29,19 +29,19 @@ from navpy.core.approach.navigation_mode import (
     NavigationModeBuilder,
     NavigationModeSelector,
     NavigationModeState,
-    NavigationFinalApproachCapabilities,
+    NavigationGuidanceCapabilities,
     RuntimeBuildResult,
 )
 from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
-from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_guidance import GuidanceNavigationService
 from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
     LegacyDestinationResolver,
     geodetic_poi_ned,
 )
-from navpy.core.approach.geo.legacy_final_approach_command import (
-    LegacyFinalApproachCommand,
-    LegacyFinalApproachCommandPorts,
+from navpy.core.approach.geo.legacy_guidance_command import (
+    LegacyGuidanceCommand,
+    LegacyGuidanceCommandPorts,
 )
 from navpy.core.ports.nav_command import NavCommand, NavCommandMode
 from navpy.core.approach.nav_law_factory import (
@@ -71,12 +71,12 @@ def _active_mode(
     algorithm: str,
     *,
     runtime=None,
-    final_approach=None,
+    guidance=None,
 ) -> ActiveNavigationMode:
     return ActiveNavigationMode(
         spec=get_nav_algorithm_spec(algorithm),
         runtime=runtime or Mock(),
-        final_approach=final_approach,
+        guidance=guidance,
     )
 
 
@@ -142,7 +142,7 @@ def test_sim_detection_uses_truth_for_explicit_legacy_direct_poi():
     assert attitude is detection.pose.aircraft_attitude
 
 
-def test_legacy_final_approach_command_preserves_command_before_log_order():
+def test_legacy_guidance_command_preserves_command_before_log_order():
     order: list[str] = []
     current = Location(40.0, 44.0, 1000.0, is_absolute=True)
     locked = Location(40.001, 44.0, 900.0, is_absolute=True)
@@ -167,7 +167,7 @@ def test_legacy_final_approach_command_preserves_command_before_log_order():
     )
     navigation_logger = Mock()
     navigation_logger.log = Mock(side_effect=lambda **kwargs: order.append("log"))
-    ports = LegacyFinalApproachCommandPorts(
+    ports = LegacyGuidanceCommandPorts(
         vehicle=vehicle,
         geo_ref=geo_ref,
         logger=Mock(),
@@ -179,7 +179,7 @@ def test_legacy_final_approach_command_preserves_command_before_log_order():
         calc_nav_poi=Mock(return_value=locked),
     )
 
-    result = LegacyFinalApproachCommand(ports).execute(
+    result = LegacyGuidanceCommand(ports).execute(
         np.array([1.0, 0.0, 0.1]),
         _detection(simulation=False),
     )
@@ -276,7 +276,7 @@ def test_finish_failure_cannot_strand_prepared_postprocess():
 
     assert postprocessed.is_set()
     assert any(
-        "Error finishing final-approach work" in call.args[0]
+        "Error finishing guidance work" in call.args[0]
         for call in logger.error.call_args_list
     )
 
@@ -1097,13 +1097,13 @@ def test_mode_switch_resets_before_publish_and_blocks_navigation_ingress():
     candidate_runtime.nav.assert_called_once()
 
 
-def test_final_approach_call_uses_one_mode_session_during_switch():
+def test_guidance_call_uses_one_mode_session_during_switch():
     state = NavigationModeState()
-    old_final_approach = NavigationFinalApproachCapabilities(
+    old_guidance = NavigationGuidanceCapabilities(
         status=Mock(),
         confirmation=Mock(),
     )
-    old = _active_mode("pn", final_approach=old_final_approach)
+    old = _active_mode("pn", guidance=old_guidance)
     state.install_initialized(old, expected_previous=None)
 
     reset_entered = threading.Event()
@@ -1114,14 +1114,14 @@ def test_final_approach_call_uses_one_mode_session_during_switch():
         assert release_reset.wait(timeout=2.0)
 
     old.runtime.invalidate_commands.side_effect = invalidate_old
-    candidate_final_approach = NavigationFinalApproachCapabilities(
+    candidate_guidance = NavigationGuidanceCapabilities(
         status=Mock(),
         confirmation=Mock(),
     )
-    candidate_final_approach.confirmation.can_confirm_detection.return_value = True
+    candidate_guidance.confirmation.can_confirm_detection.return_value = True
     candidate = _active_mode(
         "vision-nav-pn",
-        final_approach=candidate_final_approach,
+        guidance=candidate_guidance,
     )
     switch_thread = threading.Thread(
         target=lambda: state.install_initialized(
@@ -1133,28 +1133,28 @@ def test_final_approach_call_uses_one_mode_session_during_switch():
     assert reset_entered.wait(timeout=2.0)
 
     result = []
-    final_approach_call_finished = threading.Event()
+    guidance_call_finished = threading.Event()
 
-    def call_final_approach() -> None:
+    def call_guidance() -> None:
         result.append(
-            FinalApproachNavigationService(state).can_confirm_detection(_detection())
+            GuidanceNavigationService(state).can_confirm_detection(_detection())
         )
-        final_approach_call_finished.set()
+        guidance_call_finished.set()
 
-    final_approach_thread = threading.Thread(target=call_final_approach)
-    final_approach_thread.start()
-    assert not final_approach_call_finished.wait(timeout=0.05)
-    old_final_approach.confirmation.can_confirm_detection.assert_not_called()
-    candidate_final_approach.confirmation.can_confirm_detection.assert_not_called()
+    guidance_thread = threading.Thread(target=call_guidance)
+    guidance_thread.start()
+    assert not guidance_call_finished.wait(timeout=0.05)
+    old_guidance.confirmation.can_confirm_detection.assert_not_called()
+    candidate_guidance.confirmation.can_confirm_detection.assert_not_called()
 
     release_reset.set()
     switch_thread.join(timeout=2.0)
-    final_approach_thread.join(timeout=2.0)
+    guidance_thread.join(timeout=2.0)
 
     assert not switch_thread.is_alive()
-    assert not final_approach_thread.is_alive()
+    assert not guidance_thread.is_alive()
     assert result == [True]
-    candidate_final_approach.confirmation.can_confirm_detection.assert_called_once()
+    candidate_guidance.confirmation.can_confirm_detection.assert_called_once()
 
 
 def test_navigation_only_admits_work_for_the_command_worker():
@@ -1176,7 +1176,7 @@ def test_navigation_only_admits_work_for_the_command_worker():
     runtime.finish_work.assert_not_called()
 
 
-def test_final_approach_navigation_ingress_remains_serialized_with_command_runtime():
+def test_guidance_navigation_ingress_remains_serialized_with_command_runtime():
     state = NavigationModeState()
     nav_entered = threading.Event()
     release_nav = threading.Event()
@@ -1188,12 +1188,12 @@ def test_final_approach_navigation_ingress_remains_serialized_with_command_runti
         return True
 
     runtime.nav.side_effect = block_nav
-    final_approach = NavigationFinalApproachCapabilities(status=Mock(), confirmation=Mock())
+    guidance = NavigationGuidanceCapabilities(status=Mock(), confirmation=Mock())
     state.install_initialized(
         _active_mode(
             "vision-nav-pn",
             runtime=runtime,
-            final_approach=final_approach,
+            guidance=guidance,
         ),
         expected_previous=None,
     )
@@ -1229,7 +1229,7 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
     composition = SimpleNamespace(
         lifecycle=lifecycle,
         mode_state=Mock(),
-        final_approach=Mock(),
+        guidance=Mock(),
         dock_outcome=Mock(),
         legacy_pois=Mock(),
         vehicle_commands=Mock(),
@@ -1256,7 +1256,7 @@ def test_navigation_construction_defers_worker_start_until_explicit_start():
     lifecycle.start.assert_called_once_with()
 
     callback = Mock(return_value=False)
-    navigation.bind_final_approach_source_dispatch(callback)
+    navigation.bind_guidance_source_dispatch(callback)
     # The observer travels with the callback because it belongs to the same
     # owner. A source without one publishes None, and the worker keeps the
     # no-op observer it was constructed with.

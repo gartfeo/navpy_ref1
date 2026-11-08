@@ -270,7 +270,7 @@ class TestNeverSeenHomeDockKeepsTheOrbit(unittest.TestCase):
             approach_calls,
         )
         controller.navigation.nav.assert_not_called()
-        controller.navigation.final_approach.record_confirmed_detection.assert_not_called()
+        controller.navigation.guidance.record_confirmed_detection.assert_not_called()
         task_actor.notify_pois.assert_not_called()
 
 

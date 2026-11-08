@@ -1,5 +1,5 @@
 """HITL step 21: the search sweep (core/command/gimbal/gimbal_search.py, gimbal_search_pattern.py, the search tick in
-gimbal_visual_tracking.py and the tracking sink), docs/design/hitl_final_approach.md section 9 item 21.
+gimbal_visual_tracking.py and the tracking sink), docs/design/hitl_guidance.md section 9 item 21.
 
 The scan is profile-defined and dock-independent, runs only while nothing is detected, and writes through the
 mount's gimbal actuator (the fenced SIYI writer). Unit tests drive the scan with a fake actuator, readback and clock;
@@ -237,7 +237,7 @@ def test_no_readback_never_starts_the_scan():
     assert actuator.calls == [] and zoom.call_count == 0
 
 
-@pytest.mark.parametrize("owner", ["tracking", "geo", "final_approach"])
+@pytest.mark.parametrize("owner", ["tracking", "geo", "guidance"])
 def test_a_session_that_owns_the_gimbal_blocks_the_scan(owner):
     search, clock, actuator, _, _ = make_search()
     with patch(CLOCK, clock):

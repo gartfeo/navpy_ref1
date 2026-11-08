@@ -37,8 +37,8 @@ class GimbalTrackingAdapter:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._navigation.set_zoom_size_demand(enabled)
 
-    def freeze_final_approach_zoom_at_min(self) -> bool:
-        return self._navigation.freeze_final_approach_zoom_at_min()
+    def freeze_guidance_zoom_at_min(self) -> bool:
+        return self._navigation.freeze_guidance_zoom_at_min()
 
     def start_tracking(self, obj_id: int) -> None:
         self._navigation.start_tracking(obj_id)

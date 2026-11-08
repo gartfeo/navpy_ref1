@@ -22,10 +22,10 @@ from navpy.core.kernel.location import Location
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
+    FixedGuidanceLawConfigProvider,
 )
 from navpy.core.approach.vision_nav.runtime_composition import (
-    FinalApproachVehicleActuator, FinalApproachVehicleDiagnosticReader, compose_final_approach_runtime,
+    GuidanceVehicleActuator, GuidanceVehicleDiagnosticReader, compose_guidance_runtime,
 )
 from navpy.plugins.vehicle.ardupilot.attitude_command import euler_to_quaternion
 from navpy.sim.detection.direct_pixel_render import DirectPixelRenderer
@@ -114,12 +114,12 @@ class SynchronousNavigation:
             time_source=lambda: self._source_s, wall_time=self._wall_now,
             timestamp=lambda: f"{self._source_s:.6f}", streams=streams)
         lock = threading.RLock()
-        self._composition = compose_final_approach_runtime(
+        self._composition = compose_guidance_runtime(
             lock=lock, slot=NavigationCommandSlot(lock, threading.Event()),
             sys_id=snapshot.identity.vehicle,
-            actuator=FinalApproachVehicleActuator(self._actuator.set_attitude),
-            diagnostic_reader=FinalApproachVehicleDiagnosticReader(lambda: None, lambda: None),
-            law=VisionNavLaw(FixedFinalApproachLawConfigProvider(config)),
+            actuator=GuidanceVehicleActuator(self._actuator.set_attitude),
+            diagnostic_reader=GuidanceVehicleDiagnosticReader(lambda: None, lambda: None),
+            law=VisionNavLaw(FixedGuidanceLawConfigProvider(config)),
             aircraft_roll_deg=lambda: 0., aircraft_sequence="ZYX", aircraft_degrees=True,
             navigation_logger=self._logger, wall_period_s=lambda period: period / self._speedup)
 
@@ -161,7 +161,7 @@ class SynchronousNavigation:
                 raise ValueError("camera geometry unavailable")
             evidence["pixels"] = [detection.pixel.u_px, detection.pixel.v_px]
             if self.seed_step is None:
-                if not self._composition.confirmation.record_final_approach_confirmed_detection(detection):
+                if not self._composition.confirmation.record_guidance_confirmed_detection(detection):
                     raise ValueError("confirmation seed unavailable")
                 self.seed_step = snapshot.identity.step
                 self._arm_contact(snapshot.identity.vehicle, detection)

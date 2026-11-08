@@ -1,4 +1,4 @@
-"""The contact service's dock (hitl_final_approach.md step 26): where Unreal built the delivered scene's board.
+"""The contact service's dock (hitl_guidance.md step 26): where Unreal built the delivered scene's board.
 
 The service is a scenario consumer (scenario_public.ALLOWED_CONSUMERS): it reads its own private file, then Unreal's
 readback (private/unreal_applied.json, scenario_scoring.APPLIED_SPEC) and takes the board centre Unreal reports, a

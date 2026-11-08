@@ -1,5 +1,5 @@
 """The router's loopback control port: JSON {op: close|open, client, id} requests for the endpoint barrier
-(mav_router.py; design hitl_final_approach.md section 2)."""
+(mav_router.py; design hitl_guidance.md section 2)."""
 from __future__ import annotations
 
 import json

@@ -9,7 +9,7 @@ SiyiCommandFence, and the stage-3 envelope that will wrap that writer). Each tic
 gate, so it never interleaves with a detection, geo or loss-recovery transaction.
 
 The scan stops (one zero rate, only if its own last command moved the gimbal) on: a fresh detection this tick or
-within ``clear_s``; a session that tracks or a geo session; the final-approach zoom freeze; frames older than
+within ``clear_s``; a session that tracks or a geo session; the guidance zoom freeze; frames older than
 ``frame_max_age_s``; readback older than ``readback_max_age_s`` or missing; and revoke (the command fence closed),
 which latches and writes nothing more: the fence's own stop covers the gimbal. A detection or geo session start
 yields first (``yield_to``), so its commands never follow a moving scan. Each (re)start first commands the widest

@@ -130,14 +130,14 @@ class NavigationTaskState:
     nav_mode_observed: bool = False
     guided_last_attempt_at: Optional[float] = None
     guided_request_started_at: Optional[float] = None
-    final_approach_navigation_active: bool = False
-    final_approach_nav_completed: bool = False
+    guidance_navigation_active: bool = False
+    guidance_nav_completed: bool = False
 
 
 class NavigationFailureLatch:
     """Thread-safe one-shot failure signal, separate from nav-thread state.
 
-    ``admit`` arbitrates with the final-approach episode latch (first latch
+    ``admit`` arbitrates with the guidance episode latch (first latch
     wins): once the episode docked, a later NAV_FAIL is ignored, and an
     admitted NAV_FAIL makes a later contact ignored. The reason names the
     failure for the dock-failed report (missed_dock.md).
@@ -176,7 +176,7 @@ class NavigationFailureLatch:
 
 
 @dataclass
-class FinalApproachNavState:
+class GuidanceNavState:
     """Vision-nav record state for the current NAV episode."""
 
     confirmed_recorded: bool = False
@@ -189,7 +189,7 @@ class FinalApproachNavState:
 
 @dataclass
 class GeoHoldState:
-    """Geo-follow recovery state, isolated from pure-final-approach commands."""
+    """Geo-follow recovery state, isolated from pure-guidance commands."""
 
     active: bool = False
     poi_location: Optional[Location] = None
@@ -242,6 +242,6 @@ __all__ = [
     "NavPhaseState",
     "NavPhaseSnapshot",
     "NavState",
-    "FinalApproachNavState",
+    "GuidanceNavState",
     "PostDockClimb",
 ]

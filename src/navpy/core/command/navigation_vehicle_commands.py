@@ -1,4 +1,4 @@
-"""Non-final-approach vehicle commands owned outside the Navigation root."""
+"""Non-guidance vehicle commands owned outside the Navigation root."""
 
 from __future__ import annotations
 

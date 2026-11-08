@@ -75,7 +75,7 @@ class FixedStepZoomDrive:
         self, box: FrameBox | None, box_step: str | None, *, frozen: bool = False, detected: bool = False,
     ) -> None:
         """One decision. ``box`` is a detection in a frame associated at zoom ``box_step``, or None for no
-        detection (``detected``: a detection without a usable box, so no decision). ``frozen`` (final approach)
+        detection (``detected``: a detection without a usable box, so no decision). ``frozen`` (guidance)
         holds the current step. In every case an unknown lens state is restored to the widest step."""
         judgement = self.judge()
         if judgement.status == STATUS_ZOOM_ABORTED:

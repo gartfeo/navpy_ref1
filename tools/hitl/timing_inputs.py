@@ -1,4 +1,4 @@
-"""The logs step 12 joins (hitl_final_approach.md section 9, stage 1 step 12), read into plain records.
+"""The logs step 12 joins (hitl_guidance.md section 9, stage 1 step 12), read into plain records.
 
 - navpy's integration log (JSONL from step 11's ``TimingLog``): ``association`` records and the receiver-local
   ``attitude_receipt`` / ``gimbal_receipt`` histories (integration_association.py), all on the receiver's

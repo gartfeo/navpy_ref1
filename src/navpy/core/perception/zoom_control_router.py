@@ -26,7 +26,7 @@ class ZoomMember(Protocol):
 
     def set_zoom_size_demand(self, enabled: bool) -> None: ...
 
-    def freeze_final_approach_zoom_at_min(self) -> bool: ...
+    def freeze_guidance_zoom_at_min(self) -> bool: ...
 
 
 class ZoomIdentityResolver(Protocol):
@@ -68,9 +68,9 @@ class ZoomControlRouter:
         for member in self._members:
             member.set_zoom_size_demand(enabled)
 
-    def freeze_final_approach_zoom_at_min(self) -> bool:
+    def freeze_guidance_zoom_at_min(self) -> bool:
         results = [
-            member.freeze_final_approach_zoom_at_min()
+            member.freeze_guidance_zoom_at_min()
             for member in self._members
         ]
         return all(results)

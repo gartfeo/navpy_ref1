@@ -11,8 +11,8 @@ from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits, r_nav_min
 from navpy.core.skills.acquire.orbit_radius_setting import (
-    final_approach_orbit_floor,
-    final_approach_orbit_setting,
+    guidance_orbit_floor,
+    guidance_orbit_setting,
 )
 from navpy.core.skills.acquire.peer_offset import calc_peer_approach_offset
 from navpy.core.perception.profile.vision_class_profile import get_min_pixels_for_class
@@ -38,7 +38,7 @@ class ApproachPlanner:
             self,
             vehicle: ApproachVehicle,
             mounts: Callable[[], Sequence],
-            final_approach_navigation_enabled: Callable[[], bool],
+            guidance_navigation_enabled: Callable[[], bool],
             vision_profile: dict,
             logger: ILogger,
             approach_kind: ApproachKind,
@@ -47,15 +47,15 @@ class ApproachPlanner:
     ) -> None:
         self._vehicle = vehicle
         self._mounts = mounts
-        self._final_approach_navigation_enabled = final_approach_navigation_enabled
+        self._guidance_navigation_enabled = guidance_navigation_enabled
         self._vision_profile = vision_profile
         self._logger = logger
         self._approach_kind = approach_kind
         self.scan_altitude_rel = scan_altitude_rel
         self._plan_offset = plan_offset
         # Refused here when malformed; None keeps the product's 500 m floor.
-        self._orbit_setting_m = final_approach_orbit_setting(vision_profile)
-        self._orbit_floor_m = final_approach_orbit_floor(vision_profile)
+        self._orbit_setting_m = guidance_orbit_setting(vision_profile)
+        self._orbit_floor_m = guidance_orbit_floor(vision_profile)
 
     def orbit_limits(self) -> Optional[OrbitNavigationLimits]:
         """Return the usable fixed-wing envelope, or None if it is unknown."""
@@ -118,7 +118,7 @@ class ApproachPlanner:
             orbit_limits=orbit_limits if use_nav_orbit else None,
             recognition_px=recognition_px,
         )
-        plan = self._prefer_final_approach_radius(
+        plan = self._prefer_guidance_radius(
             plan,
             poi_loc=poi_loc,
             plan_drone_loc=plan_drone_loc,
@@ -163,7 +163,7 @@ class ApproachPlanner:
             is_absolute=is_absolute,
         ), True
 
-    def _prefer_final_approach_radius(
+    def _prefer_guidance_radius(
             self,
             plan: ApproachPlan,
             *,
@@ -177,37 +177,37 @@ class ApproachPlanner:
             and plan_drone_loc is not None
             and orbit_limits is not None
             and plan.kind == ApproachKind.ORBIT
-            and self._final_approach_navigation_enabled()
+            and self._guidance_navigation_enabled()
         ):
             return plan
 
         altitude_agl = max(plan_drone_loc.alt - poi_loc.alt, 0.0)
-        final_approach_radius = r_nav_min(
+        guidance_radius = r_nav_min(
             orbit_limits,
             altitude_agl,
             floor_m=self._orbit_floor_m,
         )
         if (
             self._orbit_setting_m is not None
-            and final_approach_radius > self._orbit_setting_m + 0.5
+            and guidance_radius > self._orbit_setting_m + 0.5
         ):
             self._logger.warning(
-                f"Final-approach ORBIT: explicit radius "
+                f"Guidance ORBIT: explicit radius "
                 f"{self._orbit_setting_m:.0f}m is inside the envelope minimum; "
-                f"flying {final_approach_radius:.0f}m",
+                f"flying {guidance_radius:.0f}m",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
         camera_radius = float(plan.orbit_radius or 0.0)
         if not math.isclose(
                 camera_radius,
-                final_approach_radius,
+                guidance_radius,
                 rel_tol=0.0,
                 abs_tol=0.5,
         ):
             self._logger.info(
-                f"Final-approach ORBIT: camera-sized {camera_radius:.0f}m -> "
-                f"navigation-feasible {final_approach_radius:.0f}m",
+                f"Guidance ORBIT: camera-sized {camera_radius:.0f}m -> "
+                f"navigation-feasible {guidance_radius:.0f}m",
                 key="nav",
                 dest=LogStatusDest.DRONE,
             )
@@ -215,5 +215,5 @@ class ApproachPlanner:
             kind=plan.kind,
             approach_location=plan.approach_location,
             offset_distance=plan.offset_distance,
-            orbit_radius=final_approach_radius,
+            orbit_radius=guidance_radius,
         )

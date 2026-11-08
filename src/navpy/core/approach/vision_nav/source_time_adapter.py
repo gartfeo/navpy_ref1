@@ -1,4 +1,4 @@
-"""Failure-isolated adapter from final-approach timing ports to debug CSV rows."""
+"""Failure-isolated adapter from guidance timing ports to debug CSV rows."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ import navpy.core.kernel.logging.pose_cadence_debug as pose_cadence_debug
 _LOG = logging.getLogger(__name__)
 
 
-class PoseCadenceFinalApproachSourceTimeObserver:
+class PoseCadenceGuidanceSourceTimeObserver:
     """Record diagnostics without retaining a vehicle or affecting control."""
 
     def __init__(
@@ -110,7 +110,7 @@ class PoseCadenceFinalApproachSourceTimeObserver:
             operation()
         except Exception as error:  # noqa: BLE001 - logged diagnostic isolation
             _LOG.warning(
-                "final-approach source-time %s observer failed: %s: %s",
+                "guidance source-time %s observer failed: %s: %s",
                 stage,
                 type(error).__name__,
                 error,
@@ -122,4 +122,4 @@ def _read_source_now(provider: SourceNow | None) -> float | None:
     return None if provider is None else provider()
 
 
-__all__ = ["PoseCadenceFinalApproachSourceTimeObserver"]
+__all__ = ["PoseCadenceGuidanceSourceTimeObserver"]

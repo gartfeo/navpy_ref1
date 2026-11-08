@@ -55,7 +55,7 @@ def case_manifest(
     scoring interval span are measured against. `launch_speedup` is what SITL booted
     with. They differ only when the case cruised fast and stepped down to the
     scored speed at `slow_seq`, so a reader can tell a genuine 1x run from a
-    20x cruise that was slowed for its final-approach leg.
+    20x cruise that was slowed for its guidance leg.
 
     The raw `--sitl-param NAME=VALUE` strings pushed on top of the built-in
     parameters come from exactly one of `args`, the harness's parsed

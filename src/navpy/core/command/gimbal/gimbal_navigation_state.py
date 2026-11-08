@@ -86,7 +86,7 @@ class GimbalDetectionMemory:
     recentered: bool = False
     holding: bool = False
     last_tracked_for_zoom: Optional[DetectedObject] = None
-    final_approach_zoom_frozen_at_min: bool = False
+    guidance_zoom_frozen_at_min: bool = False
 
 
 @dataclass
@@ -110,7 +110,7 @@ class GimbalDetectionSnapshot:
     recentered: bool
     holding: bool
     last_tracked_for_zoom: Optional[DetectedObject]
-    final_approach_zoom_frozen_at_min: bool
+    guidance_zoom_frozen_at_min: bool
 
 
 @dataclass(frozen=True)
@@ -153,7 +153,7 @@ class GimbalNavigationStatus:
                 state.recentered,
                 state.holding,
                 state.last_tracked_for_zoom,
-                state.final_approach_zoom_frozen_at_min,
+                state.guidance_zoom_frozen_at_min,
             )
 
     @property

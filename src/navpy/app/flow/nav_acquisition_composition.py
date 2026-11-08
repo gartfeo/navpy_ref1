@@ -8,7 +8,7 @@ from dataclasses import dataclass
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.confirm.acquisition_gate_settings import (
-    FINAL_APPROACH_GATES_KEY,
+    GUIDANCE_GATES_KEY,
     acquisition_gate_settings,
 )
 from navpy.core.skills.confirm.acquisition_sequence import (
@@ -61,7 +61,7 @@ def compose_acquisition(
 ) -> AcquisitionComposition:
     settings = acquisition_gate_settings(profile)
     if settings is not None and approach_kind != ApproachKind.ORBIT:
-        raise ValueError(f"{FINAL_APPROACH_GATES_KEY} needs the ORBIT approach, not {approach_kind}")
+        raise ValueError(f"{GUIDANCE_GATES_KEY} needs the ORBIT approach, not {approach_kind}")
     # With the gates, the circle must be the own one on the own-detected pose: a circle already flown
     # (a peer's) is never kept, or the orbit gate would wait for a command that never comes.
     needs_own_orbit = home_dock.needs_own_orbit if settings is None else (lambda _poi: True)
@@ -103,7 +103,7 @@ def _self_detected_approach(
 ) -> SelfDetectedApproach:
     return SelfDetectedApproach(
         SelfDetectedApproachPorts(
-            final_approach_active=lambda: navigation.final_approach.is_active,
+            guidance_active=lambda: navigation.guidance.is_active,
             detector_is_simulation=lambda: detection.simulation.is_simulation,
             ground_location=navigation.legacy_pois.ground_location,
             current_relative=lambda: vehicle.location(True),

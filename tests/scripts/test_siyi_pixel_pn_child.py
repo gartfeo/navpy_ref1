@@ -4,7 +4,7 @@ from unittest.mock import Mock, call, patch
 from scripts import siyi_pixel_pn_child as child
 
 
-def test_final_approach_reset_precedes_confirmation_that_seeds_siyi_handoff() -> None:
+def test_guidance_reset_precedes_confirmation_that_seeds_siyi_handoff() -> None:
     navigation = Mock()
     source = Mock()
     order = Mock()

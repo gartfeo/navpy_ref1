@@ -27,7 +27,7 @@ def build_parser() -> argparse.ArgumentParser:
     """Build the evaluator CLI without performing filesystem checks."""
     parser = argparse.ArgumentParser(
         description=(
-            "Run one-aircraft final approach SITL cases with POI identity, "
+            "Run one-aircraft guidance SITL cases with POI identity, "
             "mission-coordinate, altitude, and independent closest-approach checks."
         )
     )

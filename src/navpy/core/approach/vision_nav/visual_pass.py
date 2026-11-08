@@ -12,7 +12,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 # Arm only once the dock is clearly ahead: the frame-local LOS within this
 # angle of the nose. From the waiting circle the dock starts about 90 deg
@@ -51,7 +51,7 @@ class VisualPassDetector:
     def reset(self) -> None:
         self._state = VisualPassState()
 
-    def plan(self, frame: FinalApproachVisionFrame) -> VisualPassPlan:
+    def plan(self, frame: GuidanceVisionFrame) -> VisualPassPlan:
         state = self._state
         key = frame.continuity_key
         if state.identity != key:

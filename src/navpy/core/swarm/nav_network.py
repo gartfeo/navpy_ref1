@@ -117,7 +117,7 @@ class NavNetworkRuntime:
         docked: bool,
         display: NavDisplay = NavDisplay(),
     ) -> None:
-        """Tell the swarm whether nav flies a final approach or is docked.
+        """Tell the swarm whether nav is in guidance or is docked.
 
         Either one is BUSY. ``display`` is the operator display only
         (nav_display.py). Called every nav cycle; only a change, or a new

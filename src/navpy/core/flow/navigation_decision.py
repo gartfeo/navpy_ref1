@@ -115,7 +115,7 @@ class NavDecisionPorts:
     clock_s: Callable[[], float]
     clear_navigation_task: Callable[[], None]
     request_guided: Callable[[], None]
-    final_approach_active: Callable[[], bool]
+    guidance_active: Callable[[], bool]
     #: Recovery's hold (nav_recovery.py): the LOITER it set must not end the approach.
     holding: Callable[[], bool] = lambda: False
     #: Takes recovery's resume (the hold ended in NavPy's own AUTO): the approach goes on to the kept dock.
@@ -159,7 +159,7 @@ class NavStateDecision:
         if (
             self._phase.current == NavState.NAV
             and (
-                self._ports.final_approach_active()
+                self._ports.guidance_active()
                 or self._pass_policy.close_observed
             )
             and self._pass_policy.has_completion_evidence()
@@ -172,7 +172,7 @@ class NavStateDecision:
         resumed = self._ports.take_resumed()
         if mode == FlightMode.GUIDED:
             self._navigation_task.nav_mode_observed = True
-            self._navigation_task.final_approach_navigation_active = True
+            self._navigation_task.guidance_navigation_active = True
             self._clear_guided_wait()
             return ApproachOutcome.NONE
         if self._ports.holding():
@@ -216,7 +216,7 @@ class NavStateDecision:
         self._navigation_task.guided_request_started_at = None
 
     def _mark_passed(self) -> ApproachOutcome:
-        self._navigation_task.final_approach_nav_completed = True
+        self._navigation_task.guidance_nav_completed = True
         return ApproachOutcome.PASSED
 
 

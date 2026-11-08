@@ -15,7 +15,7 @@ layout and import rules: `docs/design/step1_separation.md`.
 - `core/link`: swarm message set and codec
 - `core/perception`: camera, detection, tracking, `GeoRefCalc`, `ZcUtil` (`geo/`), zoom
 - `core/command`, `core/approach`, `core/skills`, `core/review`: actuator owners,
-  final-approach engine, skills, operator POI review
+  guidance engine, skills, operator POI review
 - `core/flow`: per-UAV loop and state machine (`nav_state.NavState`): `ONHOLD`,
   `DETECT`, `CONFIRM`, `NAV`, `RESET`, `RECOVERY`
 - `core/swarm`: `TaskActor`, `TaskDispatch`, multi-vehicle coordination

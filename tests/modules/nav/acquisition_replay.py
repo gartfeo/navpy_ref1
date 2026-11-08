@@ -105,13 +105,13 @@ class AcquisitionRig:
             primary_poi=self.world.detections[0] if self.world.detections else None,
         ))
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         navigation.legacy_pois.ground_location = Mock(return_value=OWN_CENTRE)
         self.navigation = navigation
         self.rig = create_nav_test_rig(
             vehicle, detector, navigation, _create_mock_args(auto_confirm=True), Mock(),
             approach_kind=approach_kind,
-            vision_profile={"final_approach_gates": GATES} if profile is None else profile,
+            vision_profile={"guidance_gates": GATES} if profile is None else profile,
         )
         self.rig.clock.decision_s = lambda: self.world.t
         self.sequence = self.rig.confirmation_action._acquisition

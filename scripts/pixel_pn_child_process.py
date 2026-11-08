@@ -21,7 +21,7 @@ if str(SCRIPTS) not in sys.path:
     sys.path.insert(0, str(SCRIPTS))
 
 from eval_navigation_models import PoiLocation  # noqa: E402
-from pixel_pn_final_approach_speed import FinalApproachSpeedPlan  # noqa: E402
+from pixel_pn_guidance_speed import GuidanceSpeedPlan  # noqa: E402
 
 
 def launch_child(
@@ -33,7 +33,7 @@ def launch_child(
     poi: PoiLocation,
     scoring_start_seq: int,
     timeout_s: float,
-    speed_plan: FinalApproachSpeedPlan | None = None,
+    speed_plan: GuidanceSpeedPlan | None = None,
     child_script: Path = SCRIPTS / "direct_pixel_pn_child.py",
 ) -> subprocess.Popen[bytes]:
     command = [

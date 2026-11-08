@@ -30,7 +30,7 @@ TAKEOFF_PITCH_DEG = 15.0
 # North offsets, in metres from home, for the takeoff and the single waypoint.
 # Home sits south of both, so the whole route is one straight northward line
 # with no turn-around: the aircraft climbs out on the same heading it will hold
-# through the final-approach leg, and the L1 capture transient never has a corner to
+# through the guidance leg, and the L1 capture transient never has a corner to
 # recover from.
 #
 # The takeoff point's latitude does not steer anything: ArduPlane ends
@@ -50,7 +50,7 @@ CLIMB_COMPLETE_OFFSET_M = 1240.0
 # however long the climb takes -- so this is only "far enough out to be tidy".
 DEFAULT_LOITER_OFFSET_M = 1000.0
 DEFAULT_LOITER_RADIUS_M = 150.0
-# The final approach starts when the aircraft reaches this gate, so the scored leg is
+# The guidance starts when the aircraft reaches this gate, so the scored leg is
 # waypoint minus gate: a fixed distance in every wind condition.
 DEFAULT_GATE_OFFSET_M = 1800.0
 DEFAULT_WAYPOINT_OFFSET_M = 2700.0
@@ -67,9 +67,9 @@ def build_loader(
     gate_offset_m: float = DEFAULT_GATE_OFFSET_M,
     loiter_radius_m: float = DEFAULT_LOITER_RADIUS_M,
 ) -> MAVWPLoader:
-    """Home, takeoff, loiter-to-alt, a final-approach start gate, then the POI.
+    """Home, takeoff, loiter-to-alt, a guidance start gate, then the POI.
 
-    The loiter and the gate exist to make the final-approach start repeatable.  NAV_TAKEOFF
+    The loiter and the gate exist to make the guidance start repeatable.  NAV_TAKEOFF
     ends on altitude alone, so with a bare takeoff the ground position where
     the mission advances moves with the wind -- measured 576 m out in a 10 m/s
     tailwind against 1377 m in the same headwind, which changes the scoring interval
@@ -81,7 +81,7 @@ def build_loader(
     verify_loiter_heading).  No wind speed can outrun it, whereas a gate chosen
     to clear one measured climb silently fails at a stronger wind.
 
-    The gate then pins the final-approach start *position*: the loiter exit still varies by
+    The gate then pins the guidance start *position*: the loiter exit still varies by
     about the loiter radius, and the companion starts navigation when MISSION_CURRENT
     reaches the POI's sequence, which happens when the aircraft *reaches*
     the gate -- a fixed latitude.  The gate leg also gives the loiter exit

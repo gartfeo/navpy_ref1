@@ -12,8 +12,8 @@ from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
 from navpy.core.approach.nav_exit_cleanup import NavCleanupResult
 from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeTerminal,
+    GuidanceTerminal,
 )
 from navpy.core.flow.nav_display import (
     NavDisplay,
@@ -96,7 +96,7 @@ def _exit(latch, *, contact=None, terminal=None):
     )
     transition = NavTransition(
         Mock(), cleanup, Mock(), Mock(return_value=()),
-        NavigationTaskState(final_approach_navigation_active=True),
+        NavigationTaskState(guidance_navigation_active=True),
         lambda: False, logger=Mock(), outcome=latch,
     )
     return transition.exit(NavState.RESET)
@@ -107,8 +107,8 @@ def _contact():
 
 
 def _failed(reason):
-    return FinalApproachEpisodeTerminal(
-        IDENTITY, FinalApproachTerminal.FAILED, reason,
+    return GuidanceEpisodeTerminal(
+        IDENTITY, GuidanceTerminal.FAILED, reason,
     )
 
 
@@ -163,7 +163,7 @@ def test_a_failed_exit_latches_nothing():
     )
     transition = NavTransition(
         Mock(), cleanup, Mock(), Mock(return_value=()),
-        NavigationTaskState(final_approach_navigation_active=True),
+        NavigationTaskState(guidance_navigation_active=True),
         lambda: False, outcome=latch,
     )
 
@@ -251,7 +251,7 @@ def test_from_code_reads_bit_zero_only(code):
     ("navigation_rejected", 4),
     ("source_command_stale", 5),
     ("discontinuity_source_missing", 6),
-    ("final_approach_record_unavailable", 7),
+    ("guidance_record_unavailable", 7),
     ("source_event_active_poi_missing", 8),
     ("source_event_pump", 9),
     ("internal_error", 10),

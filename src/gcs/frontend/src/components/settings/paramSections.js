@@ -1,7 +1,7 @@
 export const PARAM_SECTIONS = [
   {
-    title: 'Final Approach',
-    titleKey: 'settings.aas.sections.finalApproach',
+    title: 'Guidance',
+    titleKey: 'settings.aas.sections.guidance',
     fields: [
       { key: 'del_pitch', label: 'Approach pitch (deg)', labelKey: 'settings.aas.fields.delPitch', step: 1, min: -90 },
       { key: 'del_thr', label: 'Approach throttle (%)', labelKey: 'settings.aas.fields.approachThrottle', step: 1, min: -1, placeholder: '-1 = TECS auto', placeholderKey: 'settings.aas.placeholders.tecsAuto' },

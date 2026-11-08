@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.approach.logs.log_events import format_standard_event_row
-from navpy.core.approach.vision_nav.diagnostics import NavigationFinalApproachDiagnostics
+from navpy.core.approach.vision_nav.diagnostics import NavigationGuidanceDiagnostics
 from navpy.core.ports.dock_contact import DockContactIdentity
 from scripts.eval_gcs_demo_cadence import (
     COVERAGE_GAP_BOUND_MS,
@@ -322,7 +322,7 @@ def test_producer_rows_parse_into_one_window(tmp_path: Path) -> None:
                 "12:00:00.000", event, ((k, str(v)) for k, v in payload.items())
             ).rstrip("\n"))
 
-    diagnostics = NavigationFinalApproachDiagnostics(_Logger(), reader=None)  # type: ignore[arg-type]
+    diagnostics = NavigationGuidanceDiagnostics(_Logger(), reader=None)  # type: ignore[arg-type]
     identity = DockContactIdentity(4, 1, 11, 1)
     diagnostics.record_dock_armed(identity, 10.0)
     diagnostics.record_dock_disarmed(identity, 10.9)

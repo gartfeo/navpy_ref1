@@ -53,6 +53,8 @@ EXPERIMENT_MODULE_LINE_DEBT = {
     "scripts/siyi_geo_track_child.py": 352,
     # +2: arms the sim dock contact sensor, its completion (physical_docking.md).
     "scripts/siyi_pixel_pn_child.py": 329,
+    # Unchanged length; the final_approach -> guidance rename touched it.
+    "scripts/vision_lateral_replay.py": 514,
 }
 EXPERIMENT_FUNCTION_LINE_DEBT = {
     ("scripts/eval_direct_pixel_pn.py", "run_case"): 215,
@@ -76,8 +78,8 @@ FOCUSED_CLASS_LINE_LIMITS = {
         "PeerPoiDispatchWorker",
     ): 150,
     (
-        "src/navpy/core/approach/final_approach_detection_event_pump.py",
-        "FinalApproachDetectionEventPump",
+        "src/navpy/core/approach/guidance_detection_event_pump.py",
+        "GuidanceDetectionEventPump",
     ): 150,
     (
         "src/navpy/core/swarm/swarm_presence.py",
@@ -150,15 +152,15 @@ PASSIVE_RECORD_FIELD_LIMITS = {
     ): 19,
     ("src/navpy/plugins/tracking/boxmot/track_export_memory.py", "_MemoryState"): 13,
     # 16 = 15 + interval_timestamp_s, the PTS axis visual rates use on
-    # integration timing (HITL stage 1 step 11, hitl_final_approach.md
+    # integration timing (HITL stage 1 step 11, hitl_guidance.md
     # section 9) -- a ratchet, not headroom.
     (
         "src/navpy/core/ports/frame.py",
-        "FinalApproachVisionFrame",
+        "GuidanceVisionFrame",
     ): 16,
     (
         "src/navpy/core/approach/vision_nav/command_transaction.py",
-        "FinalApproachLawEvidence",
+        "GuidanceLawEvidence",
     ): 16,
     # 13 = the default 12 + law_airspeed, the eligible airspeed reader that
     # goes with integration timing (HITL step 20; __post_init__ refuses one
@@ -229,7 +231,7 @@ FACADE_METHOD_ALLOWANCES = {
     ): FacadeMethodAllowance(1, 89, frozenset({"_parts"})),
     # 45 = 44 + gimbal_capture_history, the gimbal readback history that
     # integration timing brackets at the capture instant (HITL stage 1
-    # step 11, hitl_final_approach.md section 9) -- a ratchet, not headroom.
+    # step 11, hitl_guidance.md section 9) -- a ratchet, not headroom.
     (
         "src/navpy/core/perception/camera/camera_mount.py",
         "CameraMount",
@@ -602,7 +604,7 @@ def owned_fields(node: ast.ClassDef) -> tuple[set[str], list[tuple[int, str]]]:
             if (
                 isinstance(statement, ast.AnnAssign)
                 and isinstance(statement.target, ast.Name)
-                and _final_approach_name(statement.annotation) != "ClassVar"
+                and _guidance_name(statement.annotation) != "ClassVar"
             ):
                 scanner.fields.add(statement.target.id)
     return scanner.fields, scanner.dynamic_writes
@@ -916,7 +918,7 @@ def _effective_facet_members(
         fields, _dynamic_writes = owned_fields(node)
         next_active = active | {reference}
         for base in node.bases:
-            name = _final_approach_name(base)
+            name = _guidance_name(base)
             if name is None:
                 continue
             target = aliases[reference[0]].get(name)
@@ -966,7 +968,7 @@ def _absolute_import_module(
 
 def _is_dataclass(node: ast.ClassDef) -> bool:
     return any(
-        _final_approach_name(
+        _guidance_name(
             decorator.func if isinstance(decorator, ast.Call) else decorator
         )
         == "dataclass"
@@ -978,7 +980,7 @@ def _is_frozen_dataclass(node: ast.ClassDef) -> bool:
     for decorator in node.decorator_list:
         if not isinstance(decorator, ast.Call):
             continue
-        if _final_approach_name(decorator.func) != "dataclass":
+        if _guidance_name(decorator.func) != "dataclass":
             continue
         return any(
             keyword.arg == "frozen"
@@ -996,9 +998,9 @@ def _physical_extent(
     return (node.end_lineno or node.lineno) - start + 1
 
 
-def _final_approach_name(node: ast.AST) -> str | None:
+def _guidance_name(node: ast.AST) -> str | None:
     if isinstance(node, ast.Subscript):
-        return _final_approach_name(node.value)
+        return _guidance_name(node.value)
     dotted = _dotted_name(node)
     return dotted.rsplit(".", 1)[-1] if dotted else None
 

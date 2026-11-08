@@ -1,10 +1,10 @@
-"""The HITL law-input guard for airspeed (hitl_final_approach.md section 9, step 20).
+"""The HITL law-input guard for airspeed (hitl_guidance.md section 9, step 20).
 
-With integration timing (a pc-sitl run; ``IntegrationTimingConfig`` refuses every other mode) the final-approach law
+With integration timing (a pc-sitl run; ``IntegrationTimingConfig`` refuses every other mode) the guidance law
 reads airspeed only from the eligible source (``plugins/vehicle/ardupilot/airspeed_eligibility.py``), never from
 VFR_HUD. The guard has two ends:
 - input: the frame association's airspeed reader is ``read``; before admission and after a revoke it gives None, so
-  every frame is refused (``FinalApproachFrameProjector`` refuses a frame without positive airspeed);
+  every frame is refused (``GuidanceFrameProjector`` refuses a frame without positive airspeed);
 - write: ``guard`` wraps the attitude actuator; a write while the source is not admitted, or stale at the write,
   raises ``AirspeedIneligible`` and sends nothing. The command executor and the held-command refresh both mark the
   episode failed on that error, so the approach ends with NAV_FAIL and no command after a revoke.
@@ -17,7 +17,7 @@ import json
 from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 
-from navpy.core.approach.vision_nav.command_transaction import FinalApproachAttitudeActuator
+from navpy.core.approach.vision_nav.command_transaction import GuidanceAttitudeActuator
 from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.airspeed_attach import AirspeedVehicle, attach
 from navpy.plugins.vehicle.ardupilot.airspeed_eligibility import AirspeedEligibility
@@ -27,7 +27,7 @@ NAVPY_AIRSPEED_MARKER = "NAVPY_AIRSPEED_V1"
 
 
 class AirspeedIneligible(RuntimeError):
-    """A final-approach write without an admitted, fresh airspeed source."""
+    """A guidance write without an admitted, fresh airspeed source."""
 
 
 def print_airspeed_record(record: dict[str, object]) -> None:
@@ -50,7 +50,7 @@ Exclusive = Callable[[], AbstractContextManager[None]]
 
 
 class AirspeedGuardedActuator:
-    def __init__(self, actuator: FinalApproachAttitudeActuator, source: AirspeedEligibility,
+    def __init__(self, actuator: GuidanceAttitudeActuator, source: AirspeedEligibility,
                  exclusive: Exclusive = nullcontext) -> None:
         self._actuator = actuator
         self._source = source
@@ -70,7 +70,7 @@ class AirspeedGuardedActuator:
 
 
 class LawAirspeed:
-    """The one airspeed input of a HITL run's final-approach law, and its write guard."""
+    """The one airspeed input of a HITL run's guidance law, and its write guard."""
 
     def __init__(self, source: AirspeedEligibility, exclusive: Exclusive = nullcontext) -> None:
         self._source = source
@@ -89,7 +89,7 @@ class LawAirspeed:
     def read(self) -> float | None:
         return self._source.read(rt.perf_counter())
 
-    def guard(self, actuator: FinalApproachAttitudeActuator) -> AirspeedGuardedActuator:
+    def guard(self, actuator: GuidanceAttitudeActuator) -> AirspeedGuardedActuator:
         return AirspeedGuardedActuator(actuator, self._source, self._exclusive)
 
 

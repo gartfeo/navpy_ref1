@@ -1,4 +1,4 @@
-"""Observation and shutdown of one approach run (hitl_final_approach.md section 9, step 16).
+"""Observation and shutdown of one approach run (hitl_guidance.md section 9, step 16).
 
 Observation: navpy is the router's reader client (mav_router.py --reader): while the harness flies the fixed search
 lane, navpy may read and report but none of its writes to the aircraft reaches the board (observation_allowed).

@@ -6,7 +6,7 @@ A synthetic camera has to be told where the POI appears, and that means
 rotating the POI vector from NED into the body frame, which needs a yaw.
 Taking that yaw from the ATTITUDE message is wrong here: ATTITUDE carries the
 vehicle's ESTIMATE, and its yaw is compass-derived. Compass yaw can hold a large
-bias, and this project forbids it in the final-approach command path precisely because
+bias, and this project forbids it in the guidance command path precisely because
 that bias would be indistinguishable from a navigation error. Feeding a
 compass-biased yaw into the sensor rotates the synthesized line of sight by that
 same bias, so the contamination survives into the ray even though the law never

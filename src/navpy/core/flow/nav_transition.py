@@ -15,8 +15,8 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.approach.vision_nav.episode_latch import (
     UNNAMED_FAILURE_REASON,
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeTerminal,
+    GuidanceTerminal,
 )
 from navpy.core.flow.nav_display import NavOutcomeLatch
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
@@ -61,8 +61,8 @@ class NavTransition:
         self._entry.run()
 
     def exit(self, requested: NavState | None = None) -> NavExitOutcome:
-        navigation_active = self._navigation_task.final_approach_navigation_active
-        completed = self._navigation_task.final_approach_nav_completed
+        navigation_active = self._navigation_task.guidance_navigation_active
+        completed = self._navigation_task.guidance_nav_completed
         cleanup = self._cleanup.run()
         errors = list(cleanup.errors)
 
@@ -111,7 +111,7 @@ class NavTransition:
 
     def _report_dock_failed(
         self,
-        terminal: FinalApproachEpisodeTerminal | None,
+        terminal: GuidanceEpisodeTerminal | None,
     ) -> None:
         """Evidence row and operator status line, once the exit succeeded."""
         if terminal is None:
@@ -146,10 +146,10 @@ class NavTransition:
         )
 
 
-def _failed_terminal(terminal: FinalApproachEpisodeTerminal | None) -> bool:
+def _failed_terminal(terminal: GuidanceEpisodeTerminal | None) -> bool:
     return terminal is not None and terminal.terminal in (
-        FinalApproachTerminal.FAILED,
-        FinalApproachTerminal.MISSED,
+        GuidanceTerminal.FAILED,
+        GuidanceTerminal.MISSED,
     )
 
 

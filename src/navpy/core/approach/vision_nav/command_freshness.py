@@ -1,4 +1,4 @@
-"""Raw producer-clock freshness policy for final-approach commands."""
+"""Raw producer-clock freshness policy for guidance commands."""
 
 from __future__ import annotations
 
@@ -9,11 +9,11 @@ from dataclasses import dataclass
 from navpy.core.approach.vision_nav.source_time_ports import SourceNow
 
 
-FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S = 1.0
+GUIDANCE_COMMAND_MAX_SOURCE_AGE_S = 1.0
 
 
 @dataclass(frozen=True)
-class FinalApproachCommandTiming:
+class GuidanceCommandTiming:
     source_timestamp_s: float
     source_now_s: SourceNow | None
     receipt_timestamp_s: float | None
@@ -21,7 +21,7 @@ class FinalApproachCommandTiming:
 
 
 @dataclass(frozen=True)
-class FinalApproachBoundCheck:
+class GuidanceBoundCheck:
     """One freshness bound with the values sampled while it was checked.
 
     ``problem`` is ``None`` when the bound held; otherwise it names why not.
@@ -49,11 +49,11 @@ class FinalApproachBoundCheck:
 
 
 @dataclass(frozen=True)
-class FinalApproachFreshnessCheck:
+class GuidanceFreshnessCheck:
     """Both bounds; ``receipt`` is ``None`` when the source bound already failed."""
 
-    source: FinalApproachBoundCheck
-    receipt: FinalApproachBoundCheck | None
+    source: GuidanceBoundCheck
+    receipt: GuidanceBoundCheck | None
 
     @property
     def fresh(self) -> bool:
@@ -71,7 +71,7 @@ class FinalApproachFreshnessCheck:
         return f"{self.source.describe()}; {receipt}"
 
 
-class FinalApproachCommandFreshness:
+class GuidanceCommandFreshness:
     """Require both producer progress and speedup-aware receipt liveness."""
 
     def __init__(self, wall_period_s: Callable[[float], float]) -> None:
@@ -79,8 +79,8 @@ class FinalApproachCommandFreshness:
 
     def is_fresh(
         self,
-        timing: FinalApproachCommandTiming,
-        on_stale: Callable[[FinalApproachFreshnessCheck], None] | None = None,
+        timing: GuidanceCommandTiming,
+        on_stale: Callable[[GuidanceFreshnessCheck], None] | None = None,
     ) -> bool:
         """``on_stale`` names the failed bound (todo 230); it never decides."""
         check = self.check(timing)
@@ -93,29 +93,29 @@ class FinalApproachCommandFreshness:
 
     def check(
         self,
-        timing: FinalApproachCommandTiming,
-    ) -> FinalApproachFreshnessCheck:
+        timing: GuidanceCommandTiming,
+    ) -> GuidanceFreshnessCheck:
         """Check each clock once; the receipt bound only if the source bound held."""
         source = _check_age(
             "source",
             timing.source_timestamp_s,
             timing.source_now_s,
-            FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+            GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
         )
         if not source.fresh:
-            return FinalApproachFreshnessCheck(source, None)
+            return GuidanceFreshnessCheck(source, None)
         receipt = _check_age(
             "receipt",
             timing.receipt_timestamp_s,
             timing.receipt_now_s,
             self._receipt_max_age_s(),
         )
-        return FinalApproachFreshnessCheck(source, receipt)
+        return GuidanceFreshnessCheck(source, receipt)
 
     def _receipt_max_age_s(self) -> float:
         try:
             allowance_s = float(
-                self._wall_period_s(FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S)
+                self._wall_period_s(GUIDANCE_COMMAND_MAX_SOURCE_AGE_S)
             )
         except Exception:  # noqa: BLE001 - invalid cadence fails closed
             return math.nan
@@ -127,14 +127,14 @@ def _check_age(
     timestamp_value: float | None,
     now_provider: SourceNow | None,
     maximum_age_s: float,
-) -> FinalApproachBoundCheck:
+) -> GuidanceBoundCheck:
     """Compare one clock domain without rewriting, scaling, or extrapolation."""
     def result(
         problem: str | None,
         now: object = None,
         age_s: float | None = None,
-    ) -> FinalApproachBoundCheck:
-        return FinalApproachBoundCheck(
+    ) -> GuidanceBoundCheck:
+        return GuidanceBoundCheck(
             name, timestamp_value, now, age_s, maximum_age_s, problem,
         )
 
@@ -169,9 +169,9 @@ def _check_age(
 
 
 __all__ = [
-    "FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S",
-    "FinalApproachBoundCheck",
-    "FinalApproachCommandFreshness",
-    "FinalApproachFreshnessCheck",
-    "FinalApproachCommandTiming",
+    "GUIDANCE_COMMAND_MAX_SOURCE_AGE_S",
+    "GuidanceBoundCheck",
+    "GuidanceCommandFreshness",
+    "GuidanceFreshnessCheck",
+    "GuidanceCommandTiming",
 ]

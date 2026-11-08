@@ -1,4 +1,4 @@
-"""Client of the board link router's endpoint barrier (HITL only; docs/design/hitl_final_approach.md section 2).
+"""Client of the board link router's endpoint barrier (HITL only; docs/design/hitl_guidance.md section 2).
 
 The router (tools/tuning/mav_router.py) owns the board's USB link and serves each client a loopback UDP endpoint.
 Its control port answers a JSON request {op: "close", client, id} once it refuses the client's packets, has dropped

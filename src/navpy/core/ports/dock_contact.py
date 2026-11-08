@@ -1,4 +1,4 @@
-"""Dock contact: the one success signal of a final approach.
+"""Dock contact: the one success signal of guidance.
 
 In simulation a contact sensor stands in for the net (sim/world). A real
 aircraft is caught by the net, so a real build wires no sensor. The event is

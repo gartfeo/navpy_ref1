@@ -679,7 +679,7 @@
 ## Approach-window cadence diagnostics (2026-10-16)
 
 - **Measure cadence inside the approach window.** Whole-run poll-gap
-  medians hid starved final-approach windows; report gaps per episode in
+  medians hid starved guidance windows; report gaps per episode in
   source time, entry->first and last->exit included
   (scripts/eval_gcs_demo_cadence.py).
 - **codex exec -s read-only can fail every shell call on this host**
@@ -2129,7 +2129,7 @@
 
 - A clock-rate estimate from 2 s of jittered minima is noise at 300 ppm: two half-window minimums sit anywhere in their halves, and a hull edge over 2 s swung 0.67 ms/s. Fit the rate over a long window (10 s, lower convex hull, Moon et al.) and take the level from a short recent window, rate-corrected.
 - Synthetic sims with 2 seeds passed a detector that a third seed broke. Sweep many seeds, drifts, jitters and slip sizes in a scratch script before trusting fixed test cases, and report the sweep separately.
-- `tests/guards/test_frozen_inventories.py` freezes `FinalApproachVisionFrame` to str/int/float fields. A new optional value goes in as a float with NaN for "absent", and the guard's field list changes on purpose.
+- `tests/guards/test_frozen_inventories.py` freezes `GuidanceVisionFrame` to str/int/float fields. A new optional value goes in as a float with NaN for "absent", and the guard's field list changes on purpose.
 - Counting carriage returns with `grep -c` in Git Bash reported 0 for CRLF files. Check line endings from the raw bytes in Python and edit through a helper that keeps them.
 - The gate's absolute 0.5 s frame-age check runs before any capture status, so a test of a smaller own age limit must stay under 0.5 s or it only sees `real_frame_publication_stale`.
 - A detector state rebuilt from a rolling window forgets across a gap: after a PTS gap the floor was refitted from post-gap frames only, so a 1.05 ms slip inside the gap became the new normal (Codex found it; the sweep had no gaps). Keep the last fitted reference until new frames cover a fit, and add gaps to the sweep. Round 2 then found two more gap cases (no floor yet at the first admitted frame; a raw offset check across a gap that sees drift as a jump), and the new gap sweep found a third (a floor level from one 1 s window rides up on jitter). Sweep the boundaries: gap right after settling, both drift signs, slips just over the limit. Round 3 showed the real limit: a floor carried across a long gap drifts by rate error (up to 35 ppm here), so no resettle rule keeps a 1 ms promise. Measure the estimator's error first, and fail closed where it cannot hold, instead of patching each counterexample.
@@ -2715,7 +2715,7 @@
 - **Check `Attitude`'s argument order: it is (pitch, yaw, roll).** The replay's "compass poison"
   `Attitude(0, 0, yaw)` poisoned roll; it stayed green because nothing in the gates read attitude.
 - **A poison test through mocks proves nothing about the mocked boundary.** Poison the real projector and law
-  (`FinalApproachConfirmation` with `VisionNavLaw`) and compare their outputs.
+  (`GuidanceConfirmation` with `VisionNavLaw`) and compare their outputs.
 - **The SOLID guard counts methods per class (15).** Put a new transaction on the state class into a small
   collaborator held as an attribute, as `registry` is, instead of raising the limit.
 - **Fail closed is not the same as fail often.** Revoking on every bad frame made each short blip cost the

@@ -26,8 +26,8 @@ src/navpy/
   core/swarm/             service.tasking, service.presence
   core/perception/, plugins/{camera,gimbal,detection,tracking}/, sim/   platform.perception;
                           the dock class stays here
-  final_approach          labelled in place across step-1 folders:
-    core/approach/        engine; vision_nav/ (path pinned by guards); navigation_final_approach.py surface [S8]
+  guidance          labelled in place across step-1 folders:
+    core/approach/        engine; vision_nav/ (path pinned by guards); navigation_guidance.py surface [S8]
     plugins/laws/vision_pn/   vision law
     core/command/         navigation_command_slot.py [S8]; navigation_vehicle_commands.py = activity.goto_hold
     law table {spec, build_law, runtime_factory}   [S7]
@@ -37,7 +37,7 @@ src/navpy/
     core/skills/acquire/  approach_strategy, peer_*, orbit_geometry = activity.acquire
   core/flow/, app/flow/   mixed: runtime loop; supervisor (decide, recovery, floor);
                           mission.approach_flow (state machine, tables, reset); services glue
-                          (app/flow); final-approach NAV workflow (core/approach: final_approach_*, nav_entry)
+                          (app/flow); guidance NAV workflow (core/approach: guidance_*, nav_entry)
     core/flow/approach_flow.py   FlowHooks contract [S3] (planned)
   positioning             later: created by the first feeder
   products/               mission layer [S3] (not created in step 1)
@@ -47,7 +47,7 @@ src/navpy/
 ```
 
 ## Shared approach flow (delivery and pickup)
-The flow is today's machine: search (DETECT + AUTO) -> review (CONFIRM) -> final_approach
+The flow is today's machine: search (DETECT + AUTO) -> review (CONFIRM) -> guidance
 (NAV) -> RESET, plus acquire and goto/hold (`core/flow/nav_state.py:14-20`). It stays in `core/flow/`
 until extraction. Modules plug in through one contract, `core/flow/approach_flow.py` (planned):
 - `FlowHooks` holds per-stage factories (the DDH source needs collaborators that exist
@@ -59,7 +59,7 @@ until extraction. Modules plug in through one contract, `core/flow/approach_flow
 
 | Point | Delivery (paused) | Pickup (later) |
 |---|---|---|
-| Final approach | `dive` (today) | `line_dive`, after the Monte Carlo go |
+| Guidance | `dive` (today) | `line_dive`, after the Monte Carlo go |
 | Work source | own POI claims the tick, then peer assignment, then DDH (`core/skills/search/navigation_task_action.py:50-82`) | by role: scout searches, catcher takes "catch", backup holds |
 | After approach | RESET ends the task; one-shot -> ONHOLD | review; a miss -> end of pass + line_up until budget N, then operator hands over to backup |
 | Bids, kind | ETA; DOCK=1 | scout and backup bid the sentinel; CATCH >= 6 after the unknown-kinds fix reaches every node |
@@ -95,7 +95,7 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
 - Now, no behavior change: (1) this decision, written into `mission_modules.md` once
   approved; (2) the fence: the pure-vision scan covers all of `core/approach/vision_nav/`,
   `plugins/laws/vision_pn/`, `navigation_command_*.py` (`core/approach/`, `core/command/`) and
-  `final_approach_*.py` (`core/approach/`, `core/skills/confirm/`) with a diagnostics
+  `guidance_*.py` (`core/approach/`, `core/skills/confirm/`) with a diagnostics
   allow-list (extends the open 'guard' task; CORE omits `pitch_law.py`,
   `tests/guards/test_frozen_inventories.py:18-33`),
   plus a NAV-phase test whose vehicle raises on `location()`/`home()` (T1); (3) airspeed:
@@ -110,11 +110,11 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
   under test (today from the EKF, `sim/detection/sim_source_composition.py:111-117`). A
   companion fusion framework: never, unless EKF3 cannot take an input.
 
-## Final approach and legacy isolation
+## Guidance and legacy isolation
 - One law table replaces three structures (`core/approach/nav_law_factory.py:37-56`,
   `app/approach/navigation_law_builders.py:21-37`, `app/approach/navigation_composition.py:206-210`).
   Vision registers itself; `app/runtime_composition.py` adds the legacy entries in one call.
-- Surface on FinalApproachNavigationService: `outcome()` = passed | lost | aborted:<reason>,
+- Surface on GuidanceNavigationService: `outcome()` = passed | lost | aborted:<reason>,
   stamped with the law; only vision passes are accuracy evidence (`mission_modules.md:109`).
   `before_review()` = min-zoom freeze or legacy review prep, chosen at boot as today
   (`app/flow/nav_confirmation_admission_composition.py:69-72`). `approach_in_progress` stays
@@ -124,9 +124,9 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
 - The 17 `is_active` reads: 4 move to the surface; the self-detect circle gate becomes an
   optional legacy contribution, since that ORBIT prep is legacy
   (`core/skills/geo_approach/self_detected_approach.py:1,44-49`); the floor read goes with S12; 4 GPS-assist and
-  2 entry reads wait for pickup; 5 stay inside final_approach. A guard freezes the list.
+  2 entry reads wait for pickup; 5 stay inside guidance. A guard freezes the list.
 - Profiles: today's constants are `dive`. The profile record, `line_dive`,
-  FinalApproachRequest and per-profile entry geometry land with pickup; until then
+  GuidanceRequest and per-profile entry geometry land with pickup; until then
   ApproachPlanner keeps its law gate (`core/skills/acquire/approach_planner.py:150-157`), so legacy runs
   keep their radius.
 - Legacy package: law, runtime, destination resolver, `roll_l1*`, `pid.py`, `pitch_pn.py` (`plugins/laws/geo/`),
@@ -161,7 +161,7 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
 | Id | What moves | Behavior change | Tests and guards | Size |
 |---|---|---|---|---|
 | S0 | Nothing. Record `pytest tests`, `pytest tests/gcs` (skipped by `pyproject.toml:56`; runs Vitest) and per-gate verdicts of the ideal three-UAV, GCS demo and navigation evals | none | Q1 settles the red gate. Bug tasks: re-pin PINNED_BASE (2 guard tests fail, so size and annotation limits are off); fix the eval fixture that pairs DEL_CTRL=2 with the orbit marker | S |
-| T0 | Tests only: lazy NavTestRig fields; spec'd mocks for `legacy_pois` and the geo port; final-approach double built on the real service with a regime fixture; one helper for the 33 law seeds | none | no assertion edited | M |
+| T0 | Tests only: lazy NavTestRig fields; spec'd mocks for `legacy_pois` and the geo port; guidance double built on the real service with a regime fixture; one helper for the 33 law seeds | none | no assertion edited | M |
 | T1 | Tests only: work-source precedence, boot-time review-prep choice, one-shot latch commit, quiescence-gated reset order, every eval-parsed marker (nav, swarm, vehicle, perception), NAV-phase position poison test | none | a test that fails today becomes a bug task, never an edit | S |
 | S1 | GeoLocator into `core/perception/geo/ground_location.py`, injected from `app/runtime_composition.py`; the legacy resolver delegates; generic geo-ref consumers switch | none | the 6 firewall asserts move to the new port in the same commit; clean-process import | M |
 | S2 | MissionCatalog split: the scan band stays in `core/flow/`; acquire's plan_orbit ports use it directly (`app/flow/nav_task_composition.py:141-146,191-196`) | none | repoint the never-called mock (`test_nav_controller.py:5198-5234`) | S |
@@ -207,6 +207,6 @@ changes autopilot config and adds a feeder, not consumers. Only the supervisor s
 - **A3 Altitude floor:** off by default in the platform. Every module owns its safety checks; they plug in like hooks. This replaces S12's platform floor.
 - **A4 Params:** a param that belongs to a module lives in that module. That covers the legacy AAS_DEL_* params, the delivery params, and their GCS and Lua rows. After the legacy package is removed, AAS_DEL_CTRL=0/1 refuses NAV with a status text (default unless the owner objects).
 - **A5 Positioning** is a hardware black box for the swarm. Every source feeds the autopilot, and NavPy reads only the fused result.
-- **A6 Airspeed:** without a real airspeed sensor, the final approach must not use airspeed (task open).
+- **A6 Airspeed:** without a real airspeed sensor, the guidance must not use airspeed (task open).
 - **A7 GCS:** needs a plugin mechanism per mission. It lands with pickup, the first GCS plugin. Delivery's hub UI moves into its plugin at extraction.
 - **Still open:** re-pin PINNED_BASE at S0, so the size and annotation guards run during the split?

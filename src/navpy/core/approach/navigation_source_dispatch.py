@@ -1,4 +1,4 @@
-"""Single-owner final-approach-source handoff into the command scheduler.
+"""Single-owner guidance-source handoff into the command scheduler.
 
 The slot also carries the command-loop OBSERVER, because it belongs to the
 same owner as the dispatch callback and must appear and disappear with it:

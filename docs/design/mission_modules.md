@@ -14,13 +14,13 @@ v3 folds in an architecture review of v2. The review had:
 ## Principle
 Each mission is a composition of reusable behaviors: delivery, in-flight
 pickup, search and rescue (SAR), fire, patrol, survey, spraying. The vision
-final approach is one of those behaviors. It is not part of the platform, and
+guidance is one of those behaviors. It is not part of the platform, and
 neither delivery nor pickup owns it. SAR never builds it.
 
 ## Review verdict
 - **Kept from v2 (the destination):**
   - three layers, Platform → Behaviors → Mission modules;
-  - the final approach is reached only through a validated profile;
+  - the guidance is reached only through a validated profile;
   - a supervisor above all mission logic;
   - load-time completeness checks.
   - Prior art uses the same shape: PX4 modes with mode executors, Aerostack2 behaviors, and DroneResponse.
@@ -36,9 +36,9 @@ Paths are under `src/navpy/` (step-1 layout) unless they start with `gcs/` or `s
 | Fact | Evidence |
 |---|---|
 | The vehicle runtime is one fixed flow: DETECT → CONFIRM → NAV → RESET | `core/flow/nav_state.py:14-20` |
-| Every confirmed POI goes to the final approach | `core/skills/confirm/confirmed_poi_release.py:45` |
-| The final-approach engine is built and started at boot for every vehicle | `app/runtime_composition.py:169-179` |
-| `final_approach.is_active` means "a vision law is configured", which is true from boot. 17 gates read it, including the one that gates operator review on the law's preview | `core/approach/navigation_final_approach.py:17-20`, `core/skills/confirm/confirmation_action.py:49-62` |
+| Every confirmed POI goes to the guidance | `core/skills/confirm/confirmed_poi_release.py:45` |
+| The guidance engine is built and started at boot for every vehicle | `app/runtime_composition.py:169-179` |
+| `guidance.is_active` means "a vision law is configured", which is true from boot. 17 gates read it, including the one that gates operator review on the law's preview | `core/approach/navigation_guidance.py:17-20`, `core/skills/confirm/confirmation_action.py:49-62` |
 | RESET and RECOVERY restart AUTO at item 1 (the takeoff). A rejection resumes the leg | `core/flow/recovery.py:89-91`, `core/flow/navigation_task_reset.py:241-252` |
 | Fleet tasks exist only for docks. The auction needs exactly 3 live UAVs | `core/link/types.py:37`, `core/swarm/task_actor_slots.py:11` |
 | Only class 0 (dock) has class settings, and the sim renders only class 0 | `core/perception/profile/vision_class_profile.py:66-70`, `sim/camera/finite_poi_projector.py:149` |
@@ -84,11 +84,11 @@ are chosen whole and never blended.
 | observe | orbits a geo point with the gimbal on it | done, lost | peer loiter + geo pointing |
 | acquire | flies to a reported POI until its own vision sees it | acquired, not_found | peer orbit + ready gate |
 | line_up | climbs back to the detection altitude and lines up on the crossing heading before each pass (pickup) | ready, aborted | missing |
-| final_approach(profile) | pure-vision approach. Profiles: `dive` (dock), `line_dive` (capture segment) | passed, lost, aborted:<reason> | NAV + `core/approach/vision_nav/`, `plugins/laws/vision_pn/` |
+| guidance(profile) | pure-vision approach. Profiles: `dive` (dock), `line_dive` (capture segment) | passed, lost, aborted:<reason> | NAV + `core/approach/vision_nav/`, `plugins/laws/vision_pn/` |
 | track (later) | follows a moving POI | — | missing |
 
 **Services.** They are always on and hold no flight lease:
-- *review:* operator, peer or automatic. It is separate from final-approach admission, and several sightings can be queued.
+- *review:* operator, peer or automatic. It is separate from guidance admission, and several sightings can be queued.
 - *report and offer.*
 - *tasking:* bids and assignments.
 - *presence.*
@@ -101,14 +101,14 @@ This names what exists.
 **Supervisor actions:** HOLD, RTL, finish. Each must command a safe state, not
 just stop.
 
-**Final-approach rules:**
-- The request is `FinalApproachRequest(profile, local track id)`, with no geo fields. A module picks a validated profile and can't pass range, altitude or aim offsets.
+**Guidance rules:**
+- The request is `GuidanceRequest(profile, local track id)`, with no geo fields. A module picks a validated profile and can't pass range, altitude or aim offsets.
 - Only the vision pass detector yields `passed`. Every other end is `aborted:<reason>` and is kept out of accuracy evidence.
 - Each SNAP is stamped with the profile, a hash of the law config and environment, the NavPy and firmware commits, and the outcome.
 - The pure-vision guard scans the whole `vision_nav` package, with an allow-list for diagnostics. A hand-kept file list would miss files; `pitch_law.py` is missed today.
 - **Decided (2026-10-09): approach laws are plugins, not legacy.** PID (AAS_DEL_CTRL 0) and PN (1), both geo-based, and vision PN (2) are our proof-of-concept laws. They can be selected through one law registry, and contractors' laws join the same way.
-  - Today their branches are spread across about 40 files in `app/`, `core/approach/`, `core/skills/`, `core/review/` and `plugins/laws/geo/`: `legacy_*`, `roll_l1*`, `ApproachKind`, and the 21 files that read `final_approach.is_active`. The self-detect orbit is one of them.
-  - Target: each law is one plugin that only takes inputs and returns commands: no vehicle access, no mode writes, no flight behavior of its own. The orbit prep, recovery climb and floor around PID/PN move into a geo-approach skill that drives those laws. The vision-approach skill drives the vision laws. Nothing outside the final approach branches on which law is selected, and a guard test enforces that.
+  - Today their branches are spread across about 40 files in `app/`, `core/approach/`, `core/skills/`, `core/review/` and `plugins/laws/geo/`: `legacy_*`, `roll_l1*`, `ApproachKind`, and the 21 files that read `guidance.is_active`. The self-detect orbit is one of them.
+  - Target: each law is one plugin that only takes inputs and returns commands: no vehicle access, no mode writes, no flight behavior of its own. The orbit prep, recovery climb and floor around PID/PN move into a geo-approach skill that drives those laws. The vision-approach skill drives the vision laws. Nothing outside the guidance branches on which law is selected, and a guard test enforces that.
   - Each law declares its required inputs and their quality, for example GPS with a CEP, camera frames with a rate, latency and jitter, gimbal readback, attitude, and real airspeed. Requirements can depend on the profile. The platform gives a law only the inputs it declared.
   - **Decided (2026-10-09): this all happens at setup, before the sortie.**
     - The mission builder lists the laws whose requirements the vehicle's data sources meet, and says what is missing for the others.
@@ -128,7 +128,7 @@ become edges and skills of each module's graph:
 
 Rules:
 - The module id and role are latched at arming as a pre-arm check, never mid-flight. ONHOLD also happens in flight.
-- The final-approach engine is built only for modules whose roles use it.
+- The guidance engine is built only for modules whose roles use it.
 
 **Flows are graphs.** Each role has one graph:
 - nodes are skills (flight activities);
@@ -165,7 +165,7 @@ resumes, a dock the drone found itself is circled first, then approached
 **In-flight pickup** has three roles: scout, catcher and backup.
 ```
 scout:   search(line marker) -> review(operator) -> [report, offer "catch"] -> observe(line)
-catcher: hold -> assigned "catch" -> acquire(line) -> line_up -> final_approach(line_dive)
+catcher: hold -> assigned "catch" -> acquire(line) -> line_up -> guidance(line_dive)
          passed -> review(scout or operator) -> confirmed -> [finish] -> RTL
          rejected or lost -> passes < N ? line_up : [operator hands task to backup]
 ```
@@ -176,7 +176,7 @@ catcher: hold -> assigned "catch" -> acquire(line) -> line_up -> final_approach(
 - **Decided (2026-10-08): no low-level run-in.** Trees and rocks make a low straight leg unsafe, so the catcher dives from the detection altitude straight to the capture segment, like the delivery dive. The pure-vision law flies down the line of sight, which is clear wherever the camera sees the segment.
   - Open: the aircraft is still descending at contact, so the pull-out loses height. Rough estimate at 25 m/s and 2 g: about 4 m at a 20° dive and 9 m at 30°, plus the sink during the reaction time. The segment must sit that high above obstacles, or the dive must be shallow at contact. The Monte Carlo measures it.
 
-**SAR** has no final approach.
+**SAR** has no guidance.
 ```
 search(person, sector) --sighting--> [queue review, keep searching]
 review confirmed -> [report, offer "observe"]; observe task: goto -> observe -> hold or RTL
@@ -189,7 +189,7 @@ Prerequisites:
 - coverage resume.
 
 **Which activities each mission uses:**
-| Mission | search | goto/hold | observe | acquire | line_up | final_approach | track |
+| Mission | search | goto/hold | observe | acquire | line_up | guidance | track |
 |---|---|---|---|---|---|---|---|
 | Delivery (paused) | ✓ | ✓ | | ✓ | | ✓ dive | later (moving dock) |
 | In-flight pickup | ✓ | ✓ | ✓ | ✓ | ✓ | ✓ line_dive | |
@@ -254,7 +254,7 @@ The file-by-file split, positioning sources and slice order are in
 2. **Graph runner and split:**
    - the flow runner, with delivery's graph reproducing today's flow;
    - extract delivery into its own module (DDH, dock preset, DOCK task kind, self-detect circle, one-shot finish), then pause it;
-   - build the final approach per module;
+   - build the guidance per module;
    - move goto, loiter, geo and gimbal off the `Navigation` hub (`app/approach/navigation.py`);
    - scope `is_active` by role;
    - put every law behind the law registry as a plugin.
@@ -271,7 +271,7 @@ The file-by-file split, positioning sources and slice order are in
    - the one dialect rebuild.
 
 ## Owner decisions
-1. ~~Retire the legacy laws?~~ Decided: they stay as selectable law plugins (2026-10-09; see the final-approach rules).
+1. ~~Retire the legacy laws?~~ Decided: they stay as selectable law plugins (2026-10-09; see the guidance rules).
 2. ~~Delivery flow?~~ Decided:
    - a dock the drone found itself is circled first, then approached;
    - delivery is extracted from the platform into a module and paused for now.
@@ -282,7 +282,7 @@ The file-by-file split, positioning sources and slice order are in
    - no break-off before contact; a missed pass is retried;
    - no GPS during the approach, because about 10 m at best is unsafe and useless at the line;
    - the operator has "Cancel task" and E-STOP.
-   - GPS stays in use outside the final approach.
+   - GPS stays in use outside the guidance.
 6. **Roles** are set by the operator in the plan; the backup is operator-handed for the demo (recommended).
 7. **One active module per vehicle per sortie,** while a fleet may split across modules (recommended).
 8. **Glossary now:** Platform, Behavior (one exclusive flight activity), Service, Task, Role, Equipment, Profile. Playbook and Action wait for extraction.
@@ -293,7 +293,7 @@ The file-by-file split, positioning sources and slice order are in
 |---|---|---|
 | Behavior trees per vehicle | A second executor during migration. Binary results lose named outcomes. Re-evaluating every tick can abort an approach on a one-frame dropout. The blackboard is hidden shared state | durable pass budgets; named debounces |
 | Hierarchical statecharts | An in-house kernel under the nav loop before the demo; delivery must be re-expressed first | exit-point ownership; state groups as the first extraction candidate |
-| Concurrent behaviors with arbitration | Safety becomes emergent. Blended commands break the final approach's isolation | per-channel command fence; select-only flight arbitration |
+| Concurrent behaviors with arbitration | Safety becomes emergent. Blended commands break the guidance's isolation | per-channel command fence; select-only flight arbitration |
 | Fleet-first mission graph on the GCS | Mission progress stalls on RFD900 dropouts (forest SAR). The GCS becomes mission-critical | task leases; the GCS coordinator for cross-vehicle work |
 | Minimal hooks only, as written | Its DO_JUMP pass loop flies blind passes if NavPy hangs; it misses RESET and `is_active` | the P2 core: seams and ground-compiled geometry |
 

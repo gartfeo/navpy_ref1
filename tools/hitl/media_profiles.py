@@ -4,7 +4,7 @@ origin rules a passing result must keep, shared by the check and the run record 
 library only.
 
 Only the PC is profiled: stage 1 runs navpy's video in the PC's WSL Ubuntu-24.04 distro, from Ubuntu's archive.
-Windows Smart App Control refuses the unsigned bindings of the official Windows installers (hitl_final_approach.md
+Windows Smart App Control refuses the unsigned bindings of the official Windows installers (hitl_guidance.md
 step 7). The Orin (JetPack GStreamer 1.20 and python3-gi) gets its profile, with its apt versions, when stage 2
 installs it.
 """

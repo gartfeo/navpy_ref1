@@ -44,8 +44,8 @@ class NavigationStatusEmitter:
         x_text = str(x_err_center) if x_err_center is not None else "N/A"
         y_text = str(y_err_center) if y_err_center is not None else "N/A"
         term_text = (
-            f"{sample.final_approach_angle:.1f}"
-            if sample.final_approach_angle is not None
+            f"{sample.guidance_angle:.1f}"
+            if sample.guidance_angle is not None
             else "N/A"
         )
         actual_roll_text = _optional_angle_text(sample.actual_roll)

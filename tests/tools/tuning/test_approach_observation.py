@@ -1,4 +1,4 @@
-"""Observation (hitl_final_approach.md section 9, step 16): navpy is the router's reader while the harness flies the
+"""Observation (hitl_guidance.md section 9, step 16): navpy is the router's reader while the harness flies the
 fixed search lane, so none of its writes to the aircraft reaches the board; the runner's audit of the router's write
 log at the board boundary counts the forbidden ones and those after the drain ack."""
 from __future__ import annotations

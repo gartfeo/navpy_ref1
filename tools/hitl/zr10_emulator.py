@@ -1,4 +1,4 @@
-"""ZR10 SIYI emulator for the HITL final approach (hitl_final_approach.md section 4).
+"""ZR10 SIYI emulator for the HITL guidance (hitl_guidance.md section 4).
 
     python -m tools.hitl.zr10_emulator --vehicle-state 127.0.0.1:PORT [--siyi 127.0.0.1:37260]
         [--unreal 127.0.0.1:17212] [--profile siyi_zr10] [--log FILE.jsonl] [effect options]

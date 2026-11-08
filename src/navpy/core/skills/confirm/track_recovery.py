@@ -182,7 +182,7 @@ class IdentityReacquisition:
 
 
 class GeoHoldCoordinator:
-    """Enter or leave bounded non-final-approach geo hold."""
+    """Enter or leave bounded non-guidance geo hold."""
 
     def __init__(
         self,
@@ -191,7 +191,7 @@ class GeoHoldCoordinator:
         tracking: TrackingCommandPort,
         tracking_status: TrackingStatusPort,
         geo_pointing: GeoPointingPort,
-        final_approach_running: Callable[[], bool],
+        guidance_running: Callable[[], bool],
         clock_s: Callable[[], float],
         peer_task_location: Callable[[], Optional[Location]],
         recovery: TrackRecovery,
@@ -204,7 +204,7 @@ class GeoHoldCoordinator:
         self._tracking = tracking
         self._tracking_status = tracking_status
         self._geo_pointing = geo_pointing
-        self._final_approach_running = final_approach_running
+        self._guidance_running = guidance_running
         self._clock_s = clock_s
         self._peer_task_location = peer_task_location
         self._recovery = recovery
@@ -228,7 +228,7 @@ class GeoHoldCoordinator:
             ConfirmationStatus.TIMEOUT_REJECTED,
         }:
             return False
-        if self._final_approach_running():
+        if self._guidance_running():
             return False
         loss_hold_s = self._tracking_status.loss_hold_sec
         if loss_hold_s is None or self._confirm.loss_started_at is None:

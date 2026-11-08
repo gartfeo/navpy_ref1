@@ -1,4 +1,4 @@
-"""Lifecycle fence for final-approach command diagnostics."""
+"""Lifecycle fence for guidance command diagnostics."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from navpy.core.kernel import runtime_time as rt
 POSTPROCESS_DRAIN_TIMEOUT_S = 2.0
 
 
-class FinalApproachPostprocessFence:
+class GuidancePostprocessFence:
     """Let phase reset wait for diagnostics already owned by the worker."""
 
     def __init__(self) -> None:
@@ -22,7 +22,7 @@ class FinalApproachPostprocessFence:
     def finish(self) -> None:
         with self._condition:
             if self._in_flight <= 0:
-                raise RuntimeError("final-approach postprocess fence finished twice")
+                raise RuntimeError("guidance postprocess fence finished twice")
             self._in_flight -= 1
             if self._in_flight == 0:
                 self._condition.notify_all()
@@ -34,9 +34,9 @@ class FinalApproachPostprocessFence:
                 remaining_s = deadline_s - rt.monotonic()
                 if remaining_s <= 0.0:
                     raise TimeoutError(
-                        "final-approach postprocess did not drain before reset"
+                        "guidance postprocess did not drain before reset"
                     )
                 self._condition.wait(timeout=remaining_s)
 
 
-__all__ = ["POSTPROCESS_DRAIN_TIMEOUT_S", "FinalApproachPostprocessFence"]
+__all__ = ["POSTPROCESS_DRAIN_TIMEOUT_S", "GuidancePostprocessFence"]

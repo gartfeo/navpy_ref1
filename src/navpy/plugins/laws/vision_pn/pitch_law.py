@@ -1,4 +1,4 @@
-"""The vertical (pitch) command formula for the final-approach visual law.
+"""The vertical (pitch) command formula for the guidance visual law.
 
 One formula, `raw_pitch_current`: a proportional-navigation integrator that
 walks the command anchor down by `N * rate * dt` every cycle. The clamped
@@ -25,11 +25,11 @@ matrix by 7.6 to 14.9 m. Root cause: it equates a GROUND-relative LOS elevation
 with an AIR-relative pitch attitude. The achieved flight path is shallower by
 angle of attack plus the wind's effect on along-track ground speed, so it
 under-dives every cycle until the pitch floor saturates. Measured
-`mean(elevation - true flight-path angle)` over the final-approach window: +0.11 to
+`mean(elevation - true flight-path angle)` over the guidance window: +0.11 to
 +0.57 deg for this formula, +3.88 calm and +14.72 tailwind for `memoryless`.
 
 That is the deeper point, and it is why the accumulator stays: rejecting a
-constant unknown disturbance REQUIRES integral action. A pure P+D final-approach law
+constant unknown disturbance REQUIRES integral action. A pure P+D guidance law
 cannot do it at any gain. This integrator is not inertia -- it is disturbance
 rejection. Confirmed from the other side on the noise-free point-mass bench,
 where angle of attack 0 vs 5 deg produces identical misses to three decimals

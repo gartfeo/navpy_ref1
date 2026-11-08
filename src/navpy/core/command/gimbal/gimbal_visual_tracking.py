@@ -35,7 +35,7 @@ class _VisualSession:
     holding: bool
     last_track_time: float | None
     cached_for_zoom: DetectedObject | None
-    final_approach_zoom_frozen: bool
+    guidance_zoom_frozen: bool
 
 
 class GimbalVisualTracking:
@@ -109,7 +109,7 @@ class GimbalVisualTracking:
             cached_for_zoom = self._zoom.update(
                 effective_poi,
                 session.cached_for_zoom,
-                session.final_approach_zoom_frozen,
+                session.guidance_zoom_frozen,
                 pointing,
             )
             self._commit(session, recovery, cached_for_zoom)
@@ -124,7 +124,7 @@ class GimbalVisualTracking:
                 self._detection.holding,
                 self._detection.last_track_time,
                 self._detection.last_tracked_for_zoom,
-                self._detection.final_approach_zoom_frozen_at_min,
+                self._detection.guidance_zoom_frozen_at_min,
             )
 
     def _update_rate(
@@ -213,8 +213,8 @@ def _search_blocked(
 ) -> str | None:
     if geo is not None and geo.poi is not None:
         return "geo"
-    if detection.final_approach_zoom_frozen_at_min:
-        return "final_approach"
+    if detection.guidance_zoom_frozen_at_min:
+        return "guidance"
     if detection.tracking_obj_id is not None and detection.last_track_time is not None and not detection.recentered:
         return "tracking"
     return None

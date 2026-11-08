@@ -1,4 +1,4 @@
-"""The public half of one seed's scenario (hitl_final_approach.md section 9, stage 1 step 14).
+"""The public half of one seed's scenario (hitl_guidance.md section 9, stage 1 step 14).
 
 The scenario service (scenario_service.py) writes it into the run's scenario folder as SCENARIO_FILE: the scenario's
 identity (series, seed index, scene hash), the dock-independent search lane and the run's limits. It holds no dock

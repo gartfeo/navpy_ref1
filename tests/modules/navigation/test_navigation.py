@@ -22,86 +22,86 @@ from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
-    VehicleFinalApproachLawConfigProvider,
+from navpy.plugins.vehicle.ardupilot.guidance_airframe_config import (
+    VehicleGuidanceLawConfigProvider,
 )
 from navpy.core.approach.vision_nav.command_executor import (
-    FinalApproachCommandExecutor,
-    FinalApproachExecutorPorts,
+    GuidanceCommandExecutor,
+    GuidanceExecutorPorts,
 )
 from navpy.plugins.laws.vision_pn.command_anchor import (
-    FinalApproachLimits,
+    GuidanceLimits,
 )
 from navpy.core.approach.vision_nav.command_freshness import (
-    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
-    FinalApproachCommandFreshness,
+    GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
+    GuidanceCommandFreshness,
 )
 from navpy.core.approach.vision_nav.command_hold import (
     ATTITUDE_REFRESH_S,
-    FinalApproachCommandHold,
+    GuidanceCommandHold,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
-    FinalApproachCommandLiveness,
-    FinalApproachEpisodeFailures,
+    GuidanceCommandLiveness,
+    GuidanceEpisodeFailures,
 )
 from navpy.core.approach.vision_nav.docked_evidence import (
-    FinalApproachDockedEvidence,
+    GuidanceDockedEvidence,
 )
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from navpy.core.approach.vision_nav.command_postprocess import (
-    FinalApproachPostprocessFence,
+    GuidancePostprocessFence,
 )
 from navpy.core.approach.vision_nav.command_reset import (
-    FinalApproachCommandReset,
-    FinalApproachCommandResetPorts,
+    GuidanceCommandReset,
+    GuidanceCommandResetPorts,
 )
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachCommandOutcome,
-    FinalApproachCommandResult,
-    FinalApproachCommandTransaction,
-    FinalApproachLawEvidence,
+    GuidanceCommandOutcome,
+    GuidanceCommandResult,
+    GuidanceCommandTransaction,
+    GuidanceLawEvidence,
 )
 from navpy.core.approach.vision_nav.confirmation import (
-    FinalApproachConfirmation,
-    FinalApproachConfirmationPorts,
+    GuidanceConfirmation,
+    GuidanceConfirmationPorts,
 )
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
-    FinalApproachDiagnosticMailbox,
+    GuidanceDiagnosticMailbox,
 )
 from navpy.core.approach.vision_nav.diagnostics import (
-    NavigationFinalApproachDiagnostics,
-    FinalApproachDiagnosticSnapshot,
+    NavigationGuidanceDiagnostics,
+    GuidanceDiagnosticSnapshot,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.ingress import (
-    FinalApproachIngress,
-    FinalApproachIngressPorts,
+    GuidanceIngress,
+    GuidanceIngressPorts,
 )
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
-from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
+from navpy.plugins.laws.vision_pn.law_plan import GuidancePlanOrigin
 from navpy.core.approach.vision_nav.runtime import (
-    FinalApproachCommandWorkRuntime,
-    FinalApproachSessionRuntime,
+    GuidanceCommandWorkRuntime,
+    GuidanceSessionRuntime,
     VisionNavRuntime,
 )
 from navpy.core.approach.vision_nav.runtime_composition import (
-    FinalApproachVehicleDiagnosticReader,
-    compose_final_approach_runtime,
+    GuidanceVehicleDiagnosticReader,
+    compose_guidance_runtime,
 )
-from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.runtime_state import GuidanceRuntimeStatus
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
 @dataclass
 class RichPoi:
-    frame: FinalApproachVisionFrame
+    frame: GuidanceVisionFrame
     pixel: object | None = None
     optics: object = field(default_factory=lambda: _DiagnosticOptics())
     geo: object = field(default_factory=lambda: _DiagnosticGeo())
@@ -173,7 +173,7 @@ class Projector:
     @staticmethod
     def project(poi, generation, air_speed_mps=None):
         frame = poi.frame
-        return FinalApproachVisionFrame(
+        return GuidanceVisionFrame(
             frame.source_name, generation, frame.task_id, frame.obj_id,
             frame.source_timestamp_s, *frame.body_ray, *frame.control_ray,
             frame.aircraft_roll_deg,
@@ -232,12 +232,12 @@ def _ray(yaw_deg=0.0, down_deg=0.0):
 def _frame(ts, *, body=None, control=None, source="cam", generation=0):
     body = body or _ray()
     control = control or body
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         source, generation, 1, 2, ts, *body, *control,
     )
 
 
-_DEFAULT_CONFIG = FinalApproachLawConfig(-55.0, 25.0, 45.0, 0.5, None)
+_DEFAULT_CONFIG = GuidanceLawConfig(-55.0, 25.0, 45.0, 0.5, None)
 
 
 def _runtime(
@@ -250,22 +250,22 @@ def _runtime(
 ):
     lock = threading.RLock()
     slot = NavigationCommandSlot(lock, command_event or threading.Event())
-    mailbox = FinalApproachDiagnosticMailbox()
+    mailbox = GuidanceDiagnosticMailbox()
     epochs = SourceEpochLedger()
     law = law_override or VisionNavLaw(
-        FixedFinalApproachLawConfigProvider(config)
+        FixedGuidanceLawConfigProvider(config)
     )
     visual_pass = VisualPassDetector()
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     docked_rows = []
-    status = FinalApproachRuntimeStatus()
+    status = GuidanceRuntimeStatus()
     actuator = Actuator()
     source_time = source_time or _SourceTimeObserver()
-    liveness = FinalApproachCommandLiveness()
-    worker_failures = FinalApproachEpisodeFailures(lock, episode, liveness)
-    postprocess_fence = FinalApproachPostprocessFence()
-    freshness = FinalApproachCommandFreshness(wall_period_s)
-    hold = FinalApproachCommandHold(
+    liveness = GuidanceCommandLiveness()
+    worker_failures = GuidanceEpisodeFailures(lock, episode, liveness)
+    postprocess_fence = GuidancePostprocessFence()
+    freshness = GuidanceCommandFreshness(wall_period_s)
+    hold = GuidanceCommandHold(
         actuator, source_time, worker_failures, freshness,
     )
     diagnostics = (
@@ -275,32 +275,32 @@ def _runtime(
     )
     docked_recorder = [docked_rows.append]
     armed_rows = []
-    docked_evidence = FinalApproachDockedEvidence(
+    docked_evidence = GuidanceDockedEvidence(
         lock, lambda event: docked_recorder[0](event), postprocess_fence,
         lambda identity, _source_s: armed_rows.append(identity),
     )
-    command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
+    command_reset = GuidanceCommandReset(GuidanceCommandResetPorts(
         lock, slot, mailbox, hold, law, visual_pass, status, liveness,
         postprocess_fence, docked_evidence, episode,
     ))
-    ingress = FinalApproachIngress(FinalApproachIngressPorts(
+    ingress = GuidanceIngress(GuidanceIngressPorts(
         lock, slot, Projector(), epochs, mailbox, source_time, command_reset,
     ))
-    confirmation = FinalApproachConfirmation(FinalApproachConfirmationPorts(
+    confirmation = GuidanceConfirmation(GuidanceConfirmationPorts(
         lock, Projector(), epochs, law,
     ))
-    transaction = FinalApproachCommandTransaction(
+    transaction = GuidanceCommandTransaction(
         law, visual_pass, actuator, episode,
     )
-    executor = FinalApproachCommandExecutor(FinalApproachExecutorPorts(
+    executor = GuidanceCommandExecutor(GuidanceExecutorPorts(
         slot, transaction, mailbox, diagnostics, status, source_time, hold,
         worker_failures, freshness, postprocess_fence,
     ))
     runtime = VisionNavRuntime(
-        FinalApproachCommandWorkRuntime(
+        GuidanceCommandWorkRuntime(
             slot, ingress, executor, hold, docked_evidence,
         ),
-        FinalApproachSessionRuntime(
+        GuidanceSessionRuntime(
             lock, epochs, command_reset, episode, status, liveness,
             docked_evidence,
         ),
@@ -338,7 +338,7 @@ def _run_postprocess(runtime, work):
 def test_production_composition_shares_one_hold_across_command_owners():
     lock = threading.RLock()
     slot = NavigationCommandSlot(lock, threading.Event())
-    built = compose_final_approach_runtime(
+    built = compose_guidance_runtime(
         lock=lock,
         slot=slot,
         sys_id=121,
@@ -419,7 +419,7 @@ def test_raw_source_age_expires_hold_and_latches_navigation_failure():
     assert runtime.nav(poi)
     assert _execute_one(runtime) is not None
 
-    source_now_s[0] = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    source_now_s[0] = 1.0 + GUIDANCE_COMMAND_MAX_SOURCE_AGE_S + 0.001
     assert _execute_one(runtime) is None
 
     assert len(actuator.calls) == 1
@@ -429,7 +429,7 @@ def test_raw_source_age_expires_hold_and_latches_navigation_failure():
 
 
 def test_delayed_fresh_frame_fails_closed_before_first_actuation():
-    source_now_s = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    source_now_s = 1.0 + GUIDANCE_COMMAND_MAX_SOURCE_AGE_S + 0.001
     poi = RichPoi(
         _frame(1.0),
         timing=_DiagnosticTiming(detection_now_s=lambda: source_now_s),
@@ -451,7 +451,7 @@ def test_each_continuously_stale_fresh_frame_relatches_liveness():
             _frame(timestamp_s),
             timing=_DiagnosticTiming(
                 detection_now_s=lambda ts=timestamp_s: (
-                    ts + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+                    ts + GUIDANCE_COMMAND_MAX_SOURCE_AGE_S + 0.001
                 )
             ),
         )
@@ -480,7 +480,7 @@ def test_frozen_source_clock_expires_on_speedup_scaled_receipt_age(speedup):
     assert _execute_one(runtime) is not None
 
     receipt_now_s[0] += (
-        FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S / speedup + 0.001
+        GUIDANCE_COMMAND_MAX_SOURCE_AGE_S / speedup + 0.001
     )
     assert _execute_one(runtime) is None
 
@@ -743,7 +743,7 @@ def test_stale_held_command_fails_closed_on_its_tick_without_refresh_due():
     # Frame source time 1.0, first sent at aircraft time 1.9 (age 0.9 s).
     runtime, actuator = _refresh_runtime(1.0, aircraft_now_s)
 
-    aircraft_now_s[0] = 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+    aircraft_now_s[0] = 1.0 + GUIDANCE_COMMAND_MAX_SOURCE_AGE_S + 0.001
     assert aircraft_now_s[0] - 1.9 < ATTITUDE_REFRESH_S
     assert _held_tick(runtime) is None
 
@@ -937,7 +937,7 @@ def test_an_armed_worker_failure_ends_the_episode_until_reset_phase():
     stale = RichPoi(
         _frame(1.0),
         timing=_DiagnosticTiming(
-            detection_now_s=lambda: 1.0 + FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S + 0.001
+            detection_now_s=lambda: 1.0 + GUIDANCE_COMMAND_MAX_SOURCE_AGE_S + 0.001
         ),
     )
     assert runtime.nav(stale)
@@ -982,7 +982,7 @@ def test_contact_source_reset_then_late_frame_issues_zero_commands():
     terminal = [
         record for record in diagnostics.records
         if record[2] is not None
-        and record[2].outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+        and record[2].outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
     ]
     assert len(terminal) == 1
 
@@ -1006,7 +1006,7 @@ def test_contact_source_reset_then_stale_frame_writes_no_row_and_no_liveness():
     assert not runtime.consume_command_liveness_failure()
     assert len(actuator.calls) == 1
     [_, _, last] = diagnostics.records[-1]
-    assert last.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+    assert last.outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
 
 
 def test_terminal_suppressed_result_writes_no_command_row():
@@ -1021,9 +1021,9 @@ def test_terminal_suppressed_result_writes_no_command_row():
         def capture_event_timestamp():
             return "12:00:00.000"
 
-    diagnostics = NavigationFinalApproachDiagnostics(EventLogger(), reader=None)
-    result = FinalApproachCommandResult(
-        None, FinalApproachCommandOutcome.TERMINAL_SUPPRESSED, False,
+    diagnostics = NavigationGuidanceDiagnostics(EventLogger(), reader=None)
+    result = GuidanceCommandResult(
+        None, GuidanceCommandOutcome.TERMINAL_SUPPRESSED, False,
     )
     diagnostics.record(diagnostics.capture(_frame(1.0), None, result))
     assert events == []
@@ -1060,11 +1060,11 @@ def test_held_command_expiry_before_contact_wins():
 def test_worker_failure_after_contact_is_dropped():
     """Contact first wins: a later worker failure neither ends the episode
     as a failure nor latches liveness."""
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     episode.begin(_identity())
     assert episode.latch_docked(_contact())
-    liveness = FinalApproachCommandLiveness()
-    FinalApproachEpisodeFailures(threading.RLock(), episode, liveness).mark_failed()
+    liveness = GuidanceCommandLiveness()
+    GuidanceEpisodeFailures(threading.RLock(), episode, liveness).mark_failed()
     assert episode.docked
     assert not liveness.consume_failure()
 
@@ -1233,7 +1233,7 @@ def test_missing_attitude_is_nonfatal_after_successful_command():
     class Reader:
         @staticmethod
         def read():
-            return FinalApproachDiagnosticSnapshot(attitude=None, location=None)
+            return GuidanceDiagnosticSnapshot(attitude=None, location=None)
 
     compact = StringIO()
     debug = StringIO()
@@ -1246,7 +1246,7 @@ def test_missing_attitude_is_nonfatal_after_successful_command():
         streams=NavigationLogStreams(compact, debug),
     )
     runtime, actuator, _, mailbox = _runtime(
-        diagnostics_factory=lambda _lock: NavigationFinalApproachDiagnostics(
+        diagnostics_factory=lambda _lock: NavigationGuidanceDiagnostics(
             navigation_logger,
             Reader(),
         )
@@ -1294,9 +1294,9 @@ def test_telemetry_read_failures_are_independent_and_nonfatal_after_command():
         streams=NavigationLogStreams(compact, debug),
     )
     runtime, actuator, _, mailbox = _runtime(
-        diagnostics_factory=lambda _lock: NavigationFinalApproachDiagnostics(
+        diagnostics_factory=lambda _lock: NavigationGuidanceDiagnostics(
             navigation_logger,
-            FinalApproachVehicleDiagnosticReader(
+            GuidanceVehicleDiagnosticReader(
                 lambda: Vehicle().attitude,
                 lambda: Vehicle().location(False),
             ),
@@ -1335,7 +1335,7 @@ def test_diagnostic_failure_propagates_without_command_failure():
     assert len(actuator.calls) == 2
 
 
-def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_rows():
+def test_guidance_diagnostics_sample_every_command_but_rate_limit_compact_rows():
     poi_location = Location(40.0, 44.0, 100.0, is_absolute=True)
     locations = iter((
         Location(40.01, 44.0, 100.0, is_absolute=True),
@@ -1345,7 +1345,7 @@ def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_
     class Reader:
         @staticmethod
         def read():
-            return FinalApproachDiagnosticSnapshot(
+            return GuidanceDiagnosticSnapshot(
                 attitude=None,
                 location=next(locations),
             )
@@ -1359,10 +1359,10 @@ def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_
         timestamp=lambda: "12:00:00.000",
         streams=NavigationLogStreams(compact, debug),
     )
-    diagnostics = NavigationFinalApproachDiagnostics(navigation_logger, Reader())
-    result = FinalApproachCommandResult(
+    diagnostics = NavigationGuidanceDiagnostics(navigation_logger, Reader())
+    result = GuidanceCommandResult(
         CalcData(0.0, 0.0, 1.0, 2.0, None),
-        FinalApproachCommandOutcome.ISSUED,
+        GuidanceCommandOutcome.ISSUED,
         False,
     )
     poi = RichPoi(
@@ -1381,11 +1381,11 @@ def test_final_approach_diagnostics_sample_every_command_but_rate_limit_compact_
     assert second_snap.dist < first_snap.dist
     navigation_logger.drain()
     assert len(compact.getvalue().strip().splitlines()) == 1
-    assert debug.getvalue().count("EVENT:FINAL_APPROACH_CMD") == 1
+    assert debug.getvalue().count("EVENT:GUIDANCE_CMD") == 1
     navigation_logger.close()
 
 
-def test_final_approach_diagnostic_capture_is_immutable_before_async_record():
+def test_guidance_diagnostic_capture_is_immutable_before_async_record():
     attitude = Attitude(-5.0, 12.0, 7.0)
     location = Location(40.0, 44.0, 100.0, is_absolute=True)
     poi_location = Location(40.001, 44.002, 90.0, is_absolute=True)
@@ -1395,7 +1395,7 @@ def test_final_approach_diagnostic_capture_is_immutable_before_async_record():
     class Reader:
         @staticmethod
         def read():
-            return FinalApproachDiagnosticSnapshot(attitude, location)
+            return GuidanceDiagnosticSnapshot(attitude, location)
 
     class Optics:
         @staticmethod
@@ -1411,12 +1411,12 @@ def test_final_approach_diagnostic_capture_is_immutable_before_async_record():
         optics=Optics(),
         geo=_DiagnosticGeo(True, poi_location, camera_location),
     )
-    result = FinalApproachCommandResult(
+    result = GuidanceCommandResult(
         CalcData(0.0, 0.0, 3.0, -9.0, 0.55),
-        FinalApproachCommandOutcome.ISSUED,
+        GuidanceCommandOutcome.ISSUED,
         False,
     )
-    diagnostics = NavigationFinalApproachDiagnostics(logger, Reader())
+    diagnostics = NavigationGuidanceDiagnostics(logger, Reader())
 
     captured = diagnostics.capture(poi.frame, poi, result)
     attitude.roll = 99.0
@@ -1438,12 +1438,12 @@ def test_final_approach_diagnostic_capture_is_immutable_before_async_record():
     assert sample["k"].flags.writeable is False
 
 
-def test_final_approach_diagnostics_record_separate_command_causality_event():
+def test_guidance_diagnostics_record_separate_command_causality_event():
     logger = Mock()
     logger.capture_event_timestamp.return_value = "12:00:00.000"
     logger.log.return_value = True
-    diagnostics = NavigationFinalApproachDiagnostics(logger, Mock())
-    evidence = FinalApproachLawEvidence(
+    diagnostics = NavigationGuidanceDiagnostics(logger, Mock())
+    evidence = GuidanceLawEvidence(
         control_bearing_deg=3.0,
         lateral_rate_deg_s=0.0,
         aircraft_turn_rate_deg_s=0.0,
@@ -1455,11 +1455,11 @@ def test_final_approach_diagnostics_record_separate_command_causality_event():
         control_elevation_deg=7.0,
         vertical_rate_deg_s=0.4,
         pitch_time_constant_s=0.5,
-        configured_limits=FinalApproachLimits(45.0, -55.0, 25.0),
-        effective_limits=FinalApproachLimits(35.0, -55.0, 3.0),
+        configured_limits=GuidanceLimits(45.0, -55.0, 25.0),
+        effective_limits=GuidanceLimits(35.0, -55.0, 3.0),
         raw_roll_deg=12.0,
         raw_pitch_deg=-7.6,
-        origin=FinalApproachPlanOrigin(
+        origin=GuidancePlanOrigin(
             reason="normal",
             anchor_cmd_roll_deg=11.0,
             anchor_cmd_pitch_deg=-7.0,
@@ -1468,9 +1468,9 @@ def test_final_approach_diagnostics_record_separate_command_causality_event():
             vertical_nav_constant=4.0,
         ),
     )
-    result = FinalApproachCommandResult(
+    result = GuidanceCommandResult(
         CalcData(0.0, 7.0, 12.0, -7.6, None),
-        FinalApproachCommandOutcome.ISSUED,
+        GuidanceCommandOutcome.ISSUED,
         False,
         evidence,
     )
@@ -1478,7 +1478,7 @@ def test_final_approach_diagnostics_record_separate_command_causality_event():
     captured = diagnostics.capture(_frame(1.0), None, result)
     diagnostics.record(captured)
 
-    assert logger.log_event.call_args_list[-1].args[0] is LogEvent.FINAL_APPROACH_RESPONSE_STATE
+    assert logger.log_event.call_args_list[-1].args[0] is LogEvent.GUIDANCE_RESPONSE_STATE
     payload = logger.log_event.call_args_list[-1].args[1]
     assert payload["control_bearing_deg"] == 3.0
     assert payload["raw_roll_deg"] == 12.0
@@ -1486,26 +1486,26 @@ def test_final_approach_diagnostics_record_separate_command_causality_event():
     assert payload["cmd_roll_deg"] == 12.0
 
 
-def test_final_approach_reset_waits_for_owned_postprocess_before_state_reset():
+def test_guidance_reset_waits_for_owned_postprocess_before_state_reset():
     lock = threading.RLock()
-    fence = FinalApproachPostprocessFence()
+    fence = GuidancePostprocessFence()
     fence.begin()
     slot = NavigationCommandSlot(lock, threading.Event())
     reset_observed = threading.Event()
     hold = Mock()
     law = Mock()
     law.reset.side_effect = reset_observed.set
-    reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
+    reset = GuidanceCommandReset(GuidanceCommandResetPorts(
         lock,
         slot,
-        FinalApproachDiagnosticMailbox(),
+        GuidanceDiagnosticMailbox(),
         hold,
         law,
         Mock(),
         Mock(),
         Mock(),
         fence,
-        FinalApproachDockedEvidence(lock, Mock(), fence, Mock()),
+        GuidanceDockedEvidence(lock, Mock(), fence, Mock()),
         Mock(),
     ))
     thread = threading.Thread(target=reset.invalidate_commands)
@@ -1530,7 +1530,7 @@ def test_aft_suppressed_frame_finishes_the_snap_segment_after_crossing():
     class Reader:
         @staticmethod
         def read():
-            return FinalApproachDiagnosticSnapshot(
+            return GuidanceDiagnosticSnapshot(
                 attitude=None,
                 location=next(locations),
             )
@@ -1545,7 +1545,7 @@ def test_aft_suppressed_frame_finishes_the_snap_segment_after_crossing():
     # NavigationLogger owns a NavigationStreamWorker daemon (started on first
     # write); close it so the worker thread does not outlive the test.
     try:
-        diagnostics = NavigationFinalApproachDiagnostics(navigation_logger, Reader())
+        diagnostics = NavigationGuidanceDiagnostics(navigation_logger, Reader())
         poi = RichPoi(
             _frame(1.0),
             geo=_DiagnosticGeo(
@@ -1553,14 +1553,14 @@ def test_aft_suppressed_frame_finishes_the_snap_segment_after_crossing():
                 truth_poi_location=poi_location,
             ),
         )
-        issued = FinalApproachCommandResult(
+        issued = GuidanceCommandResult(
             CalcData(0.0, 0.0, 1.0, 2.0, None),
-            FinalApproachCommandOutcome.ISSUED,
+            GuidanceCommandOutcome.ISSUED,
             False,
         )
-        suppressed = FinalApproachCommandResult(
+        suppressed = GuidanceCommandResult(
             None,
-            FinalApproachCommandOutcome.AFT_SUPPRESSED,
+            GuidanceCommandOutcome.AFT_SUPPRESSED,
             False,
         )
 
@@ -1669,7 +1669,7 @@ def test_unavailable_limits_suppress_command_and_confirmation_closed():
     assert runtime.nav(poi)
     assert _execute_one(runtime) is None
     assert not runtime._test_confirmation.can_confirm_detection(poi)
-    assert not runtime._test_confirmation.record_final_approach_confirmed_detection(poi)
+    assert not runtime._test_confirmation.record_guidance_confirmed_detection(poi)
     assert actuator.calls == []
     assert mailbox.size == 0
     assert runtime.consume_command_liveness_failure()
@@ -1727,9 +1727,9 @@ def test_parameter_read_exception_fails_closed_without_actuator(failed_name):
                 raise RuntimeError(f"{name} unavailable")
             return params[name]
 
-    args = type("Args", (), {"final_approach_throttle": None})()
+    args = type("Args", (), {"guidance_throttle": None})()
     law = VisionNavLaw(
-        VehicleFinalApproachLawConfigProvider(Vehicle(), args)
+        VehicleGuidanceLawConfigProvider(Vehicle(), args)
     )
     runtime, actuator, _, mailbox = _runtime(law_override=law)
     poi = RichPoi(_frame(1.0))
@@ -1770,7 +1770,7 @@ def test_valid_aft_suppression_does_not_require_available_limits():
     from navpy.core.approach.vision_nav.visual_pass import VisualPassState
 
     frame = _frame(1.0, body=_AFT, control=_AFT)
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(None))
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(None))
     visual_pass = VisualPassDetector()
     visual_pass._state = VisualPassState(
         frame.continuity_key,
@@ -1778,33 +1778,33 @@ def test_valid_aft_suppression_does_not_require_available_limits():
         aft_pending=True,
     )
     actuator = Actuator()
-    episode = FinalApproachEpisodeLatch()
-    transaction = FinalApproachCommandTransaction(
+    episode = GuidanceEpisodeLatch()
+    transaction = GuidanceCommandTransaction(
         law, visual_pass, actuator, episode,
     )
 
     result = transaction.execute(frame)
 
     assert not result.issued
-    assert result.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED
+    assert result.outcome is GuidanceCommandOutcome.AFT_SUPPRESSED
     assert result.missed
     assert episode.consume_missed()
     assert actuator.calls == []
 
 
 def test_terminal_episode_suppresses_before_the_law_or_the_aft_gate():
-    episode = FinalApproachEpisodeLatch()
+    episode = GuidanceEpisodeLatch()
     episode.begin(_identity())
     assert episode.latch_docked(_contact())
     actuator = Actuator()
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(_DEFAULT_CONFIG))
-    transaction = FinalApproachCommandTransaction(
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(_DEFAULT_CONFIG))
+    transaction = GuidanceCommandTransaction(
         law, VisualPassDetector(), actuator, episode,
     )
 
     result = transaction.execute(_frame(1.0))
 
-    assert result.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED
+    assert result.outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
     assert not result.missed
     assert actuator.calls == []
 
@@ -1819,10 +1819,10 @@ def test_issued_command_carries_exact_frame_local_law_evidence():
     (`law.py:224-231`), which is why the frames now differ.
     """
     frame = _frame(2.0, control=_ray(yaw_deg=5.0, down_deg=7.0))
-    law = VisionNavLaw(FixedFinalApproachLawConfigProvider(_DEFAULT_CONFIG))
+    law = VisionNavLaw(FixedGuidanceLawConfigProvider(_DEFAULT_CONFIG))
     law.seed(_frame(1.0, control=_ray(yaw_deg=3.0, down_deg=5.0)))
-    transaction = FinalApproachCommandTransaction(
-        law, VisualPassDetector(), Actuator(), FinalApproachEpisodeLatch(),
+    transaction = GuidanceCommandTransaction(
+        law, VisualPassDetector(), Actuator(), GuidanceEpisodeLatch(),
     )
 
     result = transaction.execute(frame)
@@ -1874,9 +1874,9 @@ def test_confirmation_records_fresh_frame_without_command_then_nav_is_duplicate(
     poi = RichPoi(_frame(1.0, control=_ray(yaw_deg=5.0, down_deg=5.0)))
     confirmation = runtime._test_confirmation
     assert confirmation.can_confirm_detection(poi)
-    assert confirmation.record_final_approach_confirmed_detection(poi)
+    assert confirmation.record_guidance_confirmed_detection(poi)
     assert not confirmation.can_confirm_detection(poi)
-    assert not confirmation.record_final_approach_confirmed_detection(poi)
+    assert not confirmation.record_guidance_confirmed_detection(poi)
     assert runtime.nav(poi)
     assert runtime.take_work() is None
     assert actuator.calls == []
@@ -1894,7 +1894,7 @@ def test_delayed_confirmation_uses_the_newer_visual_command_immediately():
 
     assert confirmation.can_confirm_detection(reviewed)
     assert confirmation.can_confirm_detection(delayed)
-    assert confirmation.record_final_approach_confirmed_detection(delayed)
+    assert confirmation.record_guidance_confirmed_detection(delayed)
     assert actuator.calls == []
 
     next_frame = RichPoi(

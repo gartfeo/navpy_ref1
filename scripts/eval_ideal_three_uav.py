@@ -30,7 +30,7 @@ from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenari
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Exact normal-workflow three-UAV ideal_360 final-approach regression"
+            "Exact normal-workflow three-UAV ideal_360 guidance regression"
         )
     )
     parser.add_argument("--analyze-only", type=Path, metavar="RUN_DIR")

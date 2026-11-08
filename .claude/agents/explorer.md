@@ -20,7 +20,7 @@ You are the **Codebase Explorer** for NavPy. Your job is fast, accurate codebase
   - `core/ports/` — Contracts (vehicle, network, detection)
   - `core/link/` — Swarm messages
   - `core/perception/` — Camera, detection pipelines, tracking, GeoRefCalc
-  - `core/command/`, `core/approach/`, `core/skills/`, `core/review/` — Actuator owners, final approach, skills, POI review
+  - `core/command/`, `core/approach/`, `core/skills/`, `core/review/` — Actuator owners, guidance, skills, POI review
   - `core/flow/` — Per-UAV loop and NavState machine
   - `core/swarm/` — Multi-vehicle coordination
   - `plugins/` — ArduPilot vehicle, radio, camera, gimbal, detection, tracking, laws

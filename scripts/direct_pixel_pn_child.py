@@ -43,7 +43,7 @@ from pixel_pn_dock_contact import HarnessDockContact, recording_dispatch  # noqa
 from pixel_pn_failure_report import failure_payload  # noqa: E402
 from pixel_pn_flight_control_trace import FlightControlTrace  # noqa: E402
 from pixel_pn_run_identity import start_identity  # noqa: E402
-from pixel_pn_final_approach_speed import settle_final_approach_speed  # noqa: E402
+from pixel_pn_guidance_speed import settle_guidance_speed  # noqa: E402
 
 
 def _parser() -> argparse.ArgumentParser:
@@ -114,7 +114,7 @@ def _wait_for_scoring_interval(
     )
 
 
-def _step_to_final_approach_speed(
+def _step_to_guidance_speed(
     vehicle: IVehicle, options: argparse.Namespace
 ) -> None:
     """Cruise fast, then fly the scored leg at the speed the run claims."""
@@ -123,13 +123,13 @@ def _step_to_final_approach_speed(
     _wait_for_scoring_interval(
         vehicle, options.slow_seq, options.timeout, purpose="speed step-down"
     )
-    change = settle_final_approach_speed(vehicle, options.del_speedup)
+    change = settle_guidance_speed(vehicle, options.del_speedup)
     print(f"DIRECT_PIXEL_SPEED {change.describe()}", flush=True)
     if not change.settled:
         # Refused here rather than scored later: a scored leg flown at cruise
         # speed is indistinguishable from a normal run until the freshness
         # gate rejects it minutes afterwards.
-        raise RuntimeError(f"final-approach speed did not settle: {change.describe()}")
+        raise RuntimeError(f"guidance speed did not settle: {change.describe()}")
 
 
 def _wait_for_mode(vehicle: IVehicle, mode: FlightMode, timeout_s: float) -> None:
@@ -205,12 +205,12 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             is_absolute=True,
         )
         # Completion is dock contact (physical_docking.md): the sim contact
-        # sensor arms when the first frame is recorded for final approach.
+        # sensor arms when the first frame is recorded for guidance.
         dock_contact = HarnessDockContact(
-            vehicle, poi, navigation.final_approach, logger,
+            vehicle, poi, navigation.guidance, logger,
         )
         dispatch = recording_dispatch(
-            navigation.final_approach, navigation.nav, dock_contact,
+            navigation.guidance, navigation.nav, dock_contact,
         )
         source = DirectPoiPixelSource(
             vehicle,
@@ -220,7 +220,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             aircraft_degrees=geo_ref.degrees,
             dispatch=dispatch,
         )
-        navigation.bind_final_approach_source_dispatch(
+        navigation.bind_guidance_source_dispatch(
             source.dispatch_available,
             # Record-only. None when tracing is off, and the worker holds
             # a no-op observer in that case rather than a branch.
@@ -233,7 +233,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         source.start()
         navigation.start()
         print("DIRECT_PIXEL_READY", flush=True)
-        _step_to_final_approach_speed(vehicle, options)
+        _step_to_guidance_speed(vehicle, options)
         _wait_for_scoring_interval(vehicle, options.scoring_start_seq, options.timeout)
         if not vehicle.set_mode(FlightMode.GUIDED):
             raise RuntimeError("GUIDED mode request was rejected")
@@ -246,7 +246,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         while time.monotonic() < deadline_s:
             navigation.raise_if_failed()
             trace.sample(vehicle)
-            if navigation.final_approach.poi_passed_override() is True:
+            if navigation.guidance.poi_passed_override() is True:
                 return _result_payload(True, navigation, source)
             time.sleep(0.01)
         return _result_payload(False, navigation, source)

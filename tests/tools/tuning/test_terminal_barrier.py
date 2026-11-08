@@ -1,4 +1,4 @@
-"""The terminal barrier at the board boundary (design hitl_final_approach.md section 2): navpy's fence and router
+"""The terminal barrier at the board boundary (design hitl_guidance.md section 2): navpy's fence and router
 barrier against the real router, then the runner's handoff (navpy_handoff.py) before its RTL, and the floor's
 recovery through it. A packet's time at the board is the router's write log (time.monotonic, as here)."""
 from __future__ import annotations
@@ -16,7 +16,7 @@ from pymavlink.dialects.v20 import ardupilotmega as M
 
 from navpy.app.router_barrier import BarrierResult, RouterBarrier
 from navpy.app.terminal_handoff import LinkFence, TerminalHandoff
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal
+from navpy.core.approach.vision_nav.episode_latch import GuidanceTerminal
 from tests.tools.tuning import test_mav_router as rig
 from tests.tools.tuning.r3_fake_plane import FakePlane
 from tools.tuning.flight_floor import HeightFloor
@@ -91,7 +91,7 @@ def test_navpy_writes_its_record_only_after_the_router_barrier_and_nothing_of_it
     fence.install(navpy, threading.RLock())
     handoff = TerminalHandoff(fence, RouterBarrier(control_address(router), "navpy"),
                               publish=lambda record: records.append((time.monotonic(), record)))
-    handoff.on_terminal(FinalApproachTerminal.DOCKED, None)
+    handoff.on_terminal(GuidanceTerminal.DOCKED, None)
     navpy.mav.set_mode_send(1, 1, MODE["AUTO"])  # RESET's AUTO restart after the outcome: fenced
     assert not handoff.join(0.2) and records == []   # the router waits for the write in progress
     board.gate.set()
