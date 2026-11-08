@@ -25,6 +25,9 @@ BoundingBox = tuple[float, float, float, float]
 class DetectionIdentity:
     obj_id: int
     task_id: int
+    #: Which instance of its source detector made it: a restarted detector is a new generation whose local
+    #: ``obj_id`` values start again (docs/design/navpy_recovery.md, step 5b). 0 for the first instance.
+    source_generation: int = 0
 
 
 @dataclass(frozen=True)

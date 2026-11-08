@@ -187,8 +187,10 @@ def allowed(msg_id: int, command: Optional[int]) -> bool:
     return msg_id in _ALLOWED_IDS
 
 
-def audit(write_log: Path, handoff: Optional[dict], records: list[dict]) -> dict:
-    """navpy's writes at the board boundary (router monotonic seconds): forbidden ones and those after the drain."""
+def audit(write_log: Path, handoff: Optional[dict], records: list[dict], command_mode: bool = False) -> dict:
+    """navpy's writes at the board boundary (router monotonic seconds): those after the drain and, in observation,
+    forbidden ones. In command mode (step 27) navpy's commands reach the board by design until the drain ack; none
+    after it, as in observation."""
     acks = _drain_acks(handoff, records)
     drain = min(acks) if acks else None
     writes, forbidden, after = 0, Counter(), 0
@@ -199,11 +201,12 @@ def audit(write_log: Path, handoff: Optional[dict], records: list[dict]) -> dict
                 continue
             writes += 1
             cmd = int(command) if command else None
-            if not allowed(int(msg_id), cmd):
+            if not command_mode and not allowed(int(msg_id), cmd):
                 forbidden[f"{msg_id}/{command}" if command else msg_id] += 1
             if drain is not None and float(stamp) > drain:
                 after += 1
     ok = write_log.exists() and not forbidden and drain is not None and after == 0
-    return {"write_log": write_log.exists(), "navpy_writes": writes, "forbidden": sum(forbidden.values()),
+    return {"authority": "command" if command_mode else "observation", "write_log": write_log.exists(),
+            "navpy_writes": writes, "forbidden": sum(forbidden.values()),
             "forbidden_ids": dict(forbidden), "drain_ack_mono_s": drain,
             "after_drain": None if drain is None else after, "ok": ok}

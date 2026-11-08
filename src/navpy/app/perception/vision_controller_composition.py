@@ -41,6 +41,7 @@ from navpy.app.perception.vision_detector_factory_ports import (
     cleanup_mount_specs,
 )
 from navpy.core.perception.vision_lifecycle import VisionLifecycle
+from navpy.app.perception.restarting_detector import restarting_detector_node
 from navpy.app.perception.vision_profile_composition import build_vision_profile
 from navpy.sim.debug_view.vision_sim_debug_view import (
     StackedSimulatorView,
@@ -127,10 +128,9 @@ def build_vision_controller(
                 scheduler_cadence,
                 camera_frames,
             )
+        # Each mount's detector is restarted as a new instance behind a stable proxy (recovery step 5b).
         nodes = build_detector_nodes(
-            factory,
-            profile.mount_specs,
-            profile.detector_settings,
+            factory, profile.mount_specs, profile.detector_settings, restarting_detector_node(logger, vehicle),
         )
         detectors = [node.detector for node in nodes]
         coordinator = DetectionCoordinator(detectors, logger)

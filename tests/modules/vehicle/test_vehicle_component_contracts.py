@@ -1013,3 +1013,34 @@ def test_peer_poi_writer_calls_sequence_first():
     calls = vehicle.update_mission_item.call_args_list
     assert [call.args[0] for call in calls] == [0, 1, 2, 3]
     assert all(call.args[1] is not None for call in calls)
+
+
+def test_companion_heartbeat_survives_failed_sends_and_reports_once():
+    """Recovery step 5c: a failed send is retried next period, never ends the sender (navpy_recovery.md)."""
+    sent = threading.Event()
+    calls: list[int] = []
+
+    class FlakyTransport:
+        def call(self, action):
+            calls.append(1)
+            if len(calls) <= 3:
+                raise OSError("link down")
+            sent.set()
+            return action(SimpleNamespace(mav=MagicMock()))
+
+    logger = MagicMock()
+    runtime = HeartbeatRuntime(
+        FlakyTransport(),
+        SimpleNamespace(mav_type=18, target_system=7),
+        HeartbeatState(7, 3.0),
+        SimpleNamespace(value=logger),
+        1000.0,
+    )
+    runtime.start()
+    try:
+        assert sent.wait(timeout=1.0)
+    finally:
+        runtime.close()
+    warnings = [c.args[0] for c in logger.warning.call_args_list if "Companion heartbeat" in c.args[0]]
+    assert len(warnings) == 2
+    assert "link down" in warnings[0] and warnings[1] == "Companion heartbeat sent again"

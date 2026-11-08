@@ -218,7 +218,7 @@ class NavRecovery:
 
     def _report(self, message: str) -> None:
         try:
-            self._ports.logger.warning(message, key="nav", dest=LogStatusDest.DRONE)
+            self._ports.logger.warning(message, key="nav", status=message, dest=LogStatusDest.DRONE)
         except Exception:  # noqa: BLE001 - reporting must not end recovery
             pass
 
