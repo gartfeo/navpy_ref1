@@ -1,8 +1,10 @@
-"""HITL step 23: the explicit HITL orbit radius (core/skills/acquire/orbit_radius_setting.py, approach_planner.py)
-and the pre-series orbit check (tools/hitl/scenario_checks.py).
+"""HITL steps 23 and 23b: the explicit HITL orbit radius (core/skills/acquire/orbit_radius_setting.py,
+approach_planner.py) and the pre-series orbit check (tools/hitl/scenario_checks.py) with the whole-dock detector.
 
 Product: a profile without the setting keeps the 500 m floor; the HITL profile's setting replaces only the floor;
-a malformed setting is refused. Check: a feasible plan passes, and a plan failing any one check is refused (100%).
+a malformed setting is refused. Check: the owner's 300 m series passes with the whole-dock detector, and a plan
+failing any one check is refused (100%); the first detection beyond the circle sets the ground ray's error; the dock
+on the ground needs no clearance over the floor (released at the operator's confirm).
 Isolation: the check reads only the scenario's public half, and nothing of its truth inputs reaches navpy."""
 from __future__ import annotations
 
@@ -29,17 +31,18 @@ from navpy.core.skills.acquire.orbit_radius_setting import (
     final_approach_orbit_setting,
 )
 from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
-from navpy.plugins.detection.charuco.charuco_board import CharucoBoardSpec
 from tools.hitl import orbit_centre as oc
 from tools.hitl import orbit_plan as op
 from tools.hitl import scenario_checks as sc
 from tools.hitl import scenario_public as sp
+from tools.hitl.scenario_service import DEFAULT_DOCK
 
 REPO = Path(__file__).resolve().parents[3]
 PROFILES = load_profiles()[0]
 HITL = PROFILES[op.HITL_PROFILE]
 STEPS = op._zoom_steps(HITL)
-BOARD = op._board(HITL)
+LIMITS = op.detector_limits(HITL)
+DOCK = op.dock_of({"dock_size": DEFAULT_DOCK})
 
 
 # --- product: the setting and the planner --------------------------------------------------------------------------
@@ -119,15 +122,15 @@ def test_a_malformed_setting_is_refused_when_the_planner_is_built(block):
         _planner({FINAL_APPROACH_ORBIT_KEY: block})
 
 
+
 # --- the pre-series check ------------------------------------------------------------------------------------------
 
 def _plan(**changes) -> op.OrbitPlan:
-    """A feasible plan: 180 m circle, 90 m above a board on a 10 m mast, zoom 10, floor 1 m, 24 m/s. With step 22's
-    gate refusing the pose at the reading slant, the window is narrow: the ground ray's descent (100 m lane over
-    height zero) needs 178.6 m and the reader allows at most 187.6 m."""
-    base = op.OrbitPlan(radius_m=180.0, lane_height_m=100.0, board_height_m=10.0, floor_m=1.0, airspeed_m_s=24.0,
+    """The series plan: the profile's 300 m circle, the step 13 lane at 80 m, the series' 30 m floor, the default
+    car on the ground, zoom 10, 24 m/s, the profile's whole-dock detector limits."""
+    base = op.OrbitPlan(radius_m=300.0, lane_height_m=80.0, dock=DOCK, floor_m=30.0, airspeed_m_s=24.0,
                         airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, roll_limit_deg=45.0, steps=STEPS,
-                        zoom_command_tenths=100, board=BOARD)
+                        zoom_command_tenths=100, detector=LIMITS)
     return dataclasses.replace(base, **changes)
 
 
@@ -135,41 +138,88 @@ def _failed(plan) -> set[str]:
     return {result.name for result in sc.run_checks(plan) if not result.passed}
 
 
-def test_a_feasible_plan_passes_every_check():
+def _detail(plan, name: str) -> dict:
+    return next(r for r in sc.run_checks(plan) if r.name == name).detail
+
+
+def test_the_owners_300_m_series_passes_every_check_with_the_whole_dock_detector():
     results = sc.run_checks(_plan())
     assert sc.feasible(results), [(r.name, r.detail) for r in results if not r.passed]
-    assert [r.name for r in results] == ["model_speed", "turn_radius", "descent", "reader", "containment",
+    assert [r.name for r in results] == ["model_speed", "turn_radius", "descent", "detector", "containment",
                                          "recovery_floor"]
 
 
-def test_the_check_uses_the_measured_zoom_10_optics_and_the_configured_board():
-    step = STEPS.by_command(100)
-    assert step.optics.fy == pytest.approx(16812.132)
+def test_the_check_uses_the_measured_optics_the_profile_detector_and_the_public_dock():
+    assert STEPS.by_command(100).optics.fy == pytest.approx(16812.132)
+    assert op.search_step(_plan()).command == "2.0"                     # the search's widest step
     assert (STEPS.stream.image_width, STEPS.stream.image_height) == (1920, 1080)
-    assert BOARD == op.Board(CharucoBoardSpec(square_mm=400.0, marker_mm=296.0))
-    assert (BOARD.width_m, BOARD.length_m, BOARD.square_m) == (2.0, 2.8, 0.4)
+    assert LIMITS.input_scale(1920, 1080) == (1.0, 1.0)                 # tiles: native pixels
+    assert (LIMITS.recall_min_box_px, LIMITS.acq_min_box_px) == (24.0, 24.0)
+    assert DOCK == op.Dock(4.5, 1.8, 1.5) and DOCK.poi_height_m == 0.75
+
+
+def test_the_dock_box_follows_its_yaw_and_the_depression():
+    step, h = STEPS.by_command(100), 79.25
+    slant = math.hypot(300.0, h)
+    side_on = oc.dock_box_px(step, DOCK, slant, h, 90.0)                # long axis across the line of sight
+    end_on = oc.dock_box_px(step, DOCK, slant, h, 0.0)
+    assert side_on[0] == pytest.approx(16970.9 * 4.5 / slant, rel=1e-3)
+    assert end_on[0] == pytest.approx(16970.9 * 1.8 / slant, rel=1e-3)
+    sin_d = h / slant
+    assert end_on[1] == pytest.approx(16812.132 * (4.5 * sin_d + 1.5 * math.sqrt(1 - sin_d ** 2)) / slant)
+
+
+def test_the_first_detection_beyond_the_circle_sets_the_ground_ray_error():
+    """The gate's box floor at the search step bounds D: here 362 m, beyond the 300 m circle, and every declared
+    term is taken there (hitl_dock_detector.md section 4.1)."""
+    plan = _plan()
+    d = oc.first_detection_distance_m(plan)
+    assert d > plan.radius_m and d == pytest.approx(361.6, abs=0.5)
+    side = max(oc.smaller_side_input_px(plan, op.search_step(plan), math.hypot(d, 79.25), yaw)
+               for yaw in oc.DOCK_YAWS_DEG)
+    assert side == pytest.approx(LIMITS.acq_min_box_px - plan.bounds.box_size_error_px, abs=0.05)
+    terms = oc.centre_error_terms(plan)
+    assert terms["poi_height"] == pytest.approx(d * 0.75 / 79.25)
+    assert terms["lane_height"] == pytest.approx(d * 1.0 / 79.25)
+    assert terms["azimuth"] == pytest.approx(math.hypot(d, 79.25) * math.radians(1.0))
+    assert terms["capture_skew"] == pytest.approx(2.4)
+    assert oc.centre_error_m(plan) == pytest.approx(sum(terms.values())) == pytest.approx(24.81, abs=0.01)
+
+
+def test_a_higher_gate_floor_brings_the_first_detection_in_and_never_inside_the_circle():
+    near = dataclasses.replace(LIMITS, acq_min_box_px=40.0, recall_min_box_px=24.0)
+    assert oc.first_detection_distance_m(_plan(detector=near)) < oc.first_detection_distance_m(_plan())
+    unreachable = dataclasses.replace(LIMITS, acq_min_box_px=1000.0)
+    assert oc.first_detection_distance_m(_plan(detector=unreachable)) == 300.0
+
+
+def test_the_dock_on_the_ground_needs_no_clearance_over_the_floor():
+    """Option A (owner, 2026-11-08): the floor guards the lane, search and orbit and is released at the operator's
+    confirm, so a dock 30 m below the floor passes; the lane must still be above the floor."""
+    detail = _detail(_plan(), "recovery_floor")
+    assert detail["lane_above_floor_m"] == 50.0 and detail["floor_released_at"] == "operator confirm"
+    assert _failed(_plan(floor_m=80.0)) == {"recovery_floor"}
+    assert _failed(_plan(floor_m=79.9)) == set()
 
 
 def test_the_turn_term_is_the_planners_at_the_nav_bank_cap():
-    detail = next(r for r in sc.run_checks(_plan()) if r.name == "turn_radius").detail
+    detail = _detail(_plan(), "turn_radius")
     assert detail["turn_radius_m"] == pytest.approx(24.0 ** 2 / (9.81 * math.tan(math.radians(35.0))), abs=0.01)
     assert detail["required_m"] == pytest.approx(167.7, abs=0.05)
 
 
 @pytest.mark.parametrize("changes, failing", [
-    ({"airspeed_m_s": 36.0}, {"model_speed", "turn_radius"}),
+    ({"airspeed_m_s": 36.0}, {"model_speed", "turn_radius"}),     # 2 v^2 / (g tan 35) = 377 m
     ({"airspeed_band": None}, {"model_speed"}),
-    ({"radius_m": 160.0}, {"turn_radius", "descent"}),       # descent 100 / tan(29.25) = 179 m (ground ray)
-    ({"airspeed_m_s": 25.0}, {"turn_radius"}),              # 2 v^2 / (g tan 35) = 182 m
-    ({"min_pitch_deg": -35.0}, {"descent"}),                 # 100 / tan(22.75) = 238 m
+    ({"radius_m": 160.0}, {"turn_radius"}),                        # 167.7 m
+    ({"min_pitch_deg": -20.0}, {"descent"}),                       # 80 / tan(13) = 346 m
     ({"min_pitch_deg": 0.0}, {"descent"}),
-    ({"lane_height_m": 90.0}, {"reader"}),                   # the owner's 80 m above the mast
-    ({"reader_min_square_px": 13.0}, {"reader"}),
-    ({"zoom_command_tenths": 90}, {"reader", "containment"}),  # 10 still fits: the policy zooms past 9
-    ({"zoom_command_tenths": 55}, {"reader", "containment"}),  # not a measured step
-    ({"board": op.Board(CharucoBoardSpec(square_mm=4000.0, marker_mm=2960.0))}, {"containment"}),
-    ({"floor_m": 30.0}, {"recovery_floor"}),                 # the series default floor, above the board
-    ({"board_height_m": 9.0, "lane_height_m": 99.0}, {"recovery_floor"}),  # 8 m over the floor: under the pull-out
+    ({"detector": dataclasses.replace(LIMITS, recall_min_box_px=100.0, acq_min_box_px=100.0)}, {"detector"}),
+    ({"detector": dataclasses.replace(LIMITS, acq_min_box_px=20.0)}, {"detector"}),   # gate below the measured size
+    ({"zoom_command_tenths": 90}, {"containment"}),               # 10 still fits: the policy zooms past 9
+    ({"zoom_command_tenths": 55}, {"detector", "containment"}),   # not a measured step
+    ({"dock": op.Dock(60.0, 20.0, 1.5)}, {"containment"}),         # overflows the frame at 10x
+    ({"floor_m": 85.0}, {"recovery_floor"}),
 ])
 def test_a_plan_failing_a_check_is_refused(changes, failing):
     plan = _plan(**changes)
@@ -177,93 +227,89 @@ def test_a_plan_failing_a_check_is_refused(changes, failing):
     assert not sc.feasible(sc.run_checks(plan))
 
 
-@pytest.mark.parametrize("changes", [{"radius_m": math.nan}, {"lane_height_m": 10.0}, {"radius_m": 0.0},
-                                     {"airspeed_m_s": -1.0}, {"board_height_m": math.inf}])
+def test_the_detector_check_takes_the_far_side_of_the_circle_not_the_radius():
+    """The dock is r + e away on the far side: a limit the box meets at r (98 px) but not at r + e (93 px) fails."""
+    plan = _plan(detector=dataclasses.replace(LIMITS, recall_min_box_px=95.0, acq_min_box_px=95.0))
+    detail = _detail(plan, "detector")
+    at_radius = min(oc.smaller_side_input_px(plan, STEPS.by_command(100), math.hypot(300.0, 79.25), yaw)
+                    for yaw in oc.DOCK_YAWS_DEG)
+    assert at_radius > 95.0 > detail["smaller_side_input_px"]
+    assert detail["farthest_slant_m"] == pytest.approx(math.hypot(300.0 + detail["centre_error_m"], 79.25), abs=0.01)
+    assert _failed(plan) == {"detector"}
+
+
+def test_a_squashed_frame_is_judged_in_its_own_input_pixels():
+    """The squash scales 1920 x 1080 to 704 x 704: the orbit box is 91 native px but 36 squash px across."""
+    squash = dataclasses.replace(LIMITS, input_scale=lambda w, h: (704 / w, 704 / h))
+    side = _detail(_plan(detector=squash), "detector")["smaller_side_input_px"]
+    assert side == pytest.approx(_detail(_plan(), "detector")["smaller_side_input_px"] * 704 / 1920, rel=0.05)
+    assert _failed(_plan(detector=dataclasses.replace(squash, recall_min_box_px=40.0, acq_min_box_px=40.0))) == {
+        "detector"}
+
+
+@pytest.mark.parametrize("changes", [
+    {"radius_m": math.nan}, {"lane_height_m": 0.5}, {"radius_m": 0.0}, {"airspeed_m_s": -1.0},
+    {"dock": op.Dock(0.0, 1.8, 1.5)}, {"dock": op.Dock(4.5, 1.8, math.inf)},
+    {"detector": dataclasses.replace(LIMITS, recall_min_box_px=math.nan)},
+    {"detector": dataclasses.replace(LIMITS, acq_min_box_px=0.0)},
+])
 def test_an_unusable_plan_fails_every_check(changes):
     results = sc.run_checks(_plan(**changes))
     assert len(results) == len(sc.CHECKS) and not any(r.passed for r in results)
 
 
-def test_the_first_detection_beyond_the_circle_sets_the_ground_ray_error():
-    """Codex round 1: 170 m circle 90 m above a 20 m board: the board is first found 211 m out, so the ground ray
-    puts the centre 46.9 m off, not 37.8 m, and the far side drops under the reader limit."""
-    plan = _plan(radius_m=170.0, board_height_m=20.0, lane_height_m=110.0, floor_m=7.0)
-    assert oc.centre_error_m(plan) == pytest.approx(46.89, abs=0.01)
-    assert _failed(plan) == {"reader", "descent"}          # descent: the ground ray's 110 m needs 197 m
-
-
 @pytest.mark.parametrize("plan_changes", [
-    {},                                                                                # 180 m, flown as set
-    {"radius_m": 170.0, "lane_height_m": 106.0, "board_height_m": 16.0, "floor_m": 7.0},  # Codex round 2: 189 m
+    {},                                                     # 300 m, flown as set
+    {"radius_m": 130.0, "airspeed_m_s": 14.0},              # descent 80 / tan(29.25) = 142.85 m
 ])
 def test_the_descent_check_agrees_with_the_planner_on_the_ground_ray_centre(plan_changes):
-    """The orbit is centred on the ground ray (height zero) when step 22 refuses the pose, so the real planner sizes
-    its descent from the whole lane height. The check passes descent exactly when the planner flies the setting."""
+    """The orbit is always centred on the ground ray (height zero), so the planner sizes its descent from the whole
+    lane height. The check passes descent exactly when the planner flies the setting."""
     plan = _plan(**plan_changes)
-    assert not oc.pose_accepted(plan) and oc.descent_height_m(plan) == plan.lane_height_m
+    assert oc.descent_height_m(plan) == plan.lane_height_m
     planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=plan.roll_limit_deg,
                             min_pitch=plan.min_pitch_deg, airspeed=plan.airspeed_m_s)
-    flown = _radius(planner, height=plan.lane_height_m)           # the POI at height zero, as the ground ray
-    descent = next(r for r in sc.run_checks(plan) if r.name == "descent")
-    assert descent.passed == (flown == plan.radius_m) == (log.warnings == [])
-    if not descent.passed:
-        assert flown == pytest.approx(descent.detail["required_m"], abs=0.01) == pytest.approx(189.28, abs=0.01)
+    flown = _radius(planner, height=plan.lane_height_m)
+    descent = _detail(plan, "descent")
+    passed = "descent" not in _failed(plan)
+    assert passed == (flown == plan.radius_m) == (log.warnings == [])
+    if not passed:
+        assert flown == pytest.approx(descent["required_m"], abs=0.01) == pytest.approx(142.85, abs=0.01)
 
 
 def test_an_aircraft_bank_limit_under_the_nav_cap_sets_the_turn_term_as_in_the_planner():
-    """Codex round 3: ROLL_LIMIT_DEG 20 makes the planner fly 322.64 m, so the 180 m plan is refused."""
+    """ROLL_LIMIT_DEG 20 makes the planner fly 322.64 m, so the 300 m plan is refused."""
     plan = _plan(roll_limit_deg=20.0)
     turn = next(r for r in sc.run_checks(plan) if r.name == "turn_radius")
     assert not turn.passed and turn.detail["bank_deg"] == 20.0
     assert turn.detail["required_m"] == pytest.approx(322.64, abs=0.01)
-    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": 180.0}}, lim_roll=20.0)
+    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": 300.0}}, lim_roll=20.0)
     assert _radius(planner, height=plan.lane_height_m) == pytest.approx(322.64, abs=0.01) and len(log.warnings) == 1
     assert _failed(_plan(roll_limit_deg=0.0)) == {"turn_radius"}
-
-
-def test_an_accepted_pose_sizes_the_descent_from_the_board(monkeypatch):
-    monkeypatch.setattr(oc, "pose_accepted_at", lambda *_: True)
-    assert oc.descent_height_m(_plan()) == 90.0
-
-
-def test_the_centre_error_follows_the_product_solvers_verdict_at_the_reading_range():
-    plan, step = _plan(), STEPS.by_command(100)
-    reading = op.reading_slant_m(plan, step)
-    assert reading == pytest.approx(math.sqrt(16812.132 * 0.4 * 90.0 / 11.5))      # 229 m
-    assert oc.pose_accepted_at(plan, step, 100.0)                                   # step 22 accepts it close in
-    assert not oc.pose_accepted_at(plan, step, reading)                             # its 0.3 m gate refuses it there
-    reach = math.sqrt(reading ** 2 - 90.0 ** 2)                                     # first found 211 m out
-    assert oc.detection_distance_m(plan, step) == pytest.approx(reach)
-    assert oc.centre_error_m(plan) == pytest.approx(reach * 10.0 / 90.0)           # so the ground ray's 23.4 m
-
-
-def test_an_accepted_fit_at_the_reading_range_uses_the_pose_limit(monkeypatch):
-    monkeypatch.setattr(oc, "pose_accepted_at", lambda *_: True)
-    assert oc.centre_error_m(_plan()) == oc.POSE_CENTRE_LIMIT_M == 0.5
-    assert _failed(_plan(lane_height_m=90.0)) == set()           # the owner's 80 m plan would then pass
-
-
-def test_the_pose_prediction_is_deterministic():
-    plan, step = _plan(), STEPS.by_command(100)
-    slants = [205.0 + 5.0 * i for i in range(12)]
-    first = [oc.pose_accepted_at(plan, step, slant) for slant in slants]
-    assert first == [oc.pose_accepted_at(plan, step, slant) for slant in slants]
 
 
 def test_no_results_is_not_feasible():
     assert not sc.feasible([])
 
 
+def test_the_profile_without_the_whole_dock_detector_is_refused():
+    with pytest.raises(ValueError):
+        op.detector_limits({"detector": {"rfdetr": {"variant": "large", "classes": {"car": "dock"},
+                                                    "input": "tiles"}}})
+    with pytest.raises(ValueError):
+        op.dock_of({"dock_size": {**DEFAULT_DOCK, "placement": "mast"}})
+
+
 # --- the CLI: refuses on any failed check or unreadable input ------------------------------------------------------
 
-def _inputs(tmp_path, lane_height=100.0, floor=1.0, min_pitch=-45.0, band=(14.0, 35.0)):
+def _inputs(tmp_path, lane_height=80.0, floor=30.0, min_pitch=-45.0, band=(14.0, 35.0), dock=None):
     scenario = tmp_path / "scenario"
     (scenario / sp.PRIVATE_DIR).mkdir(parents=True)
     public = {"schema_version": sp.SCHEMA_VERSION, "series_id": "s1", "series_sha256": "a" * 64, "seed_index": 0,
               "scene_hash": "b" * 64, "consumers": ["unreal", "contact", "scoring"],
               "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": lane_height,
                        "repeats": 30},
-              "limits": {"observe_s": 660.0, "min_height_m": floor}}
+              "limits": {"observe_s": 660.0, "min_height_m": floor}, "dock_size": dock or dict(DEFAULT_DOCK)}
     (scenario / sp.SCENARIO_FILE).write_text(json.dumps(public), encoding="utf-8")
     (scenario / sp.PRIVATE_DIR / "unreal.json").write_text('{"east_mm": 1}', encoding="utf-8")
     params = tmp_path / "aircraft.parm"
@@ -271,8 +317,7 @@ def _inputs(tmp_path, lane_height=100.0, floor=1.0, min_pitch=-45.0, band=(14.0,
     model = tmp_path / "model_input.json"
     envelope = {} if band is None else {"airspeed_m_s": {"min": band[0], "max": band[1]}}
     model.write_text(json.dumps({"envelope": envelope}), encoding="utf-8")
-    return ["--scenario", str(scenario), "--params-file", str(params), "--model-input", str(model),
-            "--board-height-m", "10"]
+    return ["--scenario", str(scenario), "--params-file", str(params), "--model-input", str(model)]
 
 
 def _cli(argv, capsys):
@@ -280,36 +325,23 @@ def _cli(argv, capsys):
     return code, json.loads(capsys.readouterr().out)
 
 
-def test_the_cli_refuses_the_300_m_profile_radius_on_the_reader(tmp_path, capsys):
-    """The owner's 300 m: ChArUco cannot read the board that far at 10x (a whole-object dock detector is a later
-    step), so every series is refused, on the reader alone."""
-    code, out = _cli(_inputs(tmp_path), capsys)
-    assert code == 1 and out["feasible"] is False
-    assert [c["name"] for c in out["checks"] if not c["passed"]] == ["reader"]
-
-
-@pytest.fixture
-def radius_180(monkeypatch):
-    """The CLI on a 180 m radius, which the board can be read at, so a refusal is the input's own."""
-    real = sc.load_plan
-    monkeypatch.setattr(sc, "load_plan", lambda args: dataclasses.replace(real(args), radius_m=180.0))
-
-
-def test_the_cli_passes_a_feasible_series(tmp_path, capsys, radius_180):
+def test_the_cli_passes_the_300_m_profile_with_the_whole_dock_detector(tmp_path, capsys):
+    """Step 23's reader refused every 300 m series; the detector check passes it."""
     code, out = _cli(_inputs(tmp_path), capsys)
     assert code == 0 and out["feasible"] is True and len(out["checks"]) == len(sc.CHECKS)
+    detector = next(c for c in out["checks"] if c["name"] == "detector")
+    assert detector["evidence"].startswith("hitl_final_approach.md step 23b")
 
 
 @pytest.mark.parametrize("inputs, extra", [
-    ({"lane_height": 90.0}, []),
-    ({"lane_height": 140.0}, []),
-    ({"floor": 30.0}, []),
-    ({"min_pitch": -30.0}, []),
+    ({"lane_height": 30.0}, []),
+    ({"floor": 90.0}, []),
+    ({"min_pitch": -20.0}, []),
     ({"band": None}, []),
     ({}, ["--zoom", "5.5"]),
-    ({}, ["--reader-min-square-px", "20"]),
+    ({"dock": {**DEFAULT_DOCK, "length_m": 60.0, "width_m": 20.0}}, []),
 ])
-def test_the_cli_refuses_a_series_failing_a_check(tmp_path, capsys, inputs, extra, radius_180):
+def test_the_cli_refuses_a_series_failing_a_check(tmp_path, capsys, inputs, extra):
     code, out = _cli(_inputs(tmp_path, **inputs) + extra, capsys)
     assert code == 1 and out["feasible"] is False and not all(c["passed"] for c in out["checks"])
 
@@ -324,11 +356,13 @@ def test_the_cli_refuses_unreadable_inputs(tmp_path, capsys):
     argv = _inputs(tmp_path / "c")
     code, out = _cli(argv[:1] + [str(tmp_path / "none")] + argv[2:], capsys)
     assert code == 1 and "refused" in out
+    code, out = _cli(_inputs(tmp_path / "d", dock={**DEFAULT_DOCK, "placement": "mast"}), capsys)
+    assert code == 1 and "refused" in out                          # the public half refuses a dock off the ground
 
 
 # --- isolation: no truth geometry reaches product acquisition ------------------------------------------------------
 
-def test_the_check_opens_no_private_scenario_file(tmp_path, capsys, monkeypatch, radius_180):
+def test_the_check_opens_no_private_scenario_file(tmp_path, capsys, monkeypatch):
     argv = _inputs(tmp_path)
     private = (tmp_path / "scenario" / sp.PRIVATE_DIR).resolve()
     touched: list[str] = []
@@ -362,11 +396,12 @@ def _imports(path: Path) -> set[str]:
 
 
 def test_navpy_names_neither_the_check_nor_its_truth_inputs():
-    """The product sees only radius_m: no navpy source imports the check or names the scene's board height."""
+    """The product sees only radius_m: no navpy source imports the check or names the scene's dock or lane."""
     hits = []
     for path in (REPO / "src" / "navpy").rglob("*.py"):
         text = path.read_text(encoding="utf-8")
-        hits += [f"{path}: {name}" for name in ("scenario_checks", "board_height_m", "lane_height_m")
+        hits += [f"{path}: {name}" for name in ("scenario_checks", "board_height_m", "lane_height_m",
+                                                 "poi_height_m", "first_detection_distance")
                  if name in text]
         hits += [f"{path}: imports tools" for name in _imports(path) if name == "tools" or name.startswith("tools.")]
     assert hits == []
@@ -375,5 +410,5 @@ def test_navpy_names_neither_the_check_nor_its_truth_inputs():
 def test_the_product_radius_does_not_change_with_the_scene():
     """Two scenes the check judges differently give navpy the same radius: the planner has no scene input."""
     planner, _ = _planner(HITL)
-    assert sc.feasible(sc.run_checks(_plan())) != sc.feasible(sc.run_checks(_plan(lane_height_m=90.0)))
+    assert sc.feasible(sc.run_checks(_plan())) != sc.feasible(sc.run_checks(_plan(floor_m=85.0)))
     assert _radius(planner, height=80.0) == _radius(planner, height=90.0) == 300.0

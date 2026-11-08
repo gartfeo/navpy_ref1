@@ -32,6 +32,7 @@ from navpy.core.perception.pipeline.real_detector_runtime_composition import (
 )
 from navpy.core.perception.pipeline.real_inference import DeepSearchLoop, DetectionLoop
 from navpy.core.perception.pipeline.real_tracking import TrackingLoop
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.pipeline.real_tracking_batch import (
     TrackingAssociationProcessor,
     TrackingBatchProcessor,
@@ -65,6 +66,10 @@ def build_workers(
             state.metrics,
             state.inference_generation,
             pipeline.use_poi_lock,
+            acquisition=(
+                None if config.acquisition is None
+                else DockAcquisitionGate(config.acquisition, dependencies.logger.info)
+            ),
         ),
         TrackingResultPublisher(
             runtime.mapper,

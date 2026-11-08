@@ -20,8 +20,10 @@ from navpy.plugins.detection.charuco.board_pose import CharucoBoardPoseSolver
 from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
+    RFDETR_BACKEND,
     YOLO_BACKEND,
 )
+from navpy.plugins.detection.rfdetr.rfdetr_detector import RfDetrDetector
 from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
@@ -60,12 +62,26 @@ def _build_charuco(
     )
 
 
+def _build_rfdetr(model: DetectorModelConfig, logger: ILogger) -> FrameDetector:
+    from navpy.plugins.detection.rfdetr.rfdetr_runtime import TorchRfDetrRuntime
+
+    settings = model.rfdetr
+    assert settings is not None  # DetectorModelConfig pairs the backend with its settings
+    runtime = TorchRfDetrRuntime(model.model_path, settings.variant, model.device)
+    try:
+        return RfDetrDetector(runtime, settings, model.conf, logger=logger)
+    except Exception:
+        runtime.close()
+        raise
+
+
 _FRAME_DETECTOR_BUILDERS: dict[
     str,
     Callable[[DetectorModelConfig, ILogger], FrameDetector],
 ] = {
     CHARUCO_BACKEND: _build_charuco,
     YOLO_BACKEND: _build_yolo,
+    RFDETR_BACKEND: _build_rfdetr,
 }
 
 # Deep search reruns a (higher-resolution) YOLO model; a fiducial board

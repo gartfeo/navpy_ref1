@@ -27,6 +27,7 @@ from navpy.core.perception.pipeline.real_detector_runtime_state import (
 from navpy.core.perception.pipeline.real_frame_association import RealFrameAssociation
 from navpy.core.perception.pipeline.real_inference import DeepSearchChannel
 from navpy.core.perception.pipeline.real_detection_mapper import DetectedObjectMapper
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.detection.poi_priority import find_poi_by_id
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
@@ -51,7 +52,9 @@ class TrackingRecoveryPort(Protocol):
 
 
 class TrackingNavigationPort(Protocol):
-    def update(self, pois: Sequence[DetectedObject], new_frame: bool = False) -> None: ...
+    def update(
+        self, pois: Sequence[DetectedObject], new_frame: bool = False, candidate: bool = False,
+    ) -> None: ...
 
 
 @dataclass(frozen=True)
@@ -74,6 +77,8 @@ class TrackingAssociationResult:
     frame: RealFrameAssociation
     # This frame's board detections with their corners (HITL step 22).
     boards: tuple[Detection, ...] = ()
+    # HITL step 23b: a dock candidate is in view while the acquisition gate holds its tracks back.
+    candidate: bool = False
 
 
 class TrackingAssociationProcessor:
@@ -87,8 +92,10 @@ class TrackingAssociationProcessor:
         metrics: RuntimeMetrics,
         inference_generation: InferenceGeneration,
         use_poi_lock: bool,
+        acquisition: DockAcquisitionGate | None = None,
     ) -> None:
         self._models = models
+        self._acquisition = acquisition
         self._recovery = recovery
         self._deep_search = deep_search
         self._metrics = metrics
@@ -140,6 +147,9 @@ class TrackingAssociationProcessor:
             now=now_s,
             embeddings=embeddings,
         )
+        candidate = False
+        if self._acquisition is not None:
+            tracks, candidate = self._acquisition.admit(tracks, frame_width, frame_height, now_s)
         locked = (
             self._models.poi_lock.select(tracks, frame_width, frame_height)
             if self._use_poi_lock
@@ -154,7 +164,7 @@ class TrackingAssociationProcessor:
         self._metrics.bump("track_updates")
         boards = tuple(item for item in batch.detections if item.board is not None)
         return TrackingAssociationResult(
-            tuple(tracks), locked, association, boards,
+            tuple(tracks), locked, association, boards, candidate,
         )
 
 
@@ -184,7 +194,7 @@ class TrackingResultPublisher:
         )
         self._publications.results.publish(pois, primary)
         self._publications.overlays.publish(result.tracks, result.locked)
-        self._navigation.update(pois, new_frame=True)
+        self._navigation.update(pois, new_frame=True, candidate=result.candidate)
 
 
 class TrackingBatchProcessor:

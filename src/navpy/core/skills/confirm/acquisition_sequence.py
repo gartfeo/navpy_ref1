@@ -7,8 +7,9 @@ waits for the first fresh visual lock and is then placed from that frame's own p
 ground ray, step 22; never truth). Confirm and NAV each need the lock fresh on this tick and the orbit
 established. Whether the gates are still held (the lock kept through a blip, the orbit established) is
 published each tick to the confirmation lock (``publish``), which refuses CONFIRMED from any path
-while it is False and withdraws a review under way. Without the profile's
-gates, ``OPEN_ACQUISITION`` keeps the old order.
+while it is False and withdraws a review under way. The first time a task's confirm releases NAV,
+``released`` reports it once (``on_release``: HITL step 23b's floor release, a mission-state event).
+Without the profile's gates, ``OPEN_ACQUISITION`` keeps the old order and reports nothing.
 """
 
 from __future__ import annotations
@@ -26,6 +27,8 @@ from navpy.core.skills.confirm.orbit_established import OrbitCommand, OrbitEstab
 class AcquisitionGate(Protocol):
     def ready(self, poi: DetectedObject | None) -> bool: ...
 
+    def released(self, poi: DetectedObject) -> None: ...
+
 
 class OrbitStart(Protocol):
     def prepare(self, poi: DetectedObject) -> Optional[OrbitCommand]: ...
@@ -36,6 +39,9 @@ class _OpenAcquisition:
 
     def ready(self, poi: DetectedObject | None) -> bool:
         return True
+
+    def released(self, poi: DetectedObject) -> None:
+        return None
 
 
 OPEN_ACQUISITION: AcquisitionGate = _OpenAcquisition()
@@ -51,13 +57,16 @@ class AcquisitionSequence:
         orbit_start: OrbitStart,
         logger: ILogger,
         publish: Callable[[int, bool], None],
+        on_release: Callable[[int], None] = lambda _task_id: None,
     ) -> None:
         self._lock = lock
         self._orbit = orbit
         self._orbit_start = orbit_start
         self._logger = logger
         self._publish = publish
+        self._on_release = on_release
         self._task_id: int | None = None
+        self._released = False
         self._established = False
         self._reported: set[str] = set()
 
@@ -67,6 +76,7 @@ class AcquisitionSequence:
         self._lock.reset()
         self._orbit.reset()
         self._reported = set()
+        self._released = False
         self._publish(self._task_id, False)
         self._report("detected", f"P{self._task_id}: own detection, waiting for a fresh lock")
 
@@ -78,6 +88,14 @@ class AcquisitionSequence:
             # withdraws or revokes the confirmation, so the operator is asked again only then.
             self._publish(self._task_id, self._lock.kept and self._established)
         return ready
+
+    def released(self, poi: DetectedObject) -> None:
+        """The task's confirm released NAV: report it once per task."""
+        if self._task_id is None or self._released or get_poi_task_id(poi) != self._task_id:
+            return
+        self._released = True
+        self._report("released", f"P{self._task_id}: confirm released NAV")
+        self._on_release(self._task_id)
 
     def _advance(self, poi: DetectedObject | None) -> bool:
         # The orbit is watched on every tick, frames or not: a vision gap is not a step off the circle.

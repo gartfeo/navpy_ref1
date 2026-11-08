@@ -6,6 +6,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.app.flow.confirm_record import print_confirm_record
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.confirm.acquisition_gate_settings import (
     FINAL_APPROACH_GATES_KEY,
@@ -87,6 +88,8 @@ def compose_acquisition(
         self_approach,
         logger,
         confirmation_manager.hold_acquisition,
+        # HITL step 23b: the runner releases its recovery floor on this record.
+        print_confirm_record,
     )
     return AcquisitionComposition(GatedOrbitStart(sequence), sequence)
 

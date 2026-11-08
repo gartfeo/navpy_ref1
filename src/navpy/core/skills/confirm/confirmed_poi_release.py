@@ -31,6 +31,7 @@ class ConfirmedPoiRelease:
         release: FinalApproachReleaseGate,
         final_approach_active: Callable[[], bool],
         acquisition_ready: Callable[[], bool] = lambda: True,
+        on_release: Callable[[DetectedObject], None] = lambda _poi: None,
     ) -> None:
         self._phase = phase
         self._geo_hold = geo_hold
@@ -40,6 +41,8 @@ class ConfirmedPoiRelease:
         self._final_approach_active = final_approach_active
         # HITL step 25: the fresh lock and established orbit, on this tick's detection.
         self._acquisition_ready = acquisition_ready
+        # HITL step 23b: told when this confirm releases NAV (the floor release, a mission-state event).
+        self._on_release = on_release
 
     def apply(self, active: DetectedObject) -> ReleaseOutcome:
         self._retry.clear_reask(get_poi_task_id(active))
@@ -55,6 +58,8 @@ class ConfirmedPoiRelease:
             return ReleaseOutcome.WAIT
         if self._geo_hold.active and not self._recovery.reacquire_geo_hold(active):
             return ReleaseOutcome.ABORTED
+        if self._phase.current != NavState.NAV:
+            self._on_release(active)
         return ReleaseOutcome.READY
 
 

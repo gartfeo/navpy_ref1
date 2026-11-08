@@ -42,13 +42,14 @@ class TrackingNavigationSink:
         self._freshness = freshness
         self._last_measurement_timestamp: float | None = None
 
-    def update(self, pois: Sequence[DetectedObject], new_frame: bool = False) -> None:
-        """``new_frame``: a frame was just published (False on a coast tick)."""
+    def update(self, pois: Sequence[DetectedObject], new_frame: bool = False, candidate: bool = False) -> None:
+        """``new_frame``: a frame was just published (False on a coast tick). ``candidate``: that frame shows a
+        dock the acquisition gate still holds back (HITL step 23b), which holds the search as a detection does."""
         if self._navigation is None:
             return
         # HITL step 21: the search sweep sees every tick, before the visual update, so a detection stops it first.
         self._navigation.search_tick(
-            any(self._freshness.is_fresh(poi) for poi in pois),
+            candidate or any(self._freshness.is_fresh(poi) for poi in pois),
             new_frame,
         )
         tracking_id = self._navigation.tracking_obj_id

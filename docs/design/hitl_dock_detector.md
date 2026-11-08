@@ -1,7 +1,8 @@
 # HITL whole-dock detector (design v2.2, 2026-11-08)
 
-Status: design for owner review. No code until the owner approves. It adds one step to the HITL lean plan
-(`hitl_final_approach.md` section 9, revision 25edd29c), so the plan needs a revision too (section 7).
+Status: approved by the owner 2026-11-08. Phase A is built as HITL step 23b (`hitl_final_approach.md` section 9,
+its Built record holds what was built, measured and left open). It added one step to the HITL lean plan
+(revision 25edd29c; section 7).
 v2 applies Codex review round 1 (section 10), v2.1 round 2 (section 11). v2.2 applies the owner's answers of
 2026-11-08 (section 8): a car as the placeholder dock, on the ground, found by RF-DETR-L; one detector, no
 fallback chain; the floor guards only until the operator confirms. The real net's shape is still open.

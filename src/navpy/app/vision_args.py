@@ -16,8 +16,8 @@ class VisionArgs:
 
     profile_name: str = ""        # Vision profile (empty = default from JSON)
     detector_type: str = "sim"    # "sim" | "real"
-    detector_backend: str = DEFAULT_DETECTOR_BACKEND  # real only: "charuco" | "yolo"
-    model_path: str = ""          # YOLO model path (real + yolo backend only)
+    detector_backend: str = DEFAULT_DETECTOR_BACKEND  # real only: "charuco" | "yolo" | "rfdetr"
+    model_path: str = ""          # model weights (real + yolo or rfdetr backend only)
     debug_show: bool = False      # Show debug window
     # HITL runner only (tools/tuning/approach.py): the run record and a new integration log.
     integration_timing: str = ""
@@ -71,8 +71,10 @@ class VisionArgs:
             default=DEFAULT_DETECTOR_BACKEND,
             help=(
                 "Real detector inference backend: charuco (ChArUco dock "
-                "reference board, board geometry from the vision profile) or "
-                "yolo (requires --detector-model-path). "
+                "reference board, board geometry from the vision profile), "
+                "yolo (requires --detector-model-path) or rfdetr (RF-DETR "
+                "weights in --detector-model-path, the profile's "
+                "detector.rfdetr block). "
                 f"Default: {DEFAULT_DETECTOR_BACKEND}"
             ),
         )
@@ -81,8 +83,9 @@ class VisionArgs:
             type=str,
             default="",
             help=(
-                "Path to the YOLO model, relative to the repo root. Required "
-                "with --detector-backend=yolo; unused by charuco. No default."
+                "Path to the YOLO model or RF-DETR weights, relative to the "
+                "repo root or absolute. Required with --detector-backend=yolo "
+                "or rfdetr; unused by charuco. No default."
             ),
         )
         vision_group.add_argument(

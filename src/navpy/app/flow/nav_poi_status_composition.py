@@ -73,6 +73,7 @@ def _compose_poi_status(
             release,
             lambda: navigation.final_approach.is_active,
             lambda: acquisition.ready(observation.source.find_active_poi_detection()),
+            acquisition.released,
         ),
         PoiRejectionExit(
             PoiRejectionPorts(
