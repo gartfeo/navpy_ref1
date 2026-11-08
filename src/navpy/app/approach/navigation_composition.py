@@ -177,6 +177,7 @@ def compose_navigation(
     on_terminal: Optional[TerminalObserver] = None,
     law_airspeed: Optional[LawAirspeed] = None,
     command_formation: Callable[[], ContextManager[None]] = nullcontext,
+    command_pass: Callable[[], ContextManager[None]] = nullcontext,
 ) -> NavigationComposition:
     """Build Navigation without passing the root object into collaborators."""
     command_lock = rt.RLock()
@@ -259,6 +260,7 @@ def compose_navigation(
             # nothing. Record-only either way.
             command_loop=source_dispatch,
             command_formation=command_formation,
+            command_pass=command_pass,
         ),
     )
     return NavigationComposition(

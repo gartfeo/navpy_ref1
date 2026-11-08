@@ -65,6 +65,7 @@ class NavigationCommandSession:
         ),
         command_loop: CommandLoopObserver = NO_COMMAND_LOOP_OBSERVER,
         command_formation: Callable[[], ContextManager[None]] = nullcontext,
+        command_pass: Callable[[], ContextManager[None]] = nullcontext,
     ) -> None:
         self._stop_event = rt.Event()
         self._command_event = command_event
@@ -82,7 +83,7 @@ class NavigationCommandSession:
             ),
             scheduler_period_s=_scheduler_period_s(scheduler_rate_hz),
             command_loop=command_loop,
-        ))
+        ), command_pass)
         self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
         self._started = False

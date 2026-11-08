@@ -40,10 +40,12 @@ class VehicleFlightControlFacet:
         flight_mode: FlightMode | str,
         *,
         fallback_custom_mode: int | None = None,
+        lock_timeout_s: float | None = None,
     ) -> bool:
         return self._parts.mode.set(
             flight_mode,
             fallback_custom_mode=fallback_custom_mode,
+            lock_timeout_s=lock_timeout_s,
         )
 
 

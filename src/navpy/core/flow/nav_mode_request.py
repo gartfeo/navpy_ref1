@@ -13,6 +13,9 @@ from navpy.core.ports.flight_mode import FlightMode
 MODE_CONFIRM_S = 3.0
 #: Repeat an unconfirmed mode request this often, not every 50 Hz period.
 MODE_RETRY_S = 1.0
+#: Recovery's mode sends wait this long for the link's send lock, then are not sent at all (retried by
+#: MODE_RETRY_S): a stuck send holding the lock cannot stall recovery, and no request goes out late (step 6).
+MODE_SEND_LOCK_TIMEOUT_S = 0.5
 
 
 class ModeRequest:
@@ -68,4 +71,4 @@ class ModeRequest:
             self._report(f"NavPy {mode.name} request failed: {error}")
 
 
-__all__ = ["MODE_CONFIRM_S", "MODE_RETRY_S", "ModeRequest"]
+__all__ = ["MODE_CONFIRM_S", "MODE_RETRY_S", "MODE_SEND_LOCK_TIMEOUT_S", "ModeRequest"]

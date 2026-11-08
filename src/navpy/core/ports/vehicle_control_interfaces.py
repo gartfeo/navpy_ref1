@@ -36,7 +36,11 @@ class VehicleFlightControl(ABC):
         flight_mode: FlightMode | str,
         *,
         fallback_custom_mode: int | None = None,
-    ) -> bool: ...
+        lock_timeout_s: float | None = None,
+    ) -> bool:
+        """``lock_timeout_s`` bounds the wait for the link's send lock: no write when it is not taken in time, so a
+        request never goes out late (NAV recovery's own requests, docs/design/navpy_recovery.md step 6)."""
+        ...
 
     @property
     @abstractmethod
