@@ -719,8 +719,9 @@ handshake or chunk of that round's image.
   ceil(280 / request frame) free sends, 19 for an item request and fewer
   for a parameter. The deadline and the link check still end the exchange.
 - Every `run_exchange` caller passes the count (download steps, parameter
-  reads and writes), and so does the upload's `MISSION_COUNT` loop. Log
-  lines show the free sends: `send 12/12 (+19 free)`.
+  reads and writes), and so does the upload's `MISSION_COUNT` loop. A log
+  line names the free sends once they take a step past its budget:
+  `send 15/12 (+5 free)`.
 - Not chosen: more attempts or longer waits (they hide the correlation);
   sending padding to flush a held frame (it adds air load for every
   exchange, and the receiver's parser is not ours).

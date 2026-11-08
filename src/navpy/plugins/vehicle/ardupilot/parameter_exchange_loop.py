@@ -84,9 +84,10 @@ class SendBudget:
         self.sent += 1
 
     def label(self) -> str:
-        """``counted/attempts``, and how many sends were free when some were."""
+        """``sent/attempts``, and the free sends once they took it past ``attempts``."""
         free = self.sent - self.counted
-        return f"{self.counted}/{self._attempts}" + (f" (+{free} free)" if free else "")
+        extended = self.sent > self._attempts
+        return f"{self.sent}/{self._attempts}" + (f" (+{free} free)" if extended else "")
 
 
 def run_exchange(

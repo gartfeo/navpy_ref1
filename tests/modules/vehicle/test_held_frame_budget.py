@@ -194,3 +194,14 @@ def test_a_policy_without_held_frame_bytes_counts_every_send():
     for _ in range(12):
         budget.before_send()
     assert budget.spent and budget.label() == "12/12"
+
+
+def test_the_log_names_free_sends_only_once_they_extend_the_budget():
+    readings = iter([0, 15, 30, 280, 295])
+    budget = SendBudget(ExchangePolicy(attempts=2, held_frame_bytes=MAVLINK2_MAX_FRAME_BYTES),
+                        lambda: next(readings))
+    labels = []
+    while not budget.spent:
+        budget.before_send()
+        labels.append(budget.label())
+    assert labels == ["1/2", "2/2", "3/2 (+3 free)", "4/2 (+3 free)", "5/2 (+3 free)"]
