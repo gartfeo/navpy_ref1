@@ -59,6 +59,20 @@ def _mgr_for(entries):
     return mgr
 
 
+def _answer_modes(vehicle, taken=lambda mode: mode):
+    """The fake vehicle answers each mode request with a newer heartbeat
+    showing ``taken(mode)``, as ArduPlane does within a second."""
+    vehicle.heartbeat_count = 0
+    vehicle.get_mode = None
+
+    def set_mode(mode, **_):
+        vehicle.heartbeat_count += 1
+        vehicle.get_mode = taken(mode)
+        return True
+
+    vehicle.set_mode = MagicMock(side_effect=set_mode)
+
+
 def _make_entry(sys_id: int, mission_uploaded: bool = False,
                  probed_search_pattern: str | None = None):
     entry = MagicMock()
@@ -67,7 +81,7 @@ def _make_entry(sys_id: int, mission_uploaded: bool = False,
     entry.probed_search_pattern = probed_search_pattern
     entry.vehicle = MagicMock()
     entry.vehicle.is_armed = True
-    entry.vehicle.set_mode = MagicMock()
+    _answer_modes(entry.vehicle)
     entry.vehicle.send_command_long = MagicMock()
     entry.vehicle.restart_mission = MagicMock()
     # Readiness check fields — defaults pass all checks
@@ -305,6 +319,56 @@ class TestLaunchGating:
         assert resp.status_code == 200
         data = resp.json()
         assert data["results"]["1"] == "restarted"
+
+
+class TestRestartConfirmsAuto:
+    """A restart counts only once a fresh heartbeat shows AUTO (2026-11-05:
+    sim UAVs went to AUTOTUNE and the restart still said "restarted")."""
+
+    @pytest.fixture(autouse=True)
+    def _fast_waits(self, monkeypatch):
+        from gcs.backend.routes import control_launch_workflow as wf
+        monkeypatch.setattr(wf, "AUTO_CONFIRM_WAIT_S", 0.03)
+        monkeypatch.setattr(wf, "AUTO_CONFIRM_POLL_S", 0.01)
+
+    def _restart(self, entry):
+        entries = {1: entry}
+        with (
+            patch("gcs.backend.routes.control.vehicle_mgr", _mgr_for(entries)),
+            patch("gcs.backend.routes.control.settings_store", _mock_settings_store()),
+            patch("gcs.backend.routes.control.launch_controller", MagicMock(
+                is_running=False, is_prepared=False,
+            )),
+        ):
+            from gcs.backend.main import app
+            resp = TestClient(app).post("/api/control/restart", json={"sys_ids": [1]})
+        assert resp.status_code == 200
+        return resp.json()["results"]["1"]
+
+    def test_mode_not_taken_is_reported_after_bounded_tries(self):
+        from gcs.backend.routes.control_launch_workflow import AUTO_CONFIRM_TRIES
+        from navpy.core.ports.flight_mode import FlightMode
+        entry = _make_entry(1, mission_uploaded=True)
+        _answer_modes(entry.vehicle, taken=lambda _mode: FlightMode.AUTOTUNE)
+        assert self._restart(entry) == "error: AUTO not confirmed (mode AUTOTUNE)"
+        assert entry.vehicle.set_mode.call_count == AUTO_CONFIRM_TRIES
+
+    def test_no_newer_heartbeat_is_not_a_restart(self):
+        """A heartbeat older than the request may show AUTO; it proves nothing."""
+        from navpy.core.ports.flight_mode import FlightMode
+        entry = _make_entry(1, mission_uploaded=True)
+        entry.vehicle.set_mode = MagicMock(return_value=True)
+        entry.vehicle.heartbeat_count = 7
+        entry.vehicle.get_mode = FlightMode.AUTO
+        assert self._restart(entry) == "error: AUTO not confirmed (no new heartbeat)"
+
+    def test_auto_taken_on_a_retry_is_a_restart(self):
+        from navpy.core.ports.flight_mode import FlightMode
+        entry = _make_entry(1, mission_uploaded=True)
+        answers = iter([FlightMode.LOITER, FlightMode.AUTO])
+        _answer_modes(entry.vehicle, taken=lambda _mode: next(answers))
+        assert self._restart(entry) == "restarted"
+        assert entry.vehicle.set_mode.call_count == 2
 
 
 class TestContainerConnectedRoster:

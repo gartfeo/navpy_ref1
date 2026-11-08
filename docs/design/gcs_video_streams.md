@@ -480,14 +480,16 @@ large vehicle view.
     "AS · GS m/s" (left) and "ALT m" (right) as plain numbers; one line of
     status texts above the credit line (panel hidden); the attitude indicator
     in the band between those rows, so nothing overlaps. Never the link,
-    battery or mode row. When the height runs out the status texts drop
-    first, then the heading strip; the attitude scale (ladder, roll arc)
-    shows only in a band of at least 110 px (not at the 179 px normal size),
-    so only the horizon and the wings show there (an open point for the
-    owner: the requested order drops the scale last). A band under 32 px
-    gives the horizon the whole picture behind the readouts, as maximized.
-    Speed and altitude never drop: at the smallest picture (82 px) they take
-    the waypoint's place in the top row.
+    battery or mode row. When the height runs out, items drop in the
+    owner's order (2026-11-08), least needed first for an operator
+    supervising autonomous vehicles: 1) the attitude scale (ladder, roll
+    arc), which needs a band of at least 110 px (not at the 179 px normal
+    size), so only the horizon and the wings show there; 2) the heading
+    strip (the map shows the heading); 3) the waypoint, whose place in the
+    top row speed and altitude take (the route still marks it); 4) the
+    status line last, since it carries the failsafe and EKF warnings. The
+    horizon, speed and altitude never drop. A band under 32 px gives the
+    horizon the whole picture behind the readouts, as maximized.
   - Maximized (full): the speed (AS with a GS readout) and altitude tapes,
     the heading tape, the attitude scale, and at the top right "Next WP n ·
     distance · ETE mm:ss"; with the panel hidden also the mode, link and

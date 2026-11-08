@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.app.flow.nav_composition_types import (
@@ -75,9 +77,11 @@ def compose_decision_workflows(
     nav = NavStateDecision(
         NavDecisionPorts(
             clock_s=lambda: state.clock.decision_s(),
-            clear_navigation_task=confirmation.reset.reset.clear,
-            request_guided=lambda: approach.commands.request_guided(),
+            clear_navigation_task=lambda: clear_guided_wait(state, confirmation.reset.reset.clear),
+            request_guided=lambda: request_guided_owned(state, approach),
             final_approach_active=lambda: navigation.final_approach.is_active,
+            holding=lambda: state.recovery_hold.holding,
+            take_resumed=state.recovery_hold.take_resumed,
         ),
         state.phase,
         state.navigation_task,
@@ -100,4 +104,17 @@ def compose_decision_workflows(
     return DecisionWorkflows(recovery, decision)
 
 
-__all__ = ["compose_decision_workflows"]
+
+def request_guided_owned(state: NavStateOwnership, approach: VehicleApproachOwnership) -> None:
+    """NavPy's GUIDED request, told to recovery first: ownership starts from it (nav_ownership.py)."""
+    state.recovery_hold.guided_requested()
+    approach.commands.request_guided()
+
+
+def clear_guided_wait(state: NavStateOwnership, clear: Callable[[], None]) -> None:
+    """NavPy stops waiting for GUIDED: withdrawn first, so a later GUIDED is not taken for NavPy's."""
+    state.recovery_hold.guided_withdrawn()
+    clear()
+
+
+__all__ = ["clear_guided_wait", "compose_decision_workflows", "request_guided_owned"]

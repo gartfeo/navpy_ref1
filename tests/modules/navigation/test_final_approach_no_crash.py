@@ -11,12 +11,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.app.flow.nav_runtime_composition import _fail_active_approach
 from navpy.core.approach.navigation_command_worker import (
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
-from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.core.approach.vision_nav.command_executor import (
     FinalApproachCommandExecutor,
     FinalApproachExecutorPorts,
@@ -248,15 +246,19 @@ def test_command_worker_stops_without_running_once_stopped() -> None:
 
 
 # --- NAV loop -----------------------------------------------------------------
+# Changed 2026-11-07 (recovery step 4, docs/design/navpy_recovery.md): a cycle
+# error no longer fails the approach by itself (the removed
+# _fail_active_approach). The loop tells recovery each period whether the cycle
+# ran cleanly; recovery holds after NAV_HOLD_TRIGGER_S of failed periods.
 
 
-def _loop(cycle_errors: list[Exception | None]) -> tuple[NavigationLoop, Mock, Mock]:
+def _loop(cycle_errors: list[Exception | None]) -> tuple[NavigationLoop, Mock, list[bool]]:
     cycle = Mock()
     logger = Mock()
-    on_error = Mock()
+    periods: list[bool] = []
     clock = Mock()
     clock.scheduler_wall_period.return_value = 0.0
-    loop = NavigationLoop(cycle, clock, logger, on_cycle_error=on_error)
+    loop = NavigationLoop(cycle, clock, logger, on_period=periods.append)
     remaining = list(cycle_errors)
 
     def run_cycle() -> None:
@@ -267,16 +269,16 @@ def _loop(cycle_errors: list[Exception | None]) -> tuple[NavigationLoop, Mock, M
             raise error
 
     cycle.run.side_effect = run_cycle
-    return loop, logger, on_error
+    return loop, logger, periods
 
 
-def test_nav_loop_survives_an_unexpected_cycle_error_and_fails_closed() -> None:
+def test_nav_loop_survives_an_unexpected_cycle_error_and_tells_recovery() -> None:
     error = KeyError("missing mailbox token")
-    loop, logger, on_error = _loop([error, None])
+    loop, logger, periods = _loop([error, None])
 
     loop._run()
 
-    on_error.assert_called_once_with(error)
+    assert periods == [False, True]
     assert "KeyError" in logger.error.call_args.args[0]
     operator = logger.warning.call_args
     assert "internal error" in operator.args[0]
@@ -285,51 +287,42 @@ def test_nav_loop_survives_an_unexpected_cycle_error_and_fails_closed() -> None:
 
 
 def test_nav_loop_reports_a_repeating_error_once() -> None:
-    loop, logger, on_error = _loop([ValueError("x"), ValueError("x"), ValueError("x")])
+    loop, logger, periods = _loop([ValueError("x"), ValueError("x"), ValueError("x")])
 
     loop._run()
 
-    assert on_error.call_count == 3
+    assert periods == [False, False, False]
     assert logger.warning.call_count == 1
     assert logger.error.call_count == 1
 
 
 def test_nav_loop_survives_failing_recovery_and_logging() -> None:
-    loop, logger, on_error = _loop([RuntimeError("a"), RuntimeError("b"), None])
+    loop, logger, _periods = _loop([RuntimeError("a"), RuntimeError("b"), None])
     logger.error.side_effect = RuntimeError("log down")
-    on_error.side_effect = RuntimeError("latch down")
+    loop._on_period = Mock(side_effect=RuntimeError("recovery down"))
 
     loop._run()
 
-    assert on_error.call_count == 2
+    assert loop._on_period.call_count == 3
+    loop.raise_if_failed()
+
+
+def test_nav_loop_survives_a_failing_timing_step() -> None:
+    """The scheduler-period code runs inside the guard too (it was outside before)."""
+    loop, _logger, periods = _loop([None, None])
+    loop._clock.scheduler_wall_period.side_effect = RuntimeError("cadence down")
+
+    loop._run()
+
+    assert periods == [True, True]
     loop.raise_if_failed()
 
 
 def test_nav_loop_still_stops_on_base_exception() -> None:
-    loop, _logger, on_error = _loop([KeyboardInterrupt(), None])  # type: ignore[list-item]
+    loop, _logger, periods = _loop([KeyboardInterrupt(), None])  # type: ignore[list-item]
 
     loop._run_thread()
 
-    on_error.assert_not_called()
+    assert periods == []
     with pytest.raises(KeyboardInterrupt):
         loop.raise_if_failed()
-
-
-@pytest.mark.parametrize(
-    ("phase", "failed"),
-    [(NavState.NAV, True), (NavState.DETECT, False), (NavState.RESET, False)],
-)
-def test_cycle_error_fails_only_an_active_approach(
-    phase: NavState, failed: bool,
-) -> None:
-    state = Mock()
-    state.phase = NavPhaseState(current=phase, previous=phase)
-
-    _fail_active_approach(state, KeyError("x"))
-
-    if failed:
-        state.navigation_failures.mark_failed.assert_called_once_with(
-            fail_reason.INTERNAL_ERROR,
-        )
-    else:
-        state.navigation_failures.mark_failed.assert_not_called()
