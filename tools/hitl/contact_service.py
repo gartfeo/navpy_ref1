@@ -89,7 +89,8 @@ class ContactService:
             self._arm = None
         else:
             return self._refuse("disarm of another arm")
-        self._record({"event": body["kind"], "seq": body["seq"], "arm_id": body["arm_id"]})
+        identity = {key: body[key] for key in ("vehicle", "task_id", "dock_uid", "episode") if key in body}
+        self._record({"event": body["kind"], "seq": body["seq"], "arm_id": body["arm_id"], **identity})
         return "accepted"
 
     def pose(self, datagram: bytes, source: tuple[str, int]) -> str:

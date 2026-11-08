@@ -258,3 +258,12 @@ def test_the_pass_stays_in_the_services_private_evidence_and_never_reaches_navpy
     sent = b"".join(rig.to_navpy).decode("utf-8")
     assert not [word for word in COORDINATE_WORDS if word in json.dumps(json.loads(sent)) and word != "dist"]
     assert json.loads(sent).keys() == wire.FIELDS[wire.KIND_CONTACT] | {wire.MAC_FIELD}
+
+
+def test_the_services_arm_evidence_names_navpys_identity_for_scoring():
+    """Step 27: the series report joins the contact to navpy's terminal episode through the arm's identity, which the
+    service logs on its own side (navpy's own task, dock uid and episode; never a coordinate)."""
+    rig = _armed_rig()
+    arm = [r for r in rig.records if r["event"] == "arm"][0]
+    assert arm["task_id"] == TASK and arm["vehicle"] == VEHICLE and {"dock_uid", "episode"} <= set(arm)
+    assert not [name for name in arm if any(word in name for word in COORDINATE_WORDS)]

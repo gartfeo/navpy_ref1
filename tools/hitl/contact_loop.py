@@ -19,6 +19,7 @@ from navpy.plugins.contact import hitl_contact_wire as wire
 from navpy.plugins.contact.hitl_contact_link import ContactLinkConfig
 
 _RECEIVE_BYTES = 65535
+READY_LINE = "contact service: serving"     # printed once both sockets are bound
 
 
 class EvidenceLog:
@@ -46,6 +47,7 @@ def serve(config: ContactLinkConfig, dock: Location, poses: tuple[str, int], evi
         pose_sock.bind(poses)
         judge = judge_type(config, dock, lambda datagram: navpy_sock.sendto(datagram, config.navpy), log)
         log({"event": "serving", "run_id": config.run_id})
+        print(f"{READY_LINE} run {config.run_id}", flush=True)     # the runner's ready line (no pose)
         with selectors.DefaultSelector() as selector:
             selector.register(navpy_sock, selectors.EVENT_READ, "navpy")
             selector.register(pose_sock, selectors.EVENT_READ, "pose")
@@ -78,4 +80,4 @@ def _read(sock: Any, role: str, config: ContactLinkConfig, judge: Any) -> None:
         judge.refusals["oversize"] += 1
 
 
-__all__ = ["EvidenceLog", "serve"]
+__all__ = ["EvidenceLog", "READY_LINE", "serve"]
