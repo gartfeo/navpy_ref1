@@ -1,6 +1,8 @@
 """Flight mode read and command owner."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
 
@@ -30,9 +32,11 @@ class ModeControl:
         *,
         fallback_custom_mode: int | None = None,
         lock_timeout_s: float | None = None,
+        guard: Callable[[], bool] | None = None,
     ) -> bool:
-        """``lock_timeout_s`` bounds the wait for the send lock (not GUIDED's fenced send): when a hung send holds
-        it, nothing is written, now or later, and False is returned."""
+        """``lock_timeout_s`` bounds the wait for the send lock (not GUIDED's fenced send): when a stuck send holds
+        it, nothing is written, now or later, and False is returned. ``guard`` runs under the lock right before the
+        write; False cancels it."""
         name = flight_mode.name if hasattr(flight_mode, "name") else str(flight_mode)
 
         def _send(connection: mavutil.mavfile) -> bool:
@@ -44,6 +48,8 @@ class ModeControl:
             )
             if mode_id is None:
                 self._logger_ref.value.error(f"Unknown mode {flight_mode}")
+                return False
+            if guard is not None and not guard():
                 return False
             connection.mav.set_mode_send(
                 self._identity.target_system,

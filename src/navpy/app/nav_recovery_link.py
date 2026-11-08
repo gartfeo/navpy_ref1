@@ -29,13 +29,14 @@ def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryL
             fresh=vehicle.link_ok,
         )
 
-    def request_mode(mode: FlightMode) -> bool:
-        # Bounded wait for the send lock: never a late write, never a stalled recovery step (step 6).
-        return vehicle.set_mode(mode, lock_timeout_s=MODE_SEND_LOCK_TIMEOUT_S)
+    def request_mode(mode: FlightMode, guard: Callable[[], bool]) -> bool:
+        # The mode sender's write (step 6): a bounded wait for the send lock, the guard checked under it.
+        return vehicle.set_mode(mode, lock_timeout_s=MODE_SEND_LOCK_TIMEOUT_S, guard=guard)
 
     return NavRecoveryLink(
-        close_fence=fence.close, reopen_fence=fence.reopen, observe_mode=observe_mode,
+        close_fence=fence.close, reopen_fence=fence.try_reopen, observe_mode=observe_mode,
         latch_fence=fence.latch_closed, formed_now=fence.formed_now, request_mode=request_mode,
+        hold_fence=fence.hold_closed,
     )
 
 

@@ -7,6 +7,7 @@ from collections.abc import Callable
 from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 
+from navpy.core.flow.nav_mode_sender import ModeSender
 from navpy.core.flow.nav_ownership import ModeObservation
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -69,9 +70,11 @@ class NavRecoveryLink:
     #: The command worker's passes, watched for a hang (step 6); the NAV loop's own beacon is the loop's.
     command_progress: ProgressBeacon = field(default_factory=ProgressBeacon)
     watchdog: WatchdogSignal = field(default_factory=WatchdogSignal)
-    #: Recovery's mode requests, with a bounded wait for the send lock (nav_mode_request.MODE_SEND_LOCK_TIMEOUT_S);
-    #: None: the vehicle's plain set_mode.
-    request_mode: Callable[[FlightMode], object] | None = None
+    #: Recovery's guarded mode write (nav_mode_sender.GuardedSend): a bounded wait for the send lock, and the guard
+    #: called under it right before the write; None: no link to write through.
+    request_mode: Callable[[FlightMode, Callable[[], bool]], bool] | None = None
+    #: The watchdog's veto on reopening (MavCommandFence.hold_closed), while a loop is stuck.
+    hold_fence: Callable[[bool], object] | None = None
 
 
 @dataclass(frozen=True)
@@ -83,6 +86,9 @@ class NavRecoveryPorts:
     logger: ILogger
     escalation: NavEscalation = field(default_factory=NavEscalation)
     watchdog: WatchdogSignal = field(default_factory=WatchdogSignal)
+    #: Writes recovery's modes on its own thread (nav_mode_sender.py); None: written inline through
+    #: ``request_mode`` (tests, no link).
+    mode_sender: ModeSender | None = None
 
 
 class RecoveryHold:

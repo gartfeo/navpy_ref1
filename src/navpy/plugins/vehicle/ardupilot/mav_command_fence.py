@@ -29,6 +29,7 @@ class MavCommandFence:
         self._generation = 0
         self._open = True
         self._latched = False   # closed for good: reopen() no longer opens
+        self._held = False      # held closed by the watchdog while a loop is stuck: reopen() waits for release
         self._dropped = 0
         self._first_drop_logged_for: int | None = None
         self._stated: dict[int, int] = {}   # thread ident -> stated generation
@@ -67,12 +68,30 @@ class MavCommandFence:
             return self._generation
 
     def reopen(self) -> int:
-        """Admit commands again under a new generation; commands formed before stay dropped. Not once latched."""
+        """Admit commands again under a new generation; commands formed before stay dropped. Not once latched,
+        nor while held."""
+        self.try_reopen()
+        return self.generation
+
+    def try_reopen(self) -> bool:
+        """``reopen``, telling whether the fence is open now: False while latched or held (NAV recovery then stays
+        in its hold)."""
         with self._lock:
-            if self._latched:
-                return self._generation
+            if self._latched or self._held:
+                return False
             self._generation += 1
             self._open = True
+            return True
+
+    def hold_closed(self, held: bool) -> int:
+        """The watchdog's veto while a loop is stuck (docs/design/navpy_recovery.md, step 6): held, the fence is
+        closed and no reopen() opens it, whichever thread races; released, it stays closed until recovery reopens
+        it. One lock with reopen(), so a resume decided before the hang was seen cannot reopen it after."""
+        with self._lock:
+            self._held = bool(held)
+            if held and self._open:
+                self._open = False
+                self._generation += 1
             return self._generation
 
     @contextmanager

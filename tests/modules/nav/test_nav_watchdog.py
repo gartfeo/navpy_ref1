@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import threading
 from contextlib import ExitStack
+from dataclasses import replace
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
 
@@ -20,39 +21,28 @@ from navpy.core.flow.nav_recovery_step import SharedRecoveryStep
 from navpy.core.flow.nav_watchdog import NAV_HANG_S, NavWatchdog, NavWatchdogPorts
 from navpy.core.kernel.progress_beacon import ProgressBeacon, bounded_wait
 from navpy.core.ports.flight_mode import FlightMode
+from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
 from tests.modules.nav.test_nav_recovery import HEARTBEAT_PERIODS, PERIOD_S, FakeAutopilot
-
-
-class Fence:
-    def __init__(self) -> None:
-        self.open = True
-        self.closes = 0
-        self.reopens = 0
-
-    def close(self) -> None:
-        self.open = False
-        self.closes += 1
-
-    def reopen(self) -> None:
-        self.open = True
-        self.reopens += 1
 
 
 class WatchdogRig:
     """NAV recovery and the watchdog on one vehicle, wired as nav_watchdog_composition wires them; one clock for
     wall and aircraft time (speed-up 1). NAV owns GUIDED at the start unless ``owned`` is False."""
 
-    def __init__(self, autopilot: FakeAutopilot | None = None, *, owned: bool = True) -> None:
+    def __init__(
+        self, autopilot: FakeAutopilot | None = None, *, owned: bool = True, request_mode=None,
+    ) -> None:
         self.ap = FakeAutopilot() if autopilot is None else autopilot
-        self.fence = Fence()
+        self.fence = MavCommandFence()
         self.signal = WatchdogSignal()
         self.nav_beacon, self.worker_beacon = ProgressBeacon(), ProgressBeacon()
         self.reports: list[str] = []
         self.hold = RecoveryHold(self.ap.observe)
         self.recovery = NavRecovery(
             NavRecoveryPorts(
-                close_fence=self.fence.close, reopen_fence=self.fence.reopen, observe_mode=self.ap.observe,
-                request_mode=self.ap.request, logger=Mock(), watchdog=self.signal,
+                close_fence=self.fence.close, reopen_fence=self.fence.try_reopen, observe_mode=self.ap.observe,
+                request_mode=self.ap.request if request_mode is None else request_mode, logger=Mock(),
+                watchdog=self.signal,
             ),
             self.hold,
         )
@@ -60,7 +50,7 @@ class WatchdogRig:
         self.t, self.periods = 100.0, 0
         self.watchdog = NavWatchdog(NavWatchdogPorts(
             nav_progress=self.nav_beacon, command_progress=self.worker_beacon, signal=self.signal,
-            close_fence=self.fence.close, step_recovery=self.shared.step, sample=self.sample,
+            hold_fence=self.fence.hold_closed, step_recovery=self.shared.step, sample=self.sample,
             report=self.reports.append, wall_s=lambda: self.t,
         ))
         if owned:
@@ -80,7 +70,7 @@ class WatchdogRig:
                 self.ap.heartbeat()
             if nav_runs:
                 with self.nav_beacon.busy():
-                    self.shared.step(cycle_ok, self.sample())
+                    self.shared.step(cycle_ok, self.sample)
             self.watchdog.check()
 
     def hang(self, seconds: float, *beacons: ProgressBeacon) -> None:
@@ -98,9 +88,9 @@ class WatchdogRig:
 def test_a_stuck_nav_loop_gives_the_fence_and_one_loiter_from_recovery():
     rig = WatchdogRig()
     rig.hang(NAV_HANG_S - PERIOD_S, rig.nav_beacon)
-    assert rig.fence.open and rig.stage is RecoveryStage.NORMAL
+    assert rig.fence.is_open and rig.stage is RecoveryStage.NORMAL
     rig.hang(NAV_HANG_S + 2.0, rig.nav_beacon)
-    assert not rig.fence.open and rig.signal.hung
+    assert not rig.fence.is_open and rig.signal.hung
     assert rig.stage is RecoveryStage.HOLD                     # recovery's own stage, stepped by the watchdog
     assert rig.ap.requests == [FlightMode.LOITER] and rig.ap.mode is FlightMode.LOITER
     assert rig.hold.holding
@@ -111,7 +101,7 @@ def test_after_the_hang_the_same_hold_resumes_in_auto_with_the_task():
     rig.hang(NAV_HANG_S + 3.0, rig.nav_beacon)
     rig.run(NAV_HOLD_TRIGGER_S + 2.0)                         # healthy for the trigger time: AUTO, as after any hold
     assert rig.ap.requests == [FlightMode.LOITER, FlightMode.AUTO] and rig.ap.mode is FlightMode.AUTO
-    assert rig.stage is RecoveryStage.NORMAL and rig.hold.resumed and rig.fence.open
+    assert rig.stage is RecoveryStage.NORMAL and rig.hold.resumed and rig.fence.is_open
 
 
 def test_finding1_a_hang_after_a_critical_rtl_never_sends_loiter():
@@ -132,7 +122,7 @@ def test_finding2_nav_recovering_while_the_worker_stays_stuck_keeps_the_hold_to_
         rig.run(NAV_HOLD_RECOVERY_S)                          # NAV runs again, the worker stays stuck
     assert rig.recovery.ownership.state is Ownership.OWNED    # the LOITER is recovery's own request
     assert rig.ap.requests == [FlightMode.LOITER, FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
-    assert not rig.fence.open
+    assert not rig.fence.is_open
 
 
 def test_finding5_nav_does_not_reopen_the_fence_while_a_loop_is_stuck():
@@ -143,23 +133,28 @@ def test_finding5_nav_does_not_reopen_the_fence_while_a_loop_is_stuck():
     assert rig.stage is RecoveryStage.RESUMING
     with rig.worker_beacon.busy():
         rig.run(NAV_HANG_S + PERIOD_S)                        # the worker sticks: hang seen, fence closed
-        assert not rig.fence.open and rig.signal.hung
+        assert not rig.fence.is_open and rig.signal.hung
         rig.ap.mode = FlightMode.AUTO                         # AUTO shows now, during the hang
         rig.run(1.5)
         assert rig.recovery.ownership.ended is not None       # handed over
-        assert not rig.fence.open and rig.stage is RecoveryStage.HOLD
+        assert not rig.fence.is_open and rig.stage is RecoveryStage.HOLD
     rig.run(NAV_HOLD_TRIGGER_S + 1.0)                         # unstuck and healthy: reopened, approach resumes
-    assert rig.fence.open and rig.stage is RecoveryStage.NORMAL and rig.hold.resumed
+    assert rig.fence.is_open and rig.stage is RecoveryStage.NORMAL and rig.hold.resumed
 
 
 def test_finding6_guided_sent_just_before_the_hang_is_recovery_s_and_held():
-    rig = WatchdogRig(FakeAutopilot(FlightMode.AUTO), owned=False)
-    rig.hold.guided_requested()                               # the cycle sent GUIDED, then stuck before recovery
-    rig.ap.request(FlightMode.GUIDED)
-    rig.hang(NAV_HANG_S + 3.0, rig.nav_beacon)
-    assert rig.recovery.ownership.state is Ownership.OWNED
-    assert rig.ap.requests[-1] is FlightMode.LOITER and rig.ap.mode is FlightMode.LOITER
-    rig.hang(NAV_HOLD_RECOVERY_S, rig.nav_beacon)
+    rig = WatchdogRig(FakeAutopilot(FlightMode.AUTO, takes=False), owned=False)
+    with rig.nav_beacon.busy():
+        rig.hold.guided_requested()                           # the cycle sent GUIDED, then stuck before recovery
+        rig.run(NAV_HANG_S + 0.5, nav_runs=False)
+        # The hold began before GUIDED showed: not NavPy's mode yet, nothing to hold (round 2, finding 8).
+        assert rig.stage is RecoveryStage.HOLD
+        assert rig.recovery.ownership.state is Ownership.NOT_OWNED and rig.ap.requests == []
+        rig.ap.mode, rig.ap.takes = FlightMode.GUIDED, True   # NavPy's GUIDED shows only now
+        rig.run(3.0, nav_runs=False)
+        assert rig.recovery.ownership.state is Ownership.OWNED
+        assert rig.ap.requests == [FlightMode.LOITER] and rig.ap.mode is FlightMode.LOITER
+        rig.run(NAV_HOLD_RECOVERY_S, nav_runs=False)
     assert rig.ap.mode is FlightMode.RTL
 
 
@@ -176,7 +171,7 @@ def test_finding7_an_unconfirmed_loiter_keeps_its_deadline_after_the_hang():
     rig.hang(NAV_HANG_S + 1.0, rig.nav_beacon)                # LOITER sent, not taken
     rig.run(MODE_CONFIRM_S + 1.0)                             # NAV back and healthy: the request still must show
     assert FlightMode.RTL in rig.ap.requests and rig.stage is RecoveryStage.CRITICAL
-    assert not rig.fence.open
+    assert not rig.fence.is_open
 
 
 def test_finding8_a_declared_bounded_wait_is_not_a_hang_but_beyond_it_is():
@@ -184,9 +179,9 @@ def test_finding8_a_declared_bounded_wait_is_not_a_hang_but_beyond_it_is():
     with rig.nav_beacon.busy():
         with bounded_wait(6.0):                               # a parameter exchange: 3 attempts of 2 s
             rig.run(NAV_HANG_S + 5.0, nav_runs=False)
-            assert rig.fence.open and not rig.signal.hung     # checked while still busy
+            assert rig.fence.is_open and not rig.signal.hung     # checked while still busy
         rig.run(1.0 + PERIOD_S, nav_runs=False)            # timed from the first check that saw it busy
-        assert not rig.fence.open and rig.signal.hung
+        assert not rig.fence.is_open and rig.signal.hung
 
 
 def test_finding8_a_slow_but_moving_loop_is_not_a_hang():
@@ -194,7 +189,7 @@ def test_finding8_a_slow_but_moving_loop_is_not_a_hang():
     for _ in range(10):
         with rig.nav_beacon.busy():
             rig.run(NAV_HANG_S - PERIOD_S, nav_runs=False)    # slow passes, each checked while busy
-            assert rig.fence.open and not rig.signal.hung
+            assert rig.fence.is_open and not rig.signal.hung
     assert rig.reports == []
 
 
@@ -239,10 +234,10 @@ def test_finding3_recovery_s_mode_requests_use_the_bounded_send():
     from navpy.app.nav_recovery_link import nav_recovery_link
     from navpy.core.flow.nav_mode_request import MODE_SEND_LOCK_TIMEOUT_S
 
-    vehicle = Mock()
-    link = nav_recovery_link(Mock(), vehicle)
-    link.request_mode(FlightMode.LOITER)
-    vehicle.set_mode.assert_called_once_with(FlightMode.LOITER, lock_timeout_s=MODE_SEND_LOCK_TIMEOUT_S)
+    vehicle, guard = Mock(), Mock()
+    link = nav_recovery_link(MavCommandFence(), vehicle)
+    link.request_mode(FlightMode.LOITER, guard)
+    vehicle.set_mode.assert_called_once_with(FlightMode.LOITER, lock_timeout_s=MODE_SEND_LOCK_TIMEOUT_S, guard=guard)
 
 
 def test_finding4_the_whole_worker_pass_is_watched_including_source_dispatch():
@@ -314,10 +309,12 @@ def test_the_runtime_wires_one_recovery_to_the_loop_and_the_watchdog():
         close_fence=Mock(), reopen_fence=Mock(), observe_mode=Mock(), latch_fence=Mock(), request_mode=Mock(),
     )
     shared = nav_recovery(Mock(), RecoveryHold(), Mock(), link)
-    watchdog = nav_watchdog(link, ProgressBeacon(), shared, Mock(), Mock())
+    threads = nav_watchdog(link, ProgressBeacon(), shared, Mock(), Mock())
+    watchdog = threads._watchdog
     assert watchdog._ports.step_recovery == shared.step     # one recovery, stepped by the loop or the watchdog
+    assert threads._sender is shared.sender and shared.recovery._ports.mode_sender is shared.sender
     recovery = shared.recovery
-    assert recovery._ports.request_mode is link.request_mode and recovery._ports.watchdog is link.watchdog
+    assert shared.sender._send is link.request_mode and recovery._ports.watchdog is link.watchdog
     assert nav_recovery(Mock(), RecoveryHold(), Mock(), None) is None
     assert nav_watchdog(None, ProgressBeacon(), None, Mock(), Mock()) is None
 
@@ -340,7 +337,7 @@ def test_the_watchdog_thread_starts_checks_and_stops():
     checks = threading.Event()
     watchdog = NavWatchdog(NavWatchdogPorts(
         nav_progress=ProgressBeacon(), command_progress=ProgressBeacon(), signal=WatchdogSignal(),
-        close_fence=Mock(), step_recovery=None, sample=Mock(), report=Mock(),
+        hold_fence=Mock(), step_recovery=None, sample=Mock(), report=Mock(),
         wall_s=lambda: checks.set() or 0.0,
     ))
     watchdog.start()
@@ -356,9 +353,180 @@ def test_the_shared_step_gives_up_when_its_lock_is_held_too_long():
     shared = SharedRecoveryStep(recovery)
     shared._lock.acquire()
     try:
-        assert shared.step(False, Mock(), lock_timeout_s=0.01) is False
+        assert shared.step(False, Mock, lock_timeout_s=0.01) is False
     finally:
         shared._lock.release()
     recovery.step.assert_not_called()
-    assert shared.step(False, Mock(), lock_timeout_s=0.01) is True
+    assert shared.step(False, Mock, lock_timeout_s=0.01) is True
     recovery.step.assert_called_once()
+
+
+# --- Codex round 2 on the step 6 rework ---------------------------------------------------------------------------
+
+
+def _owned_recovery(ap, **ports):
+    hold = RecoveryHold(ap.observe)
+    fence = MavCommandFence()
+    recovery = NavRecovery(NavRecoveryPorts(
+        close_fence=fence.close, reopen_fence=fence.try_reopen, observe_mode=ap.observe,
+        request_mode=ports.pop("request_mode", ap.request), logger=Mock(), **ports,
+    ), hold)
+    t = [100.0]
+
+    def step(cycle_ok: bool, seconds: float = PERIOD_S, shared=None) -> None:
+        for _ in range(round(seconds / PERIOD_S)):
+            t[0] += PERIOD_S
+            if round(t[0] / PERIOD_S) % HEARTBEAT_PERIODS == 0:
+                ap.heartbeat()
+            sample = TimeSample(aircraft_s=t[0], wall_s=t[0])
+            if shared is None:
+                recovery.step(cycle_ok, sample)
+            else:
+                shared.step(cycle_ok, lambda: sample)
+
+    hold.guided_requested()
+    step(True, 1.0)
+    assert recovery.ownership.state is Ownership.OWNED
+    ap.requests.clear()
+    return recovery, hold, fence, step
+
+
+def test_round2_finding1_a_write_that_never_returns_never_blocks_recovery():
+    """A blocked write is the mode sender's; recovery's step, on whichever thread, returns at once."""
+    from navpy.core.flow.nav_mode_sender import ModeSender
+
+    ap = FakeAutopilot()
+    write_entered, release = threading.Event(), threading.Event()
+
+    def blocked_write(mode, guard):
+        if guard():
+            write_entered.set()
+            release.wait(5.0)                                 # a serial write that does not return
+        return True
+
+    sender = ModeSender(blocked_write, ap.observe, Mock())
+    recovery, hold, fence, step = _owned_recovery(ap, mode_sender=sender)
+    shared = SharedRecoveryStep(recovery, sender)
+    sender.start()
+    try:
+        stepped = threading.Event()
+        nav = threading.Thread(target=lambda: (step(False, NAV_HOLD_TRIGGER_S + 1.0, shared), stepped.set()))
+        nav.start()
+        assert write_entered.wait(2.0)                        # the LOITER write is stuck in the sender
+        assert stepped.wait(2.0)                              # and recovery's steps went on
+        assert recovery.stage is RecoveryStage.HOLD
+        assert shared.step(False, lambda: TimeSample(200.0, 200.0), lock_timeout_s=0.1)   # the watchdog's step too
+    finally:
+        release.set()
+        sender.stop()
+
+
+def test_round2_finding2_a_pilot_mode_shown_during_the_lock_wait_cancels_the_write():
+    from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
+    from navpy.plugins.vehicle.ardupilot.mode_control import ModeControl
+    from navpy.core.flow.nav_mode_sender import ModeSender
+
+    ap = FakeAutopilot()                                      # GUIDED, owned
+    connection = MagicMock()
+    connection.mode_mapping.return_value = {"LOITER": 12}
+    lock = threading.RLock()
+    control = ModeControl(SimpleNamespace(target_system=1), MavTransport(connection, lock), Mock(),
+                          SimpleNamespace(value=Mock()))
+    sender = ModeSender(lambda mode, guard: control.set(mode, lock_timeout_s=2.0, guard=guard), ap.observe, Mock(),
+                        threaded=False)
+    held, release = threading.Event(), threading.Event()
+
+    def stuck_sender() -> None:
+        with lock:
+            held.set()
+            release.wait(2.0)
+
+    blocker = threading.Thread(target=stuck_sender, daemon=True)
+    blocker.start()
+    assert held.wait(1.0)
+    writer = threading.Thread(target=lambda: sender.send_now(FlightMode.LOITER, FlightMode.GUIDED))
+    writer.start()                                            # recovery decided LOITER from GUIDED; waits for the lock
+    ap.mode = FlightMode.FBWA                                 # the pilot's mode shows meanwhile
+    ap.heartbeat()
+    release.set()
+    writer.join(3.0)
+    connection.mav.set_mode_send.assert_not_called()
+    assert [e.heartbeat_count for e in sender.take_events()] == [None]
+
+
+def test_round2_finding3_an_unsent_request_never_makes_the_pilots_mode_look_owned():
+    ap = FakeAutopilot()
+    recovery, hold, fence, step = _owned_recovery(ap, request_mode=lambda mode: False)   # the lock never came
+    step(False, NAV_HOLD_TRIGGER_S + 0.25)                    # hold: LOITER decided, not written
+    assert recovery.stage is RecoveryStage.HOLD
+    ap.mode = FlightMode.LOITER                               # the pilot selects LOITER
+    step(False, 1.0)
+    assert recovery.ownership.state is Ownership.NOT_OWNED    # the pilot's, not NavPy's
+    sent = []
+    recovery._mode._sender._send = lambda mode, guard: guard() and sent.append(mode) is None
+    step(True, NAV_HOLD_TRIGGER_S + NAV_HOLD_RECOVERY_S)
+    assert sent == [] and ap.mode is FlightMode.LOITER       # no AUTO, no RTL over the pilot's LOITER
+
+
+def test_round2_finding4_a_resume_racing_the_watchdog_cannot_reopen_the_fence():
+    """Recovery has decided to reopen after a healthy hold; at that moment the watchdog thread sees the worker
+    stuck (its check runs on a real second thread, between the decision and the reopen)."""
+    rig = WatchdogRig(owned=False)
+    rig.run(NAV_HOLD_TRIGGER_S + 0.5, cycle_ok=False)         # unowned hold: fenced
+    assert rig.stage is RecoveryStage.HOLD and not rig.fence.is_open
+    real_reopen = rig.fence.try_reopen
+    races = []
+
+    def reopen_racing_the_watchdog():
+        checker = threading.Thread(target=rig.watchdog.check)
+        checker.start()
+        checker.join(2.0)
+        races.append(rig.signal.hung)
+        return real_reopen()
+
+    rig.recovery._ports = replace(rig.recovery._ports, reopen_fence=reopen_racing_the_watchdog)
+    with rig.worker_beacon.busy():                            # stuck from the start of the healthy phase
+        rig.run(NAV_HOLD_TRIGGER_S + PERIOD_S)                # recovery resumes just as the hang is seen
+        assert races and races[0] is True                     # the watchdog saw it in between
+        assert not rig.fence.is_open and rig.stage is RecoveryStage.HOLD
+
+
+def test_round2_finding5_the_hold_shows_before_its_loiter_is_requested():
+    ap = FakeAutopilot()
+    seen = []
+    recovery_box = []
+
+    def request(mode):
+        seen.append((mode, recovery_box[0].hold.holding))
+        ap.request(mode)
+
+    recovery, hold, fence, step = _owned_recovery(ap, request_mode=request)
+    recovery_box.append(recovery)
+    step(False, NAV_HOLD_TRIGGER_S + 0.25)
+    assert seen == [(FlightMode.LOITER, True)]
+
+
+def test_round2_finding6_a_step_reads_its_time_after_the_other_thread_s_step():
+    """A step waiting for the lock samples time only once it has it: never older than the step before it."""
+    recovery = Mock()
+    shared = SharedRecoveryStep(recovery)
+    clock = [100.0]
+    inside, release = threading.Event(), threading.Event()
+
+    def first_step(cycle_ok, sample):
+        inside.set()
+        release.wait(2.0)
+
+    recovery.step.side_effect = first_step
+    watchdog = threading.Thread(target=lambda: shared.step(False, lambda: TimeSample(clock[0], clock[0])))
+    watchdog.start()
+    assert inside.wait(1.0)
+    recovery.step.side_effect = None
+    nav = threading.Thread(target=lambda: shared.step(True, lambda: TimeSample(clock[0], clock[0])))
+    nav.start()                                               # NAV asks while the watchdog's step runs
+    clock[0] = 110.0                                          # time moves on before NAV gets the lock
+    release.set()
+    watchdog.join(2.0)
+    nav.join(2.0)
+    samples = [c.args[1].aircraft_s for c in recovery.step.call_args_list]
+    assert samples == [100.0, 110.0]

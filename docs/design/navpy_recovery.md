@@ -369,7 +369,8 @@ merges before step 4, which builds on its deadline fix.
      each period; while the NAV loop itself is stuck the watchdog thread
      steps the same object in its place, one step at a time
      (`SharedRecoveryStep`, `nav_recovery_step.py`; the watchdog waits for
-     its lock at most 1 s). Nothing is handed over when the hang ends.
+     its lock at most 1 s, and a step never blocks). Nothing is handed over
+     when the hang ends.
    - Detection. The NAV loop's cycle and recovery step, and each whole
      command-worker pass (`command_pass`, deadline to next wait), mark
      themselves busy on a progress beacon (`core/kernel/progress_beacon.py`).
@@ -378,17 +379,29 @@ merges before step 4, which builds on its deadline fix.
      so a parameter exchange's 3 x 2 s) is stuck. A hang is the software's
      liveness, so it is wall time; the flight timers it leads to stay
      recovery's aircraft time (owner ruling Q1).
-   - While stuck: the fence is closed on every check, so nothing reopens it
-     during the hang, and `WatchdogSignal.hung` fails recovery's period and
-     holds at once (the hang already outlasted the trigger). A hand-over to
-     AUTO that completes while NavPy is unhealthy keeps the fence closed
+   - While stuck: the watchdog holds the fence closed
+     (`MavCommandFence.hold_closed`, one lock with reopening), so no reopen
+     opens it, even one recovery decided before the hang was seen; recovery
+     then stays in its hold. `WatchdogSignal.hung` fails recovery's period
+     and holds at once (the hang already outlasted the trigger). A hand-over
+     to AUTO that completes while NavPy is unhealthy keeps the fence closed
      and resumes the approach once healthy. A healthy hold does not resume
      while its LOITER request is unconfirmed. A hold that only now owns the
-     mode (NavPy's GUIDED sent just before a hang) asks for LOITER then.
-   - Mode sends. Recovery's requests wait for the link's send lock at most
-     `MODE_SEND_LOCK_TIMEOUT_S` (0.5 s), then are not written at all
-     (retried after `MODE_RETRY_S`): no step stalls on a stuck send and no
-     request goes out late (`set_mode(lock_timeout_s=...)`).
+     mode (NavPy's GUIDED sent just before a hang, shown after the hold
+     began) asks for LOITER then. Recovery marks itself holding before it
+     requests any mode, so the cycle never sees its LOITER as the pilot's.
+   - Mode writes (`core/flow/nav_mode_sender.py`). Recovery never writes a
+     mode itself: it submits to the mode sender's thread, so a stalled write
+     cannot stall recovery or the watchdog. The write waits for the link's
+     send lock at most `MODE_SEND_LOCK_TIMEOUT_S` (0.5 s), and a guard under
+     that lock, right before the bytes go out, cancels it unless the
+     heartbeat still shows the mode recovery decided from (a pilot mode
+     shown meanwhile stands). Only a write that passes the guard is NavPy's
+     request, recorded at the heartbeat count it read; an unsent one records
+     nothing, so the pilot's later choice of that mode is never taken for
+     NavPy's. Re-submitted after `MODE_RETRY_S`.
+   - Steps take their time sample under the step lock, so the NAV loop's
+     and the watchdog's steps see aircraft time in order.
    - Started with the NAV application, stopped before the loop's shutdown
      join. It never touches NAV state (task, phase, decision).
 7. **Autopilot Lua watchdog** (`scripts/lua/nav_watchdog.lua`). It receives

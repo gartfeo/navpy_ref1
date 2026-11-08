@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from contextlib import AbstractContextManager
 
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -41,11 +43,13 @@ class VehicleFlightControlFacet:
         *,
         fallback_custom_mode: int | None = None,
         lock_timeout_s: float | None = None,
+        guard: Callable[[], bool] | None = None,
     ) -> bool:
         return self._parts.mode.set(
             flight_mode,
             fallback_custom_mode=fallback_custom_mode,
             lock_timeout_s=lock_timeout_s,
+            guard=guard,
         )
 
 
