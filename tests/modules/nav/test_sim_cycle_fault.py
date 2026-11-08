@@ -23,7 +23,7 @@ WALL = ["-c", "tcp:127.0.0.1:5762", "-ss", "1"]
 
 
 def _sim(simulated: bool = True) -> SimpleNamespace:
-    return SimpleNamespace(is_simulated_autopilot=Mock(return_value=simulated))
+    return SimpleNamespace(target_system=2, is_simulated_autopilot=Mock(return_value=simulated))
 
 
 # ---------- off by default ----------
@@ -37,6 +37,18 @@ def test_off_by_default_the_cycle_is_not_wrapped_and_nothing_is_asked():
     assert sim_cycle_fault(cycle, args.sim_cycle_fault_file, vehicle, logger) is cycle
     vehicle.is_simulated_autopilot.assert_not_called()
     assert logger.journal.records == []
+
+
+def test_the_environment_sets_the_default_for_a_navpy_the_gcs_starts(tmp_path, monkeypatch):
+    """The GCS passes its environment to the NavPy it starts; {sys_id} gives each UAV its own file."""
+    monkeypatch.setenv("NAVPY_SIM_CYCLE_FAULT_FILE", str(tmp_path / "fault_{sys_id}"))
+    args = make_parser().parse_args(WALL)
+    logger = RecordingLogger()
+    cycle = sim_cycle_fault(Mock(), args.sim_cycle_fault_file, _sim(), logger)
+    (tmp_path / "fault_2").write_text("raise", encoding="utf-8")
+    with pytest.raises(SimCycleFaultInjected):
+        cycle.run()
+    assert logger.journal.records[0] == ("sim_fault", f"sim cycle fault hook armed: {tmp_path / 'fault_2'}")
 
 
 def test_the_flag_reaches_the_nav_args(tmp_path):

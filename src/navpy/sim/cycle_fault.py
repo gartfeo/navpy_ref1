@@ -9,6 +9,9 @@ path is unchanged. While PATH exists, each NAV cycle fails before it runs, as it
 
 Deleting the file heals it. Remove it before stopping NavPy: a hang holds the NAV loop, and so its shutdown.
 
+The flag's default is the environment variable NAVPY_SIM_CYCLE_FAULT_FILE, so a NavPy the GCS starts (it passes its
+environment on) can take it; ``{sys_id}`` in the path is replaced by the vehicle's system id, one file per UAV.
+
 It is refused, with an error, on a vehicle that is not a simulated autopilot, and by the lockstep host
 (``navpy/app/lockstep/navpy_host.py``), so it can never reach a real aircraft or a scored lockstep run. Arming it and
 each change of its mode are recovery reports (source ``sim_fault``) in the recovery journal, so a wall eval run with
@@ -17,6 +20,7 @@ it scores at best "failed" by the clean-run gate, never clean.
 
 from __future__ import annotations
 
+import os
 from argparse import ArgumentParser
 from collections.abc import Callable
 from pathlib import Path
@@ -26,6 +30,8 @@ from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.logger_api import ILogger
 
 SIM_CYCLE_FAULT_FLAG = "--sim-cycle-fault-file"
+SIM_CYCLE_FAULT_ENV = "NAVPY_SIM_CYCLE_FAULT_FILE"
+SYS_ID_FIELD = "{sys_id}"
 HANG = "hang"
 RAISE = "raise"
 SOURCE = "sim_fault"
@@ -46,13 +52,17 @@ class _Cycle(Protocol):
 
 
 class _SimulatedVehicle(Protocol):
+    target_system: int
+
     def is_simulated_autopilot(self) -> bool: ...
 
 
 def add_args(parser: ArgumentParser) -> None:
     parser.add_argument(
-        SIM_CYCLE_FAULT_FLAG, dest="sim_cycle_fault_file", default=None, metavar="PATH",
-        help="SITL only: while PATH exists, each NAV cycle fails ('hang' in it: blocks; else: raises). "
+        SIM_CYCLE_FAULT_FLAG, dest="sim_cycle_fault_file", default=os.environ.get(SIM_CYCLE_FAULT_ENV) or None,
+        metavar="PATH",
+        help=f"SITL only: while PATH exists, each NAV cycle fails ('hang' in it: blocks; else: raises); "
+             f"{SYS_ID_FIELD} in it is this UAV's system id. Default: ${SIM_CYCLE_FAULT_ENV}. "
              "Refused on a real autopilot and in lockstep.",
     )
 
@@ -100,11 +110,12 @@ def sim_cycle_fault(cycle: _Cycle, path: object, vehicle: _SimulatedVehicle, log
         return cycle
     if not vehicle.is_simulated_autopilot():
         raise SimCycleFaultRefused(f"{SIM_CYCLE_FAULT_FLAG} is SITL only: this autopilot is not simulated")
+    path = path.replace(SYS_ID_FIELD, str(vehicle.target_system))
     logger.recovery(f"sim cycle fault hook armed: {path}", SOURCE)
     return FaultingCycle(cycle, Path(path), lambda message: logger.recovery(message, SOURCE))
 
 
 __all__ = [
-    "FaultingCycle", "HANG", "RAISE", "SIM_CYCLE_FAULT_FLAG", "SimCycleFaultInjected", "SimCycleFaultRefused",
+    "FaultingCycle", "HANG", "RAISE", "SIM_CYCLE_FAULT_ENV", "SIM_CYCLE_FAULT_FLAG", "SimCycleFaultInjected", "SimCycleFaultRefused",
     "add_args", "sim_cycle_fault",
 ]

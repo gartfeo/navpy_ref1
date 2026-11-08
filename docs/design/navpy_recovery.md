@@ -585,7 +585,10 @@ merges before step 4, which builds on its deadline fix.
    the flag the cycle is not wrapped). While PATH exists each NAV cycle
    fails: `hang` in it blocks the cycle (a stuck NAV loop, for the step-6
    watchdog); anything else raises (a failed cycle, for NAV recovery).
-   Deleting it heals; remove it before stopping NavPy. Refused with an error
+   Deleting it heals; remove it before stopping NavPy. Its default is the
+   environment variable `NAVPY_SIM_CYCLE_FAULT_FILE`, which reaches a NavPy
+   the GCS starts; `{sys_id}` in the path gives each UAV its own file.
+   Refused with an error
    on a non-simulated autopilot and by the lockstep host. Arming it and each
    mode change are recovery reports (source `sim_fault`), so an eval run with
    it fails the clean-run gate, never scores clean.
