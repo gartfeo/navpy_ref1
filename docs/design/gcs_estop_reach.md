@@ -52,18 +52,19 @@ already cut at the fold.
   it is closed. None of them confirms its action when closed this way:
   - the app's confirm dialog (container launch, reboot, compass; E-STOP's
     own) closes on a tap outside it (`ConfirmModal.jsx:33`): one extra tap;
-  - the browser's own confirms (`window.confirm`: arm/disarm, set all UAVs'
-    mode, force launch or start, leaving RC, switching UAV, plan and
-    settings changes; e.g. `FlightModeColumn.jsx:97`,
-    `useManualControlWiring.js:42`) block the page until answered: one extra
-    tap (Cancel);
+  - the other confirms (arm/disarm, set all UAVs' mode, force launch or
+    start, leaving RC, switching UAV, plan and settings changes) were the
+    browser's `window.confirm`, which blocked the page until answered; since
+    2026-11-08 (todo 233) they use the same in-page dialog through
+    `hooks/useConfirm` (`ConfirmProvider.jsx`), so the page keeps running and
+    a tap outside closes them: one extra tap;
   - settings, preflight and the panels inside them (pitot confirm,
     waypoint editor) do not close on an outside tap: their check reads
     `e.currentPoi`, a 2026-10-07 rename slip (e7d2c7f3,
     `PreflightReadiness.jsx:151`, `:507`, `SettingsModal.jsx:91`,
     `WaypointEditorOverlay.jsx:19`), so each needs its own Cancel or close.
     A dialog inside one of them adds a tap: up to three extra taps (a
-    browser confirm in the waypoint editor in settings). That bug, which
+    confirm in the waypoint editor in settings). That bug, which
     also breaks the parameter grid's scrolling (`VirtualParamGrid.jsx:92`),
     is a separate task.
 - E-STOP's scope menu opens downward under the button (`EstopDropdown.jsx:88`)
@@ -204,7 +205,7 @@ a pending round without scrolling is todo 67's (summary, order) and todo
    to 94".
 7. **E-STOP and Cancel task while a dialog is open.** Recommended: keep, and
    accept the extra taps listed under Problem (one per open dialog, so up to
-   three for a browser confirm in the waypoint editor in settings; fixing
+   three for a confirm in the waypoint editor in settings; fixing
    the `currentPoi` bug changes where a tap closes them, not how many).
    The other choice: the top bar stays above the app's own dialogs and
    opening E-STOP closes them unconfirmed. E-STOP is then one tap except

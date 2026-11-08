@@ -39,12 +39,21 @@ export default function ConfirmModal({ title, message, onConfirm, onCancel, conf
           borderRadius: 8,
           padding: 32,
           minWidth: 320,
+          // Long messages (the plan camera check lists every dock) wrap and
+          // scroll inside the screen instead of running off it.
+          maxWidth: 'min(560px, calc(100vw - 32px))',
+          maxHeight: 'calc(100vh - 32px)',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
           textAlign: 'center',
         }}
+        role="alertdialog"
+        aria-modal="true"
+        aria-label={title}
         onClick={(e) => e.stopPropagation()}
       >
         <h2 style={{ color: accent, marginBottom: 12, fontSize: 20 }}>{title}</h2>
-        <p style={{ color: colors.text, marginBottom: 24, fontSize: 14 }}>{message}</p>
+        <p style={{ color: colors.text, marginBottom: 24, fontSize: 14, whiteSpace: 'pre-line' }}>{message}</p>
         <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
           <button
             onClick={onCancel}

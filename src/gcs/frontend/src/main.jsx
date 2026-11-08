@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import './i18n';
 import App from './App';
+import ConfirmProvider from './components/ConfirmProvider';
 
 // Neutral base tab title; App appends the running branch in dev mode only
 // (see App.jsx), so operators in non-dev mode never see the branch name.
@@ -9,7 +10,9 @@ document.title = 'AAS GCS';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>
-    <App />
+    <ConfirmProvider>
+      <App />
+    </ConfirmProvider>
   </React.StrictMode>
 );
 

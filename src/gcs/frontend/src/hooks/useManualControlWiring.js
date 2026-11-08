@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useSyncExternalStore } from 'react';
 import useManualControl from './useManualControl';
 import { resolveFollowTarget } from '../components/map/hooks/useFollowUav';
 import { PHASES } from './useMissionState';
+import useConfirm from './useConfirm';
 
 /**
  * Wraps useManualControl with App-level integration: confirm dialogs,
@@ -14,6 +15,7 @@ export default function useManualControlWiring({
   handleSetMode,
   setNotification,
 }) {
+  const confirm = useConfirm();
   const setModeRef = useRef(null);
   setModeRef.current = handleSetMode;
 
@@ -34,14 +36,14 @@ export default function useManualControlWiring({
   );
 
   // Wrap toggleManualControl: confirm the mode restore and release the POI on exit
-  const handleToggleManualControl = useCallback(() => {
+  const handleToggleManualControl = useCallback(async () => {
     if (manualControlEnabled && manualControlTarget != null) {
       const restoreMode = peekRestoreMode(manualControlTarget);
       if (restoreMode) {
         const cur = storeRef.current.getVehicles()[manualControlTarget]?.mode;
-        if (!window.confirm(
+        if (!(await confirm(
           `UAV ${manualControlTarget} is in ${cur} — will be set to ${restoreMode}. Exit RC?`
-        )) return;
+        ))) return;
       }
       const restored = releasePoi(manualControlTarget);
       if (restored) setNotification(`UAV ${manualControlTarget} → ${restored}`);
@@ -50,23 +52,23 @@ export default function useManualControlWiring({
       capturePrevMode(manualControlTarget);
     }
     toggleManualControl();
-  }, [manualControlEnabled, manualControlTarget, toggleManualControl, releasePoi, capturePrevMode, peekRestoreMode]);
+  }, [manualControlEnabled, manualControlTarget, toggleManualControl, releasePoi, capturePrevMode, peekRestoreMode, confirm]);
 
-  const handleVehicleSelect = useCallback((sysId) => {
+  const handleVehicleSelect = useCallback(async (sysId) => {
     if (manualControlTarget != null && manualControlTarget !== sysId) {
       const restoreMode = peekRestoreMode(manualControlTarget);
       if (restoreMode) {
         const cur = storeRef.current.getVehicles()[manualControlTarget]?.mode;
-        if (!window.confirm(
+        if (!(await confirm(
           `UAV ${manualControlTarget} is in ${cur} — will be set to ${restoreMode}. Switch?`
-        )) return;
+        ))) return;
       }
       const restored = releasePoi(manualControlTarget);
       if (restored) setNotification(`UAV ${manualControlTarget} → ${restored}`);
     }
     setManualControlTarget(sysId);
     capturePrevMode(sysId);
-  }, [manualControlTarget, setManualControlTarget, releasePoi, capturePrevMode, peekRestoreMode]);
+  }, [manualControlTarget, setManualControlTarget, releasePoi, capturePrevMode, peekRestoreMode, confirm]);
 
   // Auto-disable manual control on phase change or target disconnect
   useEffect(() => {

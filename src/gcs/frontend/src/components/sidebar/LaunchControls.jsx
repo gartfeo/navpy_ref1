@@ -3,13 +3,20 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import { LONG_PRESS_MS } from '../../utils/armAction';
 import useLongPress from '../../hooks/useLongPress';
+import useConfirm from '../../hooks/useConfirm';
+import useMountSignal from '../../hooks/useMountSignal';
 import { resolveStartButtonMode } from '../../utils/startButtonMode';
 
+// Launch and start controls put their own unmount signal in the opts they
+// send (opts.signal): every later question of the launch (the plan camera
+// check, useVehicleCommands) is withdrawn with the control that began it.
 export function ForceLaunchButton({ sysId, busy, ready, onLaunch }) {
   const { t } = useTranslation();
-  const handleForce = useCallback(() => {
-    if (window.confirm(t('launch.forceLaunchConfirm', { sysId }))) onLaunch(sysId, { force: true });
-  }, [sysId, onLaunch, t]);
+  const confirm = useConfirm();
+  const startSignal = useMountSignal();
+  const handleForce = useCallback(async () => {
+    if (await confirm(t('launch.forceLaunchConfirm', { sysId }))) onLaunch(sysId, { force: true, signal: startSignal() });
+  }, [sysId, onLaunch, t, confirm, startSignal]);
 
   const { handlers, progress } = useLongPress({
     onComplete: handleForce,
@@ -20,7 +27,7 @@ export function ForceLaunchButton({ sysId, busy, ready, onLaunch }) {
   const disabled = busy || (!ready && progress === 0);
   return (
     <button
-      onClick={ready && !busy ? () => onLaunch(sysId) : undefined}
+      onClick={ready && !busy ? () => onLaunch(sysId, { signal: startSignal() }) : undefined}
       disabled={busy}
       {...(!ready && !busy ? handlers : {})}
       style={(() => {
@@ -122,6 +129,8 @@ export function LauncherStatus({ connected, checking, onRetry, simulatorRunning,
 
 export function ForceStartButton({ label, busyLabel, armLabel, ready, disabled, onStart, onArm, armReady = false, large }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
+  const startSignal = useMountSignal();
   const onStartRef = useRef(onStart);
   onStartRef.current = onStart;
   const onArmRef = useRef(onArm);
@@ -132,15 +141,15 @@ export function ForceStartButton({ label, busyLabel, armLabel, ready, disabled, 
   // physical container launch can never start on a single stray click.
   const mode = resolveStartButtonMode({ armReady, ready, disabled });
 
-  const handleComplete = useCallback(() => {
+  const handleComplete = useCallback(async () => {
     if (mode.holdMode === 'arm') {
       // Ready + hold-to-arm: request confirmation, never launch directly.
-      onArmRef.current?.();
+      onArmRef.current?.(startSignal());
     } else if (mode.holdMode === 'force') {
       // Not-ready force path: explicit confirm, then force-launch.
-      if (window.confirm(t('monitor.forceStartConfirm'))) onStartRef.current?.({ force: true });
+      if (await confirm(t('monitor.forceStartConfirm'))) onStartRef.current?.({ force: true, signal: startSignal() });
     }
-  }, [mode.holdMode, t]);
+  }, [mode.holdMode, t, confirm, startSignal]);
 
   const { handlers, progress } = useLongPress({
     onComplete: handleComplete,
@@ -183,7 +192,7 @@ export function ForceStartButton({ label, busyLabel, armLabel, ready, disabled, 
   return (
     <>
       <button
-        onClick={mode.clickToStart ? onStart : undefined}
+        onClick={mode.clickToStart ? () => onStart({ signal: startSignal() }) : undefined}
         disabled={disabled}
         {...(mode.holdEnabled ? handlers : {})}
         style={base}
