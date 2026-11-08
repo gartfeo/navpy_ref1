@@ -13,9 +13,10 @@ const TONE_ACCENT = {
 /**
  * Confirmation modal for high-consequence actions (E-STOP, reboot, container
  * launch). `confirmLabel` overrides the confirm button text (defaults to the
- * E-STOP label); `tone` selects the accent colour.
+ * E-STOP label); `tone` selects the accent colour. `confirmDisabled` shows the
+ * confirm button but takes no tap on it yet (ConfirmProvider's CONFIRM_ARM_MS).
  */
-export default function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel, tone = 'danger' }) {
+export default function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel, tone = 'danger', confirmDisabled = false }) {
   const { t } = useTranslation();
   const accent = TONE_ACCENT[tone] || colors.error;
   const confirmColor = tone === 'caution' ? '#000' : '#fff';
@@ -71,6 +72,7 @@ export default function ConfirmModal({ title, message, onConfirm, onCancel, conf
           </button>
           <button
             onClick={onConfirm}
+            disabled={confirmDisabled}
             style={{
               background: accent,
               color: confirmColor,
@@ -78,7 +80,8 @@ export default function ConfirmModal({ title, message, onConfirm, onCancel, conf
               borderRadius: 4,
               padding: '8px 24px',
               fontWeight: 700,
-              cursor: 'pointer',
+              cursor: confirmDisabled ? 'default' : 'pointer',
+              opacity: confirmDisabled ? 0.5 : 1,
               fontSize: 14,
             }}
           >

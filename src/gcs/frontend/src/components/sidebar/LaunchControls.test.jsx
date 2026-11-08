@@ -3,6 +3,7 @@ import { render, fireEvent, act } from '@testing-library/react';
 import { ForceStartButton } from './LaunchControls';
 import { LONG_PRESS_MS } from '../../utils/armAction';
 import { confirmStub } from '../../test/confirmStub';
+import ConfirmProvider from '../ConfirmProvider';
 
 // ForceStartButton drives the real useLongPress; fake the clock primitives it
 // relies on so a completed hold is deterministic. The setup file restores real
@@ -86,6 +87,24 @@ describe('ForceStartButton — not-ready force path', () => {
     advance(LONG_PRESS_MS + 32);
     await settle();
     expect(confirmSpy).toHaveBeenCalledTimes(1);
+    expect(onStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('ForceStartButton — force confirm outlives the button', () => {
+  // Telemetry can leave PRE_LAUNCH while the force-start question is open, and
+  // the button unmounts: the question goes with it and nothing starts.
+  it('a pending force start is withdrawn when the button unmounts', async () => {
+    const onStart = vi.fn();
+    const view = render(
+      <ConfirmProvider><ForceStartButton label="START" disabled={false} ready={false} onStart={onStart} /></ConfirmProvider>,
+    );
+    fireEvent.mouseDown(view.getByRole('button', { name: 'START' }));
+    advance(LONG_PRESS_MS + 32);
+    expect(view.getByRole('alertdialog')).toHaveTextContent('monitor.forceStartConfirm');
+    view.rerender(<ConfirmProvider>{null}</ConfirmProvider>);
+    await settle();
+    expect(view.queryByRole('alertdialog')).toBeNull();
     expect(onStart).not.toHaveBeenCalled();
   });
 });
