@@ -8,9 +8,21 @@ from typing import Optional
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_log_level import CacheLogLevel
+from navpy.core.kernel.logging.recovery_journal import RecoveryJournal
 
 
 class ILogger(ABC):
+    #: The recovery journal (recovery_journal.py); None: recovery reports are only logged.
+    recovery_journal: RecoveryJournal | None = None
+
+    def recovery(self, message: str, source: str) -> None:
+        """A recovery report (navpy_recovery.md, step 8): counted in the journal first, apart from the log worker,
+        then logged as a warning with its status text to the vehicle, keyed by ``source``."""
+        journal = self.recovery_journal
+        if journal is not None:
+            journal.record(source, message)
+        self.warning(message, key=source, status=message, dest=LogStatusDest.DRONE)
+
     @abstractmethod
     def is_enabled_for(self, level: CacheLogLevel) -> bool:
         raise NotImplementedError

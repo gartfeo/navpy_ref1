@@ -1028,7 +1028,9 @@ def test_companion_heartbeat_survives_failed_sends_and_reports_once():
             sent.set()
             return action(SimpleNamespace(mav=MagicMock()))
 
-    logger = MagicMock()
+    from tests.logger.recording_logger import RecordingLogger
+
+    logger = RecordingLogger()
     runtime = HeartbeatRuntime(
         FlakyTransport(),
         SimpleNamespace(mav_type=18, target_system=7),
@@ -1041,6 +1043,7 @@ def test_companion_heartbeat_survives_failed_sends_and_reports_once():
         assert sent.wait(timeout=1.0)
     finally:
         runtime.close()
-    warnings = [c.args[0] for c in logger.warning.call_args_list if "Companion heartbeat" in c.args[0]]
+    warnings = [w["msg"] for w in logger.warnings if "Companion heartbeat" in w["msg"]]
     assert len(warnings) == 2
     assert "link down" in warnings[0] and warnings[1] == "Companion heartbeat sent again"
+    assert logger.journal.records == [("heartbeat", message) for message in warnings]     # step 8

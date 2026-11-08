@@ -587,9 +587,16 @@ def test_the_state_reads_the_links_heartbeat_at_navpys_guided_request():
 
 
 def test_recovery_reports_reach_the_operator_as_status_texts():
-    """Codex review of steps 5b-5c, finding 6: a destination without ``status`` writes only the log."""
+    """Codex review of steps 5b-5c, finding 6: a destination without ``status`` writes only the log. Step 8: each
+    report is also journaled, as source "nav"."""
+    from dataclasses import replace
+
+    from tests.logger.recording_logger import RecordingLogger
+
     rig = Rig(FakeAutopilot())
+    logger = RecordingLogger()
+    rig.recovery._ports = replace(rig.recovery._ports, logger=logger)
     rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
     assert rig.stage is RecoveryStage.HOLD
-    calls = rig.logger.warning.call_args_list
-    assert calls and all(c.kwargs.get("status") == c.args[0] for c in calls)
+    assert logger.warnings and all(w["status"] == w["msg"] for w in logger.warnings)
+    assert logger.journal.records == [("nav", w["msg"]) for w in logger.warnings]

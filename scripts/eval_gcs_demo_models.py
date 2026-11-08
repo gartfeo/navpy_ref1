@@ -213,6 +213,9 @@ class VehicleReport:
     errors: list[str] = field(default_factory=list)
     # Approach-window observation cadence: an annotation, never a verdict input.
     cadence: dict = field(default_factory=dict)
+    #: clean, recovered, invalid or failed (eval_gcs_demo_recovery.py); its recovery journal's events.
+    verdict: str = ""
+    recoveries: list[dict[str, JsonValue]] = field(default_factory=list)
 
 
 @dataclass
@@ -231,6 +234,8 @@ class RunReport:
     #: Lockstep only: the unverified SITL packets the source check exempted
     #: (``eval_gcs_demo_fleet_packets.unverified_sources``); 0 without SITL byte loss.
     unverified_sources: int | None = None
+    #: clean, recovered, invalid or failed (eval_gcs_demo_recovery.py); "" when the gates did not score the run.
+    verdict: str = ""
 
 
 @dataclass
@@ -278,23 +283,8 @@ class MissionArtifacts:
 
 
 __all__ = [
-    "ProductFailure",
-    "AchievedRollScore",
-    "CadenceLimits",
-    "EpisodeMetrics",
-    "GateLimits",
-    "MissionArtifacts",
-    "RegressionError",
-    "RunReport",
-    "RollQualityLimits",
-    "StackContext",
-    "FinalApproachCommand",
-    "FinalApproachEpisode",
-    "FinalApproachResponse",
-    "FinalApproachScore",
-    "FinalApproachTiming",
-    "UavIds",
-    "VehicleReport",
-    "finite_number",
-    "positive_int",
+    "ProductFailure", "AchievedRollScore", "CadenceLimits", "EpisodeMetrics", "GateLimits",
+    "MissionArtifacts", "RegressionError", "RunReport", "RollQualityLimits", "StackContext",
+    "FinalApproachCommand", "FinalApproachEpisode", "FinalApproachResponse", "FinalApproachScore", "FinalApproachTiming",
+    "UavIds", "VehicleReport", "finite_number", "positive_int",
 ]
