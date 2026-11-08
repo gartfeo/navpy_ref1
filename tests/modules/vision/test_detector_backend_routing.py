@@ -186,6 +186,7 @@ def test_vision_composition_passes_cli_backend_to_real_factory():
         debug_show=False,
         integration_timing="",
         integration_log="",
+        hitl_contact="",
         capture_wrapper=None,
     )
     with patch(

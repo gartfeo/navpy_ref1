@@ -260,7 +260,7 @@ def _inputs(tmp_path, lane_height=100.0, floor=1.0, min_pitch=-45.0, band=(14.0,
     scenario = tmp_path / "scenario"
     (scenario / sp.PRIVATE_DIR).mkdir(parents=True)
     public = {"schema_version": sp.SCHEMA_VERSION, "series_id": "s1", "series_sha256": "a" * 64, "seed_index": 0,
-              "scene_hash": "b" * 64, "consumers": ["unreal", "scoring"],
+              "scene_hash": "b" * 64, "consumers": ["unreal", "contact", "scoring"],
               "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": lane_height,
                        "repeats": 30},
               "limits": {"observe_s": 660.0, "min_height_m": floor}}

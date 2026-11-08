@@ -759,6 +759,7 @@
     },
     "siyi_zr10_hitl_encoded": {
       "extends": "siyi_zr10",
+      "hitl_contact": true,
       "final_approach_orbit": {
         "radius_m": 300.0
       },
