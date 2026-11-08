@@ -127,7 +127,7 @@ def build_vision_controller(
             )
         # Each mount's detector is restarted as a new instance behind a stable proxy (recovery step 5b).
         nodes = build_detector_nodes(
-            factory, profile.mount_specs, profile.detector_settings, restarting_detector_node(logger),
+            factory, profile.mount_specs, profile.detector_settings, restarting_detector_node(logger, vehicle),
         )
         detectors = [node.detector for node in nodes]
         coordinator = DetectionCoordinator(detectors, logger)

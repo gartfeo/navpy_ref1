@@ -9,7 +9,10 @@ A reset of aircraft time (autopilot reboot) restarts the aircraft anchor; the cl
 
 from __future__ import annotations
 
+from collections.abc import Callable
 from dataclasses import dataclass
+
+from navpy.core.kernel import runtime_time as rt
 
 
 @dataclass(frozen=True)
@@ -39,4 +42,36 @@ class RecoveryClock:
         return self.now_s
 
 
-__all__ = ["RecoveryClock", "TimeSample"]
+def attitude_boot_s(vehicle: object) -> float | None:
+    """Latest ATTITUDE boot time (the observation clock), or None without one."""
+    sample = getattr(vehicle, "attitude_sample", None)
+    value = getattr(sample, "time_boot_s", None)
+    if isinstance(value, bool) or not isinstance(value, (int, float)):
+        return None
+    return float(value)
+
+
+class AircraftTimeClock:
+    """A RecoveryClock read as a plain clock (``clock()`` -> seconds): aircraft time while it advances, wall time
+    while it stalls. For timers outside the NAV loop, such as component restarts (core/kernel/restart_budget.py)."""
+
+    def __init__(
+        self,
+        read_aircraft_s: Callable[[], float | None],
+        wall_s: Callable[[], float] = rt.monotonic,
+    ) -> None:
+        self._read_aircraft_s = read_aircraft_s
+        self._wall_s = wall_s
+        self._clock = RecoveryClock()
+        self._lock = rt.Lock()
+
+    def __call__(self) -> float:
+        try:
+            aircraft_s = self._read_aircraft_s()
+        except Exception:  # noqa: BLE001 - no aircraft time: wall time carries the clock
+            aircraft_s = None
+        with self._lock:
+            return self._clock.advance(TimeSample(aircraft_s, self._wall_s()))
+
+
+__all__ = ["AircraftTimeClock", "RecoveryClock", "TimeSample", "attitude_boot_s"]

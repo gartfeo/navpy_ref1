@@ -38,7 +38,7 @@ from navpy.core.flow.navigation_loop import (
     StateActionDispatcher,
 )
 from navpy.core.flow.nav_recovery import NavRecovery
-from navpy.core.flow.nav_recovery_clock import TimeSample
+from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
@@ -116,7 +116,7 @@ def compose_nav_application(
         navigation.final_approach.begin_dock_episode,
         navigation.final_approach.latch_docked,
         logger,
-        source_now_s=lambda: _attitude_boot_s(vehicle),
+        source_now_s=lambda: attitude_boot_s(vehicle),
         end_episode=navigation.final_approach.end_dock_episode,
         ending=_dock_episode_ending(navigation, poi),
     )
@@ -276,17 +276,8 @@ def _recovery_step(
     )
     return lambda cycle_ok: recovery.step(
         cycle_ok,
-        TimeSample(aircraft_s=_attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
+        TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
     )
-
-
-def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:
-    """Latest ATTITUDE boot time (the observation clock), for evidence rows."""
-    sample = getattr(vehicle, "attitude_sample", None)
-    value = getattr(sample, "time_boot_s", None)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
 
 
 __all__ = ["compose_nav_application"]

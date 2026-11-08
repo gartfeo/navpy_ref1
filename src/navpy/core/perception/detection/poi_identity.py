@@ -12,6 +12,9 @@ from navpy.core.ports.detect_data import DetectedObject
 class PoiIdentity:
     source_name: str
     local_obj_id: int
+    #: The source detector's instance (DetectionIdentity.source_generation): a restarted detector's local ids
+    #: start again, so the same local id of a new instance is a different object.
+    source_generation: int = 0
 
 
 def get_poi_task_id(poi: DetectedObject) -> int | None:
@@ -52,7 +55,20 @@ def get_poi_identity(poi: DetectedObject) -> PoiIdentity:
     return PoiIdentity(
         source_name=poi.pixel.source_name,
         local_obj_id=poi.identity.obj_id,
+        source_generation=poi.identity.source_generation,
     )
+
+
+def source_generation_of(holder: object) -> int:
+    """The detector instance a fleet member serves now, or an identity was seen by; 0 where none is told (a
+    member that is never restarted)."""
+    generation = getattr(holder, "source_generation", 0)
+    return generation if isinstance(generation, int) and not isinstance(generation, bool) else 0
+
+
+def serves_identity(member: object, identity: PoiIdentity) -> bool:
+    """Whether ``member``'s current instance made the object: a local id of a replaced instance is not its."""
+    return source_generation_of(member) == source_generation_of(identity)
 
 
 class PoiTaskIdAllocator:
@@ -104,4 +120,6 @@ __all__ = [
     "get_poi_identity",
     "get_poi_task_id",
     "same_poi_identity",
+    "serves_identity",
+    "source_generation_of",
 ]

@@ -252,10 +252,12 @@ FACADE_METHOD_ALLOWANCES = {
     # The stable proxy of a detector restarted as a new instance (recovery step 5b, navpy_recovery.md): the
     # DetectorFleetMember surface (24) forwarded to the current instance, plus its own lifecycle, health, UI and
     # inspection (6) and __init__.
+    # 32 = 31 + source_generation, which the coordinator's routers check so a task seen by a replaced instance
+    # is not commanded on the new one (Codex review of step 5b, finding 1) -- a ratchet, not headroom.
     (
         "src/navpy/app/perception/restarting_detector.py",
         "RestartingDetector",
-    ): FacadeMethodAllowance(1, 31, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 32, frozenset({"_parts"})),
     # 41 = 40 + has_fresh_frame, the detector readiness the camera HEARTBEAT
     # reports for the preflight camera row (gcs_preflight_camera_row.md,
     # Codex-reviewed, owner-approved 2026-10-25) -- a ratchet, not headroom.

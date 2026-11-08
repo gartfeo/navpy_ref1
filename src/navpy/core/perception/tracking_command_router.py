@@ -6,6 +6,8 @@ from navpy.core.kernel.exception_groups import ExceptionGroup
 
 from typing import TYPE_CHECKING, Callable, Protocol, Sequence
 
+from navpy.core.perception.detection.poi_identity import serves_identity
+
 if TYPE_CHECKING:
     from navpy.core.perception.detection.poi_identity import PoiIdentity
 
@@ -60,6 +62,12 @@ class TrackingCommandRouter:
                 f"DetectionCoordinator: start_tracking task_id={obj_id} "
                 f"resolved to source={identity.source_name} but no detector "
                 "reports that source; arm aborted"
+            )
+        if not serves_identity(member, identity):
+            # The detector was restarted since: its local id now names another object (recovery step 5b).
+            raise RuntimeError(
+                f"DetectionCoordinator: start_tracking task_id={obj_id} was seen by a replaced "
+                f"instance of source={identity.source_name}; arm aborted"
             )
         self._start_transaction(((member, identity.local_obj_id),))
         self._safe_log(

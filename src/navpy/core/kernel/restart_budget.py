@@ -2,8 +2,9 @@
 
 Owner ruling 2026-11-06 (Q3): a part restarts fresh inside NavPy with limited tries and back-off, escalating to a
 supervised restart of the whole process. Most outages are short, so the first restart is immediate; a part that
-keeps failing is spaced out, then escalated. Times are ``runtime_time.monotonic`` (wall time, or the lockstep
-clock in a lockstep run): a restart is NavPy's own work, not a flight timer.
+keeps failing is spaced out, then escalated. Owners pass an aircraft-time clock (owner ruling Q1:
+core/flow/nav_recovery_clock.AircraftTimeClock), so the back-off and the healthy time scale with sim speed-up as
+the NAV recovery timers do; ``runtime_time.monotonic`` is only the default.
 """
 
 from __future__ import annotations
@@ -36,7 +37,7 @@ class RestartBudget:
         self._clock = clock
         self._tries = 0
         self._failed_at: float | None = None
-        self._started_at: float | None = None
+        self._running_since: float | None = None   # when the instance now running started successfully
 
     @property
     def tries(self) -> int:
@@ -48,12 +49,13 @@ class RestartBudget:
         return self._tries >= len(self._backoff_s)
 
     def failed(self) -> None:
-        """The running instance (or a restart try) failed now."""
+        """The running instance (or a restart try) failed now. Only time since a successful start counts as
+        healthy: a try that is slow to fail never earns the tries back."""
         now = self._clock()
-        if self._started_at is not None and now - self._started_at >= self._stable_s:
+        if self._running_since is not None and now - self._running_since >= self._stable_s:
             self._tries = 0
         self._failed_at = now
-        self._started_at = None
+        self._running_since = None
 
     def due(self) -> bool:
         """A try remains and its back-off since the last failure has passed."""
@@ -64,8 +66,12 @@ class RestartBudget:
     def attempt(self) -> int:
         """A restart try starts now; returns its number (1-based)."""
         self._tries += 1
-        self._started_at = self._clock()
+        self._running_since = None
         return self._tries
+
+    def running(self) -> None:
+        """The try's new instance started successfully: from now its time counts as healthy."""
+        self._running_since = self._clock()
 
 
 __all__ = ["COMPONENT_RESTART_BACKOFF_S", "COMPONENT_STABLE_S", "RestartBudget"]

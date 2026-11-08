@@ -166,7 +166,7 @@ def test_old_instance_not_quiet_escalates_without_a_new_instance() -> None:
     with pytest.raises(RuntimeError, match="hung"):
         proxy.raise_if_failed()
     assert len(factory.created) == 1
-    assert any("did not stop quietly" in report for report in reports)
+    assert any("did not stop" in report for report in reports)
 
 
 def test_new_instance_left_not_quiet_escalates() -> None:
@@ -214,7 +214,8 @@ def test_restart_budget_counts_tries_and_backs_off() -> None:
     assert not budget.due()
     clock.now = 2.0
     assert budget.due() and budget.attempt() == 2
-    clock.now = 12.0                 # ran stable_s: a new failure starts afresh
+    budget.running()                 # the try's instance started at 2.0
+    clock.now = 12.0                 # ran stable_s since: a new failure starts afresh
     budget.failed()
     assert budget.tries == 0 and budget.due()
     budget.attempt()
@@ -233,3 +234,192 @@ def test_proxy_covers_the_whole_detector_fleet_member_surface() -> None:
             surface.update(name for name in vars(port) if not name.startswith("_"))
     missing = sorted(name for name in surface if not hasattr(RestartingDetector, name))
     assert missing == []
+
+
+# --- Codex review of steps 5b-5c -------------------------------------------------------------------------------
+
+
+def _double(poi_obj_id: int, *, source: str = "test") -> object:
+    """A detector instance reporting one POI with ``poi_obj_id`` as its tracker-local id."""
+    from unittest.mock import Mock
+
+    from navpy.core.ports.detect_response import DetectResponse
+    from tests.detection_factory import make_detected_poi
+
+    poi = make_detected_poi(obj_id=poi_obj_id)
+    detector = Mock()
+    detector.source_name = source
+    detector.mounts = []
+    detector.is_simulation = True
+    detector.is_detection_armed = False
+    detector.has_source_driven_detection_events = False
+    detector.get_detect_data.return_value = DetectResponse([poi], primary_poi=poi)
+    detector.drain_detection_events.return_value = []
+    detector.open_detection_event_lease.return_value = None
+    detector.poi_uses_source_driven_events.return_value = False
+    detector.wall_period_for_scheduler_period.side_effect = lambda period: period
+    detector.raise_if_failed.return_value = None
+    detector.stop.return_value = True
+    return detector
+
+
+def _coordinated(*doubles: object) -> tuple[object, RestartingDetector, list[object]]:
+    from unittest.mock import Mock
+
+    from navpy.core.perception.detection_coordinator import DetectionCoordinator
+
+    queue, created = list(doubles), []
+
+    def create() -> VisionDetectorNode:
+        detector = queue.pop(0)
+        created.append(detector)
+        return VisionDetectorNode(detector, detector, None, None, CameraHealth("NavPy", lambda: True))  # type: ignore[arg-type]
+
+    proxy = RestartingDetector(create, lambda message: None, RestartBudget(clock=_Clock()))
+    return DetectionCoordinator([proxy], Mock()), proxy, created
+
+
+def test_a_restarted_detectors_local_ids_are_new_objects_for_the_coordinator() -> None:
+    """Finding 1: the new tracker's ids start again; the old POI's task must not name the new object."""
+    from navpy.core.ports.detect_request import DetectRequest
+
+    coordinator, proxy, created = _coordinated(_double(1), _double(1))
+    old_poi = coordinator.get_detect_data(DetectRequest()).primary_poi
+    old_task = old_poi.identity.task_id
+
+    created[0].raise_if_failed.side_effect = RuntimeError("capture died")
+    proxy.raise_if_failed()
+    new_poi = coordinator.get_detect_data(DetectRequest()).primary_poi
+
+    assert new_poi.identity.source_generation == 1
+    assert new_poi.identity.task_id != old_task
+    with pytest.raises(RuntimeError, match="replaced instance"):
+        coordinator.start_tracking(old_task)
+    created[1].start_tracking.assert_not_called()
+    assert coordinator.get_zoom_result(old_task) is None
+    created[1].get_zoom_result.assert_not_called()
+    coordinator.start_tracking(new_poi.identity.task_id)
+    created[1].start_tracking.assert_called_once_with(1)
+
+
+def test_events_and_leases_of_a_restarted_detector_carry_its_generation() -> None:
+    from types import SimpleNamespace
+
+    from navpy.core.ports.detection_publication import DetectionPublication
+    from navpy.core.ports.detect_request import DetectRequest
+    from tests.detection_factory import make_detected_poi
+
+    old, new = _double(1), _double(1)
+    drained, leased = make_detected_poi(obj_id=1), make_detected_poi(obj_id=1)
+    new.drain_detection_events.return_value = [DetectionPublication((drained,), None, None, "test", False)]
+    seen = []
+    new.open_detection_event_lease.return_value = SimpleNamespace(
+        closed=False,
+        dispatch_available=lambda handler: handler(DetectionPublication((leased,), None, None, "test", False)),
+    )
+    _, proxy, _ = _coordinated(old, new)
+    old.raise_if_failed.side_effect = RuntimeError("capture died")
+    proxy.raise_if_failed()
+
+    proxy.drain_detection_events(DetectRequest())
+    lease = proxy.open_detection_event_lease(DetectRequest())
+    lease.dispatch_available(lambda publication: seen.append(publication) or True)
+
+    assert drained.identity.source_generation == 1
+    assert leased.identity.source_generation == 1 and len(seen) == 1
+    assert proxy.source_generation == 1
+
+
+def test_a_stop_that_raises_after_quiescence_does_not_retire_the_instance() -> None:
+    """Finding 2: threads quiet but model cleanup failed: no replacement beside it, and it stays owned."""
+    old = _Detector(1)
+    old.failure = RuntimeError("capture died")
+    calls = []
+
+    def stop_with_cleanup_failure() -> bool:
+        calls.append(1)
+        old.is_quiescent = True
+        if len(calls) == 1:
+            raise TimeoutError("appearance worker did not close")
+        return True
+
+    old.stop = stop_with_cleanup_failure  # type: ignore[method-assign]
+    factory, clock, reports = _Factory(old, _Detector(2)), _Clock(), []
+    proxy = _proxy(factory, clock, reports)
+
+    with pytest.raises(RuntimeError, match="capture died"):
+        proxy.raise_if_failed()
+    assert len(factory.created) == 1 and proxy.instance is old
+    assert proxy.stop() is True and len(calls) == 2      # the owner's stop retries the old cleanup
+
+
+def test_a_replacement_that_cannot_be_stopped_becomes_the_owned_instance() -> None:
+    """Finding 3: shutdown and quiescence must see the half-started replacement, not the retired original."""
+    old = _Detector(1)
+    old.failure = RuntimeError("capture died")
+    half = _Detector(2, start_error=RuntimeError("model load failed"), quiet_after_stop=False)
+    factory, clock, reports = _Factory(old, half, _Detector(3)), _Clock(), []
+    proxy = _proxy(factory, clock, reports)
+
+    with pytest.raises(RuntimeError, match="capture died"):
+        proxy.raise_if_failed()
+
+    assert proxy.instance is half and len(factory.created) == 2
+    assert proxy.is_quiescent is False
+    proxy.stop()
+    assert half.stopped == 2 and old.stopped == 1
+
+
+def test_tries_that_are_slow_to_fail_still_run_out() -> None:
+    """Finding 4: a startup that takes longer than the healthy time and then fails earns no tries back."""
+    clock = _Clock()
+
+    class SlowFailing(_Detector):
+        def start(self) -> None:
+            clock.now += 31.0
+            super().start()
+
+    old = _Detector(1)
+    old.failure = RuntimeError("capture died")
+    retries = [SlowFailing(n, start_error=RuntimeError("camera open")) for n in (2, 3, 4, 5)]
+    factory, reports = _Factory(old, *retries), []
+    proxy = _proxy(factory, clock, reports)
+    with pytest.raises(RuntimeError, match="capture died"):
+        for _ in range(10):
+            proxy.raise_if_failed()
+            clock.now += 5.0
+    assert len(factory.created) == 4     # the original and three tries
+
+
+def test_restart_tries_are_timed_in_aircraft_time() -> None:
+    """Finding 5 (owner ruling Q1): at sim speed-up the back-off passes in aircraft time, not wall time."""
+    from types import SimpleNamespace
+
+    from navpy.core.flow.nav_recovery_clock import AircraftTimeClock, attitude_boot_s
+
+    wall = _Clock()
+    vehicle = SimpleNamespace(attitude_sample=SimpleNamespace(time_boot_s=100.0))
+    budget = RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle), wall))
+    budget.failed()
+    budget.attempt()
+    budget.failed()                       # try 2 waits 1 s
+    wall.now += 0.1                       # speed-up 10: 0.1 s of wall time is 1 s of aircraft time
+    vehicle.attitude_sample = SimpleNamespace(time_boot_s=101.0)
+    assert budget.due()
+
+
+def test_restart_reports_reach_the_operator_as_status_texts() -> None:
+    """Finding 6: a status text needs ``status``; a destination alone writes only the log."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from navpy.app.perception.restarting_detector import restarting_detector_node
+
+    logger = Mock()
+    old = _Detector(1)
+    old.failure = RuntimeError("capture died")
+    factory = _Factory(old, _Detector(2))
+    node = restarting_detector_node(logger, SimpleNamespace(attitude_sample=None))(factory)
+    node.detector.raise_if_failed()
+    statuses = [c.kwargs.get("status") for c in logger.warning.call_args_list]
+    assert statuses and all(isinstance(status, str) and "Detector" in status for status in statuses)

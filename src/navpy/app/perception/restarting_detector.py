@@ -20,6 +20,7 @@ from navpy.app.perception.vision_detector_factory_ports import NodeCreator, Visi
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.flow.nav_recovery_clock import AircraftTimeClock, attitude_boot_s
 from navpy.core.kernel.restart_budget import RestartBudget
 from navpy.core.perception.detector_delegate import (
     DetectorControlDelegateFacet,
@@ -33,7 +34,7 @@ from navpy.sim.debug_view.vision_ui_ports import SimDebugSnapshot, SimDebugSourc
 
 class DetectorRestart:
     """The instance behind one mount's proxy and its restarts. Lifecycle and health calls come from the main
-    thread; NAV reads ``instance`` once per call, so a call in flight during a swap ends on its instance."""
+    thread; NAV reads ``current`` once per call, so a call in flight during a swap ends on its instance."""
 
     def __init__(self, create: NodeCreator, report: Callable[[str], None], budget: RestartBudget | None) -> None:
         self._create = create
@@ -41,11 +42,16 @@ class DetectorRestart:
         self._budget = RestartBudget() if budget is None else budget
         self._lock = rt.RLock()
         self.node = create()
-        self.instance: DetectorFleetMember = self.node.detector
+        #: The instance and its generation, swapped together (one attribute write).
+        self.current: tuple[DetectorFleetMember, int] = (self.node.detector, 0)
         self._failure: Exception | None = None   # the current instance's failure, while a restart is pending
-        self._retired = False                    # the failed instance is stopped and quiet
+        self._retired = False                    # the failed instance's stop completed
         self._stopping = False
-        self._unquiet = False                    # a failed try left an instance that is not quiet
+        self._stuck = False                      # an instance could not be stopped: no further try, escalate
+
+    @property
+    def instance(self) -> DetectorFleetMember:
+        return self.current[0]
 
     def stop(self) -> bool:
         with self._lock:
@@ -86,12 +92,11 @@ class DetectorRestart:
     def _try_restart(self) -> None:
         failure = self._failure
         assert failure is not None
-        if self._budget.exhausted or self._unquiet:
+        if self._budget.exhausted or self._stuck:
             raise failure
         if not self._budget.due():
             return
         if not self._retire():
-            self._report(f"Detector '{self._name()}' did not stop quietly: not restarted")
             raise failure
         attempt = self._budget.attempt()
         try:
@@ -99,21 +104,22 @@ class DetectorRestart:
         except Exception as error:  # noqa: BLE001 - counted as a failed try
             self._budget.failed()
             self._report(f"Detector '{self._name()}' restart {attempt} failed: {error!r}")
-            if self._budget.exhausted or self._unquiet:
+            if self._budget.exhausted or self._stuck:
                 raise failure from error
             return
-        self.node = node
-        self.instance = node.detector
+        self._adopt(node)
         self._failure = None
+        self._budget.running()
         self._report(f"Detector '{self._name()}' restarted (try {attempt})")
 
     def _retire(self) -> bool:
+        """Stop the failed instance; only a completed stop retires it (its cleanup, not only its threads)."""
         if not self._retired:
-            try:
-                stopped = self.instance.stop()
-            except Exception:  # noqa: BLE001 - judged by quiescence below
-                stopped = False
-            self._retired = stopped is True or _quiet(self.instance)
+            self._retired = self._stopped(self.instance)
+            if not self._retired:
+                # It stays the owned instance, so the owner's stop retries its cleanup.
+                self._stuck = True
+                self._report(f"Detector '{self._name()}' did not stop: not restarted")
         return self._retired
 
     def _start_new(self) -> VisionDetectorNode:
@@ -121,14 +127,24 @@ class DetectorRestart:
         try:
             node.detector.start()
         except BaseException:
-            try:
-                node.cleanup.stop()
-            except Exception:  # noqa: BLE001 - the start failure is the one reported
-                pass
-            # A half-started instance that is not quiet cannot be left behind: no further try, escalate.
-            self._unquiet = not _quiet(node.detector)
+            if not self._stopped(node.detector):
+                # A half-started instance that did not stop becomes the owned one (the retired one is fully
+                # stopped), so the owner's stop and quiescence see it; no further try, escalate.
+                self._adopt(node)
+                self._stuck = True
             raise
         return node
+
+    def _adopt(self, node: VisionDetectorNode) -> None:
+        self.node = node
+        self.current = (node.detector, self.current[1] + 1)
+
+    def _stopped(self, detector: DetectorFleetMember) -> bool:
+        try:
+            return detector.stop() is True
+        except Exception as error:  # noqa: BLE001 - an incomplete stop
+            self._report(f"Detector '{self._name()}' stop failed: {error!r}")
+            return False
 
     def _name(self) -> str:
         try:
@@ -194,19 +210,17 @@ def stable_node(detector: RestartingDetector) -> VisionDetectorNode:
     )
 
 
-def restarting_detector_node(logger: ILogger) -> Callable[[NodeCreator], VisionDetectorNode]:
-    """``build_detector_nodes``' node maker: each mount's detector behind a restarting proxy."""
+def restarting_detector_node(
+    logger: ILogger, vehicle: object,
+) -> Callable[[NodeCreator], VisionDetectorNode]:
+    """``build_detector_nodes``' node maker: each mount's detector behind a restarting proxy, its tries timed in
+    aircraft time (owner ruling Q1)."""
     def report(message: str) -> None:
-        logger.warning(message, key="vision", dest=LogStatusDest.DRONE)
+        logger.warning(message, key="vision", status=message, dest=LogStatusDest.DRONE)
 
-    return lambda create: stable_node(RestartingDetector(create, report))
-
-
-def _quiet(detector: object) -> bool:
-    try:
-        return getattr(detector, "is_quiescent") is True
-    except Exception:  # noqa: BLE001 - unknown is not quiet
-        return False
+    return lambda create: stable_node(RestartingDetector(
+        create, report, RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle))),
+    ))
 
 
 __all__ = ["DetectorRestart", "RestartingDetector", "restarting_detector_node", "stable_node"]

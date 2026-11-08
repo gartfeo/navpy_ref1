@@ -140,6 +140,7 @@ class SwarmHeartbeatRuntime:
                 self._budget.failed()
                 message = f"Swarm heartbeat restart {attempt} failed: {error!r}"
             else:
+                self._budget.running()
                 message = f"Swarm heartbeat restarted (try {attempt}) after: {failure!r}"
         self._safe_report(message)
 
