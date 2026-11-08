@@ -17,6 +17,7 @@ from tools.hitl.contact_scene import read_dock
 from tools.hitl.json_checks import RecordError
 from tools.tuning import approach_chain as chain, approach_contact as contact, approach_finish as finish
 from tools.tuning import approach_scenario as scenario_run
+from tools.tuning.approach_quiesce import ENDED_BY_TERMINAL
 from tools.tuning.approach_verdict import problems as run_problems
 
 DOCKED = "docked"                       # FinalApproachTerminal.DOCKED's value in navpy's terminal record
@@ -61,7 +62,7 @@ def command_check(run: dict, run_dir: Path) -> list[str]:
 
 def docked_check(run: dict, run_dir: Path) -> list[str]:
     outcome = run.get("outcome") or {}
-    if outcome.get("outcome") != DOCKED or outcome.get("ended_by") != "terminal":
+    if outcome.get("outcome") != DOCKED or outcome.get("ended_by") != ENDED_BY_TERMINAL:
         return [f"outcome {outcome.get('outcome')} ended by {outcome.get('ended_by')}, not docked by navpy's record"]
     return []
 
@@ -72,18 +73,25 @@ def contact_events(run_dir: Path) -> list[dict]:
 
 
 def contact_check(run: dict, run_dir: Path) -> list[str]:
-    """The service sent exactly one contact, for an arm it saw, and navpy's DOCKED record names an episode."""
+    """The service sent exactly one contact, for an arm it saw, and that arm is the episode navpy's DOCKED record
+    names (task, dock uid and episode: navpy's own identity, echoed by the service)."""
     try:
         events = contact_events(run_dir)
     except (OSError, ValueError) as exc:
         return [f"contact evidence unreadable: {exc}"]
     contacts = [e for e in events if e.get("event") == "contact"]
-    arms = {e.get("arm_id") for e in events if e.get("event") == "arm"}
+    arms = {e.get("arm_id"): e for e in events if e.get("event") == "arm"}
     found = [] if len(contacts) == 1 else [f"{len(contacts)} contacts sent, not 1"]
-    if contacts and contacts[0].get("arm_id") not in arms:
+    arm = arms.get(contacts[0].get("arm_id")) if contacts else None
+    if contacts and arm is None:
         found.append("the contact names no arm the service saw")
-    if ((run.get("outcome") or {}).get("navpy_record") or {}).get("episode") is None:
+    record = (run.get("outcome") or {}).get("navpy_record") or {}
+    terminal = (record.get("task"), record.get("dock"), record.get("episode"))
+    if terminal[2] is None:
         found.append("navpy's terminal record names no episode")
+    elif arm is not None and (arm.get("task_id"), arm.get("dock_uid"), arm.get("episode")) != terminal:
+        found.append(f"the contact's arm {(arm.get('task_id'), arm.get('dock_uid'), arm.get('episode'))} is not "
+                     f"navpy's terminal episode {terminal}")
     return found
 
 
@@ -114,16 +122,20 @@ def evidence_check(run: dict, run_dir: Path) -> list[str]:
     roles = {entry.get("role") for entry in manifest.get("files", [])}
     for role in sorted(set(run_manifest.FILE_PRODUCERS) - run_manifest.OPTIONAL_ROLES - roles):
         found.append(f"manifest has no {role}")
-    named = {**{entry.get("name"): entry for entry in manifest.get("other_files", [])}}
+    named = {str(entry.get("name")).replace("\\", "/"): entry for entry in manifest.get("other_files", [])}
+    for name, entry in named.items():                 # every digested file still as it was
+        path = run_dir / name
+        if not path.is_file() or run_manifest.digest(path)["sha256"] != entry.get("sha256"):
+            found.append(f"{name} is missing or changed since the manifest")
+    if not any(name.startswith(finish.BOARD_LOGS) and name.endswith(".BIN") for name in named):
+        found.append("the manifest names no board DataFlash log")
     for entry in manifest.get("files", []):
         path = next((p for p in run_dir.rglob(entry.get("name", "?"))), None)
         if path is None or run_manifest.digest(path)["sha256"] != entry.get("sha256"):
             found.append(f"{entry.get('role')} {entry.get('name')} is missing or changed")
     for name in finish.OTHER_EVIDENCE:
-        path = run_dir / name
-        entry = named.get(str(Path(name)))
-        if entry is None or not path.is_file() or run_manifest.digest(path)["sha256"] != entry.get("sha256"):
-            found.append(f"{name} is missing from the manifest or changed")
+        if name not in named:
+            found.append(f"{name} is missing from the manifest")
     return found
 
 
@@ -205,6 +217,29 @@ def score_run(run_dir: Path) -> dict:
             "video": _video(run_dir), "record": run.get("record")}
 
 
+# The held-out 10-minute observation stream the simple checks ask for (same frozen configuration as the series): it
+# must pass these, as an observation run whose timing check applied the coverage rules.
+OBSERVATION_CHECKS = ("verdict", "timing", "evidence", "source", "geometry", "video", "host")
+
+
+def score_observation(run_dir: Path) -> dict:
+    """The observation run's checks; ``passed`` only for a passing 10-minute observation (step 12's coverage)."""
+    try:
+        run = _json(run_dir / "approach_run.json")
+    except (OSError, ValueError) as exc:
+        return {"run_dir": str(run_dir), "passed": False, "checks": {"run": [f"approach_run.json: {exc}"]}}
+    checks = {}
+    for name in OBSERVATION_CHECKS:
+        try:
+            checks[name] = CHECKS[name](run, run_dir)
+        except (KeyError, TypeError, ValueError, OSError) as exc:
+            checks[name] = [f"{type(exc).__name__}: {exc}"]
+    covered = run.get("authority") == "observation" and (run.get("timing") or {}).get("observation") is True
+    checks["observation"] = [] if covered else ["not an observation run checked under the 10-minute coverage rules"]
+    return {"run_dir": str(run_dir), "run_id": run.get("run_id"), "passed": not any(checks.values()),
+            "checks": checks, "timing": _skew(run.get("timing") or {}), "video": _video(run_dir)}
+
+
 def _skew(timing: dict) -> dict:
     return {name: {key: (timing.get(name) or {}).get(key) for key in ("median_s", "p95_abs_s", "max_abs_s",
                                                                         "uncertainty_s")}
@@ -222,4 +257,4 @@ def _video(run_dir: Path) -> dict:
             **{key: receiver.get(key) for key in ("frames_dropped", "source_gaps")}}
 
 
-__all__ = ["CHECKS", "DOCKED", "score_run"]
+__all__ = ["CHECKS", "DOCKED", "OBSERVATION_CHECKS", "score_observation", "score_run"]

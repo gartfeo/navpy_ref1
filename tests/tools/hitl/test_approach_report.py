@@ -14,6 +14,7 @@ from navpy.core.kernel.location import Location
 from tools.hitl import approach_report, approach_run_checks as checks, approach_truth as truth, host_load
 from tools.hitl import run_manifest
 from tools.tuning import approach_chain as chain, approach_contact as contact, approach_finish as finish
+from tools.tuning import approach_quiesce as stop
 
 DOCK = Location(40.0, 44.0, 1300.0, is_absolute=True)
 OFFSET = float(chain.UNREAL_ALT_OFFSET_M)
@@ -54,8 +55,11 @@ def _navpy_argv(run_dir: Path) -> list[str]:
             "--hitl-contact", str(run_dir / contact.LINK_FILE)]
 
 
+IDENTITY = {"task_id": "t-1", "dock_uid": 7, "episode": 3}
+
+
 def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: dict | None = None,
-             miss_m: float = 0.2, edit=None) -> Path:
+             miss_m: float = 0.2, edit=None, authority: str = "command") -> Path:
     """A run folder that passes every check; edit(run, run_dir) changes it before the manifest is built."""
     run_id = f"approach-20261108T{index:06d}Z"
     run_dir = root / run_id
@@ -68,15 +72,17 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
     (run_dir / "approach_record.json").write_text(json.dumps(record), encoding="utf-8")
     ended = {"ended_after_stop": True}
     run = {"run_id": run_id, "record": str(run_dir / "approach_record.json"), "scenario": scenario,
-           "authority": "command", "admission_problems": [], "orbit_check": {"feasible": True},
+           "authority": authority, "admission_problems": [], "orbit_check": {"feasible": True},
+           "sitl_binary": {"sha256": "b" * 64}, "param_files": [{"path": "a.parm", "sha256": "c" * 64}],
            "producers": {"router": {**ended, "argv": ["python", "-m", "tools.tuning.mav_router", "--client",
                                                         f"runner={chain.RUNNER_PORT}", "--client",
                                                         f"navpy={chain.NAVPY_PORT}"]},
                          "navpy": {**ended, "argv": _navpy_argv(run_dir)}, "contact": ended},
            "orphans": [], "scene": {"reproduced": True, "scene_hash": scenario["scene_hash"]},
            "board": {"link_health": {"ok": True}},
-           "observation": {"ok": True, "authority": "command"},
-           "outcome": {"outcome": "docked", "ended_by": "terminal", "navpy_record": {"episode": 3}, "problems": []},
+           "observation": {"ok": True, "authority": authority},
+           "outcome": {"outcome": "docked", "ended_by": stop.ENDED_BY_TERMINAL,
+                       "navpy_record": {"task": "t-1", "dock": 7, "episode": 3}, "problems": []},
            "airspeed": {"problems": []}, "sources": {"ok": True, "problems": []},
            "owners": {phase: {"ok": True, "problems": []} for phase in ("preflight", "ready", "end")},
            "timing": {"passed": True, "failures": [], "attitude": {"median_s": 0.001, "p95_abs_s": 0.002,
@@ -87,12 +93,17 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
         "publisher": {"accounted": True, "failed": False, "max_queue_level": 2, "frames_in": 10, "pushed": 10},
         "mediamtx": {"write_queue_size": 64}, "drain": {"ok": True}, "receiver": {"frames_dropped": 0}}), "utf-8")
     (run_dir / contact.EVIDENCE_FILE).write_text("\n".join(json.dumps(e) for e in [
-        {"event": "arm", "arm_id": "a1"}, {"event": "contact", "arm_id": "a1", "board_time_us": CONTACT_US}]) + "\n",
+        {"event": "arm", "arm_id": "a1", **IDENTITY},
+        {"event": "contact", "arm_id": "a1", "board_time_us": CONTACT_US}]) + "\n",
         encoding="utf-8")
     _write_csv(run_dir / "board" / "link.csv", _path_rows(miss_m))
-    for name in ("router_writes.csv", finish.HOST_LOAD_JSON, "navpy_integration.jsonl", "unreal.log",
-                 "emulator.jsonl", "publisher/frames-001.csv"):
-        (run_dir / name).write_text("x\n", encoding="utf-8")
+    for name in (*finish.OTHER_EVIDENCE, "navpy_integration.jsonl", "unreal.log", "emulator.jsonl",
+                 "publisher/frames-001.csv", "board/logs/00000001.BIN"):
+        if not (run_dir / name).exists():
+            (run_dir / name).parent.mkdir(parents=True, exist_ok=True)
+            (run_dir / name).write_text("x\n", encoding="utf-8")
+    (run_dir / "publisher_profile.json").write_text(json.dumps({"bitrate_kbps": 1340, "native_host": f"10.0.0.{index}"}),
+                                                    encoding="utf-8")
     if edit:
         edit(run, run_dir)
     timing_roles = [("run_record", run_dir / "approach_record.json"),
@@ -102,8 +113,10 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
                     ("unreal_log", run_dir / "unreal.log"), ("emulator_log", run_dir / "emulator.jsonl")]
     manifest = {"files": [{"role": role, "name": path.name, **run_manifest.digest(path)} for role, path in timing_roles
                           if path.exists()],
-                "other_files": [{"name": str(Path(name)), **run_manifest.digest(run_dir / name)}
-                                for name in finish.OTHER_EVIDENCE if (run_dir / name).exists()]}
+                "other_files": [{"name": str(path.relative_to(run_dir)), **run_manifest.digest(path)}
+                                for path in sorted(run_dir.rglob("*")) if path.is_file()
+                                and path.name not in {"approach_record.json", "publisher.json", "frames-001.csv",
+                                                      "navpy_integration.jsonl", "unreal.log", "emulator.jsonl"}]}
     (run_dir / "run_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "approach_run.json").write_text(json.dumps(run), encoding="utf-8")
     return run_dir
@@ -137,6 +150,8 @@ def _set(path: str, value):
     (_set("outcome.outcome", "missed"), "docked"),
     (_set("outcome.ended_by", "deadline"), "docked"),
     (_set("outcome.navpy_record.episode", None), "contact"),
+    (_set("outcome.navpy_record.episode", 4), "contact"),
+    (_set("outcome.navpy_record.task", "t-2"), "contact"),
     (_set("timing", {"passed": False, "failures": ["gimbal: max |skew| over 8 ms"]}), "timing"),
     (_set("timing", None), "timing"),
     (_set("host_load", {"ok": False, "throttle_reasons": ["hw_thermal_slowdown"]}), "host"),
@@ -171,7 +186,8 @@ def test_a_record_of_another_video_source_cannot_substitute(tmp_path):
 
 @pytest.mark.parametrize("events, problem", [
     ([], "0 contacts sent, not 1"),
-    ([{"event": "arm", "arm_id": "a1"}, {"event": "contact", "arm_id": "a1", "board_time_us": CONTACT_US}] * 2,
+    ([{"event": "arm", "arm_id": "a1", **IDENTITY},
+      {"event": "contact", "arm_id": "a1", "board_time_us": CONTACT_US}] * 2,
      "2 contacts sent, not 1"),
     ([{"event": "contact", "arm_id": "a9", "board_time_us": CONTACT_US}], "the contact names no arm the service saw"),
 ])
@@ -200,9 +216,34 @@ def test_missing_evidence_never_counts(tmp_path, name):
     assert "evidence" in failed(make_run(tmp_path, 1, edit=edit))
 
 
-@pytest.mark.parametrize("name", ["board/link.csv", "unreal.log", contact.EVIDENCE_FILE])
+def test_a_contact_for_another_episode_than_navpys_docked_never_counts(tmp_path):
+    def edit(run, run_dir):
+        events = [{"event": "arm", "arm_id": "a1", **IDENTITY}, {"event": "arm", "arm_id": "a2", **IDENTITY,
+                                                                  "episode": 4},
+                  {"event": "contact", "arm_id": "a2", "board_time_us": CONTACT_US}]
+        (run_dir / contact.EVIDENCE_FILE).write_text("".join(json.dumps(e) + "\n" for e in events), "utf-8")
+    problems = failed(make_run(tmp_path, 1, edit=edit))["contact"]
+    assert any("is not navpy's terminal episode" in p for p in problems)
+
+
+def test_the_runners_own_terminal_outcome_counts_as_docked():
+    """The runner's outcome() for navpy's terminal record that ended the observation (Codex round 1, P1)."""
+    record = {"trigger": "terminal", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
+    run = {"outcome": stop.outcome([record], stop.ENDED_BY_TERMINAL)}
+    assert checks.docked_check(run, Path(".")) == []
+    assert checks.docked_check({"outcome": stop.outcome([record], stop.ENDED_BY_DEADLINE)}, Path("."))
+
+
+def test_a_run_without_a_board_log_never_counts(tmp_path):
+    def edit(run, run_dir):
+        (run_dir / "board" / "logs" / "00000001.BIN").unlink()
+    assert "the manifest names no board DataFlash log" in failed(make_run(tmp_path, 1, edit=edit))["evidence"]
+
+
+@pytest.mark.parametrize("name", ["board/link.csv", "unreal.log", contact.EVIDENCE_FILE, "navpy.out",
+                                  finish.HOST_LOAD_CSV, "board/logs/00000001.BIN", "contact_link_extra.txt"])
 def test_evidence_changed_after_the_manifest_never_counts(tmp_path, name):
-    run_dir = make_run(tmp_path, 1)
+    run_dir = make_run(tmp_path, 1, edit=lambda run, d: (d / "contact_link_extra.txt").write_text("k", "utf-8"))
     with open(run_dir / name, "a", encoding="utf-8") as handle:
         handle.write("\n")
     assert "evidence" in failed(run_dir)
@@ -226,10 +267,27 @@ def test_an_unreadable_run_file_is_a_failed_attempt(tmp_path):
 
 
 # ---- the series -----------------------------------------------------------------------------------------------
+def observation_run(tmp_path, **kwargs) -> Path:
+    """The held-out 10-minute observation run of the same configuration (its own folder, outside the series)."""
+    extra = kwargs.pop("edit", None) or (lambda r, d: None)
+
+    def covered(run, run_dir):
+        run["timing"]["observation"] = True
+        run["scenario"] = {**run["scenario"], "series_id": "obs"}
+        extra(run, run_dir)
+    return make_run(tmp_path / "observation", 99, authority="observation", edit=covered, **kwargs)
+
+
+def series(tmp_path, **kwargs) -> dict:
+    return approach_report.report(tmp_path, "s1", observation_run(tmp_path, **kwargs))
+
+
 def test_ten_passing_runs_of_ten_seeds_under_one_configuration_score_ten_of_ten(tmp_path, capsys):
     for i in range(10):
         make_run(tmp_path, i, seed=9 - i)
-    assert approach_report.main(["--series", "s1", "--run-root", str(tmp_path), "--out", str(tmp_path / "r.json")]) == 0
+    observation = observation_run(tmp_path)
+    assert approach_report.main(["--series", "s1", "--run-root", str(tmp_path), "--observation-run",
+                                 str(observation), "--out", str(tmp_path / "r.json")]) == 0
     result = json.loads((tmp_path / "r.json").read_text(encoding="utf-8"))
     assert result["score"] == "10/10" and result["passed"]
     assert result["substitutions"] == [{"autopilot": "SITL"}]
@@ -241,7 +299,7 @@ def test_ten_passing_runs_of_ten_seeds_under_one_configuration_score_ten_of_ten(
 def test_a_miss_breaks_the_series_and_later_passes_do_not_mend_it(tmp_path):
     for i in range(10):
         make_run(tmp_path, i, edit=_set("outcome.outcome", "missed") if i == 3 else None)
-    result = approach_report.report(tmp_path, "s1")
+    result = series(tmp_path)
     assert result["score"] == "3/10" and not result["passed"]
     assert any("attempt 4" in p for p in result["problems"])
 
@@ -249,15 +307,54 @@ def test_a_miss_breaks_the_series_and_later_passes_do_not_mend_it(tmp_path):
 def test_fewer_than_ten_attempts_or_a_repeated_seed_fails(tmp_path):
     for i in range(9):
         make_run(tmp_path, i)
-    assert approach_report.report(tmp_path, "s1")["problems"] == ["9 of 10 attempts"]
+    assert series(tmp_path)["problems"] == ["9 of 10 attempts"]
     make_run(tmp_path, 9, seed=0)
-    assert any("seeds" in p for p in approach_report.report(tmp_path, "s1")["problems"])
+    assert any("seeds" in p for p in approach_report.report(tmp_path, "s1", tmp_path / "observation" /
+                                                            "approach-20261108T000099Z")["problems"])
 
 
-def test_a_changed_configuration_starts_a_new_series(tmp_path):
+def _profile(bitrate):
+    def edit(run, run_dir):
+        (run_dir / "publisher_profile.json").write_text(json.dumps({"bitrate_kbps": bitrate}), "utf-8")
+    return edit
+
+
+@pytest.mark.parametrize("changed", [
+    {"record_extra": {"law": "other"}},
+    {"edit": _set("sitl_binary", {"sha256": "d" * 64})},
+    {"edit": _set("param_files", [{"path": "a.parm", "sha256": "e" * 64}])},
+    {"edit": _profile(2000)},
+], ids=["record", "sitl binary", "parameters", "publisher profile"])
+def test_a_changed_configuration_starts_a_new_series(tmp_path, changed):
     for i in range(10):
-        make_run(tmp_path, i, record_extra={"law": "vision_nav_pn" if i < 5 else "other"})
-    assert any("configurations" in p for p in approach_report.report(tmp_path, "s1")["problems"])
+        make_run(tmp_path, i, **(changed if i >= 5 else {}))
+    assert any("configurations" in p for p in series(tmp_path)["problems"])
+
+
+def test_the_per_run_publisher_address_is_not_a_configuration_change(tmp_path):
+    for i in range(10):
+        make_run(tmp_path, i)                 # native_host differs per run
+    assert series(tmp_path)["passed"]
+
+
+@pytest.mark.parametrize("observation, problem", [
+    (None, "no 10-minute observation run given"),
+    ({"edit": _set("timing.observation", False)}, "the observation run failed"),
+    ({"edit": _set("host_load", {"ok": False})}, "the observation run failed"),
+    ({"record_extra": {"law": "other"}}, "another configuration"),
+])
+def test_ten_passes_still_need_a_passing_observation_run_of_the_same_configuration(tmp_path, observation, problem):
+    for i in range(10):
+        make_run(tmp_path, i)
+    run = None if observation is None else observation_run(tmp_path, **observation)
+    result = approach_report.report(tmp_path, "s1", run)
+    assert result["score"] == "10/10" and not result["passed"]
+    assert any(problem in p for p in result["problems"])
+
+
+def test_a_command_run_is_not_an_observation_run(tmp_path):
+    run = make_run(tmp_path, 1, edit=_set("timing.observation", True))
+    assert approach_report.score_observation(run)["checks"]["observation"]
 
 
 def test_only_the_series_runs_are_attempts_and_attempts_after_ten_are_kept(tmp_path):
@@ -267,14 +364,14 @@ def test_only_the_series_runs_are_attempts_and_attempts_after_ten_are_kept(tmp_p
     other.rename(tmp_path / "approach-20261108T999999Z")
     record = tmp_path / "approach-20261108T999999Z" / "approach_run.json"
     record.write_text(json.dumps({**json.loads(record.read_text("utf-8")), "scenario": {"series_id": "s2"}}), "utf-8")
-    result = approach_report.report(tmp_path, "s1")
+    result = series(tmp_path)
     assert result["score"] == "10/10" and result["after_series"] == 1 and len(result["attempts"]) == 11
 
 
 def test_a_folder_whose_run_file_is_missing_still_counts_as_a_failed_attempt(tmp_path):
     run_dir = make_run(tmp_path, 0)
     (run_dir / "approach_run.json").unlink()
-    result = approach_report.report(tmp_path, "s1")
+    result = series(tmp_path)
     assert len(result["attempts"]) == 1 and result["score"] == "0/10"
 
 
@@ -283,17 +380,34 @@ def test_the_frozen_configuration_ignores_only_the_run_identity_and_seed():
     same = {"run": {"run_id": "b"}, "scenario": {"series_id": "s", "seed_index": 4, "scene_hash": "2"}, "law": "x"}
     assert approach_report.frozen_fingerprint(base) == approach_report.frozen_fingerprint(same)
     assert approach_report.frozen_fingerprint(base) != approach_report.frozen_fingerprint({**same, "law": "y"})
+    assert approach_report.frozen_fingerprint(base, {"sitl_binary": "a"}) != approach_report.frozen_fingerprint(
+        same, {"sitl_binary": "b"})
 
 
 # ---- the truth cross-check ------------------------------------------------------------------------------------
 def test_the_closest_pass_is_between_logged_poses():
     path = [(t, lat, lon, h) for t, lat, lon, h in truth.path_rows(
         [{k: str(v) for k, v in row.items()} for row in _path_rows(0.3)], OFFSET)]
-    sparse = path[1::5]                      # rows 2 m apart, none at the crossing: it falls between two of them
-    assert min(math.dist((0, 0), (0.3, 0.4 * k)) for k in (-4, 1)) == pytest.approx(0.5)
+    sparse = path[0::2]                      # rows 40 ms apart, none at the crossing: it falls between two of them
+    assert min(math.dist((0, 0), (0.3, 0.4 * k)) for k in (-5, -3, -1, 1, 3, 5)) == pytest.approx(0.5)
     closest = truth.closest_pass(sparse, DOCK)
     assert closest["distance_m"] == pytest.approx(0.3, abs=1e-6)
     assert closest["board_time_s"] == pytest.approx(CONTACT_US * 1e-6, abs=1e-6)
+
+
+@pytest.mark.parametrize("cut", ["hole", "reboot", "repeat"])
+def test_a_logging_hole_or_a_board_reset_is_never_bridged_into_a_crossing(tmp_path, cut):
+    """Codex round 1: two poses either side of a hole would make a straight chord through the net."""
+    rows = _path_rows(5.0)                        # flown 5 m east of the dock
+    before, after = dict(rows[4]), dict(rows[6])
+    after["lon_deg"] = DOCK.lng - (float(after["lon_deg"]) - DOCK.lng)    # the far side: the chord crosses the centre
+    after["board_time_us"] = {"hole": before["board_time_us"] + 60_000, "reboot": 5_000,
+                              "repeat": before["board_time_us"]}[cut]
+    path = truth.path_rows([{k: str(v) for k, v in row.items()} for row in (before, after)], OFFSET)
+    assert truth.closest_pass(path, DOCK) is None
+    joined = dict(after, board_time_us=before["board_time_us"] + 20_000)
+    path = truth.path_rows([{k: str(v) for k, v in row.items()} for row in (before, joined)], OFFSET)
+    assert truth.closest_pass(path, DOCK)["distance_m"] < 0.5           # the same chord within the limit joins
 
 
 def test_bad_rows_are_skipped_and_one_pose_is_no_path(tmp_path):
@@ -303,7 +417,7 @@ def test_bad_rows_are_skipped_and_one_pose_is_no_path(tmp_path):
     assert len(truth.path_rows(rows, OFFSET)) == 1
     _write_csv(tmp_path / "link.csv", [{k: v for k, v in rows[2].items()}])
     result = truth.cross_check(tmp_path / "link.csv", DOCK, OFFSET, 0.0)
-    assert not result["ok"] and "fewer than two poses" in result["problems"][0]
+    assert not result["ok"] and "no segment of two poses" in result["problems"][0] and result["skipped"] == 0
     assert not truth.cross_check(tmp_path / "missing.csv", DOCK, OFFSET, 0.0)["ok"]
 
 

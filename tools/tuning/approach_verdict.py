@@ -5,11 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from tools.tuning import approach_owners as owners, approach_scenario as scenario_run
+from tools.tuning.approach_finish import NO_CONSTANTS
 
 
 def problems(run: dict, failed: str | None) -> list[str]:
     """Why the run did not pass (empty: the flight, every stop, the scene, the link health, no orphans, the write
-    audit, one owner each and the airspeed source all passed). A missing section counts as failed."""
+    audit, one owner each, the airspeed source, the host load and, for a held-out run, the timing check all passed).
+    A missing section counts as failed; a calibration-only run (no timing constants) has no timing check to pass."""
     found = [f"error: {failed}"] if failed else []
     health = (run.get("board") or {}).get("link_health") or {}
     producers = run.get("producers") or {}
@@ -25,6 +27,11 @@ def problems(run: dict, failed: str | None) -> list[str]:
         found.append(f"write audit failed: {run.get('observation')}")
     found += (run.get("outcome") or {"problems": ["no outcome"]})["problems"]
     found += (run.get("airspeed") or {"problems": ["no airspeed outcome"]})["problems"]
+    timing = run.get("timing") or {"passed": False, "failures": ["no timing check"]}
+    if timing.get("passed") is not True and timing.get("failures") != [NO_CONSTANTS]:
+        found += [f"timing: {failure}" for failure in timing.get("failures") or ["failed"]]
+    if (run.get("host_load") or {}).get("ok") is not True:
+        found.append(f"host load: {run.get('host_load')}")
     owned, owner_problems = owners.verdicts(run)
     if not owned:
         found += owner_problems or ["owner census failed"]

@@ -43,7 +43,9 @@ def copy_logs(run_dir: Path, board_workdir: Path) -> None:
 
 # Evidence beside the timing roles (run_manifest.FILE_PRODUCERS): the manifest digests them under other_files, and the
 # series report requires each of them there.
-OTHER_EVIDENCE = ("router_writes.csv", f"board/{LINK_CSV}", contact.EVIDENCE_FILE, HOST_LOAD_JSON)
+OTHER_EVIDENCE = ("router_writes.csv", "router_stats.json", "navpy.out", f"board/{LINK_CSV}", contact.EVIDENCE_FILE,
+                  HOST_LOAD_JSON, HOST_LOAD_CSV, "publisher_profile.json")
+BOARD_LOGS = "board/logs/"              # the DataFlash logs the link-health gate read: at least one
 
 
 def timing_files(run_dir: Path, record_path: Path) -> list[tuple[str, Path]]:
@@ -96,6 +98,12 @@ def observation_run(scenario: dict, command: bool) -> bool:
     return not command and float(scenario["limits"]["observe_s"]) >= OBSERVATION_S
 
 
+def param_digests(files: list) -> list[dict]:
+    """The board's parameter files as flown (path and content digest), for the series' frozen configuration."""
+    return [{"path": str(f.path), "sha256": run_manifest.digest(Path(f.path))["sha256"] if Path(f.path).is_file()
+             else None} for f in files]
+
+
 def host_load_summary(run_dir: Path) -> dict:
     path = run_dir / HOST_LOAD_JSON
     if not path.exists():
@@ -103,5 +111,5 @@ def host_load_summary(run_dir: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
-__all__ = ["HOST_LOAD_ROLE", "NO_CONSTANTS", "OTHER_EVIDENCE", "TIMING_FILE", "copy_logs", "host_load",
+__all__ = ["BOARD_LOGS", "HOST_LOAD_ROLE", "NO_CONSTANTS", "OTHER_EVIDENCE", "param_digests", "TIMING_FILE", "copy_logs", "host_load",
            "host_load_summary", "manifest", "observation_run", "timing", "timing_files"]

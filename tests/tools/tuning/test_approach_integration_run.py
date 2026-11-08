@@ -300,3 +300,30 @@ def test_the_runner_imports_no_truth_reader_and_no_scorer():
     hits = [f"{path.name}: {name}" for path in runner for name in _imported(path)
             if any(name == bad or name.startswith(bad + ".") for bad in TRUTH_MODULES)]
     assert hits == []
+
+
+def _clean_run() -> dict:
+    ok = {"ok": True, "problems": []}
+    return {"producers": {"navpy": {"ended_after_stop": True}}, "orphans": [],
+            "scene": {"reproduced": True, "scene_hash": "e"}, "scenario": {"scene_hash": "e"},
+            "board": {"link_health": {"ok": True}}, "observation": {"ok": True}, "outcome": {"problems": []},
+            "airspeed": {"problems": []}, "owners": {p: ok for p in ("preflight", "ready", "end")},
+            "sources": ok, "timing": {"passed": True, "failures": []}, "host_load": {"ok": True}}
+
+
+def test_a_held_out_run_fails_on_its_timing_or_host_load_and_a_calibration_run_has_no_timing_to_pass():
+    """Codex round 1: the run's own exit agrees with the series report on timing and host load."""
+    assert problems(_clean_run(), None) == []
+    assert problems({**_clean_run(), "timing": {"passed": False, "failures": [finish.NO_CONSTANTS]}}, None) == []
+    assert problems({**_clean_run(), "timing": {"passed": False, "failures": ["gimbal: over 8 ms"]}}, None) == [
+        "timing: gimbal: over 8 ms"]
+    assert problems({**_clean_run(), "timing": None}, None) == ["timing: no timing check"]
+    assert problems({**_clean_run(), "host_load": {"ok": False}}, None) == ["host load: {'ok': False}"]
+
+
+def test_the_run_records_the_parameter_files_as_flown(tmp_path):
+    from tools.tuning.hitl_params import ParamFile
+    present = tmp_path / "a.parm"
+    present.write_text("X 1\n", encoding="utf-8")
+    digests = finish.param_digests([ParamFile(present, True), ParamFile(tmp_path / "gone.parm", False)])
+    assert digests[0]["sha256"] and digests[1] == {"path": str(tmp_path / "gone.parm"), "sha256": None}
