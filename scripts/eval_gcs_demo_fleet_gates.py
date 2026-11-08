@@ -26,6 +26,7 @@ import json
 from collections.abc import Mapping, Sequence
 from pathlib import Path
 
+from scripts.eval_gcs_demo_recovery import LOCKSTEP_EVIDENCE_ERROR
 from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import approval_timing_errors
 from scripts.eval_gcs_demo_assignment_lines import parse_assignment_lines
@@ -169,7 +170,7 @@ def certified_lockstep_gate_errors(log_dir: Path, plan: DemoMissionPlan,
     try:
         records, lines = load_fleet_evidence(log_dir, sys_ids)
     except (OSError, ValueError, RegressionError) as error:
-        return [f"certified lockstep evidence: {error}"]
+        return [f"{LOCKSTEP_EVIDENCE_ERROR}: {error}"]
     peers = tuple(vehicle.sys_id for vehicle in plan.peers)
     return (run_errors(records) + packet_run_errors(records)
             + forwarding_errors(records, plan.owner.sys_id, peers, sys_ids)

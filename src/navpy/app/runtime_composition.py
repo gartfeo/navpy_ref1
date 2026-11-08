@@ -30,6 +30,7 @@ from navpy.core.skills.geo_approach.mission_planner import MissionPlanner, Missi
 from navpy.app.flow.nav_controller import NavController
 from navpy.core.approach.dock_contact_episode import with_dock_evidence_cut
 from navpy.app.vehicle_factory import create_vehicle, open_vehicle_bus
+from navpy.app.autopilot_watchdog_report import AutopilotWatchdogSubscriptions
 from navpy.app.wall_scheduler_cadence import speedup_scheduler_cadence
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
@@ -135,6 +136,7 @@ def _build_foundation(
     own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
     raise_if_stopped(stop_requested)
     status_logger.set_vehicle(vehicle)
+    resources.own("autopilot watchdog report", AutopilotWatchdogSubscriptions(vehicle, logger).close)
     _log_configuration(args, vehicle, logger)
 
     network = create_network(
@@ -237,9 +239,7 @@ def _build_session(
     resources.own_quiescence("controller", controller.stop)
     quiesce()
     controller.set_network(foundation.network)
-    scheduler_rate_hz = resolve_ardupilot_scheduler_rate_hz(
-        foundation.vehicle,
-    )
+    scheduler_rate_hz = resolve_ardupilot_scheduler_rate_hz(foundation.vehicle)
 
     def check_runtime_health() -> None:
         # A failed evidence write is logged and skipped; it never stops NavPy,

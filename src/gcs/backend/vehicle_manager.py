@@ -22,7 +22,7 @@ from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusOpener
 from navpy.plugins.vehicle.ardupilot.mav_bus_lifecycle import MavBusClosedError
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend.camera_preflight import CameraPreflight
-from gcs.backend import vehicle_connections, vehicle_mission_probe
+from gcs.backend import companion_liveness, vehicle_connections, vehicle_mission_probe
 from gcs.backend.ekf_status_gate import request_ekf_status_stream
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S,
@@ -204,51 +204,19 @@ class VehicleManager:
     def is_companion_active(self, sys_id: int, timeout: float = 5.0) -> bool:
         """Whether a companion heartbeat for *sys_id* arrived within *timeout*.
 
-        NOTE: no production caller. Liveness now uses the tri-state
-        :meth:`companion_status` (``get_all_snapshots`` derives ``companion_ok``
-        from it). This binary check is retained only as a regression reference
-        for the pre-tri-state 5 s behavior — the tests use it to witness the old
-        flap (a ~10 s gap it reports inactive is now "checking", not faulty).
+        NOTE: no production caller. Liveness uses the tri-state
+        :meth:`companion_status`; this binary check is kept only as the tests'
+        reference for the pre-tri-state 5 s behavior (its old flap).
         """
-        now = rt.time()
-        for bus in self._buses.values():
-            ts = bus.companion_heartbeats.get(sys_id)
-            if ts is not None and now - ts <= timeout:
-                return True
-        return False
+        return companion_liveness.heartbeat_within(self._buses.values(), sys_id, timeout, rt.time())
 
     def _newest_companion_hb(self, sys_id: int) -> Optional[float]:
-        """Most recent companion-heartbeat timestamp for *sys_id* across all buses.
-
-        The companion heartbeat now carries the same system id as the
-        aircraft's own; MavBus keeps the two apart by MAV_TYPE
-        (MAV_TYPE_ONBOARD_CONTROLLER lands in ``companion_heartbeats``,
-        everything else in ``heartbeats``), so the sysid is a safe key here.
-        """
-        newest: Optional[float] = None
-        for bus in self._buses.values():
-            ts = bus.companion_heartbeats.get(sys_id)
-            if ts is not None and (newest is None or ts > newest):
-                newest = ts
-        return newest
+        """Most recent companion-heartbeat time for *sys_id* across all buses."""
+        return companion_liveness.newest_companion_heartbeat(self._buses.values(), sys_id)
 
     def companion_status(self, sys_id: int) -> str:
-        """Tri-state companion liveness: ``"ok"`` | ``"checking"`` | ``"down"``.
-
-        See COMPANION_OK_WINDOW_S / COMPANION_DOWN_WINDOW_S for the rationale:
-        a brief gap in the 1 Hz companion heartbeat on the shared lossy link is
-        reported as ``"checking"`` (transient, not faulty) rather than flapping
-        straight to ``"down"``.
-        """
-        newest = self._newest_companion_hb(sys_id)
-        if newest is None:
-            return "down"
-        age = rt.time() - newest
-        if age <= COMPANION_OK_WINDOW_S:
-            return "ok"
-        if age <= COMPANION_DOWN_WINDOW_S:
-            return "checking"
-        return "down"
+        """Tri-state companion liveness (``companion_liveness.status_from_newest``)."""
+        return companion_liveness.status_from_newest(self._newest_companion_hb(sys_id), rt.time())
 
     def get_all_snapshots(self) -> list[dict]:
         """Get telemetry snapshots for all connected vehicles."""
@@ -272,6 +240,11 @@ class VehicleManager:
         """The vehicle's position fixes since the last drain; only the broadcast drains."""
         entry = self._vehicles.get(sys_id)
         return entry.position_path.drain() if entry else []
+
+    def drain_messages(self, sys_id: int) -> list[dict]:
+        """The vehicle's Messages-window entries since the last drain; only the broadcast drains."""
+        entry = self._vehicles.get(sys_id)
+        return entry.message_log.drain_new() if entry else []
 
     def get_seen_ids(self, timeout: float = 5.0) -> list[int]:
         return vehicle_connections.get_seen_ids(self, timeout)

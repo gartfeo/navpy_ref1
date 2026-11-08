@@ -26,7 +26,7 @@ _LOG_GIMBAL_TELEM = os.environ.get("GCS_LOG_GIMBAL_TELEM", "").strip().lower() i
 )
 CAMERA_OPTICS_STALE_S = 2.0
 
-# Companion (NavPy) liveness windows. The companion emits a 1 Hz heartbeat that
+# Companion (NavPy) liveness windows. The companion emits a 4 Hz heartbeat that
 # rides the *shared*, lossy telemetry link (multiplexed with every vehicle's
 # full-rate flight data through a router). A short run of missed heartbeats is
 # ordinary packet loss, not a dead companion, so liveness is a tri-state:
@@ -34,7 +34,7 @@ CAMERA_OPTICS_STALE_S = 2.0
 #   age <= COMPANION_DOWN_WINDOW_S    -> "checking" (transient loss; not faulty)
 #   otherwise / never seen            -> "down"     (sustained silence)
 # This stops the indicator (and launch-readiness) from flapping to "faulty" on a
-# few dropped 1 Hz packets, while still surfacing a genuinely dead companion
+# few dropped heartbeats, while still surfacing a genuinely dead companion
 # within COMPANION_DOWN_WINDOW_S. Widening only the *down* transition is safe:
 # the state recovers to "ok" on the very next heartbeat.
 COMPANION_OK_WINDOW_S = 5.0
@@ -114,6 +114,7 @@ def _classify_accel_cal_statustext(text: str) -> Optional[dict]:
 
 
 def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
+    entry.message_log.on_statustext(msg)
     sev = getattr(msg, "severity", 6)
     text = getattr(msg, "text", "").rstrip("\x00")
     label = entry._SEVERITY_LABELS.get(sev, "INFO")
