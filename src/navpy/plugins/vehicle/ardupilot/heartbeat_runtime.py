@@ -1,5 +1,7 @@
 """Companion heartbeat sender lifecycle.
 
+The period is aircraft time (heartbeat_pacing.py), as the autopilot's NavPy watchdog times it.
+
 A failed send never ends the sender (docs/design/navpy_recovery.md, step 5c): the next period is the retry, so a
 short outage recovers at once. The first failure is reported, and the recovery after it; the ticks between are
 quiet. If sends keep failing, the autopilot's NavPy watchdog (step 7) sees no NavPy heartbeat and holds the UAV.
@@ -14,6 +16,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.heartbeat_pacing import HeartbeatPacing
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -32,8 +35,10 @@ class HeartbeatRuntime:
         heartbeat_state: HeartbeatState,
         logger_ref: LoggerRef,
         heartbeat_hz: float,
+        pacing: HeartbeatPacing | None = None,
     ) -> None:
         self._transport = transport
+        self._pacing = HeartbeatPacing() if pacing is None else pacing
         self._identity = identity
         self._state = heartbeat_state
         self._logger_ref = logger_ref
@@ -71,6 +76,7 @@ class HeartbeatRuntime:
     def close(self) -> None:
         with self._lock:
             self._stop.set()
+            self._pacing.wake()
             thread = self._thread
             launch = self._launch
             if (
@@ -116,7 +122,7 @@ class HeartbeatRuntime:
                         f"Vehicle {self._identity.target_system} "
                         f"heartbeat timeout {age_s}."
                     )
-            stop.wait(self._period_s)
+            self._pacing.wait(stop, self._period_s)
 
     def _send(self) -> None:
         try:

@@ -1,6 +1,8 @@
 """Thread-safe positive and temporary-negative parameter cache."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.core.kernel import runtime_time as rt
 
 
@@ -9,12 +11,21 @@ class ParameterRepository:
         self._lock = rt.Lock()
         self._values: dict[str, float] = {}
         self._missing_until: dict[str, float] = {}
+        self._watchers: dict[str, list[Callable[[], None]]] = {}
+
+    def watch(self, name: str, changed: Callable[[], None]) -> None:
+        """Call ``changed`` (on the updating thread, outside the lock) after each update of ``name``."""
+        with self._lock:
+            self._watchers.setdefault(name.upper(), []).append(changed)
 
     def update(self, name: str, value: float) -> None:
         normalized = name.rstrip("\x00").upper()
         with self._lock:
             self._values[normalized] = value
             self._missing_until.pop(normalized, None)
+            watchers = tuple(self._watchers.get(normalized, ()))
+        for changed in watchers:
+            changed()
 
     def get(self, name: str) -> float | None:
         with self._lock:

@@ -113,7 +113,7 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
     assert state["init_args"] == [10, 1] and state["registered"] == [0]       # (queue length, message ids)
     assert state["table_added"] == [88, "AAS_", 30]
     assert [(p["index"], p["name"]) for p in state["added_params"]] == [
-        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"), (24, "NWD_MISS"),
+        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"),
     ]
     assert "NavPy watchdog loaded" in texts(out)
 
@@ -121,7 +121,7 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
 def test_aas_params_lua_leaves_the_watchdog_indices_free():
     used = {int(line.split(",")[1]) for line in AAS_PARAMS.read_text(encoding="utf-8").splitlines()
             if "add_param(PARAM_TABLE_KEY" in line}
-    assert used.isdisjoint({20, 21, 22, 23, 24})
+    assert used.isdisjoint({20, 21, 22, 23})
 
 
 def test_reports_its_state_once_a_second():
@@ -132,8 +132,8 @@ def test_reports_its_state_once_a_second():
 
 
 def test_navpy_alive_in_guided_is_left_alone():
-    out = run("h.run(60000, NAVPY, 1000)")       # 1 Hz heartbeat
-    assert out["modes"] == []
+    out = run("h.run(60000, NAVPY, 1000)\nh.run(2000)")      # 1 Hz heartbeat, then gone
+    assert modes(out) == [LOITER] and out["modes"][0]["t"] == 61500
 
 
 def test_no_navpy_heartbeat_for_the_timeout_holds_in_loiter():
@@ -322,28 +322,75 @@ def test_finding1_a_pilot_mode_between_the_read_and_the_auto_write_wins():
     assert modes(out) == [LOITER] and out["state"]["mode"] == FBWA
 
 
-def test_finding2_one_lost_1hz_beat_does_not_hold():
-    """The companion's 1 Hz: a beat lost now and then is not a dead NavPy."""
+def test_the_timeout_is_aas_nwd_tmo_after_the_last_heartbeat():
+    """A fixed timeout in aircraft time (Demo's ruling on Codex round 2): NavPy paces its heartbeat in aircraft
+    time (heartbeat_pacing.py), so the autopilot needs no estimate of its cadence."""
+    out = run("S.params.AAS_NWD_TMO = 2.5\nh.run(10000, NAVPY, 1000)\nh.run(4000)")
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] - 10000 == 2500
+
+
+def test_with_a_2_5s_timeout_one_lost_1hz_beat_does_not_hold():
+    """The owner's option (b), 1 Hz and 2.5 s: one beat lost now and then is not a dead NavPy."""
     out = run("""
+        S.params.AAS_NWD_TMO = 2.5
         for i = 1, 30 do
             h.run(1000)
             if i % 5 ~= 0 then h.push(NAVPY) end
         end
+        h.run(3000)
     """)
-    assert out["modes"] == []
+    assert modes(out) == [LOITER]                 # only once NavPy is gone for good
 
 
-def test_finding2_a_sim_speed_up_does_not_hold():
-    """At speed-up 10 the companion's 1 Hz wall-time heartbeat arrives every 10 s of aircraft time."""
-    out = run("h.run(120000, NAVPY, 10000)")
-    assert out["modes"] == []
+# ---------- Codex round 2 on step 7 (the cadence estimator, dropped) ----------
 
 
-@pytest.mark.parametrize("period_ms, held_after_ms", [(200, 1500), (1000, 2500), (10000, 25000)])
-def test_finding2_a_dead_navpy_holds_after_the_longer_of_tmo_and_miss_periods(period_ms, held_after_ms):
-    out = run(f"h.run({period_ms * 10}, NAVPY, {period_ms})\nh.run({held_after_ms + 1000})")
+def test_r2_finding1_a_duplicate_burst_does_not_change_the_timeout():
+    """Frames received a millisecond apart are heartbeats, not a cadence: the hold still comes AAS_NWD_TMO after
+    the last one."""
+    out = run("""
+        h.run(10000, NAVPY, 1000)
+        for i = 1, 5 do h.push(NAVPY, 10000 + i) end
+        h.run(10000, NAVPY, 1000)
+        h.run(3000)
+    """)
     assert modes(out) == [LOITER]
-    assert out["modes"][0]["t"] - period_ms * 10 == held_after_ms
+    assert out["modes"][0]["t"] - 20000 == 1500
+
+
+def test_r2_finding2_a_long_outage_does_not_lengthen_the_timeout():
+    """One heartbeat, a 60 s gap, one more (GUIDED from then), then NavPy is gone: held AAS_NWD_TMO later."""
+    out = run("""
+        S.mode = 10
+        h.push(NAVPY); h.run(100)
+        h.run(60000)
+        S.mode = 15
+        h.push(NAVPY); h.run(100)
+        h.run(3000)
+    """)
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] - 60100 == 1500
+
+
+def test_r2_finding3_one_heartbeat_then_loss_still_holds():
+    out = run("h.push(NAVPY)\nh.run(3000)")
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] == 1500
+
+
+def test_each_mode_write_comes_right_after_its_guard_read():
+    """The known limit (design doc, step 7): stock-firmware Lua has no compare-and-set, so the guard read is the
+    last binding call before each write; only the autopilot's main loop can run between them."""
+    out = run(ALIVE + """
+        h.run(1600)                          -- LOITER
+        h.run(400, NAVPY, 200)               -- AUTO
+        S.mode = 15
+        h.run(1000, NAVPY, 200)
+        h.run(33000)                         -- LOITER, then RTL
+    """)
+    assert modes(out) == [LOITER, AUTO, LOITER, RTL]
+    assert {m["after"] for m in out["modes"]} == {"vehicle:get_mode"}
 
 
 def test_finding3_a_stale_queued_heartbeat_does_not_end_the_hold():

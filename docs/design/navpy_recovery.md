@@ -429,33 +429,49 @@ merges before step 4, which builds on its deadline fix.
    - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
      fresh. A GUIDED entered while NavPy was dead, or never alive, is left
      alone.
-   - Params, added by the script to the AAS table (key 88, indices 20-24;
+   - Params, added by the script to the AAS table (key 88, indices 20-23;
      `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
      `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
-     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191), `AAS_NWD_MISS` (2.5
-     heartbeat periods). Times are the autopilot's own clock (aircraft
-     time); a heartbeat is timed when the autopilot received it
-     (`receive_chan`'s timestamp), so one read late from the queue is not
-     fresh, and only one received after the hold began ends it.
-   - Timeout (Codex step 7, finding 2): the longer of `AAS_NWD_TMO` and
-     `AAS_NWD_MISS` heartbeat periods, the period being the shortest of the
-     last 8 heartbeat spacings in aircraft time (a lost beat only lengthens
-     a spacing). The companion paces its heartbeat in wall time, so at sim
-     speed-up k its period in aircraft time is k times longer; the timeout
-     follows it, so neither a speed-up nor one lost beat trips the hold, and
-     it needs no change in NavPy whichever heartbeat rate the owner picks:
-     at 1 Hz the hold comes 2.5 s after the last heartbeat, at 4 Hz 1.5 s
-     (`AAS_NWD_TMO`). Until two heartbeats gave a period, nothing is NavPy's.
+     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
+     autopilot's own clock (aircraft time); a heartbeat is timed when the
+     autopilot received it (`receive_chan`'s timestamp), so one read late
+     from the queue is not fresh, and only one received after the hold
+     began ends it.
+   - Timeout: fixed, `AAS_NWD_TMO` of aircraft time after the last
+     heartbeat received (Demo's ruling on Codex round 2). A cadence
+     estimate (eabb6503) was dropped: it could not tell a cadence from a
+     duplicate burst (which collapsed it) or an outage (which became the
+     period, unbounded), and it never timed out after a single heartbeat.
+   - Speed-up, fixed at its root in NavPy (`heartbeat_pacing.py`): the
+     companion heartbeat's period is aircraft time; its wall wait is the
+     period divided by `SIM_SPEEDUP`, read from the vehicle's parameter
+     cache (absent on real hardware, so 1). Each PARAM_VALUE updates the
+     cache, so it follows a run-time change (NAV's speed-up lease, an
+     operator's param set); the update wakes the wait, the heartbeat goes
+     out at once and the next period runs at the new rate, so no gap is
+     paced at the old one. A SITL running below its `SIM_SPEEDUP` only brings
+     heartbeats closer in aircraft time. It is the one period conversion
+     outside `SchedulerCadence` (named in `test_frozen_inventories.py`): the
+     heartbeat starts with the vehicle, before any cadence, and must not take
+     the cadence's process-wide timer and interpreter settings. Lockstep runs its SITL at speed-up 1 on a
+     virtual clock, which is aircraft time already. Pacing by the aircraft
+     time NavPy receives was not chosen: a stalled downlink would stop the
+     heartbeat, and the autopilot would take over from a NavPy that still
+     commands over the uplink and holds by itself. `HEARTBEAT_HZ` (1 Hz) and
+     `AAS_NWD_TMO` (1.5 s) stay as they are until the owner picks 4 Hz /
+     1.5 s or 1 Hz / 2.5 s; at 1 Hz / 1.5 s one lost beat holds.
    - Stages: WATCH, HOLD (its LOITER), RTL (not undone, as ArduPlane's long
      failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
      stands it down. A refused mode change is retried each tick and reported
      once; a refused AUTO keeps the hold and its RTL deadline.
-   - Mode writes: each is preceded, as the last binding call, by a read
-     that the mode is still the one it decided from (GUIDED for the hold,
-     its LOITER for AUTO or RTL). Bindings take the scheduler semaphore one
-     call at a time, so stock-firmware Lua cannot make the read and the
-     write atomic; this leaves only the main loop running between those two
-     calls, not between the step's decision and the write.
+   - Mode writes, a known limit: each is preceded, as the last binding
+     call, by a read that the mode is still the one it decided from (GUIDED
+     for the hold, its LOITER for AUTO or RTL); a test checks the read is
+     the binding called right before every write. Bindings take the
+     scheduler semaphore one call at a time and ArduPilot's scripting has no
+     compare-and-set, so a pilot's mode change processed by the main loop
+     between that read and `set_mode` is still overwritten. This is the
+     smallest window a stock-firmware script allows.
    - Payload length is checked (at most HEARTBEAT's 9 bytes) before the
      CRC, so corrupt frames claiming long payloads cannot run the script
      past `SCR_VM_I_COUNT`, which `pcall` cannot catch.

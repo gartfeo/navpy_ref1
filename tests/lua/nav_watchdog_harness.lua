@@ -11,12 +11,13 @@ local function fresh_state()
     return {
         params = {
             SYSID_THISMAV = 1,
-            AAS_NWD_ENABLE = 1, AAS_NWD_TMO = 1.5, AAS_NWD_RTL = 30, AAS_NWD_COMP = 191, AAS_NWD_MISS = 2.5,
+            AAS_NWD_ENABLE = 1, AAS_NWD_TMO = 1.5, AAS_NWD_RTL = 30, AAS_NWD_COMP = 191,
         },
         -- The autopilot's main loop between two binding calls: on_param(name) runs inside param:get, on_armed
         -- inside arming:is_armed, so a test can change the mode between the script's read and its write.
         on_param = nil,
         on_armed = nil,
+        last_binding = nil,         -- the binding called last, recorded with each set_mode
         time_ms = 0,
         mode = 15,                  -- GUIDED
         armed = true,
@@ -40,6 +41,7 @@ end
 local function install()
     _G.param = {
         get = function(_, name)
+            M.state.last_binding = "param:get"
             if M.state.on_param then M.state.on_param(name) end
             return M.state.params[name]
         end,
@@ -51,31 +53,37 @@ local function install()
     }
     _G.vehicle = {
         get_mode = function()
+            M.state.last_binding = "vehicle:get_mode"
             if M.state.get_mode_error then error(M.state.get_mode_error) end
             return M.state.mode
         end,
         set_mode = function(_, mode)
             local ok = not M.state.mode_refused[mode]
-            M.out.modes[#M.out.modes + 1] = { mode = mode, ok = ok, t = M.state.time_ms }
+            M.out.modes[#M.out.modes + 1] = { mode = mode, ok = ok, t = M.state.time_ms, after = M.state.last_binding }
+            M.state.last_binding = "vehicle:set_mode"
             if ok then M.state.mode = mode end
             return ok
         end,
     }
     _G.arming = {
         is_armed = function()
+            M.state.last_binding = "arming:is_armed"
             if M.state.on_armed then M.state.on_armed() end
             return M.state.armed
         end,
     }
     _G.millis = function()
+        M.state.last_binding = "millis"
         local t = M.state.time_ms
         return { toint = function() return t end }
     end
     _G.gcs = {
         send_text = function(_, sev, msg)
+            M.state.last_binding = "gcs:send_text"
             M.out.msgs[#M.out.msgs + 1] = { sev = sev, msg = msg, t = M.state.time_ms }
         end,
         send_named_float = function(_, name, value)
+            M.state.last_binding = "gcs:send_named_float"
             M.out.floats[#M.out.floats + 1] = { name = name, value = value, t = M.state.time_ms }
         end,
     }
@@ -83,6 +91,7 @@ local function install()
         init = function(_, queue, ids) M.state.init_args = { queue, ids } end,
         register_rx_msgid = function(_, id) M.state.registered[#M.state.registered + 1] = id; return true end,
         receive_chan = function()
+            M.state.last_binding = "mavlink:receive_chan"
             local item = table.remove(M.state.queue, 1)
             if item == nil then return end
             local received = item.received

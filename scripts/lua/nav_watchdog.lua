@@ -5,14 +5,13 @@
     link is gone: it receives NavPy's companion HEARTBEAT (this aircraft's system id, component AAS_NWD_COMP,
     MAV_TYPE_ONBOARD_CONTROLLER) and, in an armed GUIDED that NavPy was alive during:
 
-      WATCH --no NavPy heartbeat for the timeout--> HOLD (LOITER)
+      WATCH --no NavPy heartbeat for AAS_NWD_TMO s--> HOLD (LOITER)
       HOLD  --a NavPy heartbeat received after the hold began, mode still its LOITER--> AUTO, WATCH
       HOLD  --AAS_NWD_RTL s without one--> RTL (not undone; the operator decides)
 
-    The timeout is AAS_NWD_TMO, or AAS_NWD_MISS heartbeat periods if that is longer. The period is the shortest
-    recent spacing of NavPy's heartbeats in aircraft time, so neither one lost beat nor a sim speed-up (the
-    companion paces its heartbeat in wall time) reads as a dead NavPy. Times are the autopilot's own clock;
-    heartbeats are timed when the autopilot received them, not when this script got to them.
+    Times are the autopilot's own clock (aircraft time); heartbeats are timed when the autopilot received them,
+    not when this script got to them. NavPy spaces its heartbeat evenly in aircraft time at any sim speed-up
+    (heartbeat_pacing.py), so a fixed timeout holds there too.
 
     It does nothing in any other mode or disarmed, and stands down when the mode leaves its LOITER or RTL, so
     pilot and failsafe modes win. Each mode write is guarded by a mode read just before it: bindings lock one call
@@ -20,14 +19,12 @@
     second as NAMED_VALUE_FLOAT "NAVWD" (STATE_* below), so NavPy and the GCS can tell when it is not running.
 --]]
 
-local PARAM_TABLE_KEY = 88   -- the AAS_ table (aas_params.lua); this script owns indices 20-24
+local PARAM_TABLE_KEY = 88   -- the AAS_ table (aas_params.lua); this script owns indices 20-23
 assert(param:add_table(PARAM_TABLE_KEY, "AAS_", 30), "nav_watchdog: failed to add AAS_ parameter table (key 88)")
 assert(param:add_param(PARAM_TABLE_KEY, 20, "NWD_ENABLE", 1), "nav_watchdog: add_param NWD_ENABLE")
 assert(param:add_param(PARAM_TABLE_KEY, 21, "NWD_TMO", 1.5), "nav_watchdog: add_param NWD_TMO")   -- s, NAV_HOLD_TRIGGER_S
 assert(param:add_param(PARAM_TABLE_KEY, 22, "NWD_RTL", 30), "nav_watchdog: add_param NWD_RTL")    -- s, NAV_HOLD_RECOVERY_S
 assert(param:add_param(PARAM_TABLE_KEY, 23, "NWD_COMP", 191), "nav_watchdog: add_param NWD_COMP") -- MAV_COMP_ID_ONBOARD_COMPUTER
--- Heartbeat periods without one before the hold: one beat lost whole, plus half a period of jitter.
-assert(param:add_param(PARAM_TABLE_KEY, 24, "NWD_MISS", 2.5), "nav_watchdog: add_param NWD_MISS")
 
 local TICK_MS = 100
 local REPORT_MS = 1000
@@ -36,7 +33,6 @@ local MAX_RX_PER_TICK = RX_QUEUE    -- a full queue per call, within SCR_VM_I_CO
 local MSG_HEARTBEAT = 0
 local HEARTBEAT_CRC_EXTRA = 50
 local HEARTBEAT_LEN = 9             -- its payload length; MAVLink 2 may trim trailing zeros, never lengthen it
-local PERIOD_SAMPLES = 8            -- heartbeat spacings kept; the shortest is the period (a lost beat is longer)
 local MAV_TYPE_ONBOARD_CONTROLLER = 18
 local MODE_AUTO, MODE_RTL, MODE_LOITER, MODE_GUIDED = 10, 11, 12, 15   -- ArduPlane mode numbers
 local STATE_OFF, STATE_WATCH, STATE_HOLD, STATE_RTL = -1, 0, 1, 2
@@ -44,7 +40,6 @@ local STANDING_DOWN = "NavPy watchdog: mode changed, standing down"
 
 local state = STATE_WATCH
 local last_hb_ms = nil              -- receive time (autopilot millis) of the latest NavPy heartbeat
-local spacings, next_spacing = {}, 1
 local navpy_guided = false          -- in an armed GUIDED, and NavPy was alive during it
 local hold_since_ms = 0
 local last_report_ms = nil
@@ -86,14 +81,9 @@ local function crc_ok(msg)
 end
 
 local function heard(received_ms)
-    if last_hb_ms ~= nil and received_ms <= last_hb_ms then
-        return
+    if last_hb_ms == nil or received_ms > last_hb_ms then
+        last_hb_ms = received_ms
     end
-    if last_hb_ms ~= nil then
-        spacings[next_spacing] = received_ms - last_hb_ms
-        next_spacing = next_spacing % PERIOD_SAMPLES + 1
-    end
-    last_hb_ms = received_ms
 end
 
 local function receive_heartbeats()
@@ -109,20 +99,6 @@ local function receive_heartbeats()
             heard(received:toint())
         end
     end
-end
-
--- The timeout in ms, or nil until two heartbeats gave a period.
-local function timeout_ms()
-    local period = nil
-    for _, spacing in pairs(spacings) do
-        if period == nil or spacing < period then
-            period = spacing
-        end
-    end
-    if period == nil then
-        return nil
-    end
-    return math.max(param:get("AAS_NWD_TMO") * 1000, param:get("AAS_NWD_MISS") * period)
 end
 
 -- nil if the mode is no longer ``from`` (someone else changed it), else whether ``to`` was accepted. The read is
@@ -203,8 +179,7 @@ local function step(now)
         enter(STATE_WATCH, 6, "NavPy watchdog enabled")
     end
     local mode = vehicle:get_mode()
-    local timeout = timeout_ms()
-    local fresh = timeout ~= nil and now - last_hb_ms < timeout
+    local fresh = last_hb_ms ~= nil and now - last_hb_ms < param:get("AAS_NWD_TMO") * 1000
     if state == STATE_WATCH then
         watch(now, mode, fresh)
     elseif not arming:is_armed() then
