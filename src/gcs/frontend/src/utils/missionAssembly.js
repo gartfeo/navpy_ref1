@@ -26,7 +26,10 @@ export function assembleMissionsFromResults(missionResults) {
       zones.push({
         zone_index: zones.length,
         polygon: [],
-        track: m.waypoints.map((wp) => ({ lat: wp.lat, lon: wp.lon, ...(wp.alt != null && { alt: wp.alt }) })),
+        track: m.waypoints.map((wp) => ({
+          lat: wp.lat, lon: wp.lon, ...(wp.alt != null && { alt: wp.alt }),
+          ...(Number.isInteger(wp.mission_sequence) && { seq: wp.mission_sequence }),
+        })),
         sys_id: m.sys_id,
         corridor_end_index: m.corridor_end_index ?? 0,
         altitude_m: m.altitude_m,
@@ -97,6 +100,7 @@ export function applyMissionAnswers(base, previous, ids, answers) {
 export function mergeDownloadedMissionZones(existingZones, mission, sysId) {
   const track = (mission?.waypoints || []).map((wp) => ({
     lat: wp.lat, lon: wp.lon, ...(wp.alt != null && { alt: wp.alt }),
+    ...(Number.isInteger(wp.mission_sequence) && { seq: wp.mission_sequence }),
   }));
   const newZone = {
     zone_index: 0,
