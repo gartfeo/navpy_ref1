@@ -577,6 +577,16 @@ merges before step 4, which builds on its deadline fix.
    current item, then the kept dock; (c) a fault held past 30 s gives RTL;
    (d) a killed NavPy gives the Lua LOITER, then AUTO after the GCS restarts
    it; (e) `MIS_RESTART` read back as 0. One Codex review round on the code.
+
+   Fault injection for (b) and (c), SITL only (`navpy/sim/cycle_fault.py`):
+   `--sim-cycle-fault-file PATH` wraps NAV's cycle at composition (without
+   the flag the cycle is not wrapped). While PATH exists each NAV cycle
+   fails: `hang` in it blocks the cycle (a stuck NAV loop, for the step-6
+   watchdog); anything else raises (a failed cycle, for NAV recovery).
+   Deleting it heals; remove it before stopping NavPy. Refused with an error
+   on a non-simulated autopilot and by the lockstep host. Arming it and each
+   mode change are recovery reports (source `sim_fault`), so an eval run with
+   it fails the clean-run gate, never scores clean.
 10. **Todos.** Done entries for 292 (and 291/290 from their sessions); new
     todos: systemd supervisor on the aircraft (with HITL), an upstream
     ArduPilot companion-heartbeat failsafe, and the unproven trigger of the

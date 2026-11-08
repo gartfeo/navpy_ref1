@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from navpy.app.attitude_boot_time import attitude_boot_s
 from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.sim.cycle_fault import sim_cycle_fault
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.search.detect_action import DetectAction
 from navpy.core.skills.acquire.peer_geo_tick import DetectPointingPorts
@@ -227,6 +228,7 @@ def compose_nav_application(
         state.phase,
     )
     cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
+    cycle = sim_cycle_fault(cycle, args.sim_cycle_fault_file, vehicle, logger)   # itself unless the SITL flag is given
     recovery = nav_recovery(vehicle, state.recovery_hold, logger, recovery_link)
     sample = lambda: TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s())  # noqa: E731
     loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))
