@@ -25,6 +25,9 @@ from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 
 HEARTBEAT_JOIN_TIMEOUT_S = 2.0
+#: Wall time between "heartbeat timeout" warnings while the autopilot is silent: the once a second they had when the
+#: heartbeat itself was 1 Hz wall time, whatever its rate and pacing now.
+HEARTBEAT_TIMEOUT_REPORT_S = 1.0
 
 
 class HeartbeatRuntime:
@@ -48,6 +51,7 @@ class HeartbeatRuntime:
         self._launch: ThreadLaunchGate | None = None
         self._lock = rt.Lock()
         self._send_failing = False   # touched by the sender thread only
+        self._timeout_reported_s: float | None = None   # likewise
 
     def start(self) -> None:
         with self._lock:
@@ -115,14 +119,18 @@ class HeartbeatRuntime:
         stop = self._stop if stop is None else stop
         while not stop.is_set():
             self._send()
-            age_s = self._state.age_s
-            if age_s > 0.0 and self._identity.mav_type != MAV_TYPE_GCS:
-                if not self._state.link_ok:
-                    self._warn(
-                        f"Vehicle {self._identity.target_system} "
-                        f"heartbeat timeout {age_s}."
-                    )
+            self._report_timeout()
             self._pacing.wait(stop, self._period_s)
+
+    def _report_timeout(self) -> None:
+        age_s = self._state.age_s
+        if age_s <= 0.0 or self._identity.mav_type == MAV_TYPE_GCS or self._state.link_ok:
+            return
+        now_s = rt.monotonic()
+        if self._timeout_reported_s is not None and now_s - self._timeout_reported_s < HEARTBEAT_TIMEOUT_REPORT_S:
+            return
+        self._timeout_reported_s = now_s
+        self._warn(f"Vehicle {self._identity.target_system} heartbeat timeout {age_s}.")
 
     def _send(self) -> None:
         try:

@@ -428,3 +428,36 @@ def test_finding5_disarming_ends_the_hold():
     """))
     assert modes(out) == [LOITER]
     assert "NavPy watchdog: disarmed, standing down" in texts(out)
+
+
+# ---------- Owner ruling 2026-11-08: 4 Hz companion heartbeat, AAS_NWD_TMO 1.5 s ----------
+
+FLY_4HZ = """
+local next_beat = 250
+local function fly(ms, lost)          -- NavPy's 4 Hz heartbeat, each received at its own time unless lost(t)
+    local stop = S.time_ms + ms
+    while S.time_ms < stop do
+        while next_beat <= S.time_ms + 100 do
+            if not (lost and lost(next_beat)) then h.push(NAVPY, next_beat) end
+            next_beat = next_beat + 250
+        end
+        h.run(100)
+    end
+end
+"""
+
+
+def test_at_4hz_five_lost_beats_in_a_row_do_not_hold():
+    """1.25 s without a heartbeat (five lost) is under the 1.5 s timeout."""
+    out = run(FLY_4HZ + """
+        fly(5000)
+        fly(10000, function(t) return t > 6000 and t <= 7250 end)
+        fly(5000)
+    """)
+    assert out["modes"] == []
+
+
+def test_at_4hz_a_dead_navpy_holds_1_5s_after_its_last_heartbeat():
+    out = run(FLY_4HZ + "fly(5000)\nh.run(2000)")
+    assert modes(out) == [LOITER]
+    assert out["modes"][0]["t"] - 5000 == 1500

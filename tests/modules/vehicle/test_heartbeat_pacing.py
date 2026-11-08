@@ -6,8 +6,12 @@ speed-up the heartbeat's wall period must shrink by it.
 from __future__ import annotations
 
 import threading
+import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
+
+import pytest
+from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_TYPE_ONBOARD_CONTROLLER
 
 from navpy.plugins.vehicle.ardupilot.heartbeat_pacing import SIM_SPEEDUP_PARAM, HeartbeatPacing
 from navpy.plugins.vehicle.ardupilot.heartbeat_runtime import HeartbeatRuntime
@@ -126,3 +130,42 @@ def test_a_watched_parameter_update_calls_its_watcher_outside_the_lock():
     repository.update("SIM_SPEEDUP\x00", 4.0)
     repository.update("OTHER", 1.0)
     assert seen == [4.0]
+
+
+# ---------- Owner ruling 2026-11-08: the companion heartbeat is 4 Hz ----------
+
+
+@pytest.mark.parametrize("mav_type, hz", [(MAV_TYPE_ONBOARD_CONTROLLER, 4.0), (MAV_TYPE_GCS, 1.0)])
+def test_the_companion_heartbeats_at_4hz_and_the_gcs_at_1hz(mav_type, hz):
+    """NavPy's heartbeat is what the autopilot's NavPy watchdog times; the GCS backend's own (also a VehicleMav)
+    keeps 1 Hz on every radio's uplink."""
+    from navpy.plugins.vehicle.ardupilot import vehicle_mav
+
+    with patch.object(vehicle_mav, "build_vehicle_parts", side_effect=RuntimeError("stop")) as build:
+        with pytest.raises(RuntimeError, match="stop"):
+            vehicle_mav.VehicleMav("unused", 7, mav_type=mav_type)
+    assert build.call_args.args[7] == hz
+
+
+def test_the_heartbeat_timeout_warning_stays_once_a_second_at_any_rate():
+    """The autopilot silent while the companion heartbeats at 100 Hz: one warning in 0.5 s, as at 1 Hz, not 50."""
+    logger = MagicMock()
+    sends = threading.Event()
+
+    class Transport:
+        def call(self, action):
+            sends.set()
+            return action(SimpleNamespace(mav=MagicMock()))
+
+    state = HeartbeatState(7, 0.01)
+    time.sleep(0.05)                                      # no autopilot heartbeat for longer than its timeout
+    runtime = HeartbeatRuntime(Transport(), SimpleNamespace(mav_type=MAV_TYPE_ONBOARD_CONTROLLER, target_system=7),
+                               state, SimpleNamespace(value=logger), 100.0)
+    runtime.start()
+    try:
+        assert sends.wait(1.0)
+        time.sleep(0.5)
+    finally:
+        runtime.close()
+    warnings = [c.args[0] for c in logger.warning.call_args_list if "heartbeat timeout" in c.args[0]]
+    assert len(warnings) == 1, warnings

@@ -457,9 +457,24 @@ merges before step 4, which builds on its deadline fix.
      virtual clock, which is aircraft time already. Pacing by the aircraft
      time NavPy receives was not chosen: a stalled downlink would stop the
      heartbeat, and the autopilot would take over from a NavPy that still
-     commands over the uplink and holds by itself. `HEARTBEAT_HZ` (1 Hz) and
-     `AAS_NWD_TMO` (1.5 s) stay as they are until the owner picks 4 Hz /
-     1.5 s or 1 Hz / 2.5 s; at 1 Hz / 1.5 s one lost beat holds.
+     commands over the uplink and holds by itself.
+   - Rate (owner ruling 2026-11-08, "4 Hz, 1.5 s"): the companion heartbeat
+     is 4 Hz (`HEARTBEAT_HZ`, `vehicle_mav.py`) against `AAS_NWD_TMO` 1.5 s,
+     so a hold needs 1.5 s without one, six beats in a row lost; five lost
+     do not hold. Radio cost: ArduPilot forwards the companion's broadcast
+     HEARTBEAT to its other links, the GCS telemetry radio among them; at 21
+     bytes a frame (MAVLink 2, unsigned), 3 more a second is about +63 B/s
+     per UAV on the downlink. The GCS backend's own heartbeat (also a
+     `VehicleMav`, `MAV_TYPE_GCS`) stays 1 Hz (`GCS_HEARTBEAT_HZ`): no
+     watchdog reads it, and it is uplink on every radio. Checked for things
+     keyed to the old 1 Hz: the companion's "heartbeat timeout" warning
+     (autopilot silent) ran once per send, so it is now held to once a
+     second of wall time (`HEARTBEAT_TIMEOUT_REPORT_S`), as before; the GCS
+     companion liveness (`companion_status`, 5 s ok / 15 s down windows) and
+     `MavBusHeartbeats` keep only the newest receipt time, so a faster
+     heartbeat only keeps them fresher; mode confirmation counts the
+     autopilot's heartbeats, not the companion's; no frozen-inventory guard
+     names the rate.
    - Stages: WATCH, HOLD (its LOITER), RTL (not undone, as ArduPlane's long
      failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
      stands it down. A refused mode change is retried each tick and reported
