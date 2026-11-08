@@ -3,7 +3,9 @@
 ``rfdetr`` is not a navpy dependency yet (the owner approves that): it is imported only when this runtime is built,
 in an environment that has it. The runtime takes the codec's normalised (B, 3, S, S) blob and returns the model's
 raw boxes (B, Q, 4: cx cy w h, normalised) and logits (B, Q, 91); pre- and post-processing are navpy's
-(rfdetr_codec.py), so the model's own ``predict()`` is not used.
+(rfdetr_codec.py), so the model's own ``predict()`` is not used. On CUDA the forward pass runs under FP16 autocast
+(gimbal-controller's live RF-DETR-L is a TensorRT FP16 engine, its parity in docs/CAR-MOT-LIVE.md); the outputs are
+returned as float32.
 """
 from __future__ import annotations
 
@@ -48,7 +50,8 @@ class TorchRfDetrRuntime:
     def infer(self, blob: np.ndarray) -> tuple[np.ndarray, np.ndarray]:
         if self._module is None:
             raise RuntimeError("the RF-DETR runtime is closed")
-        with self._torch.inference_mode():
+        with self._torch.inference_mode(), self._torch.autocast(
+                self._target.type, dtype=self._torch.float16, enabled=self._target.type == "cuda"):
             out = self._module(self._torch.from_numpy(np.ascontiguousarray(blob)).to(self._target))
         if isinstance(out, tuple):
             boxes, logits = out[0], out[1]
@@ -62,7 +65,10 @@ class TorchRfDetrRuntime:
 
 
 def _torch_device(device: DeviceT) -> str:
-    return f"cuda:{device}" if isinstance(device, int) else str(device)
+    """A CUDA index (an int or a numeric string, as navpy's device settings allow) -> ``cuda:N``."""
+    if isinstance(device, int) or (isinstance(device, str) and device.isdigit()):
+        return f"cuda:{int(device)}"
+    return str(device)
 
 
 __all__ = ["RfDetrRuntime", "TorchRfDetrRuntime"]

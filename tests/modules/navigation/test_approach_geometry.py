@@ -191,6 +191,16 @@ def test_a_higher_gate_floor_brings_the_first_detection_in_and_never_inside_the_
     assert oc.first_detection_distance_m(_plan(detector=near)) < oc.first_detection_distance_m(_plan())
     unreachable = dataclasses.replace(LIMITS, acq_min_box_px=1000.0)
     assert oc.first_detection_distance_m(_plan(detector=unreachable)) == 300.0
+    assert oc.acquirable_beyond_radius(_plan()) and not oc.acquirable_beyond_radius(_plan(detector=unreachable))
+
+
+def test_a_gate_floor_the_search_cannot_reach_beyond_the_circle_is_refused():
+    """Codex round 1: a floor of 1000 px (above the 704 px input) or one met only inside the circle never acquires
+    there; the check refuses it instead of clamping D_max to r and passing."""
+    for floor in (1000.0, 60.0):
+        plan = _plan(detector=dataclasses.replace(LIMITS, acq_min_box_px=floor))
+        assert _detail(plan, "detector")["acquirable_beyond_radius"] is False
+        assert _failed(plan) == {"detector"}
 
 
 def test_the_dock_on_the_ground_needs_no_clearance_over_the_floor():

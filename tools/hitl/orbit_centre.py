@@ -53,6 +53,13 @@ def _largest_side(plan: OrbitPlan, step: ZoomStep, horizontal_m: float) -> float
     return max(smaller_side_input_px(plan, step, slant, yaw) for yaw in DOCK_YAWS_DEG)
 
 
+def acquirable_beyond_radius(plan: OrbitPlan) -> bool:
+    """Whether the gate's floor can be met at the search step at the circle's radius or farther (D_max is not just
+    the radius it is clamped to): a floor the dock's box never reaches would never acquire."""
+    floor = plan.detector.acq_min_box_px - plan.bounds.box_size_error_px
+    return _largest_side(plan, search_step(plan), plan.radius_m) >= floor
+
+
 def first_detection_distance_m(plan: OrbitPlan) -> float:
     """D_max: the farthest horizontal distance where the gate can acquire (never less than the radius)."""
     step, floor = search_step(plan), plan.detector.acq_min_box_px - plan.bounds.box_size_error_px

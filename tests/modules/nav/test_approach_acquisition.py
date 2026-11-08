@@ -332,14 +332,16 @@ def _run(sequence, now, start: float, end: float, error: float = 0.5) -> list:
     return out
 
 
-def test_the_orbit_waits_for_the_lock_and_is_placed_once_from_that_frame() -> None:
+def test_the_orbit_waits_for_the_lock_and_is_placed_once_from_the_task_start_frame() -> None:
+    """Step 23b changed the frame: the orbit is placed from the task start's frame (the first one acquisition let
+    through, whose distance the pre-series check bounds), no longer from the later lock frame."""
     sequence, start, now = _sequence()
     poi = frame(0.0, 3.0, lambda: 0.0)
     GatedOrbitStart(sequence).prepare(poi)
     assert _run(sequence, now, 0.0, 5.0, error=3.0) == [False] * 51
     assert start.calls == []
     out = _run(sequence, now, 5.1, 7.1)  # the first frame within the error is at 5.1: locked at 7.1
-    assert len(start.calls) == 1 and start.calls[0].pixel.source_timestamp_s == pytest.approx(7.1)
+    assert len(start.calls) == 1 and start.calls[0] is poi
     assert not any(out)
     assert not any(_run(sequence, now, 7.2, 17.0))
     assert _run(sequence, now, 17.1, 17.1) == [True]

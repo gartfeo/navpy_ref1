@@ -24,7 +24,8 @@ the profile's measured optics at the planned zoom step:
 - detector: the dock's smaller box side in the detector's input pixels (full-frame pixels times its input scale),
   over dock yaws, at the farthest slant on the orbit (r + e) is at least the measured ``recall_min_box_px``; and the
   acquisition gate's floor ``min_box_px`` is not below it, so the first detection (at D_max, which sets e) is one
-  the detector finds at its measured recall;
+  the detector finds at its measured recall; and that floor is met at the search step at the radius or beyond, so
+  the gate can acquire at all;
 - containment: the dock's box at its largest yaw, centred, keeps the fixed-zoom policy's zoom-in margin on both axes
   at the nearest slant, so the policy reaches the planned step and holds it round the circle; and the next narrower
   step, if any, fails that margin at the farthest slant, so the policy does not zoom past it;
@@ -50,6 +51,7 @@ from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
 from tools.hitl.orbit_centre import (
     DOCK_YAWS_DEG,
+    acquirable_beyond_radius,
     centre_error_m,
     centre_error_terms,
     descent_height_m,
@@ -123,10 +125,12 @@ def check_detector(plan: OrbitPlan) -> CheckResult:
     side = min(smaller_side_input_px(plan, step, far, yaw) for yaw in DOCK_YAWS_DEG)
     limits = plan.detector
     gate_ok = limits.acq_min_box_px >= limits.recall_min_box_px
-    return CheckResult("detector", side >= limits.recall_min_box_px and gate_ok,
+    acquirable = acquirable_beyond_radius(plan)
+    return CheckResult("detector", side >= limits.recall_min_box_px and gate_ok and acquirable,
                        {"zoom_step": step.command, "centre_error_m": round(error, 2),
                         "centre_error_terms_m": {k: round(v, 2) for k, v in centre_error_terms(plan).items()},
                         "first_detection_m": round(first_detection_distance_m(plan), 1),
+                        "acquirable_beyond_radius": acquirable,
                         "farthest_slant_m": round(far, 2), "smaller_side_input_px": round(side, 2),
                         "recall_min_box_px": limits.recall_min_box_px, "acq_min_box_px": limits.acq_min_box_px,
                         "evidence": limits.evidence})

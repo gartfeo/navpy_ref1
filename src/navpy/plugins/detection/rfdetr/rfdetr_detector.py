@@ -14,7 +14,7 @@ import numpy as np
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.detection import Detection
-from navpy.plugins.detection.rfdetr.rfdetr_codec import decode, preprocess
+from navpy.plugins.detection.rfdetr.rfdetr_codec import decode, preprocess, preprocess_tiles
 from navpy.plugins.detection.rfdetr.rfdetr_runtime import RfDetrRuntime
 from navpy.plugins.detection.rfdetr.rfdetr_settings import INPUT_TILES, RfDetrSettings
 from navpy.plugins.detection.rfdetr.rfdetr_tiling import merge_tiles, tiles
@@ -50,9 +50,12 @@ class RfDetrDetector:
 
     def _tiled(self, frame: np.ndarray, width: int, height: int) -> np.ndarray:
         grid = tiles(width, height, self._settings.input_px)
-        blob = np.concatenate([
-            preprocess(np.ascontiguousarray(frame[t.y0:t.y0 + t.height, t.x0:t.x0 + t.width]),
-                       self._settings.input_px) for t in grid])
+        size = self._settings.input_px
+        if all((t.width, t.height) == (size, size) for t in grid):
+            blob = preprocess_tiles(np.stack([frame[t.y0:t.y0 + size, t.x0:t.x0 + size] for t in grid]))
+        else:   # a frame shorter than a tile on an axis: that axis is squashed to the square
+            blob = np.concatenate([preprocess(np.ascontiguousarray(frame[t.y0:t.y0 + t.height, t.x0:t.x0 + t.width]),
+                                              size) for t in grid])
         boxes, logits = self._runtime.infer(blob)
         per_tile = [self._kept(decode(boxes[i], logits[i], t.width, t.height, DECODE_FLOOR,
                                       self._settings.num_select)) for i, t in enumerate(grid)]

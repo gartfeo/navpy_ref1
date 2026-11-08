@@ -54,6 +54,18 @@ def preprocess(image_bgr: np.ndarray, size: int, out: Optional[np.ndarray] = Non
     return out
 
 
+def preprocess_tiles(tiles_bgr: np.ndarray) -> np.ndarray:
+    """(N, size, size, 3) BGR uint8 native tiles -> (N, 3, size, size) float32 RGB, ImageNet-normalised; the same
+    values as ``preprocess`` of each tile (a resize to its own size is the identity), in one pass per channel."""
+    if tiles_bgr.ndim != 4 or tiles_bgr.shape[3] != 3 or tiles_bgr.dtype != np.uint8 \
+            or tiles_bgr.shape[1] != tiles_bgr.shape[2]:
+        raise ValueError("the tiles are not square 3-channel 8-bit pictures")
+    out = np.empty((tiles_bgr.shape[0], 3, tiles_bgr.shape[1], tiles_bgr.shape[2]), np.float32)
+    for channel in range(3):
+        np.take(_LUT[channel], tiles_bgr[..., 2 - channel], out=out[:, channel])
+    return out
+
+
 def _top(score_all: np.ndarray, k: int) -> np.ndarray:
     """The k best flattened pairs, by score then by index (rfdetr's stable sort)."""
     if k < score_all.size:
@@ -103,4 +115,5 @@ def decode(boxes: np.ndarray, logits: np.ndarray, width: int, height: int, floor
                     axis=1).astype(np.float32)
 
 
-__all__ = ["COCO80_NAMES", "COCO91_TO_80", "LOGIT_SLOTS", "MEAN", "STD", "RfDetrOutputError", "decode", "preprocess"]
+__all__ = ["COCO80_NAMES", "COCO91_TO_80", "LOGIT_SLOTS", "MEAN", "STD", "RfDetrOutputError", "decode", "preprocess",
+           "preprocess_tiles"]

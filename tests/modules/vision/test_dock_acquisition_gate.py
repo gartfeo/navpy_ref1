@@ -51,7 +51,7 @@ def test_two_dock_tracks_mean_no_acquisition_logged_once():
     gate = DockAcquisitionGate(SQUASH, log.append)
     assert _run(gate, [[_track(7), _track(8)]] * 30) == ([], True)
     assert gate.acquired_id is None
-    assert log == ["DOCK ACQ: 2 dock tracks in view; no acquisition, the search holds"]
+    assert log == ["DOCK ACQ: 2 dock tracks in view; nothing passes"]
 
 
 def test_a_second_track_restarts_the_dwell():
@@ -83,20 +83,65 @@ def test_the_box_floor_is_in_the_detector_input_pixels():
     assert _run(gate, [[_track(w=40.0, h=20.0)]] * 11)[0] != []       # 20 native px: above 16 on a tile
 
 
-def test_after_acquisition_box_size_and_other_tracks_do_not_matter():
+def test_after_acquisition_box_size_and_confidence_do_not_matter():
     gate = DockAcquisitionGate(SQUASH, lambda _m: None)
     _run(gate, [[_track()]] * 11)
-    tiny = _track(w=2.0, h=2.0, confidence=0.1, missed=3)
-    assert gate.admit([tiny, _track(8)], W, H, 2.0) == ([tiny], True)  # only the acquired track, whatever its box
+    tiny = _track(w=2.0, h=2.0, confidence=0.1)
+    assert gate.admit([tiny], W, H, 2.0) == ([tiny], True)            # the acquired identity, whatever its box
+    coasting = _track(missed=3)
+    assert gate.admit([coasting, _track(8, missed=2)], W, H, 2.1) == ([coasting], True)
 
 
-def test_a_lost_track_is_acquired_again_from_the_start():
+def test_a_second_dock_in_view_after_acquisition_holds_every_track_back():
+    """Codex round 1: the ambiguity rule holds through the orbit and confirm, fail closed."""
     log = []
     gate = DockAcquisitionGate(SQUASH, log.append)
     _run(gate, [[_track()]] * 11)
+    assert gate.admit([_track(7), _track(8)], W, H, 2.0) == ([], True)
+    assert gate.admit([_track(7), _track(8)], W, H, 2.1) == ([], True)
+    assert log[-1] == "DOCK ACQ: 2 dock tracks in view; nothing passes (track 7 acquired)"
+    assert gate.admit([_track(7)], W, H, 2.2) == ([_track(7)], True)   # the other one left: the acquired passes
+
+
+def test_the_acquired_identity_returning_after_a_gap_passes_whatever_its_box():
+    """Codex round 1: a brief loss keeps the acquisition; the same id returning small (zoomed out) still passes."""
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
     assert gate.admit([], W, H, 2.0) == ([], False)
-    assert gate.acquired_id is None and "DOCK ACQ: track 7 lost; acquiring again" in log
-    assert gate.admit([_track()], W, H, 2.1) == ([], True)
+    assert gate.acquired_id == 7
+    small = _track(w=30.0, h=20.0)                                    # 11 x 13 input px: under the floor
+    assert gate.admit([small], W, H, 2.1) == ([small], True)
+
+
+def test_another_dock_after_the_acquired_one_is_gone_is_acquired_from_the_start():
+    log = []
+    gate = DockAcquisitionGate(SQUASH, log.append)
+    _run(gate, [[_track()]] * 11)
+    assert gate.admit([_track(9)], W, H, 2.0) == ([], True)
+    assert gate.acquired_id is None and "DOCK ACQ: track 7 gone, track 9 in view; acquiring again" in log
+    assert gate.admit([_track(9)], W, H, 3.0) == ([_track(9)], True)
+
+
+def test_a_pipeline_reset_forgets_the_acquisition_and_its_dwell():
+    """Codex round 1: after a reset the tracker reissues id 7 for another object; it must be acquired again."""
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
+    gate.reset()
+    assert gate.acquired_id is None
+    assert gate.admit([_track(w=30.0, h=20.0)], W, H, 5.0) == ([], True)
+
+
+def test_the_detector_reset_resets_the_gate():
+    from navpy.core.perception.pipeline.real_detector_controls import DetectorResetController
+    from navpy.core.perception.pipeline.real_detector_runtime_state import DetectorRunState
+
+    gate = Mock()
+    gate_lock = Mock()
+    gate_lock.__enter__ = Mock(return_value=None)
+    gate_lock.__exit__ = Mock(return_value=None)
+    DetectorResetController(DetectorRunState(), Mock(), Mock(), Mock(), Mock(), Mock(), Mock(), Mock(), gate_lock,
+                            gate).refresh()
+    gate.reset.assert_called_once_with()
 
 
 @pytest.mark.parametrize("block", [

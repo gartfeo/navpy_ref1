@@ -32,20 +32,45 @@ def _sequence(released: list):
     return AcquisitionSequence(Mock(), Mock(), Mock(), Mock(), lambda *_a: None, released.append)
 
 
-def test_the_sequence_reports_one_release_per_task_and_only_its_own():
+def test_the_sequence_reports_one_release_per_task_only_its_own_and_only_after_nav_entry():
     released = []
     sequence = _sequence(released)
     sequence.released(make_detected_poi(task_id=3))                 # no task begun: nothing
+    sequence.entered()
     sequence.begin(make_detected_poi(task_id=3))
+    sequence.entered()                                              # an entry without a confirm: nothing
     sequence.released(make_detected_poi(task_id=9))                 # another task's POI: nothing
+    sequence.entered()
     assert released == []
     sequence.released(make_detected_poi(task_id=3))
+    assert released == []                                           # the confirm alone releases nothing
+    sequence.entered()
     sequence.released(make_detected_poi(task_id=3))
-    assert released == [3]
+    sequence.entered()
+    assert released == [3]                                          # once per task
     sequence.begin(make_detected_poi(task_id=5))
     sequence.released(make_detected_poi(task_id=5))
+    sequence.entered()
     assert released == [3, 5]
     OPEN_ACQUISITION.released(make_detected_poi())                  # no gates: nothing to report
+    OPEN_ACQUISITION.entered()
+
+
+def test_a_nav_entry_that_fails_reports_nothing_and_one_that_completes_reports_once():
+    """Codex round 1: the floor is released only after NAV entry completes, not when the confirm is seen."""
+    from navpy.core.approach.nav_entry import NavEntry, NavEntryPorts
+
+    told = []
+    zoom = Mock()
+    zoom.freeze_final_approach_wide.return_value = False            # the minimum zoom cannot be held
+    entry = NavEntry(NavEntryPorts(Mock(), Mock(), lambda: True, Mock(), Mock(), lambda: False,
+                                   entered=lambda: told.append(1)), Mock(), zoom, Mock())
+    with pytest.raises(RuntimeError, match="minimum zoom"):
+        entry.run()
+    assert told == []
+    zoom.freeze_final_approach_wide.return_value = True
+    entry.run()
+    assert told == [1]
 
 
 @pytest.mark.parametrize("phase,ready,expected", [

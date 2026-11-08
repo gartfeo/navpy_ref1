@@ -3,12 +3,15 @@
 search -> own detection -> fresh visual lock -> ORBIT on the own-detected pose -> confirm -> NAV.
 
 A navigation task's start (own detection; search stops on it, step 21) only marks the POI: the ORBIT
-waits for the first fresh visual lock and is then placed from that frame's own pose (board centre or
-ground ray, step 22; never truth). Confirm and NAV each need the lock fresh on this tick and the orbit
+waits for the first fresh visual lock and is then placed from the task start's own frame (board centre or
+ground ray, step 22; never truth). That frame is the first one acquisition let through (HITL step 23b), so
+the first-detection distance the pre-series check bounds is the one the ground ray is taken at, however the
+aircraft moved or the zoom changed before the lock. Confirm and NAV each need the lock fresh on this tick and the orbit
 established. Whether the gates are still held (the lock kept through a blip, the orbit established) is
 published each tick to the confirmation lock (``publish``), which refuses CONFIRMED from any path
-while it is False and withdraws a review under way. The first time a task's confirm releases NAV,
-``released`` reports it once (``on_release``: HITL step 23b's floor release, a mission-state event).
+while it is False and withdraws a review under way. When a task's confirm releases NAV, ``released``
+marks it, and the first NAV entry that then completes (``entered``) reports it once (``on_release``: HITL step
+23b's floor release, a mission-state event); a NAV entry that fails reports nothing.
 Without the profile's gates, ``OPEN_ACQUISITION`` keeps the old order and reports nothing.
 """
 
@@ -29,6 +32,8 @@ class AcquisitionGate(Protocol):
 
     def released(self, poi: DetectedObject) -> None: ...
 
+    def entered(self) -> None: ...
+
 
 class OrbitStart(Protocol):
     def prepare(self, poi: DetectedObject) -> Optional[OrbitCommand]: ...
@@ -41,6 +46,9 @@ class _OpenAcquisition:
         return True
 
     def released(self, poi: DetectedObject) -> None:
+        return None
+
+    def entered(self) -> None:
         return None
 
 
@@ -66,17 +74,21 @@ class AcquisitionSequence:
         self._publish = publish
         self._on_release = on_release
         self._task_id: int | None = None
+        self._start_poi: DetectedObject | None = None
         self._released = False
+        self._pending = False
         self._established = False
         self._reported: set[str] = set()
 
     def begin(self, poi: DetectedObject) -> None:
         """A navigation task started on an own detection: wait for the lock before the ORBIT."""
         self._task_id = get_poi_task_id(poi)
+        self._start_poi = poi
         self._lock.reset()
         self._orbit.reset()
         self._reported = set()
         self._released = False
+        self._pending = False
         self._publish(self._task_id, False)
         self._report("detected", f"P{self._task_id}: own detection, waiting for a fresh lock")
 
@@ -90,11 +102,16 @@ class AcquisitionSequence:
         return ready
 
     def released(self, poi: DetectedObject) -> None:
-        """The task's confirm released NAV: report it once per task."""
-        if self._task_id is None or self._released or get_poi_task_id(poi) != self._task_id:
+        """The task's confirm released NAV: report it at the NAV entry that completes (``entered``)."""
+        if self._task_id is not None and get_poi_task_id(poi) == self._task_id:
+            self._pending = True
+
+    def entered(self) -> None:
+        """A NAV entry completed: report a pending release, once per task."""
+        if self._task_id is None or self._released or not self._pending:
             return
         self._released = True
-        self._report("released", f"P{self._task_id}: confirm released NAV")
+        self._report("released", f"P{self._task_id}: confirm released NAV, NAV entered")
         self._on_release(self._task_id)
 
     def _advance(self, poi: DetectedObject | None) -> bool:
@@ -109,7 +126,7 @@ class AcquisitionSequence:
         if locked:
             self._report("locked", f"P{self._task_id}: fresh visual lock")
         if locked and not self._orbit.commanded:
-            command = self._orbit_start.prepare(poi)
+            command = self._orbit_start.prepare(self._start_poi)
             if command is not None:
                 self._orbit.start(command)
                 self._report(

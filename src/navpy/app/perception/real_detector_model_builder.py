@@ -31,6 +31,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
 from navpy.core.ports.detection import FrameDetector
 from navpy.core.perception.pipeline.real_detector_ports import ModelResourceCloser
 from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
@@ -163,6 +164,10 @@ def build_models(
                 CharucoBoardPoseSolver(model.charuco_board)
                 if model.backend == CHARUCO_BACKEND
                 else None
+            ),
+            acquisition=(
+                None if config.acquisition is None
+                else DockAcquisitionGate(config.acquisition, logger.info)
             ),
         )
     except Exception as creation_error:

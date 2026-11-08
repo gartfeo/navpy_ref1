@@ -5,8 +5,8 @@ is scaled by 704/1920 across and 704/1080 down.
 
 ``tiles``: a fixed grid of input-size squares at the frame's own resolution (scale 1), the fewest per axis that cover
 it, spaced evenly so neighbours overlap. A box is mapped back to the full frame by its tile's offset. A box cut by an
-inner tile edge (one that is not a frame edge) is dropped when a box of the same class from another tile covers most
-of it: that one holds the whole object. The rest are merged: of boxes of one class overlapping by more than
+inner tile edge (one that is not a frame edge) is dropped when an uncut box of the same class from another tile covers
+most of it: that one holds the whole object (two cut boxes never drop each other; the merge below keeps the best). The rest are merged: of boxes of one class overlapping by more than
 ``MERGE_IOU``, the best scored is kept.
 """
 from __future__ import annotations
@@ -81,10 +81,11 @@ def merge_tiles(per_tile: list[np.ndarray], grid: list[Tile], width: int, height
         return np.zeros((0, 6), np.float32)
     table = np.stack(rows)
     boxes = _xyxy(table)
+    cut = [_cut(boxes[i], grid[owners[i]], width, height) for i in range(len(table))]
     keep = []
     for i in range(len(table)):
-        if _cut(boxes[i], grid[owners[i]], width, height) and any(
-                owners[j] != owners[i] and table[j, 5] == table[i, 5]
+        if cut[i] and any(
+                not cut[j] and owners[j] != owners[i] and table[j, 5] == table[i, 5]
                 and _inter(boxes[i], boxes[j]) >= COVER_SHARE * _area(boxes[i]) for j in range(len(table))):
             continue
         keep.append(i)

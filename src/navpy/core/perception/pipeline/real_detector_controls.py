@@ -28,6 +28,7 @@ from navpy.core.perception.pipeline.real_detector_inference_state import Inferen
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.detection.poi_priority import prioritize_pois
 from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 
@@ -194,8 +195,10 @@ class DetectorResetController:
         poi_lock: PoiLock,
         bridge: LostPoiBridge,
         mutation_gate: PipelineMutationGate,
+        acquisition: DockAcquisitionGate | None = None,
     ) -> None:
         self._run_state = run_state
+        self._acquisition = acquisition
         self._results = results
         self._inference_generation = inference_generation
         self._confirmation_frames = confirmation_frames
@@ -217,6 +220,8 @@ class DetectorResetController:
             self._identity.reset()
             self._poi_lock.reset()
             self._bridge.reset()
+            if self._acquisition is not None:
+                self._acquisition.reset()  # HITL step 23b: the restarted ids must be acquired again
             self._inference_generation.invalidate()
 
 

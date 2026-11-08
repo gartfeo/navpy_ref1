@@ -6,13 +6,17 @@ A box detector has no fiducial check, so a track becomes the POI only once it is
   confidence at least the detector's frozen threshold and the box's smaller side at least ``min_box_px`` in the
   detector's own input pixels (full-frame pixels times its input scale). The box-size floor bounds the
   first-detection distance, and so the ground-ray orbit centre's error (section 4.1);
-- ambiguity: more than one dock track in view means no acquisition (the search holds, it is logged).
+- ambiguity: more than one dock track in view means no acquisition (the search holds, it is logged), and after
+  acquisition it holds every track back on that frame (fail closed: the lock, orbit and confirm gates lose their
+  frames, so confirmation and NAV wait or end), for as long as more than one is in view.
 
-Until then the gate passes no track on, so no POI exists, nothing locks and no navigation task starts; it reports
-whether a dock candidate is in view, so the search sweep holds still on it (step 21) while the dwell runs. Once
-acquired, only that track passes, whatever its box: box size is detector output used here, in acquisition, and
-never reaches the NAV command or completion paths (section 4.2). When the identity layer no longer reports the
-acquired track, the gate acquires again from the start.
+Until acquisition the gate passes no track on, so no POI exists, nothing locks and no navigation task starts; it
+reports whether a dock candidate is in view, so the search sweep holds still on it (step 21) while the dwell runs.
+Once acquired, only that track passes, whatever its box: box size is detector output used here, in acquisition, and
+never reaches the NAV command or completion paths (section 4.2). While the acquired track is out of the identity
+layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box; only
+another dock track in view starts acquisition again from the start. A pipeline reset (the tracker and identity
+restart their ids) resets the gate.
 
 The profile sets, beside its rfdetr block::
 
@@ -76,17 +80,24 @@ class DockAcquisitionGate:
     def acquired_id(self) -> int | None:
         return self._acquired
 
+    def reset(self) -> None:
+        """Forget the acquisition and the dwell (the pipeline reset: track ids start again)."""
+        self._acquired = self._dwell_id = self._since_s = None
+        self._ambiguous = False
+
     def admit(self, tracks: Sequence[TrackedObject], width: int, height: int,
               now_s: float) -> tuple[list[TrackedObject], bool]:
         """This frame's tracks to pass on, and whether a dock candidate is in view."""
-        if self._acquired is not None:
-            kept = [track for track in tracks if track.id == self._acquired]
-            if kept:
-                return kept, True
-            self._log(f"DOCK ACQ: track {self._acquired} lost; acquiring again")
-            self._acquired = None
         docks = [t for t in tracks if t.class_id == self._settings.dock_class_id and t.missed == 0]
         self._report_ambiguity(len(docks))
+        if self._acquired is not None:
+            kept = [track for track in tracks if track.id == self._acquired]
+            if len(docks) > 1:
+                return [], True                 # ambiguous: nothing passes while more than one is in view
+            if kept or not docks:
+                return kept, bool(kept)         # the acquired identity, whatever its box; or none in view
+            self._log(f"DOCK ACQ: track {self._acquired} gone, track {docks[0].id} in view; acquiring again")
+            self._acquired = None
         if len(docks) != 1 or not self._eligible(docks[0], width, height):
             self._dwell_id = self._since_s = None
             return [], bool(docks)
@@ -108,7 +119,8 @@ class DockAcquisitionGate:
     def _report_ambiguity(self, count: int) -> None:
         ambiguous = count > 1
         if ambiguous and not self._ambiguous:
-            self._log(f"DOCK ACQ: {count} dock tracks in view; no acquisition, the search holds")
+            self._log(f"DOCK ACQ: {count} dock tracks in view; nothing passes"
+                      f"{'' if self._acquired is None else f' (track {self._acquired} acquired)'}")
         self._ambiguous = ambiguous
 
 

@@ -125,6 +125,15 @@ def test_a_box_cut_by_an_inner_tile_edge_yields_to_the_whole_one_in_the_next_til
     assert len(rows) == 1 and rows[0][0] == pytest.approx(688.0) and rows[0][2] == pytest.approx(60.0)
 
 
+def test_two_cut_boxes_never_drop_each_other():
+    """Codex round 1: a car across the overlap is cut in both tiles; it must survive as one box."""
+    grid = [Tile(0, 0, 704, 704), Tile(608, 0, 704, 704)]
+    left = np.array([[652.0, 300.0, 104.0, 20.0, 0.8, 2.0]], np.float32)    # frame x 600-704, cut at 704
+    right = np.array([[52.0, 300.0, 104.0, 20.0, 0.9, 2.0]], np.float32)    # frame x 608-712, cut at 608
+    rows = merge_tiles([left, right], grid, 1920, 1080)
+    assert len(rows) == 1 and rows[0][4] == pytest.approx(0.9)
+
+
 def test_a_cut_box_alone_is_kept_and_overlapping_duplicates_merge_to_the_best():
     grid = [Tile(0, 0, 704, 704), Tile(608, 0, 704, 704)]
     alone = merge_tiles([np.array([[690.0, 300.0, 28.0, 20.0, 0.9, 2.0]], np.float32), np.zeros((0, 6))],
@@ -177,6 +186,22 @@ def test_settings_map_car_to_the_dock_and_give_the_input_scale():
 def test_malformed_rfdetr_blocks_are_refused(block):
     with pytest.raises(ValueError):
         rfdetr_settings({} if block is None else {"rfdetr": block})
+
+
+@pytest.mark.parametrize("device, expected", [(0, "cuda:0"), ("0", "cuda:0"), ("1", "cuda:1"), ("cpu", "cpu"),
+                                              ("cuda:0", "cuda:0")])
+def test_cuda_indexes_as_ints_or_numeric_strings_become_torch_devices(device, expected):
+    """Codex round 1: navpy's device settings allow a numeric string."""
+    from navpy.plugins.detection.rfdetr.rfdetr_runtime import _torch_device
+    assert _torch_device(device) == expected
+
+
+def test_native_tiles_are_normalised_as_each_tile_alone():
+    tile = np.random.default_rng(1).integers(0, 256, (2, 704, 704, 3), dtype=np.uint8)
+    together = codec.preprocess_tiles(tile)
+    assert np.array_equal(together[1:], codec.preprocess(tile[1], 704))
+    with pytest.raises(ValueError):
+        codec.preprocess_tiles(np.zeros((1, 704, 600, 3), np.uint8))
 
 
 def test_the_rfdetr_backend_is_named_and_needs_weights():
