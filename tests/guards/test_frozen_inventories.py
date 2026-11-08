@@ -304,20 +304,23 @@ def _forbidden_inputs(
             hits.add(f"{name}@{node.lineno}")
     return sorted(hits)
 
-# The two scheduler-period -> wall-period conversions: the cadence's public
-# one, and the MAVLink reader-batch budget (one scheduler wall slot,
-# docs/design/reader_batch.md).
+HEARTBEAT_PACING = "src/navpy/plugins/vehicle/ardupilot/heartbeat_pacing.py"
+
+# The aircraft-time period -> wall-period conversions, (file, function) -> (numerator, denominator): the cadence's
+# public one; the MAVLink reader-batch budget (one scheduler wall slot, docs/design/reader_batch.md); and the
+# companion heartbeat's period (navpy_recovery.md step 7), which starts with the vehicle, before any cadence, and
+# must not take the cadence's process-wide timer and interpreter settings.
 _ALLOWED_SPEEDUP_DIVISIONS = {
-    "wall_period_for_scheduler_period": ("period",),
-    "_sync_reader_budget_locked": ("feed", "scheduler_period_s"),
+    (SCHEDULER, "wall_period_for_scheduler_period"): (("period",), ("self", "_speedup")),
+    (SCHEDULER, "_sync_reader_budget_locked"): (("feed", "scheduler_period_s"), ("self", "_speedup")),
+    (HEARTBEAT_PACING, "wait"): (("period_s",), ("speedup",)),
 }
 
 def _allowed_speedup_division(relative: str, node: ast.BinOp, owner) -> bool:
-    return (relative == SCHEDULER and owner is not None
-            and owner.name in _ALLOWED_SPEEDUP_DIVISIONS
+    allowed = None if owner is None else _ALLOWED_SPEEDUP_DIVISIONS.get((relative, owner.name))
+    return (allowed is not None
             and isinstance(node.op, ast.Div)
-            and _path(node.left) == _ALLOWED_SPEEDUP_DIVISIONS[owner.name]
-            and _path(node.right) == ("self", "_speedup"))
+            and (_path(node.left), _path(node.right)) == allowed)
 
 def _cadence_violations(trees: list[tuple[str, ast.Module]]) -> list[str]:
     hits = []

@@ -419,6 +419,89 @@ merges before step 4, which builds on its deadline fix.
    under the AAS table. Tests: the lua5.3 harness, as for `chute_deploy.lua`,
    including the 100-local limit and the instruction hook. Redeployed to WSL
    `~/ardupilot/{1,2,3}/scripts` before the SITL check.
+
+   As built (2026-11-08):
+   - NavPy's heartbeat is a HEARTBEAT from this aircraft's system id,
+     component `AAS_NWD_COMP` (191, `MAV_COMP_ID_ONBOARD_COMPUTER`), type
+     `MAV_TYPE_ONBOARD_CONTROLLER`, with a good CRC: ArduPilot also hands
+     scripts frames whose CRC failed (`GCS_Common.cpp`, bad-CRC framing).
+     The GCS (system 255) and the autopilot (component 1) never count.
+   - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
+     fresh. A GUIDED entered while NavPy was dead, or never alive, is left
+     alone.
+   - Params, added by the script to the AAS table (key 88, indices 20-23;
+     `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
+     `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
+     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
+     autopilot's own clock (aircraft time); a heartbeat is timed when the
+     autopilot received it (`receive_chan`'s timestamp), so one read late
+     from the queue is not fresh, and only one received after the hold
+     began ends it.
+   - Timeout: fixed, `AAS_NWD_TMO` of aircraft time after the last
+     heartbeat received (Demo's ruling on Codex round 2). A cadence
+     estimate (eabb6503) was dropped: it could not tell a cadence from a
+     duplicate burst (which collapsed it) or an outage (which became the
+     period, unbounded), and it never timed out after a single heartbeat.
+   - Speed-up, fixed at its root in NavPy (`heartbeat_pacing.py`): the
+     companion heartbeat's period is aircraft time; its wall wait is the
+     period divided by `SIM_SPEEDUP`, read from the vehicle's parameter
+     cache (absent on real hardware, so 1). Each PARAM_VALUE updates the
+     cache, so it follows a run-time change (NAV's speed-up lease, an
+     operator's param set); the update wakes the wait, the heartbeat goes
+     out at once and the next period runs at the new rate, so no gap is
+     paced at the old one. A SITL running below its `SIM_SPEEDUP` only brings
+     heartbeats closer in aircraft time. It is the one period conversion
+     outside `SchedulerCadence` (named in `test_frozen_inventories.py`): the
+     heartbeat starts with the vehicle, before any cadence, and must not take
+     the cadence's process-wide timer and interpreter settings. Lockstep runs its SITL at speed-up 1 on a
+     virtual clock, which is aircraft time already. Pacing by the aircraft
+     time NavPy receives was not chosen: a stalled downlink would stop the
+     heartbeat, and the autopilot would take over from a NavPy that still
+     commands over the uplink and holds by itself.
+   - Rate (owner ruling 2026-11-08, "4 Hz, 1.5 s"): the companion heartbeat
+     is 4 Hz (`HEARTBEAT_HZ`, `vehicle_mav.py`) against `AAS_NWD_TMO` 1.5 s,
+     so a hold needs 1.5 s without one, six beats in a row lost; five lost
+     do not hold. Radio cost: ArduPilot forwards the companion's broadcast
+     HEARTBEAT to its other links, the GCS telemetry radio among them; at 21
+     bytes a frame (MAVLink 2, unsigned), 3 more a second is about +63 B/s
+     per UAV on the downlink. The GCS backend's own heartbeat (also a
+     `VehicleMav`, `MAV_TYPE_GCS`) stays 1 Hz (`GCS_HEARTBEAT_HZ`): no
+     watchdog reads it, and it is uplink on every radio. Checked for things
+     keyed to the old 1 Hz: the companion's "heartbeat timeout" warning
+     (autopilot silent) ran once per send, so it is now held to once a
+     second of wall time (`HEARTBEAT_TIMEOUT_REPORT_S`), as before; the GCS
+     companion liveness (`companion_status`, 5 s ok / 15 s down windows) and
+     `MavBusHeartbeats` keep only the newest receipt time, so a faster
+     heartbeat only keeps them fresher; mode confirmation counts the
+     autopilot's heartbeats, not the companion's; no frozen-inventory guard
+     names the rate.
+   - Stages: WATCH, HOLD (its LOITER), RTL (not undone, as ArduPlane's long
+     failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
+     stands it down. A refused mode change is retried each tick and reported
+     once; a refused AUTO keeps the hold and its RTL deadline.
+   - Mode writes, a known limit: each is preceded, as the last binding
+     call, by a read that the mode is still the one it decided from (GUIDED
+     for the hold, its LOITER for AUTO or RTL); a test checks the read is
+     the binding called right before every write. Bindings take the
+     scheduler semaphore one call at a time and ArduPilot's scripting has no
+     compare-and-set, so a pilot's mode change processed by the main loop
+     between that read and `set_mode` is still overwritten. This is the
+     smallest window a stock-firmware script allows.
+   - Payload length is checked (at most HEARTBEAT's 9 bytes) before the
+     CRC, so corrupt frames claiming long payloads cannot run the script
+     past `SCR_VM_I_COUNT`, which `pcall` cannot catch.
+   - State report: NAMED_VALUE_FLOAT `NAVWD` once a second (-1 off, 0
+     watching, 1 hold, 2 RTL), sent even after an error in a step; status
+     texts on each change. The loop's step runs under `pcall`.
+   - `mavlink:init(queue, ids)`: the order `lua_bindings.cpp` reads (the
+     docs.lua comment has it reversed). The receive queue is the scripting
+     engine's, shared by all scripts; no other script here receives MAVLink.
+   - Not covered: NavPy's own hold. If NavPy set LOITER (its in-process
+     hold) and then dies, the mode is LOITER the script did not set, which
+     it cannot tell from a pilot's LOITER, so the UAV loiters until the
+     operator acts.
+   - Eval roots (`eval_gcs_demo_sitl_root.py`) deploy every
+     `scripts/lua/*.lua`, so evals now run with the watchdog.
 8. **Evals honest.** Each stage change is counted and logged apart from the
    evidence writer; eval verdicts are clean, recovered or invalid.
 9. **Checks.** Targeted tests with `--testmon` and by name for Lua and
