@@ -429,8 +429,10 @@ merges before step 4, which builds on its deadline fix.
    - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
      fresh. A GUIDED entered while NavPy was dead, or never alive, is left
      alone.
-   - Params, added by the script to the AAS table (key 88, indices 20-23;
-     `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
+   - Params, in the script's own table (key 89, prefix `AAS_NWD_`; step 9
+     found that sharing `aas_params.lua`'s key 88 lets one script's
+     `add_table` re-blank the other's params, so the watchdog read no
+     `AAS_NWD_ENABLE` and stayed disabled in SITL): `AAS_NWD_ENABLE` (1),
      `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
      `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
      autopilot's own clock (aircraft time); a heartbeat is timed when the
