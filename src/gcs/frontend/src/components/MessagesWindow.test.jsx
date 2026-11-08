@@ -184,6 +184,45 @@ describe('MessagesWindow', () => {
     await screen.findByText(/messages\.incomplete/);
   });
 
+  // The UAV reconnects (a new log epoch) while the socket stays open: a
+  // backlog reply from the old epoch must not replace the new log's rows.
+  it('drops a backlog reply from a superseded epoch', async () => {
+    let answerOld;
+    vi.stubGlobal('fetch', vi.fn()
+      .mockImplementationOnce(() => new Promise((resolve) => { answerOld = resolve; }))
+      .mockImplementation(() => Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ epoch: 'e2', entries: [entry(1, 'new log', 4, 'text', 'e2')] }),
+      })));
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1', message_epoch: 'e1' }]));
+    render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    act(() => ws.telemetry([{
+      sys_id: 1, message_epoch: 'e2', messages: [entry(1, 'new log', 4, 'text', 'e2')],
+    }]));
+    await waitFor(() => expect(fetch).toHaveBeenCalledTimes(2));
+    await act(async () => answerOld({ ok: true, json: () => Promise.resolve({ epoch: 'e1', entries: [] }) }));
+    expect(screen.getByText('new log')).toBeInTheDocument();
+    expect(messageLogStore.getEntries(1).map((e) => [e.epoch, e.text])).toEqual([['e2', 'new log']]);
+  });
+
+  // After a backend restart the socket can reopen before the UAV is
+  // discovered again: that load gets a 404. The UAV's next telemetry retries.
+  it("retries a failed load when the UAV's telemetry next arrives", async () => {
+    vi.stubGlobal('fetch', vi.fn()
+      .mockImplementationOnce(() => Promise.resolve({ ok: false, status: 404 }))
+      .mockImplementation(() => Promise.resolve({
+        ok: true, json: () => Promise.resolve({ epoch: 'e1', entries: [entry(1, 'found')] }),
+      })));
+    act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1', message_epoch: 'e1' }]));
+    render(<MessagesWindow sysId={1} onSelect={() => {}} onClose={() => {}} />);
+    await screen.findByText('messages.loadFailed');
+    expect(fetch).toHaveBeenCalledTimes(1);  // no timer retry
+    act(() => ws.telemetry([{ sys_id: 1, mode: 'FBWA' }]));
+    await screen.findByText('found');
+    expect(fetch).toHaveBeenCalledTimes(2);
+    expect(screen.queryByText('messages.loadFailed')).toBeNull();
+  });
+
   it('says when the backlog could not load', async () => {
     vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 404 })));
     act(() => ws.telemetry([{ sys_id: 1, name: 'UAV 1' }]));

@@ -35,6 +35,13 @@ describe('appendEntries', () => {
     expect(h.map((e) => [e.epoch, e.seq])).toEqual([['e2', 1]]);
   });
 
+  // A new log can reach a higher seq than the old one before the browser
+  // hears from it: seq alone would keep the old log's rows.
+  it('restarts on a new epoch even when its seq is higher', () => {
+    const h = appendEntries([text(7), text(8)], [text(50, 6, 'new', 'e2')]);
+    expect(h.map((e) => [e.epoch, e.seq])).toEqual([['e2', 50]]);
+  });
+
   // The backlog can hold entries the broadcast has not drained yet: the live
   // feed then repeats them. An overlap is not a restart.
   it('drops entries it already has and keeps the older ones', () => {
@@ -95,6 +102,13 @@ describe('formatExport', () => {
     expect(fields.slice(1)).toEqual(['UAV 1', 'autopilot', 'INFO', 'Armed']);
     expect(fields[0]).toMatch(/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
     expect(out.endsWith('\n')).toBe(true);
+  });
+});
+
+describe('formatExport incomplete', () => {
+  it('keeps the incomplete mark of a text with a lost chunk', () => {
+    const out = formatExport([{ ...text(1, 4, 'PreArm: part'), incomplete: true }], 'UAV 1', 'incomplete');
+    expect(out.trim().split('	').pop()).toBe('PreArm: part [incomplete]');
   });
 });
 

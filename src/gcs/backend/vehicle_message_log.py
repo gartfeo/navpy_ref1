@@ -42,6 +42,10 @@ NAMED_VALUE_CAPACITY = 32
 # is then shown as it stands, marked incomplete.
 STATUSTEXT_CHUNK_LEN = 50
 STATUSTEXT_CHUNK_WAIT_S = 2.0
+# Chunked texts assembled at once per UAV. A sender has one or two in flight;
+# past this the oldest is shown as it stands, marked incomplete, so a burst of
+# unfinished ids bounds both memory and the work each arrival does.
+STATUSTEXT_PENDING_CAPACITY = 8
 
 _AUTOPILOT_COMPONENT_ID = 1
 
@@ -73,6 +77,11 @@ def _text(raw) -> str:
     return _decode(raw).rstrip("\x00").strip()
 
 
+def _chunk_body(raw: str) -> str:
+    """A chunk's text up to its null terminator."""
+    return raw.split("\x00", 1)[0]
+
+
 class _PendingText:
     """The chunks of one chunked STATUSTEXT received so far."""
 
@@ -83,10 +92,21 @@ class _PendingText:
         self.chunks: dict[int, str] = {}
         self.last: Optional[int] = None  # chunk_seq of the terminating chunk
 
+    def conflicts(self, chunk_seq: int, raw: str) -> bool:
+        """True for a different chunk under a number already held (a reused id).
+
+        The same chunk again is a duplicate packet, not a conflict.
+        """
+        held = self.chunks.get(chunk_seq)
+        return held is not None and held != _chunk_body(raw)
+
+    def duplicate(self, chunk_seq: int, raw: str) -> bool:
+        return self.chunks.get(chunk_seq) == _chunk_body(raw)
+
     def add(self, chunk_seq: int, raw: str) -> bool:
         """Store a chunk; True once the text is complete."""
         terminated = "\x00" in raw or len(raw) < STATUSTEXT_CHUNK_LEN
-        self.chunks[chunk_seq] = raw.split("\x00", 1)[0]
+        self.chunks[chunk_seq] = _chunk_body(raw)
         if terminated:
             self.last = chunk_seq
         return self.last is not None and all(i in self.chunks for i in range(self.last + 1))
@@ -107,6 +127,7 @@ class VehicleMessageLog:
         sys_id: int,
         capacity: int = MESSAGE_LOG_CAPACITY,
         named_capacity: int = NAMED_VALUE_CAPACITY,
+        pending_capacity: int = STATUSTEXT_PENDING_CAPACITY,
     ) -> None:
         self.sys_id = int(sys_id)
         self.epoch = rt.uuid4().hex[:12]
@@ -115,6 +136,7 @@ class VehicleMessageLog:
         self._named_capacity = named_capacity
         # (component, id) -> chunks of a STATUSTEXT still being received.
         self._pending: dict[tuple[Optional[int], int], _PendingText] = {}
+        self._pending_capacity = pending_capacity
         self._seq = 0
         self._drained_seq = 0
         self._lock = rt.Lock()
@@ -147,13 +169,17 @@ class VehicleMessageLog:
             entry["incomplete"] = True
         self._append(entry)
 
+    def _retire_locked(self, key: tuple[Optional[int], int]) -> None:
+        """Show an unfinished text as it stands, marked incomplete."""
+        pending = self._pending.pop(key)
+        self._append_text(pending.component, pending.severity, pending.text(),
+                          pending.started, incomplete=True)
+
     def _flush_stale_locked(self, now: float) -> None:
         """Show texts whose missing chunk did not come as incomplete."""
         for key, pending in list(self._pending.items()):
             if now - pending.started >= STATUSTEXT_CHUNK_WAIT_S:
-                del self._pending[key]
-                self._append_text(pending.component, pending.severity, pending.text(),
-                                  pending.started, incomplete=True)
+                self._retire_locked(key)
 
     def on_statustext(self, msg) -> None:
         own, component = self._own_source(msg)
@@ -168,11 +194,22 @@ class VehicleMessageLog:
                 self._append_text(component, severity, _text(getattr(msg, "text", "")), now)
                 return
             key = (component, text_id)
-            pending = self._pending.get(key)
-            if pending is None:
-                pending = self._pending[key] = _PendingText(component, severity, now)
             chunk_seq = int(getattr(msg, "chunk_seq", 0) or 0)
-            if pending.add(chunk_seq, _decode(getattr(msg, "text", ""))):
+            raw = _decode(getattr(msg, "text", ""))
+            pending = self._pending.get(key)
+            if pending is not None and pending.duplicate(chunk_seq, raw):
+                return
+            if pending is not None and pending.conflicts(chunk_seq, raw):
+                # A chunk number seen again with other text: the sender reused
+                # the id for a new text, so the old one will never finish.
+                self._retire_locked(key)
+                pending = None
+            if pending is None:
+                while len(self._pending) >= self._pending_capacity:
+                    # Insertion order: the first key started longest ago.
+                    self._retire_locked(next(iter(self._pending)))
+                pending = self._pending[key] = _PendingText(component, severity, now)
+            if pending.add(chunk_seq, raw):
                 del self._pending[key]
                 self._append_text(component, pending.severity, pending.text(), pending.started)
 

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '../styles';
 import UavBadge from './UavBadge';
 import messageLogStore from '../stores/messageLogStore';
+import telemetryStore from '../stores/telemetryStore';
 import { useTelemetryStore, useVehicleList } from '../hooks/useTelemetryStore';
 import { backendNowMs } from '../utils/backendClock';
 import {
@@ -80,22 +81,44 @@ export default function MessagesWindow({ sysId, onSelect, onClose }) {
   // Messages broadcast while the socket was down are not replayed: load the
   // backlog again on every (re)connect, as well as on open and UAV switch.
   const connected = useTelemetryStore((s) => s.isConnected());
+  // The UAV's current log generation: a new one (the UAV reconnected) loads
+  // the backlog again, and a reply from another one is stale and dropped.
+  const messageEpoch = vehicle?.message_epoch;
   const [filter, setFilter] = useState('all');
-  const [loadError, setLoadError] = useState(false);
+  // The UAV snapshot current when the backlog failed to load, or null. The
+  // UAV's next telemetry retries it (after a backend restart the socket can
+  // reopen before the vehicle is discovered again, and the load gets a 404).
+  const [failedAt, setFailedAt] = useState(null);
+  const [attempt, setAttempt] = useState(0);
+  const vehicleRef = useRef(vehicle);
+  vehicleRef.current = vehicle;
   const listRef = useRef(null);
   const stickRef = useRef(true);
+
+  useEffect(() => { setFailedAt(null); stickRef.current = true; }, [sysId]);
 
   useEffect(() => {
     if (!connected) return undefined;
     let cancelled = false;
-    setLoadError(false);
-    stickRef.current = true;
     fetch(`/api/vehicles/${sysId}/messages`)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(String(r.status)))))
-      .then((body) => { if (!cancelled) messageLogStore.loadBacklog(sysId, body.entries, body.epoch); })
-      .catch(() => { if (!cancelled) setLoadError(true); });
+      .then((body) => {
+        if (cancelled) return;
+        const current = telemetryStore.getVehicles()[sysId]?.message_epoch;
+        messageLogStore.loadBacklog(sysId, body.entries, body.epoch, current);
+        setFailedAt(null);
+      })
+      .catch(() => { if (!cancelled) setFailedAt(vehicleRef.current || {}); });
     return () => { cancelled = true; };
-  }, [sysId, connected]);
+  }, [sysId, connected, messageEpoch, attempt]);
+
+  useEffect(() => {
+    if (failedAt && vehicle && vehicle !== failedAt) {
+      setFailedAt(vehicle);  // one retry per new telemetry, the error stays shown
+      setAttempt((n) => n + 1);
+    }
+  }, [vehicle, failedAt]);
+  const loadError = failedAt !== null;
 
   const shown = filterEntries(entries, filter);
   // The newest row's identity, not the count: at capacity a new row evicts
@@ -167,7 +190,7 @@ export default function MessagesWindow({ sysId, onSelect, onClose }) {
         <button
           type="button"
           disabled={entries.length === 0}
-          onClick={() => downloadText(`${name.replace(/\s+/g, '_')}_messages.txt`, formatExport(entries, name))}
+          onClick={() => downloadText(`${name.replace(/\s+/g, '_')}_messages.txt`, formatExport(entries, name, t('messages.incomplete')))}
           style={{
             fontSize: 11, padding: '2px 8px', borderRadius: 4, cursor: entries.length ? 'pointer' : 'default',
             background: 'none', color: entries.length ? colors.accent : colors.textDim,

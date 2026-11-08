@@ -86,12 +86,16 @@ export function formatTime(tsSeconds) {
   return `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
 }
 
-/** Plain-text export, one line per entry, oldest first. */
-export function formatExport(entries, uavName) {
+/**
+ * Plain-text export, one line per entry, oldest first. A text with a lost
+ * chunk keeps its `[incomplete]` mark, as in the window.
+ */
+export function formatExport(entries, uavName, incompleteLabel = 'incomplete') {
   const lines = entries.map((e) => {
     const d = new Date(e.ts * 1000);
     const stamp = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${formatTime(e.ts)}`;
-    return `${stamp}\t${uavName}\t${e.source}\t${e.label}\t${e.text}`;
+    const text = e.incomplete ? `${e.text} [${incompleteLabel}]` : e.text;
+    return `${stamp}\t${uavName}\t${e.source}\t${e.label}\t${text}`;
   });
   return `${lines.join('\n')}\n`;
 }

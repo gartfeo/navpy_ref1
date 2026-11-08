@@ -32,8 +32,14 @@ function ingest(sysId, entries) {
   _notify();
 }
 
-/** The backend backlog (`GET /api/vehicles/{sysId}/messages`): its entries and log epoch. */
-function loadBacklog(sysId, backlogEntries, epoch) {
+/**
+ * The backend backlog (`GET /api/vehicles/{sysId}/messages`): its entries and
+ * log epoch. `currentEpoch` is the UAV's log epoch in the latest telemetry; a
+ * reply from another epoch was superseded while it loaded (the UAV
+ * reconnected) and is dropped, never replacing newer history.
+ */
+function loadBacklog(sysId, backlogEntries, epoch, currentEpoch) {
+  if (currentEpoch != null && epoch !== currentEpoch) return;
   _histories = { ..._histories, [sysId]: mergeBacklog(backlogEntries || [], epoch, getEntries(sysId)) };
   _notify();
 }

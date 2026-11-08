@@ -10,6 +10,7 @@ from gcs.backend.telemetry_loop import TelemetryLoop, _has_changed
 from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend.vehicle_message_log import (
     NAMED_VALUE_CAPACITY,
+    STATUSTEXT_PENDING_CAPACITY,
     STATUSTEXT_CHUNK_WAIT_S,
     VehicleMessageLog,
     source_label,
@@ -109,6 +110,31 @@ class TestStatustextChunks(unittest.TestCase):
         self.assertEqual([(e["text"], e.get("incomplete")) for e in drained],
                          [("A" * 50 + "end", True)])
 
+    def test_a_reused_id_retires_the_unfinished_text_as_incomplete(self):
+        log = VehicleMessageLog(2)
+        log.on_statustext(_chunk(7, 0, "A" * 50, severity=4))
+        log.on_statustext(_chunk(7, 1, "B" * 50, severity=4))  # its end is lost
+        log.on_statustext(_chunk(7, 0, "NEW", severity=6))  # the id reused
+        rows = [(e["text"], e["label"], e.get("incomplete")) for e in log.backlog()["entries"]]
+        self.assertEqual(rows, [("A" * 50 + "B" * 50, "WARN", True), ("NEW", "INFO", None)])
+
+    def test_a_duplicate_chunk_is_ignored(self):
+        log = VehicleMessageLog(2)
+        log.on_statustext(_chunk(4, 0, "A" * 50))
+        log.on_statustext(_chunk(4, 0, "A" * 50))
+        log.on_statustext(_chunk(4, 1, "end"))
+        rows = [(e["text"], e.get("incomplete")) for e in log.backlog()["entries"]]
+        self.assertEqual(rows, [("A" * 50 + "end", None)])
+
+    def test_unfinished_texts_are_capped_oldest_first(self):
+        log = VehicleMessageLog(2, pending_capacity=2)
+        for text_id in (1, 2, 3):
+            log.on_statustext(_chunk(text_id, 0, f"{text_id}" * 50))
+        self.assertEqual([(e["text"], e.get("incomplete")) for e in log.backlog()["entries"]],
+                         [("1" * 50, True)])
+        self.assertEqual(len(log._pending), 2)
+        self.assertEqual(STATUSTEXT_PENDING_CAPACITY, 8)
+
     def test_id_zero_is_a_whole_text(self):
         log = VehicleMessageLog(2)
         log.on_statustext(_chunk(0, 0, "A" * 50))
@@ -166,7 +192,9 @@ class TestVehicleEntryWiring(unittest.TestCase):
         handlers["NAMED_VALUE_INT"](_value(2, 191, "TASK", 4))
         texts = [e["text"] for e in entry.message_log.backlog()["entries"]]
         self.assertEqual(texts, ["Mission: 1 WP", "NAVWD = 1", "TASK = 4"])
-        self.assertEqual(set(entry.snapshot()["named_values"]), {"NAVWD", "TASK"})
+        snap = entry.snapshot()
+        self.assertEqual(set(snap["named_values"]), {"NAVWD", "TASK"})
+        self.assertEqual(snap["message_epoch"], entry.message_log.epoch)
 
 
 class TestBroadcast(unittest.TestCase):
