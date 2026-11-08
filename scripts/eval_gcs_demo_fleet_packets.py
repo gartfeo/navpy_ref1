@@ -5,7 +5,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 
 | Gate | Pass |
 |---|---|
-| Run (packets) | every packet id is defined once and has exactly one fate (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
+| Run (packets) | every packet id is defined once and has exactly one end state (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
 | Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write; ``radio_fault``: a scheduled fault cut it; or ``receiver_retired``: a scheduled restart ended its receiver, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids

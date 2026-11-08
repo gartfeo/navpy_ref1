@@ -397,7 +397,7 @@ lockstep coordinator applies the loss where bytes enter the radio:
   tick's end wait for later ticks. At parking or close every one still
   open is broken: it is complete in the clean stream, so only the loss
   kept it from the router (also one held behind a frame the loss started).
-  The packet list and its exactly-one-fate check are unchanged.
+  The packet list and its exactly-one-end-state check are unchanged.
 - This is a different model from ArduPilot's (independent byte loss
   instead of the last byte of each write), so old and new results at the
   same seed are not comparable.

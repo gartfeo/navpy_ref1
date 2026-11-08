@@ -124,7 +124,7 @@ def test_run_gate_fails_on_a_fault_a_second_disposition_or_an_undelivered_navlin
     twice = copy.deepcopy(records)
     record, delivered = next((r, e) for r, e in _events(twice) if e[0] == "delivered")
     record["packets"].append(["discarded", delivered[1], "drain"])
-    assert packet_run_errors(twice) == [f"packets: {delivered[1]} has 2 fates"]
+    assert packet_run_errors(twice) == [f"packets: {delivered[1]} has 2 end states"]
     parked = copy.deepcopy(records)
     record, delivered = next((r, e) for r, e in _events(parked) if e[0] == "delivered"
                              and isinstance(e[2], list))

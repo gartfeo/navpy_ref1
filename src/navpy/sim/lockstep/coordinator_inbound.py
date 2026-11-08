@@ -8,7 +8,7 @@ slice's Joining rule) - whatever their framing: a packet's prefix is
 delivered or discarded in the tick it arrives, never held back.
 
 The journal decoding only observes the stream. Each tick's byte range gets
-its fate; a packet, emitted once complete, ends by the fates of all its
+its end state; a packet, emitted once complete, ends by the end states of all its
 bytes: ``delivered`` to a receiver ``[ordinal, generation]`` only if every
 byte went to that same member, else ``discarded`` with the reason of its
 first byte that did not (``retired`` if its bytes went to two generations).
@@ -24,7 +24,7 @@ from navpy.sim.lockstep.coordinator_members import Member
 from navpy.sim.lockstep.coordinator_packets import PacketBook, PacketId
 
 #: ``("delivered", [ordinal, generation])`` or ``("discarded", reason)``.
-Fate = tuple[str, object]
+EndState = tuple[str, object]
 
 
 @dataclass
@@ -34,14 +34,14 @@ class _Block:
     data: bytearray = field(default_factory=bytearray)
     #: Packets completed this tick: ``(id, start, end)`` stream offsets.
     packets: list[tuple[PacketId, int, int]] = field(default_factory=list)
-    #: No later packet starts before this offset: older fates may go.
+    #: No later packet starts before this offset: older end states may go.
     floor: int = 0
 
 
 class InboundLedger:
     def __init__(self) -> None:
         self._blocks: dict[str, _Block] = {}
-        self._fates: dict[str, list[tuple[int, int, Fate]]] = {}
+        self._end_states: dict[str, list[tuple[int, int, EndState]]] = {}
         #: The next stream offset of each device fed whole packets (the router's copies).
         self._whole: dict[str, int] = {}
 
@@ -68,25 +68,25 @@ class InboundLedger:
             member = owners.get(device)
             if member is None:
                 record.discard(device, len(block.data))
-                fate: Fate = ("discarded", reason(device))
+                end_state: EndState = ("discarded", reason(device))
             else:
                 delivered[device] = bytes(block.data)
-                fate = ("delivered", [member.ordinal, member.spawn.generation])
-            fates = self._fates.setdefault(device, [])
-            fates.append((block.start, block.start + len(block.data), fate))
+                end_state = ("delivered", [member.ordinal, member.spawn.generation])
+            end_states = self._end_states.setdefault(device, [])
+            end_states.append((block.start, block.start + len(block.data), end_state))
             for packet_id, start, end in block.packets:
-                book.end(packet_id, *_disposition(fates, start, end))
-            self._fates[device] = [entry for entry in fates if entry[1] > block.floor]
+                book.end(packet_id, *_disposition(end_states, start, end))
+            self._end_states[device] = [entry for entry in end_states if entry[1] > block.floor]
         self._blocks = {}
         return delivered
 
 
-def _disposition(fates: list[tuple[int, int, Fate]], start: int, end: int) -> Fate:
-    covering = [fate for a, b, fate in fates if a < end and b > start]
-    refused = [fate for fate in covering if fate[0] != "delivered"]
+def _disposition(end_states: list[tuple[int, int, EndState]], start: int, end: int) -> EndState:
+    covering = [end_state for a, b, end_state in end_states if a < end and b > start]
+    refused = [end_state for end_state in covering if end_state[0] != "delivered"]
     if refused:
         return refused[0]
-    receivers = {tuple(fate[1]) for fate in covering}
+    receivers = {tuple(end_state[1]) for end_state in covering}
     return covering[0] if len(receivers) == 1 else ("discarded", "retired")
 
 
