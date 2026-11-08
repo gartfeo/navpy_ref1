@@ -2,12 +2,25 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from gcs.backend.vehicle_entry import VehicleEntry
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
+
+
+def _velocity_ned(v) -> list[float] | None:
+    vel = getattr(v, "velocity", None)
+    if not isinstance(vel, (tuple, list)) or len(vel) != 3:
+        return None
+    try:
+        out = [float(x) for x in vel]
+    except (TypeError, ValueError):
+        return None
+    return out if all(math.isfinite(x) for x in out) else None
+
 
 def snapshot(entry: VehicleEntry) -> dict:
     """Build a telemetry snapshot dict for WebSocket broadcast."""
@@ -58,6 +71,10 @@ def snapshot(entry: VehicleEntry) -> dict:
         "air_speed": v.air_speed,
         "ground_speed": v.ground_speed,
         "climb": getattr(v, "climb_rate", None),
+        # Measured ground velocity (GLOBAL_POSITION_INT), north/east/down m/s:
+        # operator display only (the Synthetic view's flight path marker),
+        # never a navigation input.
+        "velocity_ned": _velocity_ned(v),
         "throttle": getattr(v, "throttle_pct", None),
         "gps_fix": v.gps_fix_type,
         "gps_sats": v.gps_satellites,

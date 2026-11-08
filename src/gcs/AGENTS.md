@@ -43,7 +43,9 @@ Frontend:
   never repeats what the right panel shows (battery, link, mode and status
   texts only with the panel hidden; RC, which hides the panel, shows all
   but the mode; `utils/hudLayout.js`). At normal size Synthetic's map credits
-  open from a © button (maximized they always show). The map never follows a UAV;
+  open from a © button (maximized they always show). Synthetic also marks the
+  UAV's dock, its delivery hub, the rest of the fleet and a flight path marker,
+  and greys out while held (`docs/design/synthetic_view_marks.md`). The map never follows a UAV;
   only RC takes the map camera (first person). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:

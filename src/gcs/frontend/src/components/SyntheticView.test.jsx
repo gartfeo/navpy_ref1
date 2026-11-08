@@ -22,7 +22,7 @@ const { fake } = vi.hoisted(() => {
     };
   };
   class Vec { constructor(x = 0, y = 0, z = 0) { Object.assign(this, { x, y, z }); } }
-  const fake = { widgets: [], terrainCalls: [], baseLayers: [], hudProps: [], routes: [], createThrows: false, event };
+  const fake = { widgets: [], terrainCalls: [], baseLayers: [], hudProps: [], routes: [], marks: [], createThrows: false, event };
   class CesiumWidget {
     constructor(container, options) {
       if (fake.createThrows) throw new Error('no WebGL');
@@ -82,6 +82,21 @@ vi.mock('./map/utils/baseLayers', () => ({
     fake.baseLayers.push({ widget, id, onFailed });
   },
 }));
+// The scene marks, recorded: their drawing is sceneMarks.test.js's.
+vi.mock('./map/utils/sceneMarks', () => ({
+  createSceneMarks: (_Cesium, scene) => {
+    const marks = { scene, updates: [], destroyed: false };
+    fake.marks.push(marks);
+    return {
+      update: (m) => { marks.updates.push(m); return true; },
+      destroy: () => { marks.destroyed = true; },
+    };
+  },
+}));
+// The flight path marker's projection, driven per test: its math is flightPathMarker.test.js's.
+vi.mock('./map/utils/flightPathMarker', () => ({
+  flightPathMarkerPoint: (_Cesium, _scene, position, enu, size) => fake.fpmPoint?.({ position, enu, size }) ?? null,
+}));
 // The route overlay, recorded: its drawing is routeOverlay.test.js's.
 vi.mock('./map/utils/routeOverlay', () => ({
   createRouteOverlay: (_Cesium, scene) => {
@@ -124,6 +139,7 @@ function makeStore(vehicles = { 1: linked, 2: linked }) {
     listeners,
     subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
     getVehicles() { return this.vehicles; },
+    getVehicleList() { return Object.values(this.vehicles); },
     isTelemetryFresh() { return this.fresh; },
   };
 }
@@ -169,6 +185,8 @@ beforeEach(() => {
   fake.baseLayers.length = 0;
   fake.hudProps.length = 0;
   fake.routes.length = 0;
+  fake.marks.length = 0;
+  fake.fpmPoint = null;
   fake.createThrows = false;
   fake.gimbal = null;
   fake.gimbalOrientation = null;
@@ -488,5 +506,95 @@ describe('SyntheticView', () => {
     expect(w.camera.setView).toHaveBeenLastCalledWith({ destination: pose.position, orientation: { heading: 1, pitch: 3, roll: -2 } });
     expect(w.camera.frustum.fov).toBe(1.0472);
     expect(getByText('vehicleWindow.syntheticTag')).toBeInTheDocument();
+  });
+});
+
+// What cockpit synthetic vision and UAV studies show (docs/design/synthetic_view_marks.md):
+// a held picture greys out, the dock and delivery hub are marked, the fleet shows,
+// and a flight path marker shows where the UAV is going.
+describe('Synthetic view marks (owner 2026-11-09)', () => {
+  const emitAll = (store) => act(() => store.listeners.forEach((fn) => fn()));
+  const drawn = async (opts) => {
+    const view = setup(opts);
+    await widgetReady();
+    await act(async () => {});
+    const [w] = fake.widgets;
+    frame(w);
+    return { ...view, w };
+  };
+
+  it('a held picture greys out and shows no flight path marker', async () => {
+    fake.fpmPoint = () => ({ x: 50, y: 40 });
+    const { getByTestId, queryByTestId, rerenderWith, store, w } = await drawn();
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: [20, 0, 0] } };
+    emitAll(store);
+    frame(w);
+    expect(getByTestId('synthetic-widget').style.filter).toBe('');
+    expect(queryByTestId('synthetic-fpm')).not.toBeNull();
+    rerenderWith({ held: true });
+    frame(w);
+    expect(getByTestId('synthetic-widget').style.filter).toBe('grayscale(1) brightness(0.7)');
+    expect(queryByTestId('synthetic-fpm')).toBeNull();
+  });
+
+  it('marks the dock with its distance, the delivery hub, and the other fleet UAVs', async () => {
+    const dock = { lat: 32.001, lon: 34 };
+    const hub = { lat: 31.99, lon: 34, type: 'building' };
+    const { store } = await drawn({ marks: { dock, hub } });
+    store.vehicles = {
+      1: { ...linked, sys_id: 1, name: 's1-u1' },
+      2: { ...linked, sys_id: 2, name: 's1-u2' },
+      3: { ...linked, sys_id: 3, name: 's1-u3', link_ok: false },
+    };
+    emitAll(store);
+    const last = fake.marks[0].updates.at(-1);
+    expect(last.dock).toEqual(dock);
+    expect(last.dockText).toBe('vehicleWindow.sceneDock 111 m'); // 0.001 deg of latitude
+    expect(last.hub).toEqual(hub);
+    expect(last.hubText).toBe('vehicleWindow.sceneHub');
+    // Not the window's own UAV, not one whose link is lost; zone = its place in the fleet list.
+    expect(last.fleet).toEqual([{ position: pose.position, label: 's1-u2', zone: 1 }]);
+  });
+
+  it('without marks, nothing but the fleet', async () => {
+    const { store } = await drawn();
+    emitAll(store);
+    const last = fake.marks[0].updates.at(-1);
+    expect(last.dock).toBeNull();
+    expect(last.hub).toBeNull();
+  });
+
+  it('the flight path marker follows the measured ground velocity, smoothed, and hides when parked', async () => {
+    const calls = [];
+    fake.fpmPoint = (c) => { calls.push(c); return { x: 60, y: 30 }; };
+    const { store, w, getByTestId, queryByTestId } = await drawn();
+    // Parked: no direction of travel, so no marker.
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: [0.2, 0.1, 0] } };
+    emitAll(store);
+    frame(w);
+    expect(queryByTestId('synthetic-fpm')).toBeNull();
+    // Flying north at 20 m/s: the projection gets east/north/up.
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: [20, 0, -1] } };
+    emitAll(store);
+    frame(w);
+    expect(calls.at(-1).enu).toEqual([0, 20, 1]);
+    const marker = getByTestId('synthetic-fpm');
+    expect(marker.style.left).not.toBe('');
+    // A sudden change is smoothed, not followed in one step.
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: [0, 20, 0] } };
+    emitAll(store);
+    frame(w);
+    const [e, n] = calls.at(-1).enu;
+    expect(e).toBeLessThan(20);
+    expect(n).toBeGreaterThan(0);
+  });
+
+  it('no marker where the direction of travel is off the picture', async () => {
+    fake.fpmPoint = () => null;
+    const { store, w, queryByTestId } = await drawn();
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: [20, 0, 0] } };
+    emitAll(store);
+    frame(w);
+    expect(queryByTestId('synthetic-fpm')).toBeNull();
   });
 });

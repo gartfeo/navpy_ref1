@@ -14,6 +14,11 @@ import { createPoseMath, noseOrientation } from './map/utils/fpvPose';
 import { GIMBAL_ON_AXIS_RAD, cesiumFov, gimbalOrientation, liveGimbalView } from './map/utils/gimbalView';
 import { getDeviceConfigs } from '../utils/plannerConfig';
 import { observeHeight } from './map/utils/observeHeight';
+import { createSceneMarks } from './map/utils/sceneMarks';
+import { flightPathMarkerPoint } from './map/utils/flightPathMarker';
+import { smoothVector, velocityEnu } from '../utils/syntheticScene';
+import { flatDist } from '../utils/geo';
+import { formatDistance } from '../utils/fpvRoute';
 
 // At normal size the credit line (Cesium ion logo and the map data credits,
 // two lines at the handheld's picture width) took a fifth of the picture
@@ -23,6 +28,10 @@ import { observeHeight } from './map/utils/observeHeight';
 export const CREDITS_BUTTON_PX = 24;
 const CREDITS_BUTTON_GAP_PX = 4;
 const CREDITS_BUTTON_ROW_PX = CREDITS_BUTTON_PX + 2 * CREDITS_BUTTON_GAP_PX;
+
+/** The flight path marker: a ring with wings, sized to read on the small picture. */
+const FPM_RING_PX = 7;
+const FPM_WING_PX = 9;
 
 /** The globe's colour under the imagery, while its tiles load or if they fail. */
 const GROUND_COLOR = '#7d8a68';
@@ -34,7 +43,10 @@ const NO_SIZE = { width: 0, height: 0 };
  * The vehicle window's Synthetic source (docs/design/gcs_video_streams.md,
  * section 5 "Synthetic view"): RC control's first-person view without the
  * controls. A second public CesiumWidget with the main map's base layer on its
- * terrain, unlit like the map, no entities but the UAV's own route, looking
+ * terrain, unlit like the map, with the UAV's own route, its dock (highlighted,
+ * with the distance), its default delivery hub and the rest of the fleet
+ * (map/utils/sceneMarks.js), and a flight path marker where its measured ground
+ * velocity points (display only; utils/syntheticScene.js), looking
  * through the window UAV's gimbal camera where it has live gimbal telemetry
  * (its attitude and field of view, map/utils/gimbalView.js), else through its
  * nose, under the HUD RC control shows (TelemetryHud). The tag says which.
@@ -75,10 +87,15 @@ const NO_SIZE = { width: 0, height: 0 };
  *   UAV's own route (utils/fpvRoute.js), drawn over the terrain: numbered when
  *   maximized, only the next waypoint's number at normal size.
  * @param {boolean} [props.panelShown] - the right panel is open: the HUD leaves out what it shows.
+ * @param {{dock: object|null, hub: object|null}} [props.marks] - the UAV's dock and default
+ *   delivery hub (utils/syntheticScene.js), marked in the scene with the rest of the fleet.
+ * @param {boolean} [props.held] - the view holds its last pose (the window's "View held"
+ *   row says why): the picture greys out and the flight path marker hides, so a held
+ *   picture never passes for a live one.
  */
 export default function SyntheticView({
   sysId, label, poseSourceRef, storeRef, ionTerrain, baseLayer, onBaseLayerFailed, onFail, onCreditsHeight, style,
-  expanded = false, smallMap = null, routeSourceRef = null, panelShown = true,
+  expanded = false, smallMap = null, routeSourceRef = null, panelShown = true, marks = null, held = false,
 }) {
   const { t } = useTranslation();
   const containerRef = useRef(null);
@@ -95,6 +112,14 @@ export default function SyntheticView({
   const [creditsOpen, setCreditsOpen] = useState(false);
   const creditsHidden = !expanded && !creditsOpen;
   const [horizonShown, setHorizonShown] = useState(true);
+  // Where the UAV is going, in the picture (CSS px), or null.
+  const [fpm, setFpm] = useState(null);
+  const marksRef = useRef(marks);
+  marksRef.current = marks;
+  const heldRef = useRef(held);
+  heldRef.current = held;
+  const tRef = useRef(t);
+  tRef.current = t;
 
   const sysIdRef = useRef(sysId);
   sysIdRef.current = sysId;
@@ -179,6 +204,41 @@ export default function SyntheticView({
         return route.update(r, { line: true, labels: expandedRef.current ? 'all' : 'next' });
       };
 
+      // The dock, the delivery hub and the rest of the fleet, per telemetry update.
+      const sceneMarks = createSceneMarks(Cesium, scene);
+      cleanups.push(() => sceneMarks.destroy());
+      const syncMarks = () => {
+        const store = storeRef.current;
+        const id = sysIdRef.current;
+        const me = store.getVehicles()[id];
+        const { dock = null, hub = null } = marksRef.current || {};
+        const tr = tRef.current;
+        const dockText = !dock ? ''
+          : Number.isFinite(me?.lat) && Number.isFinite(me?.lon)
+            ? tr('vehicleWindow.sceneDock', { dist: formatDistance(flatDist({ lat: me.lat, lon: me.lon }, dock)) })
+            : tr('vehicleWindow.sceneDockNoDistance');
+        const fleet = [];
+        (store.getVehicleList() || []).forEach((v, zone) => {
+          if (!v || v.sys_id === id || fpvHoldReason(v, store.isTelemetryFresh(v.sys_id))) return;
+          const pose = poseSourceRef.current?.pose(v.sys_id);
+          if (pose?.position) fleet.push({ position: pose.position, label: v.name ?? `UAV ${v.sys_id}`, zone });
+        });
+        sceneMarks.update({ dock, dockText, hub, hubText: tr('vehicleWindow.sceneHub'), fleet });
+      };
+      // The flight path marker's smoothed ground velocity (east, north, up), for the window UAV.
+      let fpmVel = null;
+      let fpmAt = 0;
+      let fpmFor = null;
+      const syncFpm = () => {
+        const id = sysIdRef.current;
+        const store = storeRef.current;
+        const now = performance.now();
+        const target = heldRef.current ? null : velocityEnu(store.getVehicles()[id]?.velocity_ned);
+        fpmVel = smoothVector(fpmFor === id ? fpmVel : null, target, (now - fpmAt) / 1000);
+        fpmAt = now;
+        fpmFor = id;
+      };
+
       const poseMath = createPoseMath(Cesium);
       const noseFov = widget.camera.frustum.fov;
       // The window UAV's pose when the shared hold check passes and the copied
@@ -211,6 +271,8 @@ export default function SyntheticView({
           const id = sysIdRef.current;
           if (validPose(id)) setReadyFor(id);
           syncRoute();
+          syncMarks();
+          syncFpm();
           scene.requestRender();
         } catch (e) {
           fail(e);
@@ -235,8 +297,25 @@ export default function SyntheticView({
           fail(e);
         }
       };
+      let fpmShown = null;
       const onPostRender = () => {
-        if (appliedFor === sysIdRef.current) setDrawnFor(appliedFor);
+        const id = sysIdRef.current;
+        if (appliedFor === id) setDrawnFor(appliedFor);
+        let point = null;
+        try {
+          if (fpmVel && fpmFor === id && appliedFor === id && !heldRef.current) {
+            const canvas = widget.canvas;
+            point = flightPathMarkerPoint(Cesium, scene, widget.camera.positionWC, fpmVel,
+              { width: canvas.clientWidth, height: canvas.clientHeight });
+          }
+        } catch (e) {
+          fail(e);
+          return;
+        }
+        if (point?.x !== fpmShown?.x || point?.y !== fpmShown?.y) {
+          fpmShown = point;
+          setFpm(point);
+        }
       };
       scene.preRender.addEventListener(onPreRender);
       cleanups.push(() => scene.preRender.removeEventListener(onPreRender));
@@ -277,7 +356,7 @@ export default function SyntheticView({
   // once that UAV has a valid pose.
   useEffect(() => {
     checkReadyRef.current?.();
-  }, [sysId, widgetReady, expanded]);
+  }, [sysId, widgetReady, expanded, marks, held]);
   useEffect(() => {
     widgetRef.current?.scene.requestRender();
   }, [readyFor]);
@@ -344,7 +423,11 @@ export default function SyntheticView({
           ? { position: 'relative', height: 0, overflow: 'hidden', flex: '0 0 auto' }
           : { position: 'relative', background: colors.bg, ...style }}
       >
-        <div ref={containerRef} data-testid="synthetic-widget" style={{ position: 'absolute', inset: 0 }} />
+        <div
+          ref={containerRef}
+          data-testid="synthetic-widget"
+          style={{ position: 'absolute', inset: 0, ...(held && { filter: 'grayscale(1) brightness(0.7)' }) }}
+        />
         {waiting && !collapsed && (
           <div
             role="status"
@@ -377,6 +460,35 @@ export default function SyntheticView({
               onCornerSize={setCornerSize}
             />
           </div>
+        )}
+        {fpm && !waiting && !collapsed && !held && (
+          <svg
+            data-testid="synthetic-fpm"
+            aria-hidden="true"
+            width={2 * (FPM_RING_PX + FPM_WING_PX) + 2}
+            height={2 * FPM_RING_PX + FPM_WING_PX}
+            style={{
+              position: 'absolute',
+              left: fpm.x - (FPM_RING_PX + FPM_WING_PX + 1),
+              top: fpm.y - FPM_RING_PX - FPM_WING_PX,
+              pointerEvents: 'none',
+              zIndex: 1,
+              overflow: 'visible',
+            }}
+          >
+            <g
+              transform={`translate(${FPM_RING_PX + FPM_WING_PX + 1} ${FPM_RING_PX + FPM_WING_PX})`}
+              fill="none"
+              stroke={colors.success}
+              strokeWidth={2.5}
+              style={{ filter: 'drop-shadow(0 0 1px #000) drop-shadow(0 0 1px #000)' }}
+            >
+              <circle r={FPM_RING_PX} />
+              <line x1={-FPM_RING_PX - FPM_WING_PX} y1={0} x2={-FPM_RING_PX} y2={0} />
+              <line x1={FPM_RING_PX} y1={0} x2={FPM_RING_PX + FPM_WING_PX} y2={0} />
+              <line x1={0} y1={-FPM_RING_PX} x2={0} y2={-FPM_RING_PX - FPM_WING_PX * 0.6} />
+            </g>
+          </svg>
         )}
         <div
           data-testid="synthetic-frame"

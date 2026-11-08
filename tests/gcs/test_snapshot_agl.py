@@ -66,3 +66,20 @@ class TestSnapshotDevice:
         from gcs.backend.models import VehicleStatus
         status = VehicleStatus(sys_id=1, name="uav1", device="tcp:127.0.0.1:5762")
         assert status.model_dump()["device"] == "tcp:127.0.0.1:5762"
+
+
+class TestSnapshotVelocity:
+    """Display-only ground velocity for the Synthetic view's flight path marker."""
+
+    def test_velocity_ned_present(self):
+        v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
+        v.velocity = (3.0, -4.0, 0.5)
+        snap = VehicleEntry(1, v, "uav1").snapshot()
+        assert snap["velocity_ned"] == [3.0, -4.0, 0.5]
+
+    def test_velocity_ned_none_without_a_message_or_with_bad_numbers(self):
+        v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
+        v.velocity = None
+        assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] is None
+        v.velocity = (float("nan"), 0.0, 0.0)
+        assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] is None

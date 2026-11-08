@@ -545,6 +545,18 @@ large vehicle view.
   adds the RC UAV's dots and numbers on the main map, whose own track line
   already shows (all UAVs' tracks stay there as on the map); with tracks
   hidden on the map the overlay draws the RC UAV's line itself.
+- Marks (owner 2026-11-09, from the research in `synthetic_view_marks.md`):
+  Synthetic also marks the UAV's dock (as its card shows it, highlighted, with
+  the distance), its zone's default delivery hub, and every other fleet UAV
+  with live telemetry (a dot in its zone colour and its name;
+  `map/utils/sceneMarks.js`, `utils/syntheticScene.js`). A flight path marker
+  (ring with wings) shows where the UAV is going: its measured ground velocity
+  (`velocity_ned` in the snapshot, display only) smoothed over
+  `FPM_SMOOTHING_S` and projected `FPM_PROJECTION_M` ahead
+  (`map/utils/flightPathMarker.js`); none below `MIN_ETE_SPEED_MPS`, off the
+  picture or behind the camera. While the window's "View held" row shows, the
+  picture greys out and the marker hides, so a held picture never passes for a
+  live one.
 - Pose: the same interpolated position and orientation the map's UAV model
   uses (copies through a narrow source ref from `CesiumMap`, wired like the
   map camera ref), through today's first-person math moved into one pure helper
