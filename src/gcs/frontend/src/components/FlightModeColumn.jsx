@@ -5,6 +5,7 @@ import { PICKER_MODES } from '../utils/flightModes';
 import { getArmAction, LONG_PRESS_MS } from '../utils/armAction';
 import { RC_RAISED_Z_INDEX } from '../utils/appLayout';
 import useLongPress from '../hooks/useLongPress';
+import useConfirm from '../hooks/useConfirm';
 
 /** Arm button border/text color when disarmed. Red when prearm fails, green otherwise. */
 export const armBtnColor = (prearmOk) =>
@@ -99,6 +100,7 @@ export const formatPrearmWarning = (warning, t) => {
  */
 export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmSeverity, prearmWarnings, altRel, sysId, onSetMode, onArmDisarm, onToggleManualControl, listRaised = false, paneHeight, onHeight }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   // The UAV and mode the list was opened over; it shows, and takes a pick, only
   // while both still hold, so a pick can never go to another UAV or over a mode
   // the operator did not see.
@@ -141,18 +143,20 @@ export default function FlightModeColumn({ currentMode, armed, prearmOk, prearmS
 
   const { requiresLongPress, hint, force } = getArmAction({ armed, prearmSeverity, altRel });
 
-  const longPressComplete = useCallback(() => {
+  // The action is fixed when the hold completes: the dialog asks about that
+  // action, and Confirm sends that one (the page keeps running meanwhile).
+  const longPressComplete = useCallback(async () => {
     if (!hasPoi) return;
     const msg = armed
       ? t('flightMode.forceDisarm', { sysId })
       : (force ? t('flightMode.forceArm', { sysId }) : t('flightMode.armVehicle', { sysId }));
-    if (!window.confirm(msg)) return;
+    if (!(await confirm(msg))) return;
     if (armed) {
       onArmDisarm(sysId, false, { force: true });
     } else {
       onArmDisarm(sysId, true, force ? { force: true } : undefined);
     }
-  }, [hasPoi, armed, sysId, force, onArmDisarm, t]);
+  }, [hasPoi, armed, sysId, force, onArmDisarm, t, confirm]);
 
   const { handlers, progress } = useLongPress({
     onComplete: longPressComplete,

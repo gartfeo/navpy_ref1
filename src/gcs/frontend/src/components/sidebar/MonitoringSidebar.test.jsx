@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { render, act, fireEvent, within } from '@testing-library/react';
 import MonitoringSidebar from './MonitoringSidebar';
 import { LONG_PRESS_MS } from '../../utils/armAction';
+import { confirmStub } from '../../test/confirmStub';
 
 // The handheld footer (docs/design/gcs_handheld_layout.md): the phase's action
 // renders into the slot App places in the list's scrolling part, so it stays in
@@ -241,22 +242,18 @@ describe('MonitoringSidebar bungee START MISSION: hold, then confirm', () => {
     expect(onRestart).not.toHaveBeenCalled();
   });
 
-  it('not ready: the force override is unchanged (hold, browser confirm, force start)', async () => {
+  it('not ready: the force override is unchanged (hold, in-page confirm, force start)', async () => {
     readiness.current = { ready: false, issues: ['low battery'], advisories: [] };
     const onRestart = vi.fn(async () => {});
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    try {
-      const view = render(<Host onRestart={onRestart} />);
-      const button = inSlot(view).getByRole('button', { name: 'monitor.startMission' });
-      fireEvent.click(button);
-      expect(onRestart).not.toHaveBeenCalled();
-      await act(async () => { hold(button); });
-      expect(confirm).toHaveBeenCalledWith('monitor.forceStartConfirm');
-      expect(goButton(view)).toBeNull();
-      expect(onRestart).toHaveBeenCalledWith([7], { force: true, pitotCovered: false });
-    } finally {
-      confirm.mockRestore();
-    }
+    const { confirm, wrapper } = confirmStub(true);
+    const view = render(<Host onRestart={onRestart} />, { wrapper });
+    const button = inSlot(view).getByRole('button', { name: 'monitor.startMission' });
+    fireEvent.click(button);
+    expect(onRestart).not.toHaveBeenCalled();
+    await act(async () => { hold(button); });
+    expect(confirm).toHaveBeenCalledWith('monitor.forceStartConfirm');
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).toHaveBeenCalledWith([7], { force: true, pitotCovered: false });
   });
 });
 

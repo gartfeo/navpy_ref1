@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import useVehicleCommands from './useVehicleCommands';
+import { confirmStub } from '../test/confirmStub';
 
 function setup(confirmBeforeStart) {
   const api = {
@@ -43,5 +44,32 @@ describe('camera check before a mission starts', () => {
     expect(api.restartMission).toHaveBeenCalledWith([1], undefined);
     expect(deps.setLaunchStates).toHaveBeenCalledWith({});
     expect(deps.taskConfirmReset).toHaveBeenCalledOnce();
+  });
+});
+
+describe('set mode on all vehicles', () => {
+  // Asked in-page (todo 233), never with the browser's blocking confirm.
+  const run = async (answer) => {
+    const native = vi.spyOn(window, 'confirm');
+    const api = { sendCommand: vi.fn() };
+    const { confirm, wrapper } = confirmStub(answer);
+    const { result } = renderHook(() => useVehicleCommands({
+      api, vehicleList: [{ sys_id: 1 }, { sys_id: 2 }],
+      taskConfirmReset: vi.fn(), taskAssignReset: vi.fn(), setLaunchStates: vi.fn(),
+    }), { wrapper });
+    await act(async () => { await result.current.handleSetModeAll('RTL'); });
+    expect(native).not.toHaveBeenCalled();
+    return { api, confirm };
+  };
+
+  it('sends the mode to every vehicle after Confirm', async () => {
+    const { api, confirm } = await run(true);
+    expect(confirm).toHaveBeenCalledWith('Set ALL vehicles to RTL?');
+    expect(api.sendCommand).toHaveBeenCalledWith('set_mode', [1, 2], { mode: 'RTL' });
+  });
+
+  it('sends nothing after Cancel', async () => {
+    const { api } = await run(false);
+    expect(api.sendCommand).not.toHaveBeenCalled();
   });
 });

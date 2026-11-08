@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import useConfirm from './useConfirm';
 
 /**
  * Vehicle command callbacks: estop, set mode, arm/disarm, launch, trigger,
@@ -16,6 +17,7 @@ export default function useVehicleCommands({
   resumeHistory,
   confirmBeforeStart,
 }) {
+  const confirm = useConfirm();
   const [trackResetKey, setTrackResetKey] = useState(0);
   const [historyResetKey, setHistoryResetKey] = useState(0);
 
@@ -29,12 +31,12 @@ export default function useVehicleCommands({
     api.sendCommand('set_mode', [sysId], { mode });
   }, [api.sendCommand]);
 
-  const handleSetModeAll = useCallback((mode) => {
+  const handleSetModeAll = useCallback(async (mode) => {
     const ids = vehicleList.map(v => v.sys_id);
     if (ids.length === 0) return;
-    if (!window.confirm(`Set ALL vehicles to ${mode}?`)) return;
+    if (!(await confirm(`Set ALL vehicles to ${mode}?`))) return;
     api.sendCommand('set_mode', ids, { mode });
-  }, [api.sendCommand, vehicleList]);
+  }, [api.sendCommand, vehicleList, confirm]);
 
   const handleArmDisarm = useCallback((sysId, shouldArm, opts) => {
     const cmd = shouldArm

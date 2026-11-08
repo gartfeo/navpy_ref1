@@ -2,6 +2,7 @@ import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
 import { ForceStartButton } from './LaunchControls';
 import { LONG_PRESS_MS } from '../../utils/armAction';
+import { confirmStub } from '../../test/confirmStub';
 
 // ForceStartButton drives the real useLongPress; fake the clock primitives it
 // relies on so a completed hold is deterministic. The setup file restores real
@@ -11,7 +12,9 @@ beforeEach(() => {
 });
 
 const advance = (ms) => act(() => { vi.advanceTimersByTime(ms); });
-const renderBtn = (props) => render(<ForceStartButton label="START" disabled={false} {...props} />);
+const renderBtn = (props, wrapper) => render(<ForceStartButton label="START" disabled={false} {...props} />, { wrapper });
+// The in-page confirm answers asynchronously: let its promise settle.
+const settle = () => act(async () => {});
 
 describe('ForceStartButton — armReady false', () => {
   // #4 — without armReady the button is a plain single-click start.
@@ -52,21 +55,22 @@ describe('ForceStartButton — not-ready force path', () => {
   // #3 — a single click is inert; no confirm, no launch.
   it('does not confirm or launch on a single click', () => {
     const onStart = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { getByRole } = renderBtn({ ready: false, onStart });
+    const { confirm: confirmSpy, wrapper } = confirmStub(true);
+    const { getByRole } = renderBtn({ ready: false, onStart }, wrapper);
     fireEvent.click(getByRole('button'));
     expect(confirmSpy).not.toHaveBeenCalled();
     expect(onStart).not.toHaveBeenCalled();
   });
 
-  // #3 — a completed hold prompts window.confirm; accepting force-launches once.
-  it('force-launches once after a completed hold when confirm is accepted', () => {
+  // #3 — a completed hold asks the in-page confirm; accepting force-launches once.
+  it('force-launches once after a completed hold when confirm is accepted', async () => {
     const onStart = vi.fn();
     const onArm = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { getByRole } = renderBtn({ ready: false, onStart, onArm });
+    const { confirm: confirmSpy, wrapper } = confirmStub(true);
+    const { getByRole } = renderBtn({ ready: false, onStart, onArm }, wrapper);
     fireEvent.mouseDown(getByRole('button'));
     advance(LONG_PRESS_MS + 32);
+    await settle();
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledWith({ force: true });
@@ -74,12 +78,13 @@ describe('ForceStartButton — not-ready force path', () => {
   });
 
   // #3 — declining the confirm cancels the launch.
-  it('does not launch when confirm is declined', () => {
+  it('does not launch when confirm is declined', async () => {
     const onStart = vi.fn();
-    const confirmSpy = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { getByRole } = renderBtn({ ready: false, onStart });
+    const { confirm: confirmSpy, wrapper } = confirmStub(false);
+    const { getByRole } = renderBtn({ ready: false, onStart }, wrapper);
     fireEvent.mouseDown(getByRole('button'));
     advance(LONG_PRESS_MS + 32);
+    await settle();
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(onStart).not.toHaveBeenCalled();
   });

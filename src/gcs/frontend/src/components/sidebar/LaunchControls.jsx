@@ -3,13 +3,15 @@ import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import { LONG_PRESS_MS } from '../../utils/armAction';
 import useLongPress from '../../hooks/useLongPress';
+import useConfirm from '../../hooks/useConfirm';
 import { resolveStartButtonMode } from '../../utils/startButtonMode';
 
 export function ForceLaunchButton({ sysId, busy, ready, onLaunch }) {
   const { t } = useTranslation();
-  const handleForce = useCallback(() => {
-    if (window.confirm(t('launch.forceLaunchConfirm', { sysId }))) onLaunch(sysId, { force: true });
-  }, [sysId, onLaunch, t]);
+  const confirm = useConfirm();
+  const handleForce = useCallback(async () => {
+    if (await confirm(t('launch.forceLaunchConfirm', { sysId }))) onLaunch(sysId, { force: true });
+  }, [sysId, onLaunch, t, confirm]);
 
   const { handlers, progress } = useLongPress({
     onComplete: handleForce,
@@ -122,6 +124,7 @@ export function LauncherStatus({ connected, checking, onRetry, simulatorRunning,
 
 export function ForceStartButton({ label, busyLabel, armLabel, ready, disabled, onStart, onArm, armReady = false, large }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const onStartRef = useRef(onStart);
   onStartRef.current = onStart;
   const onArmRef = useRef(onArm);
@@ -132,15 +135,15 @@ export function ForceStartButton({ label, busyLabel, armLabel, ready, disabled, 
   // physical container launch can never start on a single stray click.
   const mode = resolveStartButtonMode({ armReady, ready, disabled });
 
-  const handleComplete = useCallback(() => {
+  const handleComplete = useCallback(async () => {
     if (mode.holdMode === 'arm') {
       // Ready + hold-to-arm: request confirmation, never launch directly.
       onArmRef.current?.();
     } else if (mode.holdMode === 'force') {
       // Not-ready force path: explicit confirm, then force-launch.
-      if (window.confirm(t('monitor.forceStartConfirm'))) onStartRef.current?.({ force: true });
+      if (await confirm(t('monitor.forceStartConfirm'))) onStartRef.current?.({ force: true });
     }
-  }, [mode.holdMode, t]);
+  }, [mode.holdMode, t, confirm]);
 
   const { handlers, progress } = useLongPress({
     onComplete: handleComplete,

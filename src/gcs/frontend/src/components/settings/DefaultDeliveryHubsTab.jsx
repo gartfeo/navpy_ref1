@@ -1,5 +1,6 @@
 import React, { useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import useConfirm from '../../hooks/useConfirm';
 import { colors } from '../../styles';
 import { SettingsSection } from './SettingsField.jsx';
 import { DELIVERY_HUB_TYPES } from '../map/constants/deliveryHubIcons.js';
@@ -28,6 +29,7 @@ const cellInputStyle = {
 
 export default function DefaultDeliveryHubsTab({ draft, setDraft, onStartPlacing }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const deliveryHubs = draft.default_delivery_hubs || [];
   const fileRef = useRef(null);
 
@@ -132,7 +134,7 @@ export default function DefaultDeliveryHubsTab({ draft, setDraft, onStartPlacing
           />
           {deliveryHubs.length > 0 && (
             <button
-              onClick={() => { if (window.confirm(t('defaultDeliveryHubsTab.clearConfirm'))) setDeliveryHubs([]); }}
+              onClick={async () => { if (await confirm(t('defaultDeliveryHubsTab.clearConfirm'))) setDeliveryHubs([]); }}
               style={{
                 padding: '4px 12px', fontSize: 12, marginLeft: 'auto',
                 background: 'transparent', border: `1px solid ${colors.border}`,

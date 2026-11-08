@@ -5,6 +5,7 @@ import {
   cameraCheckUnavailable, cameraCheckZonesForPlan, confirmCameraCheck, hasCheckableDocks,
 } from '../utils/planCameraCheck';
 import { zoneLabel } from '../components/sidebar/DeliveryHubAssignmentSection';
+import useConfirm from './useConfirm';
 
 // Typing pause before the planning panel re-checks (one request per edit burst).
 const RECHECK_DEBOUNCE_MS = 400;
@@ -69,6 +70,7 @@ export function usePlanCameraGate({
   enabled, plan, corridorPointsArr, searchPattern, vehicleList, vehicleTargWps, vehicleNavLastWp, getAas, check,
 }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const stateRef = useRef(null);
   stateRef.current = {
     enabled, plan, corridorPointsArr, searchPattern, vehicleList, vehicleTargWps, vehicleNavLastWp, getAas, check,
@@ -82,7 +84,7 @@ export function usePlanCameraGate({
       getAas: s.getAas,
     });
     return confirmCameraCheck({
-      zones, check: s.check, t, zoneName: (i) => zoneLabel(s.plan.zones, i),
+      zones, check: s.check, t, confirm, zoneName: (i) => zoneLabel(s.plan.zones, i),
     });
-  }, [t]);
+  }, [t, confirm]);
 }
