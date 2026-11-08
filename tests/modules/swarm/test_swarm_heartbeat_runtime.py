@@ -2,6 +2,7 @@ import threading
 import unittest
 from unittest.mock import Mock, patch
 
+from navpy.core.kernel.restart_budget import RestartBudget
 from navpy.core.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.core.swarm.swarm_presence import SwarmPresence
 
@@ -182,6 +183,106 @@ class SwarmHeartbeatRuntimeTest(unittest.TestCase):
             runtime.raise_if_failed()
             self.assertTrue(runtime.is_started())
             runtime.stop()
+
+
+class _Clock:
+    def __init__(self):
+        self.now = 0.0
+
+    def __call__(self):
+        return self.now
+
+
+class SwarmHeartbeatRestartTest(unittest.TestCase):
+    """Recovery step 5c: a failed generation restarts fresh, within its tries (docs/design/navpy_recovery.md)."""
+
+    def setUp(self):
+        patcher = patch("navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S", 0.0)
+        patcher.start()
+        self.addCleanup(patcher.stop)
+        self.clock = _Clock()
+        self.reports = []
+        self.presence = Mock(spec=SwarmPresence)
+        self.runtime = SwarmHeartbeatRuntime(
+            self.presence, self.reports.append, RestartBudget(clock=self.clock),
+        )
+        self.addCleanup(self.runtime.stop)
+
+    def _fail_once(self, failure):
+        """The running generation dies on its next heartbeat; wait until it has left."""
+        failed = threading.Event()
+
+        def fail():
+            failed.set()
+            raise failure
+
+        self.presence.heartbeat.side_effect = fail
+        self.assertTrue(failed.wait(1.0))
+        thread = self.runtime.heartbeat_thread()
+        thread.join(1.0)
+        self.assertFalse(thread.is_alive())
+        self.presence.heartbeat.side_effect = None
+        return thread
+
+    def test_failed_generation_restarts_fresh_and_heartbeats_again(self):
+        self.runtime.start()
+        failure = RuntimeError("send failed")
+        old = self._fail_once(failure)
+
+        self.runtime.raise_if_failed()      # first try is immediate: no raise
+
+        self.assertTrue(self.runtime.is_started())
+        self.assertIsNot(self.runtime.heartbeat_thread(), old)
+        beat = threading.Event()
+        self.presence.heartbeat.side_effect = lambda: beat.set()
+        self.assertTrue(beat.wait(1.0))
+        self.runtime.raise_if_failed()
+        self.assertEqual(len(self.reports), 1)
+        self.assertIn("restarted (try 1)", self.reports[0])
+        self.assertIn("send failed", self.reports[0])
+
+    def test_tries_back_off_then_the_failure_reaches_the_health_check(self):
+        self.runtime.start()
+        for try_number, wait_s in ((1, 0.0), (2, 1.0), (3, 4.0)):
+            self._fail_once(RuntimeError(f"failure {try_number}"))
+            self.clock.now += wait_s - 0.01 if wait_s else 0.0
+            if wait_s:
+                self.runtime.raise_if_failed()       # back-off not over: waits quietly
+                self.assertFalse(self.runtime.is_started())
+                self.clock.now += 0.01
+            self.runtime.raise_if_failed()
+            self.assertTrue(self.runtime.is_started())
+        last = RuntimeError("failure 4")
+        self._fail_once(last)                        # at once again: tries used up
+        with self.assertRaises(RuntimeError) as raised:
+            self.runtime.raise_if_failed()
+        self.assertIs(raised.exception, last)
+
+    def test_a_generation_that_ran_stably_gets_every_try_again(self):
+        self.runtime.start()
+        for _ in range(5):
+            self._fail_once(RuntimeError("rare"))
+            self.runtime.raise_if_failed()
+            self.assertTrue(self.runtime.is_started())
+            self.clock.now += 30.0
+
+    def test_no_restart_after_the_owner_stopped_it(self):
+        self.runtime.start()
+        failure = RuntimeError("send failed")
+        self._fail_once(failure)
+        self.runtime.stop()
+        with self.assertRaises(RuntimeError) as raised:
+            self.runtime.raise_if_failed()
+        self.assertIs(raised.exception, failure)
+        self.assertEqual(self.reports, [])
+
+    def test_base_exception_is_not_restarted(self):
+        self.runtime.start()
+        failure = KeyboardInterrupt()
+        self._fail_once(failure)
+        with self.assertRaises(KeyboardInterrupt):
+            self.runtime.raise_if_failed()
+        self.assertFalse(self.runtime.is_started())
 
 
 if __name__ == "__main__":

@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
 from navpy.core.link.location_msg import LocationMsgData
@@ -57,7 +58,10 @@ class SwarmPresence:
         self._node_state = node_state
         self._peers = peers
         self._logger = logger
-        self._heartbeat = SwarmHeartbeatRuntime(self)
+        # A failed heartbeat generation restarts fresh (recovery step 5c); the operator is told.
+        self._heartbeat = SwarmHeartbeatRuntime(
+            self, lambda message: logger.warning(message, key="swarm", dest=LogStatusDest.DRONE),
+        )
 
     def start(self) -> None:
         if not self._heartbeat.start():

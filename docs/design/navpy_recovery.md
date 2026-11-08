@@ -323,6 +323,29 @@ merges before step 4, which builds on its deadline fix.
    not shown within 3 s (`MODE_CONFIRM_S`). The main thread latches the fence
    closed (`MavCommandFence.latch_closed`), so NAV's resume racing the
    escalation cannot reopen it.
+   Steps 5b-5c as built: restarts share one budget
+   (`core/kernel/restart_budget.py`): three tries, the first at once (short
+   outages recover promptly), then after 1 s and 4 s; an instance that ran
+   30 s without failing earns every try back. The health check (main thread)
+   drives them, and only a part that cannot be restarted raises, which is
+   step 5a's escalation. Step 5b: each mount's detector sits behind a stable
+   proxy (`app/perception/restarting_detector.py`); a failed instance is
+   stopped, must be quiet, and is replaced by a fresh one from the same
+   factory (the real detector owns the camera capture, so this restarts the
+   capture too; the integration-timing input goes again to the same mount).
+   An instance that is not quiet escalates at once. The restart replays no
+   tracking, geo or zoom command: object ids were the old instance's and its
+   event lease closes, so the approach's own checks (closed source, lost POI,
+   freshness) end an approach as for lost frames, and search detects again.
+   The camera row reads not ready while a restart is pending. Step 5c: a
+   failed swarm heartbeat generation is restarted fresh instead of its
+   failure being kept for good (`SwarmHeartbeatRuntime.raise_if_failed`);
+   after the owner's stop, or for a BaseException, the failure still stands.
+   Restarts are reported to the operator (status text). The companion
+   heartbeat to the autopilot (`plugins/vehicle/ardupilot/heartbeat_runtime.py`)
+   no longer dies on a failed send: the next period is the retry, the first
+   failure and the recovery are logged, and sends that keep failing are the
+   Lua watchdog's case (step 7), since the autopilot then sees no NavPy.
 6. **In-process watchdog.** A thread that watches loop and command-worker
    progress counters; on a hang it closes the fence and requests LOITER under
    the ownership rule through a bounded sender. Tests: a hung cycle and a hung
