@@ -374,11 +374,17 @@ merges before step 4, which builds on its deadline fix.
    - Detection. The NAV loop's cycle and recovery step, and each whole
      command-worker pass (`command_pass`, deadline to next wait), mark
      themselves busy on a progress beacon (`core/kernel/progress_beacon.py`).
-     A pass busy for `NAV_HANG_S` (1.5 s) of wall time beyond the waits it
-     declared bounded (`bounded_wait`: every reply wait of the vehicle link,
-     so a parameter exchange's 3 x 2 s) is stuck. A hang is the software's
-     liveness, so it is wall time; the flight timers it leads to stay
-     recovery's aircraft time (owner ruling Q1).
+     A pass busy for `NAV_HANG_S` (1.5 s) beyond the waits it declared
+     bounded (`bounded_wait`: every reply wait of the vehicle link, so a
+     parameter exchange's 3 x 2 s) is stuck. The hang is measured in aircraft
+     time, like the flight timers it leads to (owner ruling Q1, and on Codex
+     round-2 finding 7): at a sim speed-up it trips at the same aircraft time,
+     not that many times later. Wall time is only the backstop while aircraft
+     time is frozen, no new ATTITUDE time for `AIRCRAFT_TIME_STALE_S` (0.5 s),
+     counted from the last sample, so a stalled link or a frozen SITL still
+     trips (`HangClock`, `nav_recovery_clock.py`). The declared waits are
+     wall-time bounds and count on the same clock, so at speed-up k a wait of
+     W s allows only W/k s of wall time.
    - While stuck: the watchdog holds the fence closed
      (`MavCommandFence.hold_closed`, one lock with reopening), so no reopen
      opens it, even one recovery decided before the hang was seen; recovery

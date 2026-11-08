@@ -18,6 +18,7 @@ from navpy.core.flow.nav_recovery import NAV_HOLD_RECOVERY_S, NAV_HOLD_TRIGGER_S
 from navpy.core.flow.nav_recovery_clock import TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold, WatchdogSignal
 from navpy.core.flow.nav_recovery_step import SharedRecoveryStep
+from navpy.core.flow.nav_recovery_clock import AIRCRAFT_TIME_STALE_S, HangClock
 from navpy.core.flow.nav_watchdog import NAV_HANG_S, NavWatchdog, NavWatchdogPorts
 from navpy.core.kernel.progress_beacon import ProgressBeacon, bounded_wait
 from navpy.core.ports.flight_mode import FlightMode
@@ -26,8 +27,9 @@ from tests.modules.nav.test_nav_recovery import HEARTBEAT_PERIODS, PERIOD_S, Fak
 
 
 class WatchdogRig:
-    """NAV recovery and the watchdog on one vehicle, wired as nav_watchdog_composition wires them; one clock for
-    wall and aircraft time (speed-up 1). NAV owns GUIDED at the start unless ``owned`` is False."""
+    """NAV recovery and the watchdog on one vehicle, wired as nav_watchdog_composition wires them. Wall time ``t``;
+    aircraft time ``aircraft`` advances ``speedup`` times as fast (1 unless set), or not at all while ``frozen``.
+    NAV owns GUIDED at the start unless ``owned`` is False."""
 
     def __init__(
         self, autopilot: FakeAutopilot | None = None, *, owned: bool = True, request_mode=None,
@@ -48,10 +50,11 @@ class WatchdogRig:
         )
         self.shared = SharedRecoveryStep(self.recovery)
         self.t, self.periods = 100.0, 0
+        self.aircraft, self.speedup, self.frozen = 50.0, 1.0, False
         self.watchdog = NavWatchdog(NavWatchdogPorts(
             nav_progress=self.nav_beacon, command_progress=self.worker_beacon, signal=self.signal,
             hold_fence=self.fence.hold_closed, step_recovery=self.shared.step, sample=self.sample,
-            report=self.reports.append, wall_s=lambda: self.t,
+            report=self.reports.append,
         ))
         if owned:
             self.hold.guided_requested()
@@ -60,11 +63,13 @@ class WatchdogRig:
             self.ap.requests.clear()
 
     def sample(self) -> TimeSample:
-        return TimeSample(aircraft_s=self.t, wall_s=self.t)
+        return TimeSample(aircraft_s=self.aircraft, wall_s=self.t)
 
     def run(self, seconds: float, *, nav_runs: bool = True, cycle_ok: bool = True) -> None:
         for _ in range(round(seconds / PERIOD_S)):
             self.t += PERIOD_S
+            if not self.frozen:
+                self.aircraft += PERIOD_S * self.speedup
             self.periods += 1
             if self.periods % HEARTBEAT_PERIODS == 0:
                 self.ap.heartbeat()
@@ -337,8 +342,7 @@ def test_the_watchdog_thread_starts_checks_and_stops():
     checks = threading.Event()
     watchdog = NavWatchdog(NavWatchdogPorts(
         nav_progress=ProgressBeacon(), command_progress=ProgressBeacon(), signal=WatchdogSignal(),
-        hold_fence=Mock(), step_recovery=None, sample=Mock(), report=Mock(),
-        wall_s=lambda: checks.set() or 0.0,
+        hold_fence=Mock(), step_recovery=None, sample=lambda: checks.set() or TimeSample(0.0, 0.0), report=Mock(),
     ))
     watchdog.start()
     try:
@@ -530,3 +534,64 @@ def test_round2_finding6_a_step_reads_its_time_after_the_other_thread_s_step():
     nav.join(2.0)
     samples = [c.args[1].aircraft_s for c in recovery.step.call_args_list]
     assert samples == [100.0, 110.0]
+
+
+# --- Owner ruling on round-2 finding 7: the hang is measured in aircraft time --------------------------------------
+
+
+def test_finding7_at_sim_speedup_10_the_hang_trips_at_the_aircraft_time_threshold():
+    """Aircraft time 10x wall time: stuck for NAV_HANG_S of aircraft time is a hang, after a tenth of it in wall
+    time, not ten times later."""
+    rig = WatchdogRig()
+    rig.speedup = 10.0
+    with rig.nav_beacon.busy():
+        aircraft_at_start = rig.aircraft
+        while not rig.signal.hung:
+            rig.run(PERIOD_S, nav_runs=False)
+            assert rig.aircraft - aircraft_at_start <= NAV_HANG_S + 2 * PERIOD_S * rig.speedup
+        assert rig.aircraft - aircraft_at_start >= NAV_HANG_S
+    assert rig.ap.requests == [FlightMode.LOITER]
+
+
+def test_finding7_with_aircraft_time_frozen_the_wall_time_backstop_trips():
+    """A stalled link or a frozen SITL: no new aircraft time, so NAV_HANG_S of wall time trips the hang."""
+    rig = WatchdogRig()
+    rig.frozen = True
+    with rig.nav_beacon.busy():
+        rig.run(NAV_HANG_S - 2 * PERIOD_S, nav_runs=False)
+        assert not rig.signal.hung
+        rig.run(3 * PERIOD_S, nav_runs=False)
+        assert rig.signal.hung
+    assert not rig.fence.is_open
+
+
+def test_finding7_wall_time_does_not_trip_a_hang_while_aircraft_time_runs_slower():
+    """Aircraft time at half wall speed and fresh: NAV_HANG_S of wall time is not yet a hang, NAV_HANG_S of
+    aircraft time is. Wall time counts only while aircraft time is frozen."""
+    rig = WatchdogRig()
+    rig.speedup = 0.5
+    with rig.nav_beacon.busy():
+        rig.run(NAV_HANG_S + 0.5, nav_runs=False)
+        assert not rig.signal.hung
+        rig.run(NAV_HANG_S, nav_runs=False)
+        assert rig.signal.hung
+
+
+def test_hang_clock_counts_a_frozen_stretch_once():
+    clock = HangClock()
+    assert clock.advance(TimeSample(10.0, 0.0)) == 0.0
+    assert clock.advance(TimeSample(15.0, 0.5)) == 5.0                        # fresh: aircraft time (10x)
+    assert clock.advance(TimeSample(15.0, 0.5 + AIRCRAFT_TIME_STALE_S / 2)) == 5.0   # not yet frozen
+    assert clock.advance(TimeSample(15.0, 2.5)) == 7.0                        # frozen: wall since the last sample
+    assert clock.advance(TimeSample(15.0, 3.0)) == 7.5
+    assert clock.advance(TimeSample(45.0, 3.1)) == 7.5                        # moves again: re-anchors, no jump
+    assert clock.advance(TimeSample(46.0, 3.2)) == 8.5
+    assert clock.advance(TimeSample(1.0, 3.3)) == 8.5                         # autopilot reboot: never back
+    assert clock.advance(TimeSample(2.0, 3.4)) == 9.5
+
+
+def test_hang_clock_without_aircraft_time_runs_on_wall_time():
+    clock = HangClock()
+    clock.advance(TimeSample(None, 0.0))
+    assert clock.advance(TimeSample(None, AIRCRAFT_TIME_STALE_S / 2)) == 0.0
+    assert clock.advance(TimeSample(None, 2.0)) == 2.0

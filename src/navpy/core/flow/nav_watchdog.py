@@ -1,9 +1,10 @@
 """In-process watchdog for a stuck NAV loop or command worker (docs/design/navpy_recovery.md, step 6).
 
 A thread of its own reads the two loops' progress beacons (core/kernel/progress_beacon.py). A pass that stays busy
-for NAV_HANG_S of wall time, beyond the bounded waits it declared (a parameter reply, a mission transfer), is stuck.
-A hang is the software's liveness, so it is measured in wall time; the flight timers it leads to (the hold's 30 s,
-mode confirmation) are NAV recovery's, in aircraft time.
+for NAV_HANG_S, beyond the bounded waits it declared (a parameter reply, a mission transfer), is stuck. It is
+measured in aircraft time, like the flight timers it leads to (owner ruling): at a sim speed-up it trips at the same
+aircraft time. Wall time is only the backstop while aircraft time is frozen (HangClock), so a stalled link or a
+frozen SITL still trips.
 
 While a loop is stuck the watchdog:
 - holds the command fence closed (MavCommandFence.hold_closed, the fence lock only, so a stuck sender cannot
@@ -22,15 +23,15 @@ from __future__ import annotations
 from collections.abc import Callable
 from dataclasses import dataclass
 
-from navpy.core.flow.nav_recovery_clock import TimeSample
+from navpy.core.flow.nav_recovery_clock import HangClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import WatchdogSignal
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.progress_beacon import ProgressBeacon
 
-#: A pass busy this long in wall time, beyond its declared bounded waits, is stuck. NAV's period is 20 ms and its
+#: A pass busy this long (HangClock: aircraft time, wall time while it is frozen), beyond its declared bounded waits, is stuck. NAV's period is 20 ms and its
 #: cycle has no other wait; the hold trigger's 1.5 s (ArduPlane's FS_SHORT_TIMEOUT) leaves room for a slow cycle.
 NAV_HANG_S = 1.5
-#: Wall time between checks: 30 within NAV_HANG_S.
+#: Wall time between checks: 30 within NAV_HANG_S at speed-up 1.
 NAV_WATCHDOG_TICK_S = 0.05
 #: How long the watchdog waits for recovery's lock to step in the stuck NAV loop's place: a step never blocks (its
 #: mode writes are the mode sender's), so a second is ample; one not taken is reported, and tried next check.
@@ -63,10 +64,9 @@ class NavWatchdogPorts:
     hold_fence: Callable[[bool], object]
     #: NAV recovery's step (NavRecovery.step): (cycle_ok, sample, lock_timeout_s) -> stepped; None without recovery.
     step_recovery: Callable[..., bool] | None
-    #: Recovery's time sample (aircraft and wall time), as the NAV loop takes it.
+    #: Recovery's time sample (aircraft and wall time), as the NAV loop takes it; also the hang clock's.
     sample: Callable[[], TimeSample]
     report: Callable[[str], None]
-    wall_s: Callable[[], float] = rt.monotonic
 
 
 class NavWatchdog:
@@ -76,13 +76,14 @@ class NavWatchdog:
         self._ports = ports
         self._nav = _HangTracker(ports.nav_progress)
         self._worker = _HangTracker(ports.command_progress)
+        self._clock = HangClock()
         self._stuck: str | None = None      # what is reported stuck now
         self._step_missed = False
         self._stop = rt.Event()
         self._thread: rt.Thread | None = None
 
     def check(self) -> None:
-        now = self._ports.wall_s()
+        now = self._clock.advance(self._ports.sample())
         nav_hung = self._nav.hung(now)
         worker_hung = self._worker.hung(now)
         stuck = "NAV loop" if nav_hung else "command worker" if worker_hung else None
