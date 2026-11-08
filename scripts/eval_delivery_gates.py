@@ -20,6 +20,7 @@ from pathlib import Path
 from typing import cast
 
 from navpy.sim.world.fleet_dock_world import DockSpec, parse_fleet_docks
+from scripts.eval_gcs_demo_recovery import ASSIGNMENT_EVIDENCE_ERROR, DELIVERY_EVIDENCE_ERROR
 from scripts.eval_delivery_checks import (
     assignment_errors,
     home_errors,
@@ -73,7 +74,7 @@ def delivery_assignment_evidence(log_dir: Path, plan: DemoMissionPlan) -> Assign
     try:
         lines = _backend_lines(log_dir)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
-        return AssignmentEvidence({}, [f"invalid global assignment evidence: {error}"], False)
+        return AssignmentEvidence({}, [f"{ASSIGNMENT_EVIDENCE_ERROR}: {error}"], False)
     return AssignmentEvidence({ack.helper: ack.task for ack in lines.acks}, [], True)
 
 
@@ -216,7 +217,7 @@ def delivery_run_gate_errors(
         roles = resolve_roles(evidence.sys_ids, evidence.expected, applied)
         return delivery_errors(evidence, roles, approvals)
     except (OSError, UnicodeError, KeyError, TypeError, ValueError) as error:
-        return [f"delivery: invalid evidence: {error}"]
+        return [f"{DELIVERY_EVIDENCE_ERROR}: {error}"]
 
 
 __all__ = [

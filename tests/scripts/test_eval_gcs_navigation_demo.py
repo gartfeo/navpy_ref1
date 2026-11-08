@@ -18,7 +18,9 @@ from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenari
 
 CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
 #: A NavPy recovery journal with nothing recovered (navpy_recovery.md, step 8).
-RECOVERY_JOURNAL_OPENED = '{"event": "open", "t": 0.0}\n'
+RECOVERY_JOURNAL_OPEN = '{"event": "open", "t": 0.0}\n'
+RECOVERY_JOURNAL_CLOSED = '{"event": "close", "t": 9.0, "recorded": 0, "dropped": 0}\n'
+RECOVERY_JOURNAL_OPENED = RECOVERY_JOURNAL_OPEN + RECOVERY_JOURNAL_CLOSED
 
 
 def _clock(index: int, step_s: float) -> str:

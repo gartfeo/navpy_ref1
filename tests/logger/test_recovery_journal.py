@@ -1,13 +1,15 @@
 """NavPy's recovery journal (navpy_recovery.md, step 8): every recovery report is counted and written apart from
-the evidence writer and the log worker."""
+the evidence writer and the log worker, and recording never blocks the recovery that reports."""
 from __future__ import annotations
 
 import json
 import logging
+import threading
 
 from navpy.core.kernel.config.logger_args import LoggerArgsStub
 from navpy.core.kernel.logging.logger_factory import LOG_DIR_ENV, initialize_logger
 from navpy.core.kernel.logging.recovery_journal import (
+    RECOVERY_JOURNAL_BACKLOG,
     RECOVERY_JOURNAL_FAILURE_MARKER,
     RecoveryJournal,
     recovery_journal_path,
@@ -19,7 +21,7 @@ def _lines(path) -> list[dict]:
     return [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
 
 
-def test_records_are_counted_and_appended_with_sequence_and_source(tmp_path):
+def test_records_are_counted_and_written_between_open_and_close(tmp_path):
     path = tmp_path / "uav_3_recovery.jsonl"
     failures: list[str] = []
     journal = RecoveryJournal(str(path), failures.append)
@@ -29,11 +31,12 @@ def test_records_are_counted_and_appended_with_sequence_and_source(tmp_path):
     journal.close()
     lines = _lines(path)
     assert lines[0]["event"] == "open"
-    assert [(e["seq"], e["source"], e["message"]) for e in lines[1:]] == [
+    assert [(e["seq"], e["source"], e["message"]) for e in lines[1:-1]] == [
         (1, "nav", "NavPy hold: commands fenced, LOITER"),
         (2, "vision", "Detector restarted"),
         (3, "nav", "NavPy healthy again: AUTO"),
     ]
+    assert (lines[-1]["event"], lines[-1]["recorded"], lines[-1]["dropped"]) == ("close", 3, 0)
     assert journal.counts == {"nav": 2, "vision": 1} and failures == []
 
 
@@ -46,7 +49,7 @@ def test_a_restarted_navpy_appends_to_its_predecessors_journal(tmp_path):
     second.record("nav", "NavPy healthy again: AUTO")
     second.close()
     assert [e.get("event") or e["message"] for e in _lines(path)] == [
-        "open", "NavPy hold: commands fenced", "open", "NavPy healthy again: AUTO",
+        "open", "NavPy hold: commands fenced", "close", "open", "NavPy healthy again: AUTO", "close",
     ]
 
 
@@ -55,38 +58,82 @@ def test_a_journal_that_cannot_open_reports_the_marker_once_and_records_on(tmp_p
     journal = RecoveryJournal(str(tmp_path / "missing_dir" / "uav_1_recovery.jsonl"), failures.append)
     journal.record("nav", "NavPy hold: commands fenced")
     journal.record("nav", "NavPy healthy again: AUTO")
+    journal.close()
     assert len(failures) == 1 and failures[0].startswith(RECOVERY_JOURNAL_FAILURE_MARKER)
     assert journal.counts == {"nav": 2}
 
 
 def test_a_failed_write_reports_the_marker_once(tmp_path):
     failures: list[str] = []
-    journal = RecoveryJournal(str(tmp_path / "uav_1_recovery.jsonl"), failures.append)
 
     class BrokenFile:
         def write(self, text):
             raise OSError("disk full")
 
+        def flush(self):
+            pass
+
         def close(self):
             pass
 
-    journal._file = BrokenFile()
+    journal = RecoveryJournal("unused", failures.append, open_file=lambda path: BrokenFile())
     journal.record("nav", "a")
     journal.record("nav", "b")
+    journal.close()
     assert len(failures) == 1 and "disk full" in failures[0]
 
 
-def test_navpy_s_logger_journals_a_recovery_before_its_log_worker_writes(tmp_path, monkeypatch):
-    """The report is in the journal as soon as ``recovery`` returns, whatever the log worker's queue holds."""
+def test_a_stalled_disk_never_blocks_the_recovery_that_reports(tmp_path):
+    """Codex review of step 8, finding 1: the writer is stuck in a flush; NAV entering its hold and the watchdog
+    reporting a stuck loop record at once, and what does not fit the backlog is counted as dropped."""
+    entered, release = threading.Event(), threading.Event()
+    written: list[str] = []
+
+    class StalledFile:
+        def write(self, text):
+            written.append(text)
+
+        def flush(self):
+            entered.set()
+            release.wait(10.0)              # a disk that does not answer
+
+        def close(self):
+            pass
+
+    journal = RecoveryJournal("unused", print, open_file=lambda path: StalledFile())
+    assert entered.wait(2.0)                # the writer is stuck on the open line
+    reported = threading.Event()
+    recorded = RECOVERY_JOURNAL_BACKLOG + 5
+
+    def report() -> None:
+        for index in range(recorded):
+            journal.record("nav", f"report {index}")
+        reported.set()
+
+    threading.Thread(target=report, daemon=True).start()
+    try:
+        assert reported.wait(1.0)          # never waited for the disk
+        assert journal.dropped == 5 and journal.counts == {"nav": recorded}
+    finally:
+        release.set()
+    journal.close()
+    close = json.loads(written[-1])
+    assert (close["event"], close["recorded"], close["dropped"]) == ("close", recorded, 5)
+    assert len(written) == 1 + RECOVERY_JOURNAL_BACKLOG + 1
+
+
+def test_navpy_s_logger_journals_a_recovery_and_closes_the_journal(tmp_path, monkeypatch):
     monkeypatch.setenv(LOG_DIR_ENV, str(tmp_path))
     logger = initialize_logger(LoggerArgsStub(), sys_id=4545, status_logger=None)
     try:
         logger.recovery("NavPy hold: commands fenced, LOITER", "nav")
-        path = tmp_path / "uav_4545_recovery.jsonl"
-        assert str(path) == recovery_journal_path(str(tmp_path), 4545)
-        assert [(e["source"], e["message"]) for e in _lines(path)[1:]] == [("nav", "NavPy hold: commands fenced, LOITER")]
     finally:
         with unbounded_worker_join():
             logger.close()
         for handler in logging.getLogger("vehicle_logger_4545").handlers:
             handler.close()
+    path = tmp_path / "uav_4545_recovery.jsonl"
+    assert str(path) == recovery_journal_path(str(tmp_path), 4545)
+    lines = _lines(path)
+    assert [(e["source"], e["message"]) for e in lines[1:-1]] == [("nav", "NavPy hold: commands fenced, LOITER")]
+    assert lines[-1]["event"] == "close" and lines[-1]["recorded"] == 1

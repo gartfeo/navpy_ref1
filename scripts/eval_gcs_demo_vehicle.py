@@ -204,7 +204,11 @@ def analyze_vehicle(
     if missing:
         absent = [f"missing {name}" for name in missing]
         return VehicleReport(checked_sys_id, role, False, metrics, absent, verdict=INVALID)
-    navigation_text = paths["navigation"].read_text(encoding="utf-8", errors="replace")
+    try:
+        navigation_text = paths["navigation"].read_text(encoding="utf-8", errors="replace")
+    except OSError as error:    # unreadable evidence is not scored (Codex review of step 8, finding 5)
+        unreadable = [f"invalid final-approach evidence: {paths['navigation'].name}: {error}"]
+        return VehicleReport(checked_sys_id, role, False, metrics, unreadable, verdict=INVALID)
     mission_text = mission_navigation_segment(navigation_text)
     # The evidence's own gates (navpy_recovery.md, step 8): any of them makes the vehicle invalid, not failed.
     recovery = recovery_evidence(log_dir, checked_sys_id, navigation_text)

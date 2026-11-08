@@ -535,9 +535,34 @@ merges before step 4, which builds on its deadline fix.
      - `clean`: every gate passed and nothing recovered.
      The exit status is unchanged: 0 only for a pass (clean, or recovered
      with scheduled faults), else 1; the verdict tells invalid from failed.
-   - Not covered: the autopilot Lua watchdog's own actions (NavPy is dead
-     then, so it journals nothing); in a clean run they show only through
-     the existing mission and mode gates.
+   - Codex review of step 8, fixed:
+     1. Recording never blocks recovery: `record` only counts and appends
+        to a bounded buffer (`RECOVERY_JOURNAL_BACKLOG`, 256) under a lock
+        no I/O holds; a writer thread of its own writes and flushes. A full
+        buffer drops the entry and counts it.
+     2. Each process writes `open` first and, when its logger closes,
+        `close` with how many entries it recorded and dropped. The eval reads
+        the journal per process: every process after the first is a recovery
+        ("NavPy restarted", whether its predecessor crashed or stopped); a last
+        process without `close`, a count that disagrees with the lines, or any
+        drop makes the evidence invalid.
+     3. The autopilot's NavPy watchdog: NavPy subscribes to its own
+        autopilot's NAMED_VALUE_FLOAT `NAVWD` and "NavPy watchdog: ..."
+        status texts (`app/autopilot_watchdog_report.py`); a stage change
+        into or out of hold or RTL, and each action text, is a recovery
+        report (source `autopilot`). A NavPy alive while its heartbeat does
+        not reach the autopilot, or restarted during the hold, sees them. Not
+        covered: a NavPy that hears neither while the Lua watchdog acts and
+        is never restarted; its run then fails or is invalid on its own
+        evidence (no `close` line, or the mission gates).
+     4. The run-level evidence errors (the backend log, the lockstep journal
+        and NavPy lines, the slice and delivery evidence) carry named
+        prefixes (`RUN_EVIDENCE_ERRORS`), and make the run invalid.
+     5. A journal or NavPy log that exists but cannot be read is invalid
+        evidence, not an aborted analysis.
+   - To check in SITL (step 9): every NavPy in a wall and a lockstep eval
+     closes its logger at the end, so its journal ends with `close`;
+     otherwise every run would read as invalid.
 9. **Checks.** Targeted tests with `--testmon` and by name for Lua and
    configs; `tests/gcs` and `npm test`/`npm run build` if GCS UI text changes.
    live-tester on its own slot, every stack stopped afterwards:

@@ -40,7 +40,9 @@ from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_sce
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, slice_gate_errors
-from scripts.eval_gcs_demo_recovery import faults_planned, run_verdict, unexpected_recovery_errors
+from scripts.eval_gcs_demo_recovery import (
+    ASSIGNMENT_EVIDENCE_ERROR, faults_planned, run_verdict, unexpected_recovery_errors,
+)
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
 
@@ -99,7 +101,7 @@ def global_assignment_evidence(
         assignments = derive_global_assignment_map(backend_log, plan)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
         return AssignmentEvidence(
-            {}, [f"invalid global assignment evidence: {error}"], acked,
+            {}, [f"{ASSIGNMENT_EVIDENCE_ERROR}: {error}"], acked,
         )
     return AssignmentEvidence(assignments, [], acked)
 
@@ -126,7 +128,7 @@ def owner_only_assignment_evidence(
         lines = parse_assignment_lines(backend_log)
     except (OSError, UnicodeError, TypeError, ValueError) as error:
         return AssignmentEvidence(
-            assignments, [f"invalid global assignment evidence: {error}"], False,
+            assignments, [f"{ASSIGNMENT_EVIDENCE_ERROR}: {error}"], False,
         )
     count = len(lines.requests) + len(lines.responses) + len(lines.acks)
     errors = (
@@ -278,7 +280,7 @@ def analyze_run(
         global_assignments=assignments,
         vehicles=reports,
         errors=errors,
-        verdict=run_verdict(reports, passed, planned),
+        verdict=run_verdict(reports, errors, passed, planned),
     )
 
 
