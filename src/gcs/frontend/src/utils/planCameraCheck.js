@@ -154,7 +154,7 @@ export function cameraCheckConfirmText(result, t, zoneName) {
  * ahead. Nothing to check → true. A failed check asks too; it never passes
  * silently.
  */
-export async function confirmCameraCheck({ zones, check, t, zoneName, confirm = window.confirm }) {
+export async function confirmCameraCheck({ zones, check, t, zoneName, confirm }) {
   if (!hasCheckableDocks(zones)) return true;
   let result;
   try {

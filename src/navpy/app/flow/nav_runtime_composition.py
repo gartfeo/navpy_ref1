@@ -38,9 +38,9 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
-from navpy.core.flow.nav_recovery import NavRecovery
-from navpy.core.flow.nav_recovery_clock import TimeSample
-from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
+from navpy.app.flow.nav_watchdog_composition import nav_recovery, nav_watchdog, recovery_period
+from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -226,15 +226,11 @@ def compose_nav_application(
         state.detections,
         state.phase,
     )
-    cycle = NavigationCycle(
-        lambda: vehicle.is_armed,
-        state.detections,
-        sensor,
-        decision.decision,
-        actions,
-    )
-    loop = NavigationLoop(cycle, state.clock, logger, on_period=_recovery_step(
-        vehicle, state, logger, recovery_link))
+    cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
+    recovery = nav_recovery(vehicle, state.recovery_hold, logger, recovery_link)
+    sample = lambda: TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s())  # noqa: E731
+    loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))
+    watchdog = nav_watchdog(recovery_link, loop.progress, recovery, sample, logger)
     shutdown = NavShutdown(
         guidance_nav.close_source_admission,
         navigation.reset,
@@ -242,7 +238,7 @@ def compose_nav_application(
         observation.network,
         logger,
     )
-    return NavApplication(loop, observation.network, shutdown, state.overrides)
+    return NavApplication(loop, observation.network, shutdown, state.overrides, watchdog)
 
 
 def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
@@ -250,35 +246,6 @@ def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
     stand, and the mission goes on from its current item on resume."""
     if not state.recovery_hold.holding:
         restart_search(vehicle)
-
-
-def _recovery_step(
-    vehicle: IVehicle,
-    state: NavStateOwnership,
-    logger: ILogger,
-    link: Optional[NavRecoveryLink],
-) -> Callable[[bool], None]:
-    """The NAV loop's per-period hook: recovery's stages (nav_recovery.py).
-
-    Without a link (no MAVLink bus: tests, other vehicles) there is no fence
-    to close and no recovery."""
-    if link is None:
-        return lambda _cycle_ok: None
-    recovery = NavRecovery(
-        NavRecoveryPorts(
-            close_fence=link.close_fence,
-            reopen_fence=link.reopen_fence,
-            observe_mode=link.observe_mode,
-            request_mode=vehicle.set_mode,
-            logger=logger,
-            escalation=link.escalation,
-        ),
-        state.recovery_hold,
-    )
-    return lambda cycle_ok: recovery.step(
-        cycle_ok,
-        TimeSample(aircraft_s=_attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
-    )
 
 
 __all__ = ["compose_nav_application"]

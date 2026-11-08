@@ -8,6 +8,7 @@ from dataclasses import dataclass
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.progress_beacon import bounded_wait
 from navpy.plugins.vehicle.ardupilot.message_store import MessageHistoryOverrun
 
 
@@ -71,7 +72,8 @@ class MissionInbox:
         *,
         deadline: float,
     ) -> MissionEnvelope | None:
-        with self._condition:
+        # A reply wait is bounded by its deadline: not a hang of the watched loop it runs in (step 6).
+        with bounded_wait(deadline - rt.monotonic()), self._condition:
             while True:
                 for envelope in self._messages:
                     if envelope.generation > cursor and predicate(envelope.message):

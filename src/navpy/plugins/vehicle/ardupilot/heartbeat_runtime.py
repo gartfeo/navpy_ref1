@@ -1,4 +1,11 @@
-"""Companion heartbeat sender lifecycle."""
+"""Companion heartbeat sender lifecycle.
+
+The period is aircraft time (heartbeat_pacing.py), as the autopilot's NavPy watchdog times it.
+
+A failed send never ends the sender (docs/design/navpy_recovery.md, step 5c): the next period is the retry, so a
+short outage recovers at once. The first failure is reported, and the recovery after it; the ticks between are
+quiet. If sends keep failing, the autopilot's NavPy watchdog (step 7) sees no NavPy heartbeat and holds the UAV.
+"""
 from __future__ import annotations
 
 
@@ -9,6 +16,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.heartbeat_pacing import HeartbeatPacing
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
 from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
@@ -17,6 +25,9 @@ from navpy.core.kernel.thread_launch import ThreadLaunchGate
 
 
 HEARTBEAT_JOIN_TIMEOUT_S = 2.0
+#: Wall time between "heartbeat timeout" warnings while the autopilot is silent: the once a second they had when the
+#: heartbeat itself was 1 Hz wall time, whatever its rate and pacing now.
+HEARTBEAT_TIMEOUT_REPORT_S = 1.0
 
 
 class HeartbeatRuntime:
@@ -27,8 +38,10 @@ class HeartbeatRuntime:
         heartbeat_state: HeartbeatState,
         logger_ref: LoggerRef,
         heartbeat_hz: float,
+        pacing: HeartbeatPacing | None = None,
     ) -> None:
         self._transport = transport
+        self._pacing = HeartbeatPacing() if pacing is None else pacing
         self._identity = identity
         self._state = heartbeat_state
         self._logger_ref = logger_ref
@@ -37,6 +50,8 @@ class HeartbeatRuntime:
         self._thread: rt.Thread | None = None
         self._launch: ThreadLaunchGate | None = None
         self._lock = rt.Lock()
+        self._send_failing = False   # touched by the sender thread only
+        self._timeout_reported_s: float | None = None   # likewise
 
     def start(self) -> None:
         with self._lock:
@@ -65,6 +80,7 @@ class HeartbeatRuntime:
     def close(self) -> None:
         with self._lock:
             self._stop.set()
+            self._pacing.wake()
             thread = self._thread
             launch = self._launch
             if (
@@ -102,6 +118,22 @@ class HeartbeatRuntime:
     def _run(self, stop: rt.Event | None = None) -> None:
         stop = self._stop if stop is None else stop
         while not stop.is_set():
+            self._send()
+            self._report_timeout()
+            self._pacing.wait(stop, self._period_s)
+
+    def _report_timeout(self) -> None:
+        age_s = self._state.age_s
+        if age_s <= 0.0 or self._identity.mav_type == MAV_TYPE_GCS or self._state.link_ok:
+            return
+        now_s = rt.monotonic()
+        if self._timeout_reported_s is not None and now_s - self._timeout_reported_s < HEARTBEAT_TIMEOUT_REPORT_S:
+            return
+        self._timeout_reported_s = now_s
+        self._warn(f"Vehicle {self._identity.target_system} heartbeat timeout {age_s}.")
+
+    def _send(self) -> None:
+        try:
             self._transport.call(
                 lambda connection: connection.mav.heartbeat_send(
                     self._identity.mav_type,
@@ -111,11 +143,17 @@ class HeartbeatRuntime:
                     MAV_STATE_ACTIVE,
                 )
             )
-            age_s = self._state.age_s
-            if age_s > 0.0 and self._identity.mav_type != MAV_TYPE_GCS:
-                if not self._state.link_ok:
-                    self._logger_ref.value.warning(
-                        f"Vehicle {self._identity.target_system} "
-                        f"heartbeat timeout {age_s}."
-                    )
-            stop.wait(self._period_s)
+        except Exception as error:  # noqa: BLE001 - the next period retries; a BaseException still ends it
+            if not self._send_failing:
+                self._send_failing = True
+                self._warn(f"Companion heartbeat send failed: {error!r}; retrying every period")
+            return
+        if self._send_failing:
+            self._send_failing = False
+            self._warn("Companion heartbeat sent again")
+
+    def _warn(self, message: str) -> None:
+        try:
+            self._logger_ref.value.warning(message)
+        except Exception:  # noqa: BLE001 - reporting must not end the heartbeat
+            pass

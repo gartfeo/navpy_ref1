@@ -1,4 +1,5 @@
-import { act, renderHook } from '@testing-library/react';
+import { act, renderHook, screen } from '@testing-library/react';
+import ConfirmProvider from '../components/ConfirmProvider';
 import { describe, expect, it, vi } from 'vitest';
 import { usePlanCameraCheckResult, usePlanCameraGate } from './usePlanCameraCheck';
 
@@ -123,5 +124,22 @@ describe('usePlanCameraCheckResult', () => {
     }));
     expect(result.current).toBeNull();
     expect(check).not.toHaveBeenCalled();
+  });
+});
+
+describe('usePlanCameraGate and the control that asked', () => {
+  it('its question closes, answering no, when the given signal aborts', async () => {
+    const check = vi.fn().mockRejectedValue(new Error('down'));
+    const { result } = renderHook(() => usePlanCameraGate({
+      enabled: true, plan: plan(200), searchPattern: 'corridor', vehicleList,
+      vehicleTargWps: { 5: 0b10 }, vehicleNavLastWp: {}, getAas, check,
+    }), { wrapper: ConfirmProvider });
+    const start = new AbortController();
+    let answer;
+    await act(async () => { answer = result.current(start.signal); });
+    expect(screen.getByRole('alertdialog')).toHaveTextContent('cameraCheck.couldNotRun');
+    act(() => start.abort());
+    await expect(answer).resolves.toBe(false);
+    expect(screen.queryByRole('alertdialog')).toBeNull();
   });
 });

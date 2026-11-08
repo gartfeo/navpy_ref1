@@ -243,6 +243,37 @@ class PeerHeartbeatTest(unittest.TestCase):
         self.assertIs(SwarmNodeState.from_code(7), SwarmNodeState.BUSY)
 
 
+class SwarmPresenceHeartbeatRestartTest(unittest.TestCase):
+    """Codex review of recovery step 5c: the restart is told to the operator and timed in aircraft time."""
+
+    def test_a_restarted_heartbeat_is_reported_as_a_status_text_on_an_aircraft_clock(self):
+        from navpy.core.flow.nav_recovery_clock import AircraftTimeClock
+
+        sender = Mock(spec=TaskMessageSender)
+        failed = threading.Event()
+
+        def send_once_failing(message):
+            if not failed.is_set():
+                failed.set()
+                raise OSError("radio down")
+
+        sender.send_heartbeat.side_effect = send_once_failing
+        logger = Mock(spec=ILogger)
+        presence = _presence(sender, logger=logger)
+        self.assertIsInstance(presence._heartbeat._budget._clock, AircraftTimeClock)
+        with patch("navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S", 0.0):
+            presence.start()
+            try:
+                self.assertTrue(failed.wait(1.0))
+                presence.heartbeat_thread().join(1.0)
+                presence.raise_if_failed()
+            finally:
+                presence.stop()
+        statuses = [c.kwargs.get("status") for c in logger.warning.call_args_list]
+        self.assertTrue(any(isinstance(status, str) and "Swarm heartbeat restarted" in status
+                            for status in statuses), statuses)
+
+
 if __name__ == "__main__":
     unittest.main()
 

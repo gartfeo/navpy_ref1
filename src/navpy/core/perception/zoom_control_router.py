@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Protocol, Sequence
 
+from navpy.core.perception.detection.poi_identity import instance_serving
+
 if TYPE_CHECKING:
     from navpy.core.perception.detection.poi_identity import PoiIdentity
     from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
@@ -54,11 +56,9 @@ class ZoomControlRouter:
             identity = self._registry.identity_for_task(obj_id)
             if identity is not None:
                 member = self._member_for_source(identity.source_name)
-                return (
-                    None
-                    if member is None
-                    else member.get_zoom_result(identity.local_obj_id)
-                )
+                # The instance that saw the object, read once; None once replaced (recovery step 5b).
+                target = None if member is None else instance_serving(member, identity)
+                return None if target is None else target.get_zoom_result(identity.local_obj_id)
             if len(self._members) == 1:
                 return self._members[0].get_zoom_result(obj_id)
         armed = [member for member in self._members if member.is_detection_armed]

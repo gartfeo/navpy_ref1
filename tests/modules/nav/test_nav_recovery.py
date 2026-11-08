@@ -584,3 +584,12 @@ def test_the_state_reads_the_links_heartbeat_at_navpys_guided_request():
     unlinked = compose_state_ownership(None).recovery_hold
     unlinked.guided_requested()
     assert unlinked.take_guided_request() is None
+
+
+def test_recovery_reports_reach_the_operator_as_status_texts():
+    """Codex review of steps 5b-5c, finding 6: a destination without ``status`` writes only the log."""
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD
+    calls = rig.logger.warning.call_args_list
+    assert calls and all(c.kwargs.get("status") == c.args[0] for c in calls)

@@ -5,6 +5,7 @@ from __future__ import annotations
 from navpy.core.kernel.exception_groups import ExceptionGroup
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Optional, Protocol
 
 from navpy.core.perception.detector_ports import DetectorFleetMember
@@ -43,15 +44,26 @@ class VisionDetectorFactory(Protocol):
     ) -> VisionDetectorNode: ...
 
 
+NodeCreator = Callable[[], VisionDetectorNode]
+
+
+def _create_once(create: NodeCreator) -> VisionDetectorNode:
+    return create()
+
+
 def build_detector_nodes(
     factory: VisionDetectorFactory,
     mount_specs: tuple[CameraMountSpec, ...],
     detector_settings: VisionProfile,
+    make_node: Callable[[NodeCreator], VisionDetectorNode] = _create_once,
 ) -> tuple[VisionDetectorNode, ...]:
+    """``make_node`` gets each mount's creator, which it may call again for a fresh instance (a restart)."""
     nodes: list[VisionDetectorNode] = []
     try:
         for index, spec in enumerate(mount_specs):
-            nodes.append(factory.create(spec, detector_settings, index))
+            nodes.append(make_node(
+                lambda spec=spec, index=index: factory.create(spec, detector_settings, index)
+            ))
     except Exception as creation_error:
         cleanup_errors = cleanup_detector_nodes(nodes)
         if cleanup_errors:
@@ -90,6 +102,7 @@ def cleanup_mount_specs(
 __all__ = [
     "DetectorConstructionCleanupPort",
     "DetectorUiStepPort",
+    "NodeCreator",
     "VisionDetectorFactory",
     "VisionDetectorNode",
     "build_detector_nodes",

@@ -236,7 +236,7 @@ class VehicleManager:
         """Tri-state companion liveness: ``"ok"`` | ``"checking"`` | ``"down"``.
 
         See COMPANION_OK_WINDOW_S / COMPANION_DOWN_WINDOW_S for the rationale:
-        a brief gap in the 1 Hz companion heartbeat on the shared lossy link is
+        a brief gap in the 4 Hz companion heartbeat on the shared lossy link is
         reported as ``"checking"`` (transient, not faulty) rather than flapping
         straight to ``"down"``.
         """

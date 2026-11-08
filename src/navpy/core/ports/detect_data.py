@@ -83,6 +83,11 @@ class DetectedObject(_WeakReferenceable):
             task_id=self.identity.task_id if task_id is None else task_id,
         )
 
+    def mark_source_generation(self, generation: int) -> None:
+        """Set by the restarting detector's proxy on what its current instance returns."""
+        if self.identity.source_generation != generation:
+            self.identity = replace(self.identity, source_generation=generation)
+
     def replace_classification(self, value: DetectionClassification) -> None:
         self.classification = value
 

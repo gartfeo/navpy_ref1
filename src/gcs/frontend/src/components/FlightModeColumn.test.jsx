@@ -2,9 +2,11 @@
 // current mode; a tap opens every mode; the list never outlives the UAV and
 // mode it was opened over.
 import { describe, it, expect, vi } from 'vitest';
-import { fireEvent, render, screen } from '@testing-library/react';
+import { act, fireEvent, render, screen } from '@testing-library/react';
 import FlightModeColumn, { MODE_BUTTON_WIDTH_PX } from './FlightModeColumn';
 import { PICKER_MODES } from '../utils/flightModes';
+import { LONG_PRESS_MS } from '../utils/armAction';
+import { confirmStub } from '../test/confirmStub';
 
 const props = (over = {}) => ({
   currentMode: 'FBWA',
@@ -172,5 +174,34 @@ describe('RC mode picker', () => {
     // Back on the first UAV the old list does not come back.
     rerender(<FlightModeColumn {...p} />);
     expect(options()).toHaveLength(0);
+  });
+});
+
+describe('ARM hold confirm (todo 233)', () => {
+  // A completed hold asks the in-page confirm, never the browser's blocking
+  // window.confirm, and only Confirm sends the arm command.
+  const holdArm = async (answer) => {
+    vi.useFakeTimers({ toFake: ['performance', 'requestAnimationFrame', 'cancelAnimationFrame'] });
+    const native = vi.spyOn(window, 'confirm');
+    const onArmDisarm = vi.fn();
+    const { confirm, wrapper } = confirmStub(answer);
+    render(<FlightModeColumn {...props({ prearmSeverity: 'warn', onArmDisarm })} />, { wrapper });
+    fireEvent.mouseDown(screen.getByText('flightMode.arm'));
+    act(() => { vi.advanceTimersByTime(LONG_PRESS_MS + 32); });
+    await act(async () => {});
+    return { confirm, native, onArmDisarm };
+  };
+
+  it('arms after Confirm', async () => {
+    const { confirm, native, onArmDisarm } = await holdArm(true);
+    expect(confirm).toHaveBeenCalledWith('flightMode.forceArm');
+    expect(native).not.toHaveBeenCalled();
+    expect(onArmDisarm).toHaveBeenCalledWith(7, true, { force: true });
+  });
+
+  it('sends nothing after Cancel', async () => {
+    const { confirm, onArmDisarm } = await holdArm(false);
+    expect(confirm).toHaveBeenCalledTimes(1);
+    expect(onArmDisarm).not.toHaveBeenCalled();
   });
 });

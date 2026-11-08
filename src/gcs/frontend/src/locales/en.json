@@ -63,7 +63,9 @@
   "confirm": {
     "confirmEstop": "CONFIRM E-STOP",
     "confirmReboot": "CONFIRM REBOOT",
-    "cancel": "Cancel"
+    "cancel": "Cancel",
+    "title": "Please confirm",
+    "ok": "Confirm"
   },
   "settings": {
     "title": "Settings",

@@ -8,6 +8,7 @@ import { act, fireEvent, render, screen } from '@testing-library/react';
 import { useState } from 'react';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import AasTab from './AasTab.jsx';
+import { confirmStub } from '../../test/confirmStub';
 
 // The editor is only the place the download button lives; it is not under test.
 vi.mock('./WaypointEditorOverlay.jsx', () => ({
@@ -59,7 +60,8 @@ function renderTab(initialMissions) {
       />
     );
   }
-  render(<Harness />);
+  // The editor's download asks before replacing loaded missions; the operator agrees.
+  render(<Harness />, { wrapper: confirmStub(true).wrapper });
   return published;
 }
 
@@ -81,7 +83,6 @@ describe('AasTab mission download', () => {
     expect(published[0]).toEqual({ ...OLD, 9: track(39.9) });
 
     answerMissions({ 1: EMPTY, 2: FAILED, 3: mission(32.3) });
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
     fireEvent.click(screen.getByText('vehicle.editPois'));
     await act(async () => { fireEvent.click(screen.getByText('download missions')); });
 
