@@ -327,7 +327,7 @@ def test_events_and_leases_of_a_restarted_detector_carry_its_generation() -> Non
 
     assert drained.identity.source_generation == 1
     assert leased.identity.source_generation == 1 and len(seen) == 1
-    assert proxy.source_generation == 1
+    assert proxy.instance_for_generation(1) is new and proxy.instance_for_generation(0) is None
 
 
 def test_a_stop_that_raises_after_quiescence_does_not_retire_the_instance() -> None:
@@ -423,3 +423,85 @@ def test_restart_reports_reach_the_operator_as_status_texts() -> None:
     node.detector.raise_if_failed()
     statuses = [c.kwargs.get("status") for c in logger.warning.call_args_list]
     assert statuses and all(isinstance(status, str) and "Detector" in status for status in statuses)
+
+
+# --- Codex review round 2 of steps 5b-5c -------------------------------------------------------------------------
+
+
+def _replaced_mid_command(*doubles: object) -> tuple[object, RestartingDetector, list[object], object]:
+    """A coordinator whose detector is replaced by the main thread right after the ``armed``-th read of which
+    instance serves: the router reads the source name, then checks the instance, then commands it."""
+    from unittest.mock import Mock
+
+    from navpy.app.perception.restarting_detector import DetectorRestart
+    from navpy.core.perception.detection_coordinator import DetectionCoordinator
+
+    queue, created = list(doubles), []
+
+    def create() -> VisionDetectorNode:
+        detector = queue.pop(0)
+        created.append(detector)
+        return VisionDetectorNode(detector, detector, None, None, CameraHealth("NavPy", lambda: True))  # type: ignore[arg-type]
+
+    class ReplacedAfterFirstRead(DetectorRestart):
+        armed = 0
+
+        @property
+        def current(self):  # type: ignore[override]
+            value = self._current
+            if self.armed:
+                self.armed -= 1
+            if self.armed == 0 and getattr(self, "_swap_pending", False):
+                self._swap_pending = False
+                created[-1].raise_if_failed.side_effect = RuntimeError("capture died")
+                self.raise_if_failed()       # the main thread's health check swaps the instance now
+            return value
+
+        @current.setter
+        def current(self, value) -> None:
+            self._current = value
+
+    proxy = RestartingDetector.__new__(RestartingDetector)
+    proxy._parts = ReplacedAfterFirstRead(create, lambda message: None, RestartBudget(clock=_Clock()))
+    return DetectionCoordinator([proxy], Mock()), proxy, created, proxy._parts
+
+
+def test_a_replacement_between_check_and_command_never_commands_the_new_instance() -> None:
+    """Round 2, finding 1: checking the generation and commanding must use the same instance."""
+    from navpy.core.ports.detect_request import DetectRequest
+
+    coordinator, proxy, created, parts = _replaced_mid_command(_double(1), _double(1))
+    task = coordinator.get_detect_data(DetectRequest()).primary_poi.identity.task_id
+
+    parts.armed, parts._swap_pending = 2, True   # swapped after the source-name read and the instance check
+    coordinator.start_tracking(task)       # the instance read by the check, which saw the object, is commanded
+
+    assert len(created) == 2 and proxy.instance is created[1]
+    created[1].start_tracking.assert_not_called()
+    created[0].start_tracking.assert_called_once_with(1)
+    parts.armed, parts._swap_pending = 2, True
+    coordinator.get_zoom_result(task)
+    created[1].get_zoom_result.assert_not_called()
+
+
+def test_the_factory_built_detector_times_its_tries_in_aircraft_time() -> None:
+    """Round 2, finding 2: the production node maker, not a hand-built budget, uses aircraft time."""
+    from types import SimpleNamespace
+    from unittest.mock import Mock
+
+    from navpy.app.perception.restarting_detector import restarting_detector_node
+
+    old = _Detector(1)
+    old.failure = RuntimeError("capture died")
+    factory = _Factory(old, _Detector(2, start_error=RuntimeError("camera open")), _Detector(3))
+    vehicle = SimpleNamespace(attitude_sample=SimpleNamespace(time_boot_s=100.0))
+    node = restarting_detector_node(Mock(), vehicle)(factory)
+
+    node.detector.raise_if_failed()         # try 1 at once fails; try 2 waits 1 s
+    assert len(factory.created) == 2
+    vehicle.attitude_sample = SimpleNamespace(time_boot_s=100.5)
+    node.detector.raise_if_failed()         # half a second of aircraft time: still waiting
+    assert len(factory.created) == 2
+    vehicle.attitude_sample = SimpleNamespace(time_boot_s=101.0)
+    node.detector.raise_if_failed()         # 1 s of aircraft time, almost no wall time: try 2 runs
+    assert len(factory.created) == 3 and node.detector.instance is factory.created[2]

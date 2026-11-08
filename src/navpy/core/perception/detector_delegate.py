@@ -199,10 +199,12 @@ class DetectorPlatformDelegateFacet:
     def source_name(self) -> str:
         return self._parts.instance.source_name
 
-    @property
-    def source_generation(self) -> int:
-        """The instance serving now; the coordinator routes an object's commands only to its own instance."""
-        return self._parts.current[1]
+    def instance_for_generation(self, generation: int) -> DetectorFleetMember | None:
+        """The instance of ``generation`` if it is still the one serving, else None. One read of ``current``, so
+        a replacement after it cannot turn a command for an old object into one on the new instance: the caller
+        commands the returned instance itself (the coordinator's tracking and zoom routers)."""
+        instance, current = self._parts.current
+        return instance if current == generation else None
 
 
 __all__ = [

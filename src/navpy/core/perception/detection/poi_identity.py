@@ -59,16 +59,22 @@ def get_poi_identity(poi: DetectedObject) -> PoiIdentity:
     )
 
 
-def source_generation_of(holder: object) -> int:
-    """The detector instance a fleet member serves now, or an identity was seen by; 0 where none is told (a
-    member that is never restarted)."""
-    generation = getattr(holder, "source_generation", 0)
+def _identity_generation(identity: PoiIdentity) -> int:
+    generation = getattr(identity, "source_generation", 0)
     return generation if isinstance(generation, int) and not isinstance(generation, bool) else 0
 
 
-def serves_identity(member: object, identity: PoiIdentity) -> bool:
-    """Whether ``member``'s current instance made the object: a local id of a replaced instance is not its."""
-    return source_generation_of(member) == source_generation_of(identity)
+def instance_serving(member: object, identity: PoiIdentity) -> object | None:
+    """The detector instance that made ``identity``'s object, to command directly; None if it was replaced.
+
+    A restarting member (app/perception/restarting_detector.py) is asked for that generation's instance in one
+    read, so checking and commanding use the same instance even if the main thread replaces it meanwhile. A
+    member that is never restarted serves generation 0 only.
+    """
+    generation = _identity_generation(identity)
+    if callable(getattr(type(member), "instance_for_generation", None)):
+        return member.instance_for_generation(generation)  # type: ignore[attr-defined]
+    return member if generation == 0 else None
 
 
 class PoiTaskIdAllocator:
@@ -120,6 +126,5 @@ __all__ = [
     "get_poi_identity",
     "get_poi_task_id",
     "same_poi_identity",
-    "serves_identity",
-    "source_generation_of",
+    "instance_serving",
 ]
