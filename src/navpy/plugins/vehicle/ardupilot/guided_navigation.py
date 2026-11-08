@@ -43,7 +43,10 @@ class GuidedNavigation:
         home = self._position.home_location if location.is_absolute else None
         if home is not None:
             altitude -= float(home.alt)
-        with self._transport.transaction() as connection:
+        with self._transport.fenced() as connection:
+            if connection is None:
+                self._log_fenced("goto")
+                return
             if self._mode.current != FlightMode.GUIDED:
                 self._mode.set(FlightMode.GUIDED)
             connection.mav.mission_item_send(
@@ -84,6 +87,10 @@ class GuidedNavigation:
         home = self._position.home_location if location.is_absolute else None
         if home is not None:
             altitude -= float(home.alt)
+        if not self._transport.fence.is_open:
+            # The radius write would change the hold's own LOITER circle.
+            self._log_fenced("goto_loiter")
+            return
         try:
             self._parameters.send_unverified("WP_LOITER_RAD", command_radius)
         except Exception as exc:
@@ -92,7 +99,10 @@ class GuidedNavigation:
                 f"DO_REPOSITION param3 still carries radius={command_radius:.0f}m.",
                 key="vehicle",
             )
-        with self._transport.transaction() as connection:
+        with self._transport.fenced() as connection:
+            if connection is None:
+                self._log_fenced("goto_loiter")
+                return
             if self._mode.current != FlightMode.GUIDED:
                 self._mode.set(FlightMode.GUIDED)
             connection.mav.command_int_send(
@@ -116,3 +126,11 @@ class GuidedNavigation:
             f"radius={command_radius:.0f}m",
             key="vehicle",
         )
+
+    def _log_fenced(self, command: str) -> None:
+        if self._transport.fence.first_drop_of_generation():
+            self._logger_ref.value.warning(
+                f"{command}: dropped by the closed command fence "
+                f"(generation {self._transport.fence.generation}); later drops counted only.",
+                key="vehicle",
+            )

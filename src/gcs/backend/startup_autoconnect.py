@@ -4,6 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 
+from gcs.backend.sim_mode_params import ensure_sim_mode_params
 from gcs.backend.vehicle_manager import vehicle_mgr
 
 log = logging.getLogger(__name__)
@@ -21,6 +22,18 @@ def _start_esp32_sim() -> None:
         auto_start_esp32_sim()
     except Exception as exc:
         log.warning("Startup auto-connect ESP32 simulator start failed: %s", exc)
+
+
+def _ensure_sim_mode_params(sys_id: int) -> None:
+    """Give this chat's own SITL vehicle the sim mode-switch params, once per
+    startup and before NavPy starts; a failure is logged, never fatal."""
+    entry = vehicle_mgr.get_vehicle(sys_id)
+    if entry is None:
+        return
+    try:
+        ensure_sim_mode_params(entry.vehicle, sys_id)
+    except Exception as exc:  # noqa: BLE001 - connecting goes on
+        log.warning("Vehicle %d: sim mode params check failed: %s", sys_id, exc)
 
 
 async def startup_autoconnect() -> None:
@@ -50,6 +63,7 @@ async def startup_autoconnect() -> None:
         if sid in expected_sysids
     }
     navpy_started_sysids: set[int] = set()
+    mode_params_checked: set[int] = set()
     loop = asyncio.get_running_loop()
     for _ in range(STARTUP_AUTOCONNECT_ATTEMPTS):  # ~2 min of quiet retries while SITL boots
         try:
@@ -71,6 +85,9 @@ async def startup_autoconnect() -> None:
         )
 
         to_start = sorted(connected_sysids - navpy_started_sysids)
+        for sys_id in sorted(connected_sysids - mode_params_checked):
+            mode_params_checked.add(sys_id)
+            await asyncio.to_thread(_ensure_sim_mode_params, sys_id)
         if to_start:
             try:
                 from gcs.backend.routes.navpy_sim import auto_start_navpy_sim

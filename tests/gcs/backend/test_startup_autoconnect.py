@@ -63,6 +63,32 @@ class TestStartupAutoconnect(unittest.TestCase):
         self.assertEqual(disc.call_count, 3)
         self.assertEqual({c.args[0] for c in auto.call_args_list}, {1, 2, 3})
 
+    def test_sim_mode_params_checked_once_per_vehicle_before_navpy(self):
+        """Switch position 6 and the start-up mode go to AUTO before NavPy
+        starts (2026-11-05 AUTOTUNE), once per vehicle across retries."""
+        order = []
+        vehicles = {sid: MagicMock(name=f"vehicle{sid}") for sid in (1, 2, 3)}
+        entry_for = lambda sid: MagicMock(vehicle=vehicles[sid]) if sid in vehicles else None
+        ensure = MagicMock(side_effect=lambda vehicle, sid: order.append(("params", sid)) or [])
+        auto = MagicMock(side_effect=lambda sid: order.append(("navpy", sid)) or True)
+        disc = MagicMock(side_effect=[[_Entry(1), _Entry(2)], [_Entry(2), _Entry(3)]])
+        with patch("gcs.backend.instance_ports.chat_index", return_value=0),              patch("gcs.backend.settings_store.settings_store.get",
+                   return_value=_settings(sim_mode=True, auto_connect=True)),              patch.object(backend_main.vehicle_mgr, "discover_and_connect", disc),              patch.object(backend_main.vehicle_mgr, "get_vehicle", side_effect=entry_for),              patch.object(backend_main, "ensure_sim_mode_params", ensure),              patch("gcs.backend.routes.navpy_sim.auto_start_navpy_sim", auto),              patch.object(backend_main.asyncio, "sleep", new_callable=AsyncMock):
+            asyncio.run(backend_main.startup_autoconnect())
+        self.assertEqual([c.args for c in ensure.call_args_list],
+                         [(vehicles[1], 1), (vehicles[2], 2), (vehicles[3], 3)])
+        for sid in (1, 2, 3):
+            self.assertLess(order.index(("params", sid)), order.index(("navpy", sid)))
+
+    def test_sim_mode_params_error_does_not_stop_navpy_start(self):
+        auto = MagicMock(return_value=True)
+        with patch("gcs.backend.instance_ports.chat_index", return_value=0),              patch("gcs.backend.settings_store.settings_store.get",
+                   return_value=_settings(sim_mode=True, auto_connect=True)),              patch.object(backend_main.vehicle_mgr, "discover_and_connect",
+                          MagicMock(return_value=[_Entry(1), _Entry(2), _Entry(3)])),              patch.object(backend_main.vehicle_mgr, "get_vehicle", return_value=MagicMock()),              patch.object(backend_main, "ensure_sim_mode_params",
+                          MagicMock(side_effect=RuntimeError("link"))),              patch("gcs.backend.routes.navpy_sim.auto_start_navpy_sim", auto):
+            asyncio.run(backend_main.startup_autoconnect())
+        self.assertEqual({c.args[0] for c in auto.call_args_list}, {1, 2, 3})
+
     def test_noop_without_chat_index(self):
         disc = MagicMock(return_value=[])
         with patch("gcs.backend.instance_ports.chat_index", return_value=None), \

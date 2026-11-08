@@ -78,20 +78,22 @@ class AttitudeCommand:
         pitch_rad = pitch or 0
         yaw_rad = yaw or 0
         quaternion = euler_to_quaternion(roll_rad, pitch_rad, yaw_rad)
-        self._diagnostics.update_attitude_target(SimpleNamespace(
-            roll=math.degrees(roll_rad),
-            pitch=math.degrees(pitch_rad),
-            yaw=math.degrees(yaw_rad) if yaw is not None else None,
-            requested_yaw=math.degrees(yaw) if yaw is not None else None,
-            thrust=thrust or 0.0,
-            type_mask=mask,
-            timestamp_s=rt.time(),
-        ))
         time_boot_ms = int(
             (rt.monotonic() - MODULE_START_MONOTONIC_S) * 1000
         ) & 0xFFFFFFFF
-        self._transport.call(
-            lambda connection: connection.mav.set_attitude_target_send(
+        with self._transport.fenced() as connection:
+            if connection is None:
+                return  # dropped by the closed command fence, counted there
+            self._diagnostics.update_attitude_target(SimpleNamespace(
+                roll=math.degrees(roll_rad),
+                pitch=math.degrees(pitch_rad),
+                yaw=math.degrees(yaw_rad) if yaw is not None else None,
+                requested_yaw=math.degrees(yaw) if yaw is not None else None,
+                thrust=thrust or 0.0,
+                type_mask=mask,
+                timestamp_s=rt.time(),
+            ))
+            connection.mav.set_attitude_target_send(
                 time_boot_ms,
                 self._identity.target_system,
                 0,
@@ -102,4 +104,3 @@ class AttitudeCommand:
                 0.0,
                 thrust or 0.0,
             )
-        )

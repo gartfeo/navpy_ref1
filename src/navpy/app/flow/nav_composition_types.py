@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
@@ -11,6 +11,7 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
+from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyDestinationResolver
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.skills.confirm.confirmation_action import ConfirmationAction
@@ -104,6 +105,8 @@ class NavStateOwnership:
     confirm: ConfirmGateState
     overrides: ConfirmOverrideInbox
     post_dock_climb: PostDockClimb
+    #: Recovery's hold, read by the decision and the RESET hook (nav_recovery.py).
+    recovery_hold: RecoveryHold = field(default_factory=RecoveryHold)
 
 
 @dataclass(frozen=True)

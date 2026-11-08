@@ -22,6 +22,7 @@ from navpy.core.flow.nav_constants import (
     FINAL_APPROACH_RECORD_TIMEOUT_S,
 )
 from navpy.core.ports.dock_contact import DockContactSensor
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -40,6 +41,7 @@ class NavController:
         vision_profile: Optional[dict] = None,
         scheduler_cadence: Optional[SchedulerCadence] = None,
         dock_contact: Optional[DockContactSensor] = None,
+        recovery_link: Optional[NavRecoveryLink] = None,
     ) -> None:
         self._application = create_nav_application(
             vehicle,
@@ -51,6 +53,7 @@ class NavController:
             vision_profile,
             scheduler_cadence,
             dock_contact,
+            recovery_link,
         )
 
     def set_network(self, network) -> None:

@@ -55,10 +55,18 @@ def sim_connection_from_settings(sys_id: int, settings: GcsSettings) -> str:
     return match.group(1) + str(port)
 
 
+def supervised_start_kwargs(auto_managed: bool, subprocess_manager: bool) -> dict[str, bool]:
+    """``start`` keyword for an auto-managed companion: the GCS restarts it when it exits, so after a latched
+    component failure its NavPy hands the UAV back and exits for a fresh start (navpy/app/runtime_escalation.py).
+    The lockstep launcher port restarts nothing and never takes it."""
+    return {"supervised": True} if auto_managed and subprocess_manager else {}
+
+
 __all__ = [
     "detector_debug_enabled",
     "effective_vision_profile",
     "selected_vision_profile",
     "sim_connection_from_settings",
     "sim_log_level",
+    "supervised_start_kwargs",
 ]
