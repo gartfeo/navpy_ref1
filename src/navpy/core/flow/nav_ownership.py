@@ -74,6 +74,10 @@ class NavOwnership:
             self._guided_from = shown
         self._requests[mode] = int(heartbeat_count)
 
+    def unsent(self, mode: FlightMode) -> None:
+        """A request recorded at its write did not go out after all: a later ``mode`` is not NavPy's."""
+        self._requests.pop(mode, None)
+
     def withdraw(self, mode: FlightMode) -> None:
         """NavPy no longer waits for ``mode``; an owned mode stays owned."""
         if not self._owned:

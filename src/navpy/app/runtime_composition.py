@@ -54,7 +54,7 @@ from navpy.core.kernel.config.arg_helper import (
     format_kv,
 )
 from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
-from navpy.app.nav_recovery_link import NavRecoveryLink, command_formation, nav_recovery_link, runtime_escalation
+from navpy.app.nav_recovery_link import NavRecoveryLink, command_contexts, nav_recovery_link, runtime_escalation
 
 
 @dataclass(frozen=True)
@@ -210,7 +210,7 @@ def _build_session(
         foundation.logger,
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
-        law_airspeed=vision.law_airspeed, command_formation=command_formation(foundation.recovery_link),
+        law_airspeed=vision.law_airspeed, **command_contexts(foundation.recovery_link),
         on_terminal=with_dock_evidence_cut(
             vision.dock_contact,
             terminal_observer(foundation.terminal_handoff),
