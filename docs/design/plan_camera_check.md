@@ -84,7 +84,7 @@ Per zone the result also lists h, R, the window and the dive angle at its edges.
   and fixes. It reruns when the plan, sim docks, detect-after waypoints, altitudes, AAS params or the camera
   selection change (latest request wins). A compatible plan shows nothing; a zone not checked shows one grey line.
 - Upload: the check runs on the exact assignments being uploaded (their waypoints, and the `targ_wps` /
-  `nav_last_wp` upload is about to write), right before the request. Problems → `window.confirm` with the causes
+  `nav_last_wp` upload is about to write), right before the request. Problems → the in-page confirm (`hooks/useConfirm`) with the causes
   and what to do; Cancel stops the upload.
 - Launch (Codex v1 7, v2 2-3, v3 1): one guard in `useVehicleCommands` wraps `handleLaunch` (container and
   per-vehicle, force included) and `handleRestart` (bungee Start and Restart), before any command or local reset.

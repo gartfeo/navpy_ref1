@@ -3,7 +3,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional, cast
+from contextlib import nullcontext
+from typing import Callable, ContextManager, Optional, cast
 
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.navigation_args import NavigationAlgorithm, NavigationArgs
@@ -175,6 +176,8 @@ def compose_navigation(
     scheduler_cadence: Optional[SchedulerCadence] = None,
     on_terminal: Optional[TerminalObserver] = None,
     law_airspeed: Optional[LawAirspeed] = None,
+    command_formation: Callable[[], ContextManager[None]] = nullcontext,
+    command_pass: Callable[[], ContextManager[None]] = nullcontext,
 ) -> NavigationComposition:
     """Build Navigation without passing the root object into collaborators."""
     command_lock = rt.RLock()
@@ -256,6 +259,8 @@ def compose_navigation(
             # The slot forwards to whatever the source bound, or to
             # nothing. Record-only either way.
             command_loop=source_dispatch,
+            command_formation=command_formation,
+            command_pass=command_pass,
         ),
     )
     return NavigationComposition(

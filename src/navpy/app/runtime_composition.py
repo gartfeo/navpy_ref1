@@ -38,11 +38,7 @@ from navpy.plugins.vehicle.ardupilot.pose_streams import (
 from navpy.app.perception.vision_controller import VisionController
 from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.app.runtime_ports import RuntimePorts
-from navpy.app.runtime_stop import (
-    StoppedBeforeStart,
-    raise_if_stopped,
-    stop_hooks,
-)
+from navpy.app.runtime_stop import StoppedBeforeStart, raise_if_stopped, stop_hooks
 from navpy.app.runtime_resources import (
     RuntimeResourceStack,
     RuntimeSession,
@@ -58,6 +54,7 @@ from navpy.core.kernel.config.arg_helper import (
     format_kv,
 )
 from navpy.core.perception.geo.zc_util_instance import ZcUtilInstance
+from navpy.app.nav_recovery_link import NavRecoveryLink, command_contexts, nav_recovery_link, runtime_escalation
 
 
 @dataclass(frozen=True)
@@ -72,6 +69,7 @@ class RuntimeFoundation:
     vehicle_close_gate: VehicleCloseGate
     terminal_handoff: TerminalHandoff | None = None
     camera_frames: CameraFrameFactoryPort | None = None
+    recovery_link: NavRecoveryLink | None = None
 
 
 def _raise_composition_failure(
@@ -170,6 +168,7 @@ def _build_foundation(
         vehicle_close_gate=close_gate,
         terminal_handoff=terminal_handoff,
         camera_frames=ports.camera_frames,
+        recovery_link=nav_recovery_link(bus.command_fence, vehicle),
     )
 
 
@@ -211,7 +210,7 @@ def _build_session(
         foundation.logger,
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
-        law_airspeed=vision.law_airspeed,
+        law_airspeed=vision.law_airspeed, **command_contexts(foundation.recovery_link),
         on_terminal=with_dock_evidence_cut(
             vision.dock_contact,
             terminal_observer(foundation.terminal_handoff),
@@ -233,6 +232,7 @@ def _build_session(
         vision_profile=vision.profile,
         scheduler_cadence=foundation.scheduler_cadence,
         dock_contact=vision.dock_contact,
+        recovery_link=foundation.recovery_link,
     )
     resources.own_quiescence("controller", controller.stop)
     quiesce()
@@ -270,6 +270,7 @@ def _build_session(
         ui_step=vision.ui_step,
         sleep=rt.sleep,
         ready_signal=signal_runtime_ready,
+        escalation=runtime_escalation(args, foundation.recovery_link, foundation.logger),
         **hooks,
     )
 

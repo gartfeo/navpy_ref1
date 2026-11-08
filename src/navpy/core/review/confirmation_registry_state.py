@@ -28,6 +28,9 @@ class ConfirmationRegistryState:
     def __init__(self, lock: rt.RLock) -> None:
         self._lock = lock
         self._statuses: dict[int, ConfirmationStatus] = {}
+        # HITL step 25: whether the acquisition gates held on the last navigation tick, per POI;
+        # absent (no gates) allows CONFIRMED as before.
+        self._acquisition_held: dict[int, bool] = {}
         self._active_poi: Optional[DetectedObject] = None
 
     @property
@@ -44,9 +47,21 @@ class ConfirmationRegistryState:
         if poi_id is not None:
             self.set_status(poi_id, status)
 
-    def set_status(self, poi_id: int, status: ConfirmationStatus) -> None:
+    def set_status(self, poi_id: int, status: ConfirmationStatus) -> bool:
+        """Set the status; False when CONFIRMED is refused because the gates do not hold.
+
+        A refused CONFIRMED clears the status, so the POI is asked again once they hold.
+        """
         with self._lock:
+            if status is ConfirmationStatus.CONFIRMED and not self._acquisition_held.get(poi_id, True):
+                self._statuses.pop(poi_id, None)
+                return False
             self._statuses[poi_id] = status
+            return True
+
+    def set_acquisition_held(self, poi_id: int, held: bool) -> None:
+        with self._lock:
+            self._acquisition_held[poi_id] = held
 
     def status_by_id(self, poi_id: int) -> Optional[ConfirmationStatus]:
         with self._lock:
@@ -59,12 +74,16 @@ class ConfirmationRegistryState:
     def clear_status(self, poi: DetectedObject) -> None:
         poi_id = get_poi_task_id(poi)
         if poi_id is not None:
-            with self._lock:
-                self._statuses.pop(poi_id, None)
+            self.clear_status_by_id(poi_id)
+
+    def clear_status_by_id(self, poi_id: int) -> None:
+        with self._lock:
+            self._statuses.pop(poi_id, None)
 
     def reset(self) -> None:
         with self._lock:
             self._statuses.clear()
+            self._acquisition_held.clear()
             self._active_poi = None
 
 

@@ -31,7 +31,7 @@ class TestVisionControllerIntegration(unittest.TestCase):
     def _create_vision_args(self, profile_name="c270hd", detector_type="sim"):
         """Create mock VisionArgs."""
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = profile_name
         vision_args.detector_type = detector_type
@@ -178,7 +178,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "novoxy_dual"
         vision_args.detector_type = "sim"
@@ -197,7 +197,7 @@ class TestVisionControllerMultiCamera(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "novoxy_dual"
         vision_args.detector_type = "sim"
@@ -239,7 +239,7 @@ class TestVisionControllerLifecycle(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
@@ -925,7 +925,7 @@ class TestVisionControllerUiStep(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
@@ -985,7 +985,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.sim.detection.detector_sim import DetectorSim
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
@@ -996,15 +996,16 @@ class TestVisionControllerSimDetector(unittest.TestCase):
             self.vehicle, self.args, vision_args, self.logger
         )
 
+        # The controller keeps a stable proxy per mount (recovery step 5b); the sim detector is behind it.
         for detector in controller.detectors:
-            self.assertIsInstance(detector, DetectorSim)
+            self.assertIsInstance(detector.instance, DetectorSim)
 
     def test_sim_detector_has_mount(self):
         """Sim detector has associated mount."""
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "c270hd"
         vision_args.detector_type = "sim"
@@ -1016,7 +1017,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         )
 
         for detector in controller.detectors:
-            self.assertIsNotNone(detector.mount)
+            self.assertIsNotNone(detector.instance.mount)
             self.assertTrue(len(detector.mounts) == 1)
 
     def test_ideal_360_profile_creates_lightweight_ideal_detector(self):
@@ -1024,7 +1025,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         from navpy.app.perception.vision_controller import VisionController
 
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.profile_name = "ideal_360"
         vision_args.detector_type = "sim"
@@ -1039,7 +1040,7 @@ class TestVisionControllerSimDetector(unittest.TestCase):
         self.assertEqual(len(controller.detectors), 1)
         detector = controller.detectors[0]
         self.assertTrue(detector.has_source_driven_detection_events)
-        self.assertIsNone(detector.navigation)
+        self.assertIsNone(detector.instance.navigation)
         self.logger.info.assert_any_call(
             "DetectorSim(ideal_360): static ideal 360 enabled"
         )
@@ -1260,7 +1261,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         profile.profile = {}
         profile.detector_settings = {}
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.detector_type = "real"
         vision_args.detector_backend = "yolo"
@@ -1297,7 +1298,7 @@ class TestVisionDetectorConstruction(unittest.TestCase):
         profile.profile = {}
         profile.detector_settings = {}
         vision_args = Mock()
-        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = ""
+        vision_args.integration_timing = vision_args.integration_log = vision_args.siyi_ip = vision_args.hitl_contact = ""
         vision_args.capture_wrapper = None
         vision_args.detector_type = "real"
 

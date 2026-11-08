@@ -1,6 +1,8 @@
 """Flight mode read and command owner."""
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAV_MODE_FLAG_CUSTOM_MODE_ENABLED
 
@@ -29,7 +31,12 @@ class ModeControl:
         flight_mode: FlightMode | str,
         *,
         fallback_custom_mode: int | None = None,
+        lock_timeout_s: float | None = None,
+        guard: Callable[[], bool] | None = None,
     ) -> bool:
+        """``lock_timeout_s`` bounds the wait for the send lock (not GUIDED's fenced send): when a stuck send holds
+        it, nothing is written, now or later, and False is returned. ``guard`` runs under the lock right before the
+        write; False cancels it."""
         name = flight_mode.name if hasattr(flight_mode, "name") else str(flight_mode)
 
         def _send(connection: mavutil.mavfile) -> bool:
@@ -42,6 +49,8 @@ class ModeControl:
             if mode_id is None:
                 self._logger_ref.value.error(f"Unknown mode {flight_mode}")
                 return False
+            if guard is not None and not guard():
+                return False
             connection.mav.set_mode_send(
                 self._identity.target_system,
                 MAV_MODE_FLAG_CUSTOM_MODE_ENABLED,
@@ -49,7 +58,29 @@ class ModeControl:
             )
             return True
 
-        return bool(self._transport.call(_send))
+        if name != FlightMode.GUIDED.value:
+            if lock_timeout_s is None:
+                return bool(self._transport.call(_send))
+            sent = self._transport.try_call(_send, blocking=True, timeout=lock_timeout_s)
+            if sent is None:
+                self._logger_ref.value.warning(
+                    f"{name} request not sent: the link's send lock was busy for {lock_timeout_s:g} s",
+                    key="vehicle",
+                )
+            return bool(sent)
+        # NavPy taking GUIDED is a navigation command: the closed command
+        # fence drops it (mav_command_fence.py). Every other mode request,
+        # the hold's LOITER and AUTO included, is never fenced.
+        with self._transport.fenced() as connection:
+            if connection is None:
+                if self._transport.fence.first_drop_of_generation():
+                    self._logger_ref.value.warning(
+                        "GUIDED request dropped by the closed command fence "
+                        f"(generation {self._transport.fence.generation}).",
+                        key="vehicle",
+                    )
+                return False
+            return _send(connection)
 
     @property
     def heartbeat_count(self) -> int:

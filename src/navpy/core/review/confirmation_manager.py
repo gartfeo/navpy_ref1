@@ -142,6 +142,10 @@ class ConfirmationManager(ListenerAbc):
     def clear_status(self, poi: DetectedObject) -> None:
         self._state.registry.clear_status(poi)
 
+    def hold_acquisition(self, poi_id: int, held: bool) -> None:
+        """Publish whether the acquisition gates hold on this tick (HITL step 25)."""
+        self._state.acquisition.publish(poi_id, held)
+
     def review(self, pois: List[DetectedObject]) -> None:
         self._coordinator.review(pois)
 

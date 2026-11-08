@@ -289,6 +289,24 @@ class TestManagedStartInstance(unittest.TestCase):
 
         self.assertNotIn(1, runtime_mod._auto_managed_sysids)
 
+    def test_only_an_auto_managed_companion_is_started_supervised(self):
+        mgr = MagicMock()
+        runtime_mod._navpy_mgr = mgr
+
+        runtime_mod.managed_start_instance(1, "udp:0.0.0.0:14560", self._mock_settings())
+        runtime_mod.start_instance(2, "udp:0.0.0.0:14570", self._mock_settings())
+        runtime_mod.start_instance(1, "udp:0.0.0.0:14560", self._mock_settings())   # a restart keeps it
+
+        supervised = [call.kwargs.get("supervised", False) for call in mgr.start.call_args_list]
+        self.assertEqual(supervised, [True, False, True])
+
+    def test_the_lockstep_launcher_never_gets_supervised(self):
+        from gcs.backend.navpy_sim_launch_policy import supervised_start_kwargs
+
+        self.assertEqual(supervised_start_kwargs(True, True), {"supervised": True})
+        self.assertEqual(supervised_start_kwargs(True, False), {})
+        self.assertEqual(supervised_start_kwargs(False, True), {})
+
 
 class TestManualStartMarksAutoManaged(unittest.TestCase):
     """Manual start routes must mark companions auto-managed (self-healing).
@@ -901,6 +919,7 @@ class TestAutoStartNavpySim(unittest.TestCase):
             "udp:0.0.0.0:14560",
             detector_debug_show=False,
             vision_profile=None,
+            supervised=True,
         )
         self.assertIn(1, runtime_mod._auto_managed_sysids)
 
@@ -923,6 +942,7 @@ class TestAutoStartNavpySim(unittest.TestCase):
             "udp:0.0.0.0:14560",
             detector_debug_show=True,
             vision_profile=None,
+            supervised=True,
         )
 
     @patch.object(runtime_mod.settings_store, "get")
@@ -951,6 +971,7 @@ class TestAutoStartNavpySim(unittest.TestCase):
                         "udp:0.0.0.0:14560",
                         detector_debug_show=window,
                         vision_profile=None,
+                        supervised=True,
                     )
 
     @patch.object(runtime_mod.settings_store, "get")
@@ -965,6 +986,7 @@ class TestAutoStartNavpySim(unittest.TestCase):
             "udp:0.0.0.0:14560",
             detector_debug_show=False,
             vision_profile="novoxy_dual",
+            supervised=True,
         )
 
     @patch.object(runtime_mod.settings_store, "get")
@@ -994,6 +1016,7 @@ class TestAutoStartNavpySim(unittest.TestCase):
             "tcp:127.0.0.1:5770",
             detector_debug_show=False,
             vision_profile=None,
+            supervised=True,
         )
 
     def test_manual_stop_prevents_auto_restart(self):

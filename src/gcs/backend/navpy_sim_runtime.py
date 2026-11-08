@@ -19,8 +19,7 @@ from gcs.backend.navpy_sim_heartbeat import (
 )
 from gcs.backend.navpy_sim_launch_policy import (
     _ENV_LOG_LEVEL,
-    detector_debug_enabled,
-    effective_vision_profile,
+    detector_debug_enabled, effective_vision_profile, supervised_start_kwargs,
     selected_vision_profile,
     sim_connection_from_settings,
     sim_log_level,
@@ -82,6 +81,7 @@ def start_instance(
         if level is not None:
             kwargs["log_level"] = level
         kwargs.update(sim_video_start_kwargs(settings, sys_id, _mgr_factory is None))
+        kwargs.update(supervised_start_kwargs(sys_id in _auto_managed_sysids, _mgr_factory is None))
         return get_or_create_mgr().start(sys_id, connection, **kwargs)
 
 
@@ -92,13 +92,13 @@ def managed_start_instance(
 ) -> Any:
     """Start a companion and mark it auto-managed on success/adoption."""
     with _configuration_restart_lock:
+        _auto_managed_sysids.add(sys_id)   # first: its NavPy is started --supervised
         try:
-            inst = start_instance(sys_id, connection, settings)
-        except ValueError:
-            _auto_managed_sysids.add(sys_id)
+            return start_instance(sys_id, connection, settings)
+        except BaseException as error:
+            if not isinstance(error, ValueError):   # a ValueError adopts the running one
+                _auto_managed_sysids.discard(sys_id)
             raise
-        _auto_managed_sysids.add(sys_id)
-        return inst
 
 
 def clear_managed_intent(sys_id: int) -> None:

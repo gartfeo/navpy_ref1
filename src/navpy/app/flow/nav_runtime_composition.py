@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from typing import Callable, Optional
 
+from navpy.app.attitude_boot_time import attitude_boot_s
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.search.detect_action import DetectAction
@@ -28,7 +29,6 @@ from navpy.app.flow.nav_composition_types import (
 )
 from navpy.core.flow.nav_display import NavDisplayBuilder, NavOutcomeLatch
 from navpy.core.flow.nav_state import NavState
-from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.app.flow.nav_delivery_composition import compose_sortie_finish
 from navpy.products.delivery.flow import restart_search
 from navpy.core.flow.nav_task_availability import is_approaching
@@ -38,6 +38,9 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
+from navpy.app.flow.nav_watchdog_composition import nav_recovery, nav_watchdog, recovery_period
+from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -105,6 +108,7 @@ def compose_nav_application(
     navigation: NavCapabilities,
     final_approach_nav: FinalApproachNavWorkflow,
     dock_contact_sensor: Optional[DockContactSensor] = None,
+    recovery_link: Optional[NavRecoveryLink] = None,
 ) -> NavApplication:
     loop: Optional[NavigationLoop] = None
     dock_contact = FinalApproachDockContact(
@@ -113,7 +117,7 @@ def compose_nav_application(
         navigation.final_approach.begin_dock_episode,
         navigation.final_approach.latch_docked,
         logger,
-        source_now_s=lambda: _attitude_boot_s(vehicle),
+        source_now_s=lambda: attitude_boot_s(vehicle),
         end_episode=navigation.final_approach.end_dock_episode,
         ending=_dock_episode_ending(navigation, poi),
     )
@@ -159,7 +163,7 @@ def compose_nav_application(
     transitions = NavigationTransitionHandler(
         TransitionPorts(
             decision_clock_s=lambda: state.clock.decision_s(),
-            return_to_search=lambda: restart_search(vehicle),
+            return_to_search=lambda: _return_to_search(vehicle, state),
             enter_recovery=decision.recovery.enter,
             start_task_actor=observation.network.start_task_actor,
             is_oneshot=lambda: args.is_oneshot,
@@ -222,15 +226,11 @@ def compose_nav_application(
         state.detections,
         state.phase,
     )
-    cycle = NavigationCycle(
-        lambda: vehicle.is_armed,
-        state.detections,
-        sensor,
-        decision.decision,
-        actions,
-    )
-    loop = NavigationLoop(cycle, state.clock, logger, on_cycle_error=(
-        lambda error: _fail_active_approach(state, error)))
+    cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
+    recovery = nav_recovery(vehicle, state.recovery_hold, logger, recovery_link)
+    sample = lambda: TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s())  # noqa: E731
+    loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))
+    watchdog = nav_watchdog(recovery_link, loop.progress, recovery, sample, logger)
     shutdown = NavShutdown(
         final_approach_nav.close_source_admission,
         navigation.reset,
@@ -238,22 +238,14 @@ def compose_nav_application(
         observation.network,
         logger,
     )
-    return NavApplication(loop, observation.network, shutdown, state.overrides)
+    return NavApplication(loop, observation.network, shutdown, state.overrides, watchdog)
 
 
-def _fail_active_approach(state: NavStateOwnership, _error: Exception) -> None:
-    """Fail an active approach closed after a NAV cycle error; else nothing."""
-    if state.phase.is_current(NavState.NAV):
-        state.navigation_failures.mark_failed(fail_reason.INTERNAL_ERROR)
-
-
-def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:
-    """Latest ATTITUDE boot time (the observation clock), for evidence rows."""
-    sample = getattr(vehicle, "attitude_sample", None)
-    value = getattr(sample, "time_boot_s", None)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
+def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
+    """Restart the search, except in recovery's hold: its LOITER and AUTO
+    stand, and the mission goes on from its current item on resume."""
+    if not state.recovery_hold.holding:
+        restart_search(vehicle)
 
 
 __all__ = ["compose_nav_application"]

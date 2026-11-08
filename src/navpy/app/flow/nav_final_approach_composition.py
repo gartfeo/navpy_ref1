@@ -24,6 +24,7 @@ from navpy.core.swarm.nav_network import NavPeerSubmission
 from navpy.core.flow.nav_constants import (
     CONFIRM_FRESH_DETECTION_MAX_AGE_S,
 )
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_reset_composition import compose_reset_workflows
 from navpy.core.flow.nav_state import NavState
 from navpy.core.approach.final_approach_command_dispatch import (
@@ -194,7 +195,7 @@ def compose_final_approach_nav(
     return FinalApproachNavWorkflow(
         FinalApproachNavPorts(
             vehicle_mode=lambda: vehicle.get_mode,
-            request_guided=lambda: approach.commands.request_guided(),
+            request_guided=lambda: request_guided_owned(state, approach),
             mark_guided_session=lambda: _mark_guided_session(state),
             active_poi=lambda: poi.confirmation_manager.active_poi,
             vision_nav_active=lambda: navigation.final_approach.is_active,

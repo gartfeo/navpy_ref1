@@ -2,7 +2,9 @@
 
 from __future__ import annotations
 
-from typing import Optional
+from collections.abc import Callable
+from contextlib import nullcontext
+from typing import ContextManager, Optional
 
 from navpy.core.kernel.config.navigation_args import NavigationArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -36,6 +38,8 @@ class Navigation:
         scheduler_cadence: Optional[SchedulerCadence] = None,
         on_terminal: Optional[TerminalObserver] = None,
         law_airspeed: Optional[LawAirspeed] = None,
+        command_formation: Callable[[], ContextManager[None]] = nullcontext,
+        command_pass: Callable[[], ContextManager[None]] = nullcontext,
     ) -> None:
         if zc_util is None and getattr(args, "use_terrain", True):
             raise ValueError(
@@ -51,6 +55,8 @@ class Navigation:
             scheduler_cadence,
             on_terminal,
             law_airspeed,
+            command_formation,
+            command_pass,
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state

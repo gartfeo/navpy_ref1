@@ -9,6 +9,7 @@ from typing import Iterable
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.progress_beacon import bounded_wait
 
 
 class MessageHistoryOverrun(RuntimeError):
@@ -139,7 +140,8 @@ class MessageStore:
             if isinstance(message_types, str)
             else tuple(message_types)
         )
-        with self._condition:
+        # A reply wait is bounded by its deadline: not a hang of the watched loop it runs in (step 6).
+        with bounded_wait(deadline - rt.monotonic()), self._condition:
             self._require_history(types)
             while True:
                 candidates = sorted(

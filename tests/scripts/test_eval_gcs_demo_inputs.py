@@ -49,6 +49,18 @@ def test_overrides_state_flown_values_but_no_calibration_or_lua_params():
     assert not [name for name in overrides if name.startswith(forbidden)]
 
 
+def test_overrides_put_switch_position_6_and_start_up_in_auto():
+    """SITL holds channel 5 at 1800 us, switch position 6; AUTOTUNE there put
+    sim UAVs in AUTOTUNE (2026-11-05). Same values the GCS writes on connect."""
+    from gcs.backend.sim_mode_params import PLANE_MODE_AUTO, SIM_MODE_SWITCH_PARAMS
+
+    overrides = sitl_root.SITL_DEFAULT_OVERRIDES
+    assert overrides["FLTMODE_CH"] == 5.0
+    assert overrides["FLTMODE6"] == PLANE_MODE_AUTO
+    assert overrides["INITIAL_MODE"] == PLANE_MODE_AUTO
+    assert {name: overrides[name] for name in SIM_MODE_SWITCH_PARAMS} == dict(SIM_MODE_SWITCH_PARAMS)
+
+
 def test_binary_wrapper_pins_the_clock_epoch_and_forwards_arguments():
     text = sitl_root.binary_wrapper("/home/u/ardupilot/build/sitl/bin/arduplane", 1767225600)
     assert text == (

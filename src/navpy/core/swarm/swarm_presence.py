@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
 from navpy.core.link.location_msg import LocationMsgData
@@ -14,6 +15,8 @@ from navpy.core.link.swarm_heartbeat_msg import (
     SwarmHeartbeatMsg,
     SwarmNodeState,
 )
+from navpy.core.flow.nav_recovery_clock import AircraftTimeClock, attitude_boot_s
+from navpy.core.kernel.restart_budget import RestartBudget
 from navpy.core.swarm.swarm_heartbeat_runtime import SwarmHeartbeatRuntime
 from navpy.core.swarm.task_messaging import TaskMessageSender
 from navpy.core.swarm.task_msg_refs import MsgRef, msg_ref
@@ -57,7 +60,13 @@ class SwarmPresence:
         self._node_state = node_state
         self._peers = peers
         self._logger = logger
-        self._heartbeat = SwarmHeartbeatRuntime(self)
+        # A failed heartbeat generation restarts fresh (recovery step 5c), its tries timed in aircraft time
+        # (owner ruling Q1); the operator is told.
+        self._heartbeat = SwarmHeartbeatRuntime(
+            self,
+            lambda message: logger.warning(message, key="swarm", status=message, dest=LogStatusDest.DRONE),
+            RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle))),
+        )
 
     def start(self) -> None:
         if not self._heartbeat.start():

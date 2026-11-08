@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
-from typing import Awaitable, Callable
+from typing import Awaitable, Callable, Protocol
 from fastapi import HTTPException
 from pymavlink.dialects.v20.ardupilotmega import MAV_CMD_COMPONENT_ARM_DISARM
 from navpy.core.ports.flight_mode import FlightMode
@@ -113,6 +113,42 @@ async def launch_sequence(
         return result
     return await _bungee_launch(req, settings)
 
+#: AUTO requests per vehicle before the restart reports failure.
+AUTO_CONFIRM_TRIES = 3
+#: Wait per request for a newer heartbeat showing AUTO. ArduPlane sends one
+#: per second, so this covers at least two.
+AUTO_CONFIRM_WAIT_S = 2.5
+AUTO_CONFIRM_POLL_S = 0.1
+
+
+class _ModeConfirmVehicle(Protocol):
+    heartbeat_count: int
+    get_mode: FlightMode | None
+
+    def set_mode(self, flight_mode: FlightMode) -> bool: ...
+
+
+async def _set_auto_confirmed(vehicle: _ModeConfirmVehicle) -> tuple[bool, FlightMode | None]:
+    """Request AUTO until a heartbeat newer than the request shows it.
+
+    Returns whether it was confirmed and the last fresh mode seen (None when
+    no newer heartbeat came). A request sent but not taken (seen as AUTOTUNE,
+    2026-11-05) is then reported, not counted as a restart.
+    """
+    seen: FlightMode | None = None
+    for _ in range(AUTO_CONFIRM_TRIES):
+        before = vehicle.heartbeat_count
+        vehicle.set_mode(FlightMode.AUTO)
+        for _ in range(max(1, round(AUTO_CONFIRM_WAIT_S / AUTO_CONFIRM_POLL_S))):
+            await asyncio.sleep(AUTO_CONFIRM_POLL_S)
+            if vehicle.heartbeat_count <= before:
+                continue
+            seen = vehicle.get_mode
+            if seen == FlightMode.AUTO:
+                return True, seen
+    return False, seen
+
+
 async def restart_mission(
     req: LaunchRequest,
     *,
@@ -174,7 +210,12 @@ async def restart_mission(
             # Checked again right before AUTO, after the settle or arm wait.
             if ekf_blocks(sys_id, "AUTO"):
                 continue
-            entry.vehicle.set_mode(FlightMode.AUTO)
+            confirmed, seen = await _set_auto_confirmed(entry.vehicle)
+            if not confirmed:
+                detail = f"mode {seen.name}" if seen is not None else "no new heartbeat"
+                results[sys_id] = f"error: AUTO not confirmed ({detail})"
+                log.error("Restart for vehicle %d: AUTO not confirmed (%s)", sys_id, detail)
+                continue
             results[sys_id] = "restarted"
             log.info("Vehicle %d mission restarted", sys_id)
         except Exception as e:

@@ -21,7 +21,9 @@ from navpy.plugins.vehicle.ardupilot.camera_stream_publisher import (
 from navpy.plugins.vehicle.ardupilot.gimbal_telemetry_publisher import (
     GimbalTelemetryPublisher,
 )
+from navpy.app.perception.hitl_contact_input import with_hitl_contact
 from navpy.app.perception.integration_timing_input import (
+    close_integration,
     open_integration_input,
     with_gimbal_revoke,
     with_law_airspeed,
@@ -39,6 +41,7 @@ from navpy.app.perception.vision_detector_factory_ports import (
     cleanup_mount_specs,
 )
 from navpy.core.perception.vision_lifecycle import VisionLifecycle
+from navpy.app.perception.restarting_detector import restarting_detector_node
 from navpy.app.perception.vision_profile_composition import build_vision_profile
 from navpy.sim.debug_view.vision_sim_debug_view import (
     StackedSimulatorView,
@@ -93,7 +96,7 @@ def build_vision_controller(
             )
             integration = with_law_airspeed(integration, vehicle)
             integration = with_gimbal_revoke(integration, siyi_fence)
-
+            integration = with_hitl_contact(integration, vision_args.hitl_contact, profile.profile, vehicle)
             factory = RealDetectorFactory(
                 vehicle,
                 logger,
@@ -104,6 +107,7 @@ def build_vision_controller(
                 integration=integration,
             )
         else:
+            with_hitl_contact(None, vision_args.hitl_contact, profile.profile, vehicle)
             open_integration_input(
                 vision_args.integration_timing,
                 vision_args.integration_log,
@@ -124,10 +128,9 @@ def build_vision_controller(
                 scheduler_cadence,
                 camera_frames,
             )
+        # Each mount's detector is restarted as a new instance behind a stable proxy (recovery step 5b).
         nodes = build_detector_nodes(
-            factory,
-            profile.mount_specs,
-            profile.detector_settings,
+            factory, profile.mount_specs, profile.detector_settings, restarting_detector_node(logger, vehicle),
         )
         detectors = [node.detector for node in nodes]
         coordinator = DetectionCoordinator(detectors, logger)
@@ -188,8 +191,7 @@ def build_vision_controller(
     except Exception as construction_error:
         cleanup_errors = cleanup_detector_nodes(nodes)
         cleanup_errors.extend(cleanup_mount_specs(profile.mount_specs))
-        if integration is not None:
-            integration.log.close()
+        close_integration(integration)
         if cleanup_errors:
             raise ExceptionGroup(
                 "vision construction and rollback failed",

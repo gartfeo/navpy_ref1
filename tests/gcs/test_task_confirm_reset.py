@@ -22,6 +22,16 @@ def control_client():
     mock_entry.vehicle = MagicMock()
     mock_entry.vehicle.is_armed = True
     mock_entry.mission_uploaded = True
+    # A restart counts once a newer heartbeat shows AUTO.
+    from navpy.core.ports.flight_mode import FlightMode
+    mock_entry.vehicle.heartbeat_count = 0
+    mock_entry.vehicle.get_mode = None
+
+    def set_mode(mode, **_):
+        mock_entry.vehicle.heartbeat_count += 1
+        mock_entry.vehicle.get_mode = FlightMode(mode)
+
+    mock_entry.vehicle.set_mode.side_effect = set_mode
 
     mock_mgr = MagicMock()
     mock_mgr.get_vehicle = MagicMock(return_value=mock_entry)

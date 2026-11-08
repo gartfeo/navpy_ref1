@@ -10,6 +10,8 @@ from dataclasses import dataclass
 from enum import Enum, auto
 from typing import NoReturn
 
+from navpy.app.runtime_escalation import RuntimeEscalation
+
 
 CleanupAction = Callable[[], object]
 RUNTIME_CLEANUP_ATTEMPTS = 2
@@ -193,7 +195,9 @@ class RuntimeSession:
         ready_signal: Callable[[], None] | None = None,
         stop_requested: Callable[[], bool] | None = None,
         acknowledge_stop: Callable[[], None] | None = None,
+        escalation: RuntimeEscalation | None = None,
     ) -> None:
+        self._escalation = escalation
         self._resources = resources
         self._start_vision = start_vision
         self._start_controller = start_controller
@@ -220,13 +224,13 @@ class RuntimeSession:
             self._start_controller()
             ready_pending = True
             while True:
-                self._health_check()
+                self._check_health()
                 if ready_pending:
                     if self._ready_signal is not None:
                         self._ready_signal()
                     ready_pending = False
                 keep_running = self._ui_step()
-                self._health_check()
+                self._check_health()
                 if not keep_running or self._stop_was_requested():
                     break
                 self._sleep(0.005)
@@ -261,6 +265,14 @@ class RuntimeSession:
         if self._acknowledge_stop is not None and self._stop_was_requested():
             self._acknowledge_stop()
         return 0
+
+    def _check_health(self) -> None:
+        # With an escalation a component failure fences and hands over first (runtime_escalation.py); the
+        # late check after cleanup below still reports it.
+        if self._escalation is None:
+            self._health_check()
+        else:
+            self._escalation.check(self._health_check)
 
     def _stop_was_requested(self) -> bool:
         return self._stop_requested is not None and self._stop_requested()

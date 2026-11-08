@@ -12,6 +12,7 @@ from navpy.core.skills.confirm.confirmation_reporting import (
 from navpy.core.skills.confirm.confirmation_frame_policy import ConfirmationFramePolicy
 from navpy.core.skills.confirm.confirmation_recognition import RecognitionGate
 from navpy.core.skills.confirm.confirmation_review import ConfirmationReview
+from navpy.core.skills.confirm.acquisition_sequence import AcquisitionGate
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.skills.search.poi_selection import PoiSelector
@@ -21,6 +22,7 @@ from navpy.core.flow.nav_state import (
 )
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.perception.detector_ports import GeoPointingPort
 from navpy.core.ports.detect_data import DetectedObject
 
@@ -128,6 +130,7 @@ class ConfirmationAction:
         blocked: ConfirmBlockedReporter,
         debug: ConfirmDebugReporter,
         geo_hold: ConfirmationGeoHold,
+        acquisition: AcquisitionGate,
     ) -> None:
         self._detections = detections
         self._selector = selector
@@ -140,6 +143,7 @@ class ConfirmationAction:
         self._blocked = blocked
         self._debug = debug
         self._geo_hold = geo_hold
+        self._acquisition = acquisition
 
     def act(self) -> None:
         self._geo_hold.tick()
@@ -151,13 +155,26 @@ class ConfirmationAction:
         if peers:
             self._peer_notifier.notify(peers)
         active = self._confirmation_manager.active_poi
-        if active is None or self._confirmation_manager.get_status(active) is not None:
+        status = None if active is None else self._confirmation_manager.get_status(active)
+        if active is None or status not in (None, ConfirmationStatus.CONFIRMING):
             self._blocked.clear()
             return
         fresh = self._source.find_active_poi_detection()
+        # Asked on every tick, with or without a detection, so the orbit gate sees each tick.
+        acquired = self._acquisition.ready(fresh)
+        if status is ConfirmationStatus.CONFIRMING:
+            # A review under way: the gate has published its state, and the confirmation lock
+            # withdraws the review when it does not hold (HITL step 25).
+            self._blocked.clear()
+            return
         if fresh is None:
             self._debug.log("no_detection")
             self._blocked.clear()
+            return
+        if not acquired:
+            # HITL step 25: no confirmation (local or operator) before a fresh lock and an
+            # established orbit on the own-detected pose.
+            self._debug.log(f"acquisition_gate_waiting obj={fresh.identity.obj_id}")
             return
         if self._final_approach_admission.handle(fresh):
             return

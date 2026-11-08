@@ -599,6 +599,7 @@ def test_runtime_composition_registers_live_workers_as_quiescence(monkeypatch):
         vehicle_close_gate=SimpleNamespace(stop_vision=MagicMock()),
         terminal_handoff=None,                   # no --router-control
         camera_frames=None,                      # no sim camera model
+        recovery_link=None,                      # no NAV recovery link
     )
     monkeypatch.setattr(composition, "VisionController", lambda *_args, **_kw: vision)
     monkeypatch.setattr(composition, "MissionPlanner", lambda *_args: object())
@@ -642,7 +643,7 @@ def test_a_stop_before_navigation_starts_builds_no_controller(monkeypatch):
         vehicle=vehicle, vision_args=object(), logger=MagicMock(), zc_util=None,
         navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
         vehicle_close_gate=SimpleNamespace(stop_vision=MagicMock()), terminal_handoff=None,
-        camera_frames=None,
+        camera_frames=None, recovery_link=None,
     )
     nav_args = MagicMock(side_effect=AssertionError("read NavArgs after the stop"))
     monkeypatch.setattr(composition, "VisionController", lambda *_args, **_kw: vision)

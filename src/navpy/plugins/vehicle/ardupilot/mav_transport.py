@@ -9,6 +9,7 @@ from pymavlink import mavutil
 from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
 
 ResultT = TypeVar("ResultT")
 
@@ -18,9 +19,11 @@ class MavTransport:
         self,
         connection: mavutil.mavfile,
         send_lock: rt.LockPort,
+        fence: MavCommandFence | None = None,
     ) -> None:
         self._connection = connection
         self._send_lock = send_lock
+        self.fence = MavCommandFence() if fence is None else fence
 
     def call(
         self,
@@ -46,6 +49,14 @@ class MavTransport:
             return action(self._connection)
         finally:
             self._send_lock.release()
+
+    @contextmanager
+    def fenced(self) -> Iterator[mavutil.mavfile | None]:
+        """A navigation command's writes: the connection when the fence admits
+        them, else ``None`` (dropped and counted). Admission is decided under
+        the send lock, which is held for the writes (mav_command_fence.py)."""
+        with self._send_lock:
+            yield self._connection if self.fence.admit() else None
 
     @contextmanager
     def transaction(self) -> Iterator[mavutil.mavfile]:

@@ -99,10 +99,12 @@ def backing(paths: ChainPaths, origin: str, binary: str) -> ProcSpec:
                     ports=(("tcp", SITL_PORT), ("tcp", HIL_PORT)), cwd=str(paths.repo))
 
 
-def router(paths: ChainPaths) -> ProcSpec:
-    """navpy is a reader: observation (step 16), no navpy write to the aircraft reaches the board."""
+def router(paths: ChainPaths, command: bool = False) -> ProcSpec:
+    """Observation (step 16): navpy is a reader, no navpy write to the aircraft reaches the board. Command (step 27):
+    navpy is a client whose writes reach the board until its endpoint is closed (the quiesce's drain ack)."""
+    navpy_role = "--client" if command else "--reader"
     return ProcSpec("router", tool(paths, "tools.tuning.mav_router", "--board", f"tcp:127.0.0.1:{SITL_PORT}",
-                                   "--client", f"runner={RUNNER_PORT}", "--reader", f"navpy={NAVPY_PORT}",
+                                   "--client", f"runner={RUNNER_PORT}", navpy_role, f"navpy={NAVPY_PORT}",
                                    "--control", str(CONTROL_PORT),
                                    "--write-log", str(paths.run_dir / "router_writes.csv"),
                                    "--stats", str(paths.run_dir / "router_stats.json"), "--exit-on-stdin-eof"),
@@ -110,14 +112,14 @@ def router(paths: ChainPaths) -> ProcSpec:
                     ports=(("udp", RUNNER_PORT), ("udp", NAVPY_PORT), ("udp", CONTROL_PORT)), cwd=str(paths.repo))
 
 
-def bridge_template(model_dir: Path, servo_speed_s: float, windows_ip: str) -> str:
+def bridge_template(model_dir: Path, servo_speed_s: float, windows_ip: str, contact_copy: str) -> str:
     """hitl_procs' direct bridge: the program plant opens the backing's HIL port; pose to Unreal, a copy to the
-    emulator."""
+    emulator and one to the contact service (approach_contact.py)."""
     return (f"{{python}} -s -m tools.tuning.hitl_bridge --device tcp:127.0.0.1:{HIL_PORT} --plant program "
             f"--reconnect-interval-s 0.5 --model-dir {shlex.quote(str(model_dir))} --servo-speed-s {servo_speed_s:g} "
             "--origin-lat {lat} --origin-lon {lon} --origin-alt {alt} --heading {hdg} --exit-on-stdin-eof "
             f"--log-csv {{link_csv}} --unreal-pose {windows_ip}:{POSE_PORT} {UNREAL_ALT_OFFSET_M} "
-            f"--vehicle-state-copy {windows_ip}:{VEHICLE_STATE_PORT}")
+            f"--vehicle-state-copy {windows_ip}:{VEHICLE_STATE_PORT} --vehicle-state-copy {contact_copy}")
 
 
 def emulator(paths: ChainPaths) -> ProcSpec:
@@ -161,8 +163,10 @@ def publisher(paths: ChainPaths, profile: Path, lens_table: Path) -> ProcSpec:
 FAULT_LOG = "media_fault.jsonl"     # the commissioning injector's log in the run folder (media_fault_injector.py)
 
 
-def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: bool = False) -> ProcSpec:
-    """navpy itself, or with commissioning navpy through the fault injector, which reads the fault from the record."""
+def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: bool = False,
+          extra: tuple[str, ...] = ()) -> ProcSpec:
+    """navpy itself, or with commissioning navpy through the fault injector, which reads the fault from the record;
+    extra: the contact link (approach_contact.navpy_args)."""
     entry = (("tools.hitl.media_fault_injector", "--fault-log", str(paths.run_dir / FAULT_LOG), "--")
              if commissioning else ("navpy.main",))
     return ProcSpec("navpy", CONSUMER_NICE + tool(paths, *entry, "-c", f"udpin:127.0.0.1:{NAVPY_PORT}",
@@ -172,7 +176,7 @@ def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: b
                                   f"127.0.0.1:{CONTROL_PORT}", "--router-client", "navpy", "--stop-on-stdin",
                                   "--integration-timing", str(record),
                                   "--integration-log", str(paths.run_dir / "navpy_integration.jsonl"),
-                                  "--siyi-ip", paths.windows_ip),
+                                  "--siyi-ip", paths.windows_ip, *extra),
                     "^" + NAVPY_RUNTIME_READY_MARKER, READY_TIMEOUT_S["navpy"], NAVPY_STOP_REQUEST, stop_wait_s=30.0,
                     cwd=str(paths.repo),
                     env={"PYTHONPATH": f"{paths.repo / 'src'}:{paths.repo}", "PYTHONUNBUFFERED": "1"})

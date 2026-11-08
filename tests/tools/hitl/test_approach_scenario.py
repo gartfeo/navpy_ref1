@@ -105,7 +105,7 @@ def test_prepare_delivers_to_the_series_consumers_and_the_ledger_shows_them(tmp_
     folder = tmp_path / "scenario"
     service.prepare(_series(tmp_path), 0, folder)
     audit = scoring.audit(folder)
-    assert audit == {"deliveries": {"unreal": 1, "scoring": 1}, "outside_allowed": [], "refused": [], "missing": [],
+    assert audit == {"deliveries": {"unreal": 1, "contact": 1, "scoring": 1}, "outside_allowed": [], "refused": [], "missing": [],
                      "repeated": [], "other_scene": [], "stray_files": []}
     unreal = json.loads(sp.consumer_file(folder, "unreal").read_text(encoding="utf-8"))
     assert set(unreal) == {"schema_version", "scene_hash", "dock_offset_east_mm", "dock_offset_north_mm",
@@ -139,7 +139,8 @@ def test_one_scenario_per_folder(tmp_path):
 
 
 @pytest.mark.parametrize("consumers, problem", [
-    (["unreal"], "scoring"), (["scoring"], "unreal"), (["unreal", "scoring", "gcs"], "must be one of"),
+    (["unreal", "contact"], "scoring"), (["contact", "scoring"], "unreal"), (["unreal", "scoring"], "contact"),
+    (["unreal", "contact", "scoring", "gcs"], "must be one of"),
 ])
 def test_a_public_half_missing_a_consumer_or_naming_another_is_refused(tmp_path, consumers, problem):
     public = service.prepare(_series(tmp_path), 0, None)
@@ -271,7 +272,7 @@ def test_without_an_unreal_log_or_a_scoring_file_nothing_is_reproduced(tmp_path)
     verdict = scoring.verify_unreal(folder, tmp_path / "none.log")
     assert not verdict["reproduced"] and "no Unreal log" in verdict["problems"]
     without = tmp_path / "unscored"
-    service.prepare(_series(tmp_path, name="s2", consumers=["unreal", "scoring"]), 0, without)
+    service.prepare(_series(tmp_path, name="s2"), 0, without)
     sp.consumer_file(without, "scoring").unlink()
     with pytest.raises(RecordError, match="no file"):
         scoring.verify_unreal(without, tmp_path / "none.log")
@@ -345,6 +346,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
     monkeypatch.setattr(approach, "_record", record)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: _write(run_dir / "approach_record.json"))
+    monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: _write(run_dir / "contact_link.json"))
     monkeypatch.setattr(approach, "_addresses", lambda: ("172.0.0.2", "172.0.0.1"))
     monkeypatch.setattr(approach, "_board_scripts", lambda repo, run_dir: None)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
@@ -425,8 +427,10 @@ def test_another_scene_changes_no_command_lane_or_limit(tmp_path, monkeypatch):
 # --- guards: who may import the service, and navpy never sees tools --------------------------------------------------
 
 # Scoring and its live check beside Unreal; the runner reaches both only through their processes.
-SERVICE_IMPORTERS = {"tools/hitl/scenario_scene_check.py", "tools/hitl/scenario_scoring.py"}
-SCORING_IMPORTERS = {"tools/hitl/scenario_scene_check.py"}
+# The contact service's scene reader rebuilds the scene hash from Unreal's readback, as scoring does (step 26).
+SERVICE_IMPORTERS = {"tools/hitl/scenario_scene_check.py", "tools/hitl/scenario_scoring.py",
+                     "tools/hitl/contact_scene.py"}
+SCORING_IMPORTERS = {"tools/hitl/scenario_scene_check.py", "tools/hitl/contact_scene.py"}
 
 
 def _imports(path: Path) -> set[str]:

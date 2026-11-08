@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable, Optional
 
 from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
@@ -11,6 +11,7 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
+from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyDestinationResolver
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.skills.confirm.confirmation_action import ConfirmationAction
@@ -25,6 +26,7 @@ from navpy.core.skills.confirm.confirmation_reporting import (
 from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
 from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
+from navpy.core.skills.confirm.acquisition_sequence import AcquisitionGate
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
 from navpy.core.swarm.peer_poi_notification import PeerPoiNotifier
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
@@ -103,6 +105,8 @@ class NavStateOwnership:
     confirm: ConfirmGateState
     overrides: ConfirmOverrideInbox
     post_dock_climb: PostDockClimb
+    #: Recovery's hold, read by the decision and the RESET hook (nav_recovery.py).
+    recovery_hold: RecoveryHold = field(default_factory=RecoveryHold)
 
 
 @dataclass(frozen=True)
@@ -158,6 +162,8 @@ class NavigationTaskWorkflows:
     peer_task_priority: PeerTaskPriority
     peer_reask: PeerTaskReask
     work_source: DeliveryWorkSource
+    # HITL step 25: lock and orbit gates before confirm and NAV (open without the profile's gates).
+    acquisition: AcquisitionGate
 
 
 @dataclass(frozen=True)
@@ -177,6 +183,7 @@ class ConfirmationAdmissionWorkflows:
     action: ConfirmationAction
     release: FinalApproachReleaseGate
     deadline: FinalApproachRecordDeadline
+    acquisition: AcquisitionGate
 
 
 @dataclass(frozen=True)

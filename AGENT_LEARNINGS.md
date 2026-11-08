@@ -2699,6 +2699,33 @@
 - **A name guard must tell a read from a constant write.** The AST guard flagged `Attitude(yaw=0.0)`, the level
   frame's zero yaw; allow exactly that constant and assert it separately instead of dropping `yaw` from the list.
 
+## Lock and confirm gates (HITL step 25, 2026-11-07)
+
+- **`vehicle.location()` is a cache, not a fix.** It returns the last GLOBAL_POSITION_INT with no age, so a gate
+  that dwells on it holds through a stopped stream. Read `vehicle.position_sample` and count a fix only while its
+  `time_boot_s` advances (Codex round 1).
+- **A gate checked only when a request starts does not cover the answer.** An operator round stays open for
+  seconds and is resolved on another thread. Withdrawing it from the navigation tick still raced the answer
+  (Codex round 2); enforce the gate where the status is written: publish the gates' state under the
+  confirmation lock and let the registry refuse CONFIRMED from every path while it is False.
+- **"Same frame again, nothing new" must still age.** A lock that only measures gaps between distinct frames
+  holds forever on a repeated frame; time the newest frame's arrival on the decision clock.
+- **A gate that dwells must be observed on every tick, in every status.** Returning early while CONFIRMING left
+  the orbit unobserved for the whole review, so the dwell restarted after every operator round.
+- **Check `Attitude`'s argument order: it is (pitch, yaw, roll).** The replay's "compass poison"
+  `Attitude(0, 0, yaw)` poisoned roll; it stayed green because nothing in the gates read attitude.
+- **A poison test through mocks proves nothing about the mocked boundary.** Poison the real projector and law
+  (`FinalApproachConfirmation` with `VisionNavLaw`) and compare their outputs.
+- **The SOLID guard counts methods per class (15).** Put a new transaction on the state class into a small
+  collaborator held as an attribute, as `registry` is, instead of raising the limit.
+- **Fail closed is not the same as fail often.** Revoking on every bad frame made each short blip cost the
+  operator another answer; the owner ruled "do not lose it; ask again only when not sure". Separate "held on
+  this tick" (NAV and confirm need it) from "not lost" (what the confirmation lock watches), and give the loss
+  a window the profile already defines (the frame gap) instead of a new value.
+- **A replay's scripted geometry must use the same earth model as the code it checks.** The replay offset on
+  111 320 m/deg while `Location.distance_to` uses a 6 371 km sphere; a scripted 25.2 m radial measured 24.9 m,
+  and the oracle disagreed with a correct gate.
+
 ## Clock-failure tests for deadline waits (todo 291, 2026-11-05)
 
 - A fake Event that adds each timeout to a fake clock froze on float rounding (0.95 + 4e-17 == 0.95), so

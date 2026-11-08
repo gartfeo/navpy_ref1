@@ -54,7 +54,11 @@ SITL_DEFAULT_OVERRIDES: Mapping[str, float] = {
     "ARMING_CHECK": 0.0,
     "FLTMODE_CH": 5.0, "FLTMODE1": 5.0, "FLTMODE2": 5.0,
     "FLTMODE3": 7.0, "FLTMODE4": 7.0, "FLTMODE5": 8.0,
-    "FLTMODE6": 8.0,
+    # SITL holds channel 5 at 1800 us (switch position 6), so position 6 and
+    # the start-up mode are AUTO, not AUTOTUNE (owner ruling 2026-11-05; same
+    # values as gcs.backend.sim_mode_params.SIM_MODE_SWITCH_PARAMS).
+    "FLTMODE6": 10.0,
+    "INITIAL_MODE": 10.0,
     "NAVL1_PERIOD": 18.0,
     "PTCH2SRV_RMAX_DN": 75.0, "PTCH2SRV_RMAX_UP": 75.0, "PTCH2SRV_TCONST": 0.2875,
     "PTCH_LIM_MAX_DEG": 35.0,

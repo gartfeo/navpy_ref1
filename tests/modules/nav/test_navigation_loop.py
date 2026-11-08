@@ -168,14 +168,14 @@ def test_navigation_loop_recovers_from_operational_oserror() -> None:
 def test_navigation_loop_recovers_from_programmer_typeerror() -> None:
     # Changed 2026-11-05 (owner: no scenario may crash NavPy): a programming
     # error used to end the loop, and with it the process, mid-flight. It is
-    # now logged, reported and handed to the fail-closed recovery hook.
-    # BaseException stays fatal (tests below).
+    # now logged, reported and counted as a failed period for recovery
+    # (2026-11-07, recovery step 4). BaseException stays fatal (tests below).
     cycle = Mock()
     logger = Mock()
     clock = Mock()
     clock.scheduler_wall_period.return_value = 0.0
-    on_error = Mock()
-    loop = NavigationLoop(cycle, clock, logger, on_cycle_error=on_error)
+    periods: list[bool] = []
+    loop = NavigationLoop(cycle, clock, logger, on_period=periods.append)
     error = TypeError("bad cycle input")
 
     def invalid_cycle() -> None:
@@ -187,7 +187,7 @@ def test_navigation_loop_recovers_from_programmer_typeerror() -> None:
     loop._run()
 
     cycle.run.assert_called_once_with()
-    on_error.assert_called_once_with(error)
+    assert periods == [False]
     assert "bad cycle input" in logger.error.call_args.args[0]
     loop.raise_if_failed()
 

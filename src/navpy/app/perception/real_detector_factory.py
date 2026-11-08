@@ -68,12 +68,14 @@ class RealDetectorFactory:
         self._debug_show = bool(debug_show)
         # One receiver per run: the integration log holds one stream.
         self._integration = integration
-        self._integration_taken = False
+        # The mount that took it: a restart of that mount's detector takes it again (recovery step 5b).
+        self._integration_mount: int | None = None
 
     @property
     def dock_contact(self) -> DockContactSensor | None:
-        """A real aircraft is caught by the net: no software contact sensor."""
-        return None
+        """A real aircraft is caught by the net: no software contact sensor. Only a pc-sitl run's
+        ``--hitl-contact`` gives one: the contact service's (HITL step 26)."""
+        return None if self._integration is None else self._integration.contact
 
     def create(
         self,
@@ -82,7 +84,7 @@ class RealDetectorFactory:
         mount_index: int,
     ) -> VisionDetectorNode:
         validate_detector_settings_keys(detector_settings)
-        integration = self._take_integration()
+        integration = self._take_integration(mount_index)
         try:
             from navpy.core.perception.pipeline.detector import Detector
             from navpy.core.perception.pipeline.real_detector_composition import (
@@ -212,14 +214,14 @@ class RealDetectorFactory:
             camera_health=CameraHealth(NAVPY_CAMERA_VENDOR, detector.has_fresh_frame),
         )
 
-    def _take_integration(self) -> IntegrationTimingInput | None:
+    def _take_integration(self, mount_index: int) -> IntegrationTimingInput | None:
         if self._integration is None:
             return None
-        if self._integration_taken:
+        if self._integration_mount not in (None, mount_index):
             raise ValueError(
                 "integration timing covers one camera mount per run"
             )
-        self._integration_taken = True
+        self._integration_mount = mount_index
         return self._integration
 
 

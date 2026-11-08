@@ -356,7 +356,7 @@ def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(m
     foundation = SimpleNamespace(vehicle=MagicMock(), vision_args=object(), logger=MagicMock(), zc_util=None,
                                  navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
                                  vehicle_close_gate=SimpleNamespace(stop_vision=lambda stop, _q: stop()),
-                                 terminal_handoff=handoff, camera_frames=None)
+                                 terminal_handoff=handoff, camera_frames=None, recovery_link=None)
     for name, value in [("VisionController", lambda *_a, **_k: vision), ("MissionPlanner", lambda *_a: object()),
                         ("MissionPlannerArgs", lambda _a: object()), ("NavArgs", lambda *_a: object()),
                         ("Navigation", lambda *_a, **_k: SimpleNamespace(start=start, stop=stops("navigation"))),
@@ -510,6 +510,7 @@ def _runner(tmp_path, monkeypatch, fly, census=None):
     monkeypatch.setattr(approach.scenario_run, "service", runner_rig.fake_service)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: runner_rig._written(run_dir / "approach_record.json"))
+    monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: runner_rig._written(run_dir / "link.json"))
     monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
     monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
     passing = {"ok": True, "roles": {}, "problems": []}

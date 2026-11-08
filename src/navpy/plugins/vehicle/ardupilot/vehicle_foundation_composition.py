@@ -69,7 +69,9 @@ def build_vehicle_foundation(
             # may have been opened on a different endpoint than the one the
             # request named, and the live-link identity must describe the
             # connection frames really arrive on.
-            transport=MavTransport(active_bus.conn, active_bus.send_lock),
+            transport=MavTransport(
+                active_bus.conn, active_bus.send_lock, active_bus.command_fence,
+            ),
             device=active_bus.device,
         ),
         state=VehicleStateStores(

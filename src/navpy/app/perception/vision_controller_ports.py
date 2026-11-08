@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, runtime_checkable
 
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
@@ -24,6 +24,14 @@ class ClosingLogPort(Protocol):
     def close(self) -> None: ...
 
 
+@runtime_checkable
+class ClosingContactSensor(DockContactSensor, Protocol):
+    """HITL step 26: a contact sensor with a link to close when vision stops (app/perception/hitl_contact_input).
+    ``close`` is True once the link's thread has ended."""
+
+    def close(self) -> bool: ...
+
+
 @dataclass(frozen=True)
 class VisionControllerPorts:
     coordinator: DetectionCoordinator
@@ -42,4 +50,4 @@ class VisionControllerPorts:
     law_airspeed: LawAirspeed | None = None
 
 
-__all__ = ["ClosingLogPort", "VisionControllerPorts", "VisionUiStepPort"]
+__all__ = ["ClosingContactSensor", "ClosingLogPort", "VisionControllerPorts", "VisionUiStepPort"]

@@ -57,6 +57,7 @@ def compose_confirmation_workflows(
         admission.release,
         peer_task,
         peer_reask,
+        admission.acquisition,
     )
     return ConfirmationWorkflows(
         reset=reset,
