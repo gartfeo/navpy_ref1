@@ -43,7 +43,7 @@ export default function NavpySimButton({ sysId, instance, busy, connection, onTo
 
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 4 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 6, marginTop: 4 }}>
         <button
           onClick={() => { if (isRunning) setShowLogs(false); onToggle(); }}
           disabled={busy}
@@ -57,12 +57,26 @@ export default function NavpySimButton({ sysId, instance, busy, connection, onTo
             fontSize: 10,
             cursor: busy ? 'wait' : 'pointer',
             opacity: busy ? 0.5 : 1,
+            flexShrink: 0,
           }}
         >
           {busy ? '...' : isRunning ? t('navpy.stopNavpy') : t('navpy.startNavpy')}
         </button>
         {connection && (
-          <span style={{ fontSize: 9, color: colors.textDim }}>{connection}</span>
+          <span
+            data-testid="navpy-connection"
+            title={connection}
+            style={{
+              minWidth: 0,
+              fontSize: 9,
+              color: colors.textDim,
+              overflow: 'hidden',
+              textOverflow: 'ellipsis',
+              whiteSpace: 'nowrap',
+            }}
+          >
+            {connection}
+          </span>
         )}
         {linkVisible && (
           <span
@@ -73,6 +87,7 @@ export default function NavpySimButton({ sysId, instance, busy, connection, onTo
               cursor: 'pointer',
               userSelect: 'none',
               marginLeft: 'auto',
+              flexShrink: 0,
             }}
           >
             {showLogs ? t('navpy.hideLogs') : t('navpy.logs')}
