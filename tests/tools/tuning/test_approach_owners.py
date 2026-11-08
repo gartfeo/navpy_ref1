@@ -8,7 +8,7 @@ from dataclasses import replace
 
 import pytest
 
-from tools.tuning import approach_owners as owners
+from tools.tuning import approach_owners as owners, approach_sources
 from tools.tuning.approach_procs import Owned, ProcSpec, RunnerError
 from tools.tuning.approach_tables import (
     WINDOWS,
@@ -35,7 +35,8 @@ class Group:
 
     def __init__(self) -> None:
         roles = [("backing", Handle(100)), ("router", Handle(200)), ("bridge", Handle(300)),
-                 ("emulator", Handle(400, windows_pid=5001)), ("publisher", Handle(500)), ("navpy", Handle(700))]
+                 ("emulator", Handle(400, windows_pid=5001)), ("publisher", Handle(500)), ("navpy", Handle(700)),
+                 ("contact", Handle(800))]
         self.owned = [Owned(ProcSpec(role, (), None, 0.0, kind="interop" if role == "emulator" else "posix"),
                             handle, None, "t") for role, handle in roles]
         self.owned.append(Owned(ProcSpec("unreal", (), None, 0.0, kind="windows"), Handle(6000), None, "t"))
@@ -54,6 +55,7 @@ def chain_tables() -> list[Tables]:
              500),
         Proc(WSL, 501, 500, ("/opt/mediamtx", "cfg.yml"), 500),
         Proc(WSL, 700, SELF, ("python", "-m", "navpy.main"), 700),
+        Proc(WSL, 800, SELF, ("python", "-s", "-m", "tools.hitl.contact_service", "serve"), 800),     # step 27
     )
     wsl_socks = (
         Sock(WSL, "tcp", 8160, "listen", 101), Sock(WSL, "tcp", 8168, "listen", 101),
@@ -62,6 +64,7 @@ def chain_tables() -> list[Tables]:
         Sock(WSL, "tcp", 40001, "established", 300, 8168),           # the bridge on HIL
         Sock(WSL, "udp", 9642, "bound", 200),
         Sock(WSL, "tcp", 18110, "listen", 500), Sock(WSL, "tcp", 18554, "listen", 501),
+        Sock(WSL, "udp", 17120, "bound", 800), Sock(WSL, "udp", 17122, "bound", 800),
     )
     windows_procs = (
         Proc(WINDOWS, 5000, 4000, ("C:\\venv\\Scripts\\python.exe", *EMU_ARGS)),   # the venv launcher
@@ -171,7 +174,8 @@ def test_a_running_chain_has_exactly_its_own_owner_for_each_role():
     result = census(chain_tables())
     assert result["ok"], result["problems"]
     assert {role: item["owners"] for role, item in result["roles"].items()} == {
-        "autopilot": ["backing"], "bridge": ["bridge"], "emulator": ["emulator"], "publisher": ["publisher"]}
+        "autopilot": ["backing"], "bridge": ["bridge"], "emulator": ["emulator"], "publisher": ["publisher"],
+        "contact": ["contact"]}
     emulator = result["roles"]["emulator"]["claims"]
     assert {(c["host"], c["pid"]) for c in emulator} == {(WSL, 400), (WINDOWS, 5000), (WINDOWS, 5001)}
 
@@ -179,7 +183,7 @@ def test_a_running_chain_has_exactly_its_own_owner_for_each_role():
 def test_before_the_run_any_holder_is_refused_and_none_passes():
     assert census([Tables((), ()), Tables((), ())], running=False)["ok"]
     result = census(chain_tables(), running=False)
-    assert not result["ok"] and len(result["problems"]) == 4
+    assert not result["ok"] and len(result["problems"]) == 5            # step 27: the contact service too
 
 
 CONFLICTS = {
@@ -313,7 +317,7 @@ def emulator_lines(sessions=1, other_system=0, regressions=0, summary=True):
 def sources(tmp_path, unreal=None, emulator=None):
     (tmp_path / "unreal.log").write_text(unreal if unreal is not None else unreal_lines(), encoding="utf-8")
     (tmp_path / "emulator.jsonl").write_text(emulator if emulator is not None else emulator_lines(), encoding="utf-8")
-    return owners.sources(tmp_path / "unreal.log", tmp_path / "emulator.jsonl")
+    return approach_sources.sources(tmp_path / "unreal.log", tmp_path / "emulator.jsonl")
 
 
 def test_one_pose_stream_one_gimbal_session_and_one_bridge_session_pass(tmp_path):
@@ -340,5 +344,5 @@ def test_a_second_source_in_the_logs_fails(tmp_path, unreal, emulator, problem):
 
 
 def test_a_missing_log_fails(tmp_path):
-    result = owners.sources(tmp_path / "unreal.log", tmp_path / "emulator.jsonl")
+    result = approach_sources.sources(tmp_path / "unreal.log", tmp_path / "emulator.jsonl")
     assert not result["ok"] and "unreadable" in result["problems"][0]

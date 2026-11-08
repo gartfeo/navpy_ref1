@@ -510,6 +510,7 @@ def _runner(tmp_path, monkeypatch, fly, census=None):
     monkeypatch.setattr(approach.scenario_run, "service", runner_rig.fake_service)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: runner_rig._written(run_dir / "approach_record.json"))
+    monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: runner_rig._written(run_dir / "link.json"))
     monkeypatch.setattr(approach.chain, "port_free", lambda protocol, port: True)
     monkeypatch.setattr(approach.chain, "unreal_running", lambda: None)
     passing = {"ok": True, "roles": {}, "problems": []}

@@ -346,6 +346,7 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
     monkeypatch.setattr(approach, "_record", record)
     monkeypatch.setattr(approach.approach_records, "write_record",
                         lambda record, run_dir: _write(run_dir / "approach_record.json"))
+    monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: _write(run_dir / "contact_link.json"))
     monkeypatch.setattr(approach, "_addresses", lambda: ("172.0.0.2", "172.0.0.1"))
     monkeypatch.setattr(approach, "_board_scripts", lambda repo, run_dir: None)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
