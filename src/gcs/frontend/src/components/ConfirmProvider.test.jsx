@@ -3,14 +3,10 @@
 // time, never answers a question twice, takes no yes from a double tap, and
 // never leaves a question without an answer.
 import React from 'react';
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { act, fireEvent, render, renderHook, screen } from '@testing-library/react';
-import ConfirmProvider, { CONFIRM_ARM_MS } from './ConfirmProvider';
+import ConfirmProvider, { ConfirmContext } from './ConfirmProvider';
 import useConfirm from '../hooks/useConfirm';
-
-beforeEach(() => {
-  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
-});
 
 function setup() {
   const native = vi.spyOn(window, 'confirm');
@@ -20,7 +16,9 @@ function setup() {
 
 const dialog = () => screen.queryByRole('alertdialog');
 const okButton = () => screen.getByText('confirm.ok');
-const arm = () => act(() => { vi.advanceTimersByTime(CONFIRM_ARM_MS); });
+// A single click: event.detail 1, as the browser reports a click that is not
+// part of a double click (0 from the keyboard).
+const click = (el, detail = 1) => fireEvent.click(el, { detail });
 const ask = (confirm, message) => {
   let answer;
   act(() => { answer = confirm(message); });
@@ -39,8 +37,7 @@ describe('ConfirmProvider', () => {
     const { confirm, native } = setup();
     const answer = ask(confirm, 'Arm vehicle 7?');
     expect(dialog()).toHaveTextContent('Arm vehicle 7?');
-    arm();
-    fireEvent.click(okButton());
+    click(okButton());
     await expect(answer).resolves.toBe(true);
     expect(dialog()).toBeNull();
     expect(native).not.toHaveBeenCalled();
@@ -72,42 +69,50 @@ describe('ConfirmProvider', () => {
     const second = ask(confirm, 'second?');
     expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
     expect(dialog()).toHaveTextContent('first?');
-    arm();
-    fireEvent.click(okButton());
+    click(okButton());
     await expect(first).resolves.toBe(true);
     expect(dialog()).toHaveTextContent('second?');
     fireEvent.click(screen.getByText('confirm.cancel'));
     await expect(second).resolves.toBe(false);
   });
 
-  it('a double tap on the shown Confirm accepts only the first question', async () => {
+  it('a double click on the shown Confirm accepts only the first question', async () => {
+    // Codex's case: the second click of a double click 350 ms later (inside
+    // a 500 ms OS double-click time) landed on the next question's Confirm.
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'Date', 'performance'] });
     const { confirm } = setup();
     const first = track(ask(confirm, 'first?'));
     const second = track(ask(confirm, 'second?'));
-    arm();
-    fireEvent.click(okButton());
-    fireEvent.click(okButton()); // the second tap lands on the next question's Confirm
+    click(okButton(), 1);
+    act(() => { vi.advanceTimersByTime(350); });
+    click(okButton(), 2);
     await flush();
     expect(first).toEqual({ settled: true, value: true });
     expect(second.settled).toBe(false);
     expect(dialog()).toHaveTextContent('second?');
-    // A deliberate tap after the double-tap window still answers it.
-    arm();
-    fireEvent.click(okButton());
+    // A fresh single click answers it.
+    click(okButton(), 1);
     await flush();
     expect(second).toEqual({ settled: true, value: true });
   });
 
-  it('a new question takes no Confirm within the double-tap window', async () => {
+  it('Confirm takes a single click or the keyboard, never a double or triple click', async () => {
     const { confirm } = setup();
     const answer = track(ask(confirm, 'Clear all hubs?'));
-    act(() => { vi.advanceTimersByTime(CONFIRM_ARM_MS - 1); });
-    fireEvent.click(okButton());
+    click(okButton(), 2);
+    click(okButton(), 3);
     await flush();
     expect(answer.settled).toBe(false);
-    expect(okButton()).toBeDisabled();
-    act(() => { vi.advanceTimersByTime(1); });
-    expect(okButton()).not.toBeDisabled();
+    click(okButton(), 0); // Enter or Space on the focused button
+    await flush();
+    expect(answer).toEqual({ settled: true, value: true });
+  });
+
+  it('Cancel takes any click', async () => {
+    const { confirm } = setup();
+    const answer = ask(confirm, 'Arm?');
+    click(screen.getByText('confirm.cancel'), 2);
+    await expect(answer).resolves.toBe(false);
   });
 
   it('the same question asked again while pending resolves false at once', async () => {
@@ -116,14 +121,12 @@ describe('ConfirmProvider', () => {
     const again = ask(confirm, 'Exit RC?');
     await expect(again).resolves.toBe(false);
     expect(screen.getAllByRole('alertdialog')).toHaveLength(1);
-    arm();
-    fireEvent.click(okButton());
+    click(okButton());
     await expect(first).resolves.toBe(true);
     // Answered, the question can be asked again.
     const later = ask(confirm, 'Exit RC?');
     expect(dialog()).toHaveTextContent('Exit RC?');
-    arm();
-    fireEvent.click(okButton());
+    click(okButton());
     await expect(later).resolves.toBe(true);
   });
 
@@ -147,12 +150,32 @@ describe('ConfirmProvider', () => {
   });
 
   it('unmounting the provider resolves every pending question false', async () => {
-    const { confirm, hook } = setup();
-    const first = ask(confirm, 'first?');
-    const second = ask(confirm, 'second?');
-    hook.unmount();
-    await expect(first).resolves.toBe(false);
-    await expect(second).resolves.toBe(false);
+    // Asked straight through the context, with no caller signal: only the
+    // provider's own cleanup can answer these.
+    let raw;
+    function Grab() { raw = React.useContext(ConfirmContext); return null; }
+    const view = render(<ConfirmProvider><Grab /></ConfirmProvider>);
+    const first = track(ask(raw, 'first?'));
+    const second = track(ask(raw, 'second?'));
+    view.unmount();
+    await flush();
+    expect(first).toEqual({ settled: true, value: false });
+    expect(second).toEqual({ settled: true, value: false });
+  });
+
+  it('a question closes when the signal of the control it is for aborts', async () => {
+    // App's camera check asks for a Start button: the button's signal, not
+    // App's lifetime, decides how long the question lives.
+    const { confirm } = setup();
+    const start = new AbortController();
+    let asked;
+    act(() => { asked = confirm('Camera check: proceed?', { signal: start.signal }); });
+    const state = track(asked);
+    expect(dialog()).toHaveTextContent('Camera check: proceed?');
+    act(() => start.abort());
+    await flush();
+    expect(state).toEqual({ settled: true, value: false });
+    expect(dialog()).toBeNull();
   });
 
   it('keeps line breaks of long messages', () => {

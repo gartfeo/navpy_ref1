@@ -1,20 +1,20 @@
-import { useCallback, useContext, useEffect, useRef } from 'react';
+import { useCallback, useContext } from 'react';
 import { ConfirmContext } from '../components/ConfirmProvider';
+import useMountSignal from './useMountSignal';
 
 /**
- * `confirm(message) => Promise<boolean>` from the nearest ConfirmProvider
- * (never window.confirm). A question the calling component asked is
- * withdrawn, and resolves false, when that component unmounts: the action it
- * was about no longer has a place on screen (a force start whose button left
- * with the phase change), so Confirm must not run it.
+ * `confirm(message, { signal }) => Promise<boolean>` from the nearest
+ * ConfirmProvider (never window.confirm). The question is withdrawn, and
+ * resolves false, when the calling component unmounts or when `signal`
+ * aborts. Pass `signal` when the question belongs to a control other than the
+ * hook's owner: the plan camera check asked by App for a Start or Launch
+ * button goes with that button (opts.signal, useVehicleCommands).
  */
 export default function useConfirm() {
   const confirm = useContext(ConfirmContext);
-  const mounted = useRef(null);
-  useEffect(() => {
-    const controller = new AbortController();
-    mounted.current = controller;
-    return () => controller.abort();
-  }, []);
-  return useCallback((message) => confirm(message, { signal: mounted.current?.signal }), [confirm]);
+  const mountSignal = useMountSignal();
+  return useCallback(
+    (message, { signal } = {}) => confirm(message, { signals: [mountSignal(), signal] }),
+    [confirm, mountSignal],
+  );
 }

@@ -75,7 +75,8 @@ export function usePlanCameraGate({
   stateRef.current = {
     enabled, plan, corridorPointsArr, searchPattern, vehicleList, vehicleTargWps, vehicleNavLastWp, getAas, check,
   };
-  return useCallback(async () => {
+  // `signal`: the launch or start control's (opts.signal); the question closes with it.
+  return useCallback(async (signal) => {
     const s = stateRef.current;
     if (!s.enabled) return true;
     const zones = cameraCheckZonesForPlan({
@@ -84,7 +85,8 @@ export function usePlanCameraGate({
       getAas: s.getAas,
     });
     return confirmCameraCheck({
-      zones, check: s.check, t, confirm, zoneName: (i) => zoneLabel(s.plan.zones, i),
+      zones, check: s.check, t, confirm: (message) => confirm(message, { signal }),
+      zoneName: (i) => zoneLabel(s.plan.zones, i),
     });
   }, [t, confirm]);
 }

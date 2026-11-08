@@ -52,11 +52,16 @@ export default function useVehicleCommands({
     [api.sendCommand]
   );
 
+  // opts.signal: the launch or start control's unmount signal. Its camera
+  // question closes with the control, and an answer that comes after the
+  // control is gone launches nothing.
   const handleLaunch = useCallback(
     async (sysIds, opts) => {
-      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
+      const { signal, ...rest } = opts ?? {};
+      if (confirmBeforeStart && !(await confirmBeforeStart(signal))) return null;
+      if (signal?.aborted) return null;
       setLaunchStates({});
-      return api.launchSequence(sysIds, opts);
+      return api.launchSequence(sysIds, opts && rest);
     },
     [api.launchSequence, setLaunchStates, confirmBeforeStart]
   );
@@ -68,13 +73,15 @@ export default function useVehicleCommands({
 
   const handleRestart = useCallback(
     async (sysIds, opts) => {
-      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
+      const { signal, ...rest } = opts ?? {};
+      if (confirmBeforeStart && !(await confirmBeforeStart(signal))) return null;
+      if (signal?.aborted) return null;
       setTrackResetKey((k) => k + 1);
       // A new mission is recorded: Restart clears history and resumes it.
       resumeHistory?.();
       taskConfirmReset();
       taskAssignReset();
-      return api.restartMission(sysIds, opts);
+      return api.restartMission(sysIds, opts && rest);
     },
     [api.restartMission, taskConfirmReset, taskAssignReset, resumeHistory, confirmBeforeStart]
   );

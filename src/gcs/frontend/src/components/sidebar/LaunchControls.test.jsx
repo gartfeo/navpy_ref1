@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render, fireEvent, act } from '@testing-library/react';
-import { ForceStartButton } from './LaunchControls';
+import { ForceLaunchButton, ForceStartButton } from './LaunchControls';
 import { LONG_PRESS_MS } from '../../utils/armAction';
 import { confirmStub } from '../../test/confirmStub';
 import ConfirmProvider from '../ConfirmProvider';
@@ -74,7 +74,7 @@ describe('ForceStartButton — not-ready force path', () => {
     await settle();
     expect(confirmSpy).toHaveBeenCalledTimes(1);
     expect(onStart).toHaveBeenCalledTimes(1);
-    expect(onStart).toHaveBeenCalledWith({ force: true });
+    expect(onStart).toHaveBeenCalledWith({ force: true, signal: expect.any(AbortSignal) });
     expect(onArm).not.toHaveBeenCalled();
   });
 
@@ -106,5 +106,52 @@ describe('ForceStartButton — force confirm outlives the button', () => {
     await settle();
     expect(view.queryByRole('alertdialog')).toBeNull();
     expect(onStart).not.toHaveBeenCalled();
+  });
+});
+
+describe('launch and start controls hand their unmount signal on (opts.signal)', () => {
+  // Later questions of the launch (App's plan camera check) close with the
+  // control that began it, not with App.
+  it('ForceStartButton: the force start, the click start and the arm carry a signal that aborts on unmount', async () => {
+    const onStart = vi.fn();
+    const onArm = vi.fn();
+    const { wrapper } = confirmStub(true);
+    const forced = renderBtn({ ready: false, onStart }, wrapper);
+    fireEvent.mouseDown(forced.getByRole('button'));
+    advance(LONG_PRESS_MS + 32);
+    await settle();
+    const { signal } = onStart.mock.calls[0][0];
+    expect(signal.aborted).toBe(false);
+    forced.unmount();
+    expect(signal.aborted).toBe(true);
+
+    const clicked = renderBtn({ ready: true, onStart }, wrapper);
+    fireEvent.click(clicked.getByRole('button'));
+    expect(onStart.mock.calls[1][0]).toEqual({ signal: expect.any(AbortSignal) });
+    clicked.unmount();
+
+    const armed = renderBtn({ ready: true, armReady: true, onStart, onArm }, wrapper);
+    fireEvent.mouseDown(armed.getByRole('button'));
+    advance(LONG_PRESS_MS + 32);
+    const armSignal = onArm.mock.calls[0][0];
+    expect(armSignal).toBeInstanceOf(AbortSignal);
+    armed.unmount();
+    expect(armSignal.aborted).toBe(true);
+  });
+
+  it('ForceLaunchButton: ready click and force launch carry the signal', async () => {
+    const onLaunch = vi.fn();
+    const { wrapper } = confirmStub(true);
+    const ready = render(<ForceLaunchButton sysId={4} ready onLaunch={onLaunch} />, { wrapper });
+    fireEvent.click(ready.getByRole('button'));
+    const { signal } = onLaunch.mock.calls[0][1];
+    ready.unmount();
+    expect(signal.aborted).toBe(true);
+
+    const forced = render(<ForceLaunchButton sysId={4} ready={false} onLaunch={onLaunch} />, { wrapper });
+    fireEvent.mouseDown(forced.getByRole('button'));
+    advance(LONG_PRESS_MS + 32);
+    await settle();
+    expect(onLaunch.mock.calls[1]).toEqual([4, { force: true, signal: expect.any(AbortSignal) }]);
   });
 });

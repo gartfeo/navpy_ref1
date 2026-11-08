@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { colors } from '../../styles';
 import { missionWpOffset } from '../../utils/geo';
@@ -119,6 +119,19 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   useEffect(() => {
     if (hidden) { setShowLaunchConfirm(false); setShowStartConfirm(false); }
   }, [hidden]);
+  // The START button that opened either modal: its signal aborts when the
+  // button unmounts (the phase left PRE_LAUNCH), which closes the modal, and
+  // goes with the launch so its later questions close with it too.
+  const armSignal = useRef(null);
+  const openArmed = (open) => (signal) => { armSignal.current = signal ?? null; open(true); };
+  useEffect(() => {
+    const signal = armSignal.current;
+    if (!(showLaunchConfirm || showStartConfirm) || !signal) return undefined;
+    const close = () => { setShowLaunchConfirm(false); setShowStartConfirm(false); };
+    if (signal.aborted) { close(); return undefined; }
+    signal.addEventListener('abort', close);
+    return () => signal.removeEventListener('abort', close);
+  }, [showLaunchConfirm, showStartConfirm]);
 
   // Per-vehicle load stage (connecting → downloading → ready), latched at ready.
   const statusVehicleList = React.useMemo(
@@ -543,7 +556,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
                 armReady
                 ready={allLaunchReady}
                 disabled={!canContainerLaunch || !launcher.launcherConnected || !launchRosterComplete}
-                onArm={() => setShowLaunchConfirm(true)}
+                onArm={openArmed(setShowLaunchConfirm)}
                 onStart={async (opts) => {
                   // Only reached via the not-ready force path (opts.force);
                   // the ready path arms and confirms through the modal below.
@@ -584,7 +597,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
                 armReady
                 ready={allLaunchReady}
                 disabled={busy || !launchRosterComplete}
-                onArm={() => setShowStartConfirm(true)}
+                onArm={openArmed(setShowStartConfirm)}
                 onStart={handleStart}
               />
             </>
@@ -648,7 +661,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
           tone="caution"
           onConfirm={async () => {
             setShowLaunchConfirm(false);
-            await launcher.doContainerLaunch({ pitotCovered: pitotCoveredAck });
+            await launcher.doContainerLaunch({ pitotCovered: pitotCoveredAck, signal: armSignal.current });
             setPitotCovered(false);
           }}
           onCancel={() => setShowLaunchConfirm(false)}
@@ -663,7 +676,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
           tone="caution"
           onConfirm={async () => {
             setShowStartConfirm(false);
-            await handleStart();
+            await handleStart({ signal: armSignal.current });
           }}
           onCancel={() => setShowStartConfirm(false)}
         />

@@ -73,3 +73,28 @@ describe('set mode on all vehicles', () => {
     expect(api.sendCommand).not.toHaveBeenCalled();
   });
 });
+
+describe('a launch or start withdrawn with its control (opts.signal)', () => {
+  // The camera question is asked by App for a Start or Launch button; when the
+  // button leaves, its answer must not launch or start anything.
+  it.each(['launch', 'restart'])('%s: an answer after the control is gone sends nothing', async (kind) => {
+    const control = new AbortController();
+    const gate = vi.fn(async () => { control.abort(); return true; });
+    const { result, api, deps } = setup(gate);
+    const handler = kind === 'launch' ? result.current.handleLaunch : result.current.handleRestart;
+    let out;
+    await act(async () => { out = await handler([1], { force: true, signal: control.signal }); });
+    expect(gate).toHaveBeenCalledWith(control.signal);
+    expect(out).toBeNull();
+    expect(api.launchSequence).not.toHaveBeenCalled();
+    expect(api.restartMission).not.toHaveBeenCalled();
+    expect(deps.taskConfirmReset).not.toHaveBeenCalled();
+  });
+
+  it('the signal stays out of the request', async () => {
+    const control = new AbortController();
+    const { result, api } = setup(vi.fn().mockResolvedValue(true));
+    await act(async () => { await result.current.handleLaunch([1], { force: true, signal: control.signal }); });
+    expect(api.launchSequence).toHaveBeenCalledWith([1], { force: true });
+  });
+});

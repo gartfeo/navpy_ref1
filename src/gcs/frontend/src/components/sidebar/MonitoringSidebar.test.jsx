@@ -228,7 +228,19 @@ describe('MonitoringSidebar bungee START MISSION: hold, then confirm', () => {
     await act(async () => { fireEvent.click(goButton(view)); });
     expect(goButton(view)).toBeNull();
     expect(onRestart).toHaveBeenCalledTimes(1);
-    expect(onRestart).toHaveBeenCalledWith([7], { pitotCovered: false });
+    expect(onRestart).toHaveBeenCalledWith([7], { pitotCovered: false, signal: expect.any(AbortSignal) });
+  });
+
+  it('the start confirmation closes, and nothing starts, when START leaves the screen', () => {
+    // The phase change takes the START button away while its modal is open
+    // (here: the plan goes, so the download button replaces it).
+    const onRestart = vi.fn(async () => {});
+    const view = render(<Host onRestart={onRestart} />);
+    hold(inSlot(view).getByRole('button', { name: 'monitor.holdToStart' }));
+    expect(goButton(view)).not.toBeNull();
+    view.rerender(<Host onRestart={onRestart} plan={null} />);
+    expect(goButton(view)).toBeNull();
+    expect(onRestart).not.toHaveBeenCalled();
   });
 
   it('collapsing closes an open start confirmation', () => {
@@ -253,7 +265,7 @@ describe('MonitoringSidebar bungee START MISSION: hold, then confirm', () => {
     await act(async () => { hold(button); });
     expect(confirm).toHaveBeenCalledWith('monitor.forceStartConfirm');
     expect(goButton(view)).toBeNull();
-    expect(onRestart).toHaveBeenCalledWith([7], { force: true, pitotCovered: false });
+    expect(onRestart).toHaveBeenCalledWith([7], { force: true, pitotCovered: false, signal: expect.any(AbortSignal) });
   });
 });
 
