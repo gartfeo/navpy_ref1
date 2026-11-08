@@ -94,9 +94,11 @@ def test_the_flags_reach_vision_args():
 def test_one_camera_mount_per_run(tmp_path):
     opened = open_integration_input(_write(tmp_path, _record()), str(tmp_path / "log.jsonl"), "real")
     factory = RealDetectorFactory(None, None, {}, "", False, backend="charuco", integration=opened)
-    assert factory._take_integration() is opened
+    assert factory._take_integration(0) is opened
+    # A restarted detector of the same mount takes it again (recovery step 5b); another mount may not.
+    assert factory._take_integration(0) is opened
     with pytest.raises(ValueError, match="one camera mount"):
-        factory._take_integration()
+        factory._take_integration(1)
     opened.log.close()
 
 
