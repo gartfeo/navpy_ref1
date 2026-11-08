@@ -211,7 +211,7 @@ def stable_node(detector: RestartingDetector) -> VisionDetectorNode:
 
 
 def restarting_detector_node(
-    logger: ILogger, vehicle: object,
+    logger: ILogger, vehicle: object, wall_s: Callable[[], float] = rt.monotonic,
 ) -> Callable[[NodeCreator], VisionDetectorNode]:
     """``build_detector_nodes``' node maker: each mount's detector behind a restarting proxy, its tries timed in
     aircraft time (owner ruling Q1)."""
@@ -219,7 +219,7 @@ def restarting_detector_node(
         logger.warning(message, key="vision", status=message, dest=LogStatusDest.DRONE)
 
     return lambda create: stable_node(RestartingDetector(
-        create, report, RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle))),
+        create, report, RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle), wall_s)),
     ))
 
 

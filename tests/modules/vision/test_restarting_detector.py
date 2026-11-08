@@ -495,7 +495,7 @@ def test_the_factory_built_detector_times_its_tries_in_aircraft_time() -> None:
     old.failure = RuntimeError("capture died")
     factory = _Factory(old, _Detector(2, start_error=RuntimeError("camera open")), _Detector(3))
     vehicle = SimpleNamespace(attitude_sample=SimpleNamespace(time_boot_s=100.0))
-    node = restarting_detector_node(Mock(), vehicle)(factory)
+    node = restarting_detector_node(Mock(), vehicle, wall_s=lambda: 0.0)(factory)   # no wall time passes
 
     node.detector.raise_if_failed()         # try 1 at once fails; try 2 waits 1 s
     assert len(factory.created) == 2
@@ -503,5 +503,5 @@ def test_the_factory_built_detector_times_its_tries_in_aircraft_time() -> None:
     node.detector.raise_if_failed()         # half a second of aircraft time: still waiting
     assert len(factory.created) == 2
     vehicle.attitude_sample = SimpleNamespace(time_boot_s=101.0)
-    node.detector.raise_if_failed()         # 1 s of aircraft time, almost no wall time: try 2 runs
+    node.detector.raise_if_failed()         # 1 s of aircraft time, no wall time: try 2 runs
     assert len(factory.created) == 3 and node.detector.instance is factory.created[2]
