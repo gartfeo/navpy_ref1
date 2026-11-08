@@ -13,6 +13,7 @@ from typing import Any, Optional
 
 from tools.hitl import run_manifest
 from tools.hitl.approach_truth import cross_check
+from tools.hitl.approach_video import video_check, video_numbers
 from tools.hitl.contact_scene import read_dock
 from tools.hitl.json_checks import RecordError
 from tools.tuning import approach_chain as chain, approach_contact as contact, approach_finish as finish
@@ -171,23 +172,6 @@ def geometry_check(run: dict, run_dir: Path) -> list[str]:
     return [] if (run.get("orbit_check") or {}).get("feasible") is True else ["the orbit check did not pass"]
 
 
-def video_check(run: dict, run_dir: Path) -> list[str]:
-    """The publisher accounted for every frame, drained, never failed and kept its queue inside its bound."""
-    try:
-        status = _json(run_dir / "publisher" / "publisher.json")
-    except (OSError, ValueError) as exc:
-        return [f"publisher status unreadable: {exc}"]
-    publisher, bound = status.get("publisher") or {}, (status.get("mediamtx") or {}).get("write_queue_size")
-    found = [] if publisher.get("accounted") is True and publisher.get("failed") is False else [
-        "the publisher did not account for every frame or failed"]
-    if not (status.get("drain") or {}).get("ok"):
-        found.append("the publisher did not drain")
-    if not isinstance(bound, int) or not isinstance(publisher.get("max_queue_level"), int) or \
-            publisher["max_queue_level"] > bound:
-        found.append(f"queue level {publisher.get('max_queue_level')} over its bound {bound}")
-    return found
-
-
 def host_check(run: dict, run_dir: Path) -> list[str]:
     load = run.get("host_load") or {}
     return [] if load.get("ok") is True else [f"host load: {load}"]
@@ -214,7 +198,7 @@ def score_run(run_dir: Path) -> dict:
     return {"run_dir": str(run_dir), "run_id": run.get("run_id"), "seed_index": (run.get("scenario") or {})
             .get("seed_index"), "passed": not any(checks.values()), "checks": checks,
             "truth": (run.get("_report") or {}).get("truth"), "timing": _skew(run.get("timing") or {}),
-            "video": _video(run_dir), "record": run.get("record")}
+            "video": video_numbers(run_dir), "record": run.get("record")}
 
 
 # The held-out 10-minute observation stream the simple checks ask for (same frozen configuration as the series): it
@@ -237,24 +221,13 @@ def score_observation(run_dir: Path) -> dict:
     covered = run.get("authority") == "observation" and (run.get("timing") or {}).get("observation") is True
     checks["observation"] = [] if covered else ["not an observation run checked under the 10-minute coverage rules"]
     return {"run_dir": str(run_dir), "run_id": run.get("run_id"), "passed": not any(checks.values()),
-            "checks": checks, "timing": _skew(run.get("timing") or {}), "video": _video(run_dir)}
+            "checks": checks, "timing": _skew(run.get("timing") or {}), "video": video_numbers(run_dir)}
 
 
 def _skew(timing: dict) -> dict:
     return {name: {key: (timing.get(name) or {}).get(key) for key in ("median_s", "p95_abs_s", "max_abs_s",
                                                                         "uncertainty_s")}
             for name in ("attitude", "gimbal")}
-
-
-def _video(run_dir: Path) -> dict:
-    try:
-        status = _json(run_dir / "publisher" / "publisher.json")
-    except (OSError, ValueError):
-        return {}
-    publisher, receiver = status.get("publisher") or {}, status.get("receiver") or {}
-    return {**{key: publisher.get(key) for key in ("frames_in", "pushed", "queue_full", "missed_slots",
-                                                   "max_queue_level")},
-            **{key: receiver.get(key) for key in ("frames_dropped", "source_gaps")}}
 
 
 __all__ = ["CHECKS", "DOCKED", "OBSERVATION_CHECKS", "score_observation", "score_run"]

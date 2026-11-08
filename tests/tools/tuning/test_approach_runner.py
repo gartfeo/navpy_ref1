@@ -293,14 +293,16 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
     monkeypatch.setattr(approach, "orbit_check", lambda args, scenario: {"feasible": True})
     monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: _written(run_dir / "contact_link.json"))
+    monkeypatch.setattr(approach.finish, "param_digests", lambda files: log.append("params hashed") or [])
     args = approach_args(tmp_path)
     assert approach.approach(args) == 1
     run_dir = next((tmp_path / "runs").iterdir())
     run = json.loads((run_dir / "approach_run.json").read_text(encoding="utf-8"))
     assert run["error"] == "RuntimeError: bridge exited"
     # Step 27: the host-load sampler starts first and stops last.
-    assert log[:4] == ["spawn host_load", "spawn backing", "spawn router", "board start"]
-    assert log[4:] == ["board stop", "router stop", "backing stop", "host_load stop"] and run["orphans"] == []
+    # The parameter files are hashed as the board loads them (Codex round 2), not after the run.
+    assert log[:5] == ["spawn host_load", "spawn backing", "spawn router", "params hashed", "board start"]
+    assert log[5:] == ["board stop", "router stop", "backing stop", "host_load stop"] and run["orphans"] == []
     assert (run_dir / "run_manifest.json").exists()
     assert run.get("board_stop_error") == ("OSError: link close failed" if board_stop_fails else None)
 

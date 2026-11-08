@@ -212,6 +212,7 @@ def approach(args: argparse.Namespace) -> int:
         for spec in specs[:3]:
             group.start(spec)
         _board_scripts(repo, run_dir)                # after sitl-backing wiped its workdir, before the reboot
+        run["param_files"] = finish.param_digests(files)     # as the board loads them (the frozen configuration)
         board.start()
         for spec in specs[3:]:
             group.start(spec)
@@ -253,7 +254,6 @@ def approach(args: argparse.Namespace) -> int:
             run["timing"] = finish.timing(run_dir, record_path, manifest, args.timing_constants,
                                           finish.observation_run(scenario, args.command))
             run["host_load"] = finish.host_load_summary(run_dir)
-            run["param_files"] = finish.param_digests(files)
             (run_dir / "approach_run.json").write_text(json.dumps(run, indent=1, default=str) + "\n", "utf-8")
         finally:
             stop.restore(handlers)

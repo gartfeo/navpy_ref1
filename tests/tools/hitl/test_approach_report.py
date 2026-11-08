@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.kernel.location import Location
-from tools.hitl import approach_report, approach_run_checks as checks, approach_truth as truth, host_load
+from tools.hitl import approach_report, approach_run_checks as checks, approach_truth as truth, approach_video, host_load
 from tools.hitl import run_manifest
 from tools.tuning import approach_chain as chain, approach_contact as contact, approach_finish as finish
 from tools.tuning import approach_quiesce as stop
@@ -91,7 +91,9 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
            "host_load": {"ok": True}}
     (run_dir / "publisher" / "publisher.json").write_text(json.dumps({
         "publisher": {"accounted": True, "failed": False, "max_queue_level": 2, "frames_in": 10, "pushed": 10},
+        "profile": {"fps": 30, "bitrate_kbps": 1340},
         "mediamtx": {"write_queue_size": 64}, "drain": {"ok": True}, "receiver": {"frames_dropped": 0}}), "utf-8")
+    write_encoded(run_dir, fps=30.0, kbps=1340.0)
     (run_dir / contact.EVIDENCE_FILE).write_text("\n".join(json.dumps(e) for e in [
         {"event": "arm", "arm_id": "a1", **IDENTITY},
         {"event": "contact", "arm_id": "a1", "board_time_us": CONTACT_US}]) + "\n",
@@ -120,6 +122,15 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
     (run_dir / "run_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
     (run_dir / "approach_run.json").write_text(json.dumps(run), encoding="utf-8")
     return run_dir
+
+
+def write_encoded(run_dir: Path, fps: float, kbps: float, units: int = 301) -> None:
+    """The publisher's encoded log: units at the given rate, each of the bytes that make the given mean bitrate."""
+    size = round(kbps * 1000 / 8 / fps)
+    with open(run_dir / "publisher" / "encoded-001.csv", "w", encoding="utf-8", newline="") as handle:
+        writer = csv.writer(handle)
+        writer.writerow(["au_index", "pts_ns", "keyframe", "bytes"])
+        writer.writerows([i + 1, round(i * 1e9 / fps), int(i % 60 == 0), size] for i in range(units))
 
 
 def failed(run_dir: Path) -> dict:
@@ -258,6 +269,37 @@ def test_a_publisher_queue_over_its_bound_or_an_undrained_stream_fails_the_video
         path.write_text(json.dumps(status), encoding="utf-8")
     problems = failed(make_run(tmp_path, 1, edit=edit))["video"]
     assert len(problems) == 2
+
+
+@pytest.mark.parametrize("fps, kbps, problem", [
+    (25.9, 1340.0, "unique rate 25.90 fps"),               # step 16's run: 656 missed slots
+    (29.0, 1340.0, "unique rate 29.00 fps"),
+    (30.0, 1042.0, "mean bitrate"),
+])
+def test_a_stream_off_its_unique_rate_or_bitrate_fails_the_video(tmp_path, fps, kbps, problem):
+    run_dir = make_run(tmp_path, 1, edit=lambda run, d: write_encoded(d, fps, kbps))
+    assert any(problem in p for p in failed(run_dir)["video"])
+
+
+def test_a_stream_within_its_tolerances_passes_and_its_numbers_are_reported(tmp_path):
+    run_dir = make_run(tmp_path, 1, edit=lambda run, d: write_encoded(d, 30.5, 1450.0))
+    assert "video" not in failed(run_dir)
+    stats = checks.score_run(run_dir)["video"]["encoded"]
+    assert stats["units"] == 301 and stats["unique_fps"] == pytest.approx(30.5, rel=1e-6)
+    assert approach_video.UNIQUE_RATE_TOLERANCE == 0.02 and approach_video.BITRATE_TOLERANCE == 0.10
+
+
+@pytest.mark.parametrize("change", ["no encoded log", "receiver drop"])
+def test_no_encoded_log_or_a_receiver_drop_fails_the_video(tmp_path, change):
+    def edit(run, run_dir):
+        if change == "no encoded log":
+            (run_dir / "publisher" / "encoded-001.csv").unlink()
+        else:
+            path = run_dir / "publisher" / "publisher.json"
+            status = json.loads(path.read_text(encoding="utf-8"))
+            status["receiver"]["frames_dropped"] = 1
+            path.write_text(json.dumps(status), encoding="utf-8")
+    assert "video" in failed(make_run(tmp_path, 1, edit=edit))
 
 
 def test_an_unreadable_run_file_is_a_failed_attempt(tmp_path):
