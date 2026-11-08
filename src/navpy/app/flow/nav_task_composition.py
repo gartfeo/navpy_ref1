@@ -10,6 +10,7 @@ from navpy.core.swarm.peer_poi_notification import (
     PeerPoiNotifier,
     PeerPoiNotifierPorts,
 )
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_acquisition_composition import compose_acquisition
 from navpy.core.skills.search.poi_selection import PoiSelector
 from navpy.core.skills.search.task_focus import TaskFocus, TaskFocusPorts
@@ -150,7 +151,7 @@ def compose_navigation_task_workflows(
                 plan_orbit=lambda *pos, **kw: (
                     approach.planner.plan_orbit_approach(*pos, **kw)
                 ),
-                request_guided=lambda: approach.commands.request_guided(),
+                request_guided=lambda: request_guided_owned(state, approach),
                 dispatch_approach=lambda *pos, **kw: (
                     approach.commands.dispatch_approach(*pos, **kw)
                 ),

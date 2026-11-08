@@ -18,6 +18,7 @@ from navpy.core.approach.nav_exit_cleanup import (
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
 from navpy.core.flow.nav_application import NavApplication, NavShutdown
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_composition_types import (
     ConfirmationWorkflows,
     DecisionWorkflows,
@@ -126,7 +127,7 @@ def compose_nav_application(
     nav_transition = NavTransition(
         NavEntry(
             NavEntryPorts(
-                request_guided=lambda: approach.commands.request_guided(),
+                request_guided=lambda: request_guided_owned(state, approach),
                 navigation_init=navigation.init,
                 final_approach_active=lambda: navigation.final_approach.is_active,
                 arm_dock_contact=lambda: dock_contact.arm(
