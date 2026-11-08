@@ -273,6 +273,11 @@ class VehicleManager:
         entry = self._vehicles.get(sys_id)
         return entry.position_path.drain() if entry else []
 
+    def drain_messages(self, sys_id: int) -> list[dict]:
+        """The vehicle's Messages-window entries since the last drain; only the broadcast drains."""
+        entry = self._vehicles.get(sys_id)
+        return entry.message_log.drain_new() if entry else []
+
     def get_seen_ids(self, timeout: float = 5.0) -> list[int]:
         return vehicle_connections.get_seen_ids(self, timeout)
 

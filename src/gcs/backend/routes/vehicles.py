@@ -5,7 +5,7 @@ import asyncio
 import logging
 from typing import Optional
 
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from gcs.backend.models import VehicleStatus
 from gcs.backend.vehicle_manager import vehicle_mgr
@@ -20,6 +20,19 @@ async def list_vehicles():
     """List all connected vehicles with their status."""
     snapshots = vehicle_mgr.get_all_snapshots()
     return [VehicleStatus(**s) for s in snapshots]
+
+
+@router.get("/{sys_id}/messages")
+async def vehicle_messages(sys_id: int, after: int = 0):
+    """The UAV's Messages-window history (entries with ``seq > after``) and latest named values.
+
+    The window loads this once when it opens; new entries then arrive in the
+    telemetry broadcast's ``messages``.
+    """
+    entry = vehicle_mgr.get_vehicle(sys_id)
+    if entry is None:
+        raise HTTPException(404, detail=f"UAV {sys_id} not connected")
+    return entry.message_log.backlog(after)
 
 
 @router.post("/connect")
