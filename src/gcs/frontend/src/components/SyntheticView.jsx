@@ -15,6 +15,15 @@ import { GIMBAL_ON_AXIS_RAD, cesiumFov, gimbalOrientation, liveGimbalView } from
 import { getDeviceConfigs } from '../utils/plannerConfig';
 import { observeHeight } from './map/utils/observeHeight';
 
+// At normal size the credit line (Cesium ion logo and the map data credits,
+// two lines at the handheld's picture width) took a fifth of the picture
+// (owner, 2026-11-08). There a © button opens it instead, on its own row
+// above the bottom edge so it never covers the status line; maximized the
+// credits always show. The main map shows them in full the whole time.
+export const CREDITS_BUTTON_PX = 24;
+const CREDITS_BUTTON_GAP_PX = 4;
+const CREDITS_BUTTON_ROW_PX = CREDITS_BUTTON_PX + 2 * CREDITS_BUTTON_GAP_PX;
+
 /** The globe's colour under the imagery, while its tiles load or if they fail. */
 const GROUND_COLOR = '#7d8a68';
 /** The tag's accent border, which its measured (client) height leaves out. */
@@ -83,6 +92,8 @@ export default function SyntheticView({
   const [drawnFor, setDrawnFor] = useState(null);
   // Through the gimbal camera (else the nose), and the HUD's horizon matches the picture.
   const [gimbalShown, setGimbalShown] = useState(false);
+  const [creditsOpen, setCreditsOpen] = useState(false);
+  const creditsHidden = !expanded && !creditsOpen;
   const [horizonShown, setHorizonShown] = useState(true);
 
   const sysIdRef = useRef(sysId);
@@ -256,6 +267,12 @@ export default function SyntheticView({
     };
   }, [poseSourceRef, storeRef]);
 
+  // The credit line shows maximized, or at normal size once the © button opens it.
+  useEffect(() => {
+    const credits = widgetRef.current?.creditDisplay?.container;
+    if (credits) credits.style.display = creditsHidden ? 'none' : '';
+  }, [widgetReady, creditsHidden]);
+
   // A badge tap moves the same widget to the new UAV; the picture expands
   // once that UAV has a valid pose.
   useEffect(() => {
@@ -299,7 +316,7 @@ export default function SyntheticView({
     height: picture.height,
     tagHeight: tag.height + 2 * TAG_BORDER_PX,
     corner: cornerSize,
-    creditsPx,
+    creditsPx: expanded ? creditsPx : (creditsHidden ? 0 : creditsPx) + CREDITS_BUTTON_ROW_PX,
     smallMap,
     panelShown,
   });
@@ -365,6 +382,33 @@ export default function SyntheticView({
           data-testid="synthetic-frame"
           style={{ position: 'absolute', inset: 0, pointerEvents: 'none', boxShadow: `inset 0 0 0 3px ${colors.accent}` }}
         />
+        {!expanded && !collapsed && (
+          <button
+            type="button"
+            aria-label={t('vehicleWindow.mapCredits')}
+            aria-expanded={creditsOpen}
+            title={t('vehicleWindow.mapCredits')}
+            onClick={() => setCreditsOpen((open) => !open)}
+            style={{
+              position: 'absolute',
+              left: CREDITS_BUTTON_GAP_PX + 3,
+              bottom: (creditsHidden ? 0 : creditsPx) + CREDITS_BUTTON_GAP_PX,
+              width: CREDITS_BUTTON_PX,
+              height: CREDITS_BUTTON_PX,
+              padding: 0,
+              borderRadius: '50%',
+              border: `1px solid ${colors.border}`,
+              background: 'rgba(0,0,0,0.55)',
+              color: colors.text,
+              fontSize: 13,
+              lineHeight: `${CREDITS_BUTTON_PX - 2}px`,
+              cursor: 'pointer',
+              zIndex: 1,
+            }}
+          >
+            ©
+          </button>
+        )}
         <div
           ref={tagRef}
           role="note"

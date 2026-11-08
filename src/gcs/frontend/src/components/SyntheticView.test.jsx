@@ -215,7 +215,9 @@ describe('SyntheticView', () => {
     const props = fake.hudProps.at(-1);
     expect(props.layout).toEqual(expect.objectContaining({ heading: expect.any(Object), corner: expect.any(Object) }));
     // Display only: no sticks, mode buttons, arming or UAV selector in Synthetic.
-    expect(container.querySelectorAll('button, input, select, [role="slider"]')).toHaveLength(0);
+    // The one button opens the map credits (owner, 2026-11-08); it flies nothing.
+    const controls = [...container.querySelectorAll('button, input, select, [role="slider"]')];
+    expect(controls.map((el) => el.getAttribute('aria-label'))).toEqual(['vehicleWindow.mapCredits']);
     // Another UAV: the HUD goes while its pose is awaited.
     store.vehicles = { 1: linked, 2: { ...linked, link_ok: false } };
     rerenderWith({ sysId: 2, label: 'UAV 2' });
@@ -385,6 +387,38 @@ describe('SyntheticView', () => {
     expect(fake.observed).toBe(fake.widgets[0].creditDisplay.container);
     expect(fake.observed).not.toBe(fake.widgets[0].creditContainer);
     expect(onCreditsHeight).toHaveBeenCalledWith(24);
+  });
+
+  // Owner (2026-11-08): on the handheld the credit line took a fifth of the
+  // small picture. At normal size a © button opens it; maximized it shows.
+  it('at normal size the credit line hides behind a © button; maximized it shows', async () => {
+    const { getByRole, queryByRole, rerenderWith } = setup();
+    await widgetReady();
+    await act(async () => {});
+    const credits = fake.widgets[0].creditDisplay.container;
+    expect(credits.style.display).toBe('none');
+    const button = getByRole('button', { name: 'vehicleWindow.mapCredits' });
+    expect(button).toHaveAttribute('aria-expanded', 'false');
+    act(() => button.click());
+    expect(credits.style.display).toBe('');
+    expect(button).toHaveAttribute('aria-expanded', 'true');
+    act(() => button.click());
+    expect(credits.style.display).toBe('none');
+    rerenderWith({ expanded: true });
+    expect(credits.style.display).toBe('');
+    expect(queryByRole('button', { name: 'vehicleWindow.mapCredits' })).toBeNull();
+  });
+
+  it('the © button keeps its own row, above the credit line once it is open', async () => {
+    const { getByRole } = setup();
+    await widgetReady();
+    await act(async () => {});
+    // jsdom lays nothing out: the © button sits on its own row at the bottom,
+    // and above the credit line (the fake measures 24 px) once that is open.
+    const button = getByRole('button', { name: 'vehicleWindow.mapCredits' });
+    expect(button.style.bottom).toBe('4px');
+    act(() => button.click());
+    expect(button.style.bottom).toBe('28px');
   });
 
   it("draws the UAV's own route from the route source: the next number at normal size, all maximized", async () => {
