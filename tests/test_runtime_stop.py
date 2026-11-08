@@ -242,7 +242,7 @@ def test_the_vehicle_build_sees_the_stop_and_the_session_starts_nothing(monkeypa
     monkeypatch.setattr(composition, "LoggerArgs", lambda _args: object())
     monkeypatch.setattr(composition.GroundStationLoggerNetwork, "create", MagicMock())
     monkeypatch.setattr(composition, "initialize_logger", lambda *_args: MagicMock())
-    monkeypatch.setattr(composition, "build_terminal_handoff", lambda _args: None)
+    monkeypatch.setattr(composition, "build_result_handoff", lambda _args: None)
     monkeypatch.setattr(composition, "open_vehicle_bus", lambda *_args: object())
     monkeypatch.setattr(composition, "create_vehicle", create_vehicle)
     monkeypatch.setattr(composition, "create_network",

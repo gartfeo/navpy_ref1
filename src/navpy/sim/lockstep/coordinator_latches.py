@@ -1,4 +1,4 @@
-"""The fleet's two latches: the boot barrier and the first-SNAP terminal tick.
+"""The fleet's two latches: the boot barrier and the first-SNAP result tick.
 
 Boot barrier (``lockstep_fleet.md``, "Boot barrier"): ``helpers_quiet`` is
 latched per SITL, the first frame that reports it. A late latch only holds
@@ -7,9 +7,9 @@ still a boot tick, and the initial participants are admitted at the tick
 after it. If the barrier is still open once frame k is ``boot_budget_us``
 of sim time past frame 1, the run ends with ``CoordinatorFault("boot_barrier")``.
 
-Terminal tick (``lockstep_fleet.md``, "Terminal tick"): the expected fleet
+Result tick (``lockstep_fleet.md``, "Result tick"): the expected fleet
 comes from the scenario, never from the live set. Each expected companion's
-first terminal marker is latched as ``(ordinal, generation, tick)``; a later
+first result marker is latched as ``(ordinal, generation, tick)``; a later
 one, or another generation's, changes nothing. The mission is complete at
 the tick the last expected companion latches: k_T is the maximum of the
 first-SNAP ticks. An expected companion never spawned, or retired without a
@@ -58,11 +58,11 @@ class BootLatch:
 class SnapLatch:
     def __init__(self, expected: tuple[int, ...]) -> None:
         self._expected = tuple(expected)
-        #: ordinal -> (generation, tick) of its first terminal marker.
+        #: ordinal -> (generation, tick) of its first result marker.
         self.first: dict[int, tuple[int, int]] = {}
 
     def observe(self, k: int, snaps: Iterable[tuple[int, int]]) -> None:
-        """This tick's terminal markers, as ``(ordinal, generation)`` in ``DONE`` order."""
+        """This tick's result markers, as ``(ordinal, generation)`` in ``DONE`` order."""
         for ordinal, generation in snaps:
             if ordinal in self._expected and ordinal not in self.first:
                 self.first[ordinal] = (generation, k)
@@ -72,7 +72,7 @@ class SnapLatch:
         return bool(self._expected) and all(ordinal in self.first for ordinal in self._expected)
 
     @property
-    def terminal_tick(self) -> int:
+    def result_tick(self) -> int:
         """k_T: the latest first-SNAP tick of the expected fleet (only once complete)."""
         assert self.complete
         return max(tick for _generation, tick in self.first.values())

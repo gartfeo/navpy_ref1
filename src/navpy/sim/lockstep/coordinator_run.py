@@ -19,10 +19,10 @@ Boot ticks run no participant, up to and including the tick at which the
 last SITL latches ``helpers_quiet`` (the boot barrier, within the
 manifest's boot budget); the initial participants are admitted at the tick
 after it. The mission ends ``ok`` at k_T, the tick at which every expected
-companion has latched its first terminal marker (k_T is the latest of
+companion has latched its first result marker (k_T is the latest of
 those ticks), or as a journaled timeout at the scenario's sim budget. An
 operator whose run returns before k_T (its own sim-time workflow ended
-without the terminal marker, e.g. a confirmation timeout) ends the mission
+without the result marker, e.g. a confirmation timeout) ends the mission
 at that tick with the journaled outcome ``operator_returned``, never
 ``ok``; its companion stop still has to have been acked, so drain and
 snapshot run as usual. If the last first SNAP lands in the tick the budget
@@ -94,7 +94,7 @@ _log = logging.getLogger(__name__)
 @dataclass(frozen=True)
 class RunResult:
     outcome: str
-    terminal_tick: int
+    result_tick: int
     final_tick: int
     parked_tick: int
 
@@ -153,7 +153,7 @@ class LockstepCoordinator:
             raise fault from caught
         self._roster.close()
         self.journal.add(counts)
-        self.journal.add({"outcome": outcome, "terminal_tick": k_t, "final_tick": k_f,
+        self.journal.add({"outcome": outcome, "result_tick": k_t, "final_tick": k_f,
                           "parked_tick": parked, "first_snaps": self._snaps.records()})
         return RunResult(outcome, k_t, k_f, parked)
 
@@ -227,7 +227,7 @@ class LockstepCoordinator:
             if phase == "mission":
                 self._snaps.observe(k, output.snaps)
                 if self._snaps.complete:  # checked first: completion wins a shared tick
-                    phase, k_t, t_kt = "finalization", self._snaps.terminal_tick, t_us
+                    phase, k_t, t_kt = "finalization", self._snaps.result_tick, t_us
                 elif t_us - started_us >= self._manifest.mission_budget_us:
                     phase, k_t, t_kt, outcome = "finalization", k, t_us, "timeout"
                     self.journal.add({"timeout": "mission sim-time budget", "k": k})

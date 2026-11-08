@@ -115,7 +115,7 @@ class _ClosableFence(Protocol):
 
 def with_gimbal_revoke(integration: IntegrationTimingInput | None, fence: _ClosableFence | None,
                        ) -> IntegrationTimingInput | None:
-    """HITL step 21: the search sweep stops for good once the SIYI command fence closes (terminal, deadline,
+    """HITL step 21: the search sweep stops for good once the SIYI command fence closes (result, deadline,
     abort); no fence, no revoke source, and a profile search is then refused."""
     if integration is None:
         return None

@@ -18,7 +18,7 @@ docs/design/hitl_guidance.md, section 2.
   mav_router_policy.observation_allowed() are dropped and counted (blocked_NAME_TYPE).
 - One owner of the board handle: writes, opens and closes run under one lock, so a reboot (the reader closing the
   port) can never meet a write in progress.
-- Endpoint barrier (the terminal handoff, design section 2): a JSON request on the loopback control port closes a
+- Endpoint barrier (the result handoff, design section 2): a JSON request on the loopback control port closes a
   client's endpoint; from then on its packets are refused, those still queued are dropped, any write in progress has
   returned, and the reply says how many were dropped and when that client's last packet was written. "open" re-opens
   it (the next navpy process). With --write-log every packet written to the board is logged: router monotonic

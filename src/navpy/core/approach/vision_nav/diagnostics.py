@@ -134,7 +134,7 @@ class NavigationGuidanceDiagnostics:
     def record(self, diagnostic: object) -> None:
         if not isinstance(diagnostic, GuidanceCommandDiagnostic):
             raise TypeError("invalid guidance command diagnostic")
-        if diagnostic.outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED:
+        if diagnostic.outcome is GuidanceCommandOutcome.EPISODE_ENDED:
             # The episode ended (docked or missed): no command row after it.
             return
         if diagnostic.command is None:

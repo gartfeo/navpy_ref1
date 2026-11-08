@@ -3,7 +3,7 @@
 ``lockstep_fleet.md``, Router and delivery: SITL serial1 traffic is routed
 from tick 1 (boot included, owner Q2); bytes for an owner not yet admitted
 are discarded and recorded; the hub's and the rovers' MAVLink reach their
-SITL ports through the queues; every packet ends in exactly one terminal
+SITL ports through the queues; every packet ends in exactly one fate
 disposition, and the journal repeats under host delays.
 """
 

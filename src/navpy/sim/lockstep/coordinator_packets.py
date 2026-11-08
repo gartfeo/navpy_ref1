@@ -18,7 +18,7 @@ tick's events, in order (ids are lists):
   ``["admitted", id, bytes, j]``: bytes of its prefix that reply j < k
   carried before the packet was complete (point-to-point bytes move unframed).
 
-and the terminal dispositions, exactly one per id:
+and the fates, exactly one per id:
 
 - ``["delivered", id, receiver]``: to a SITL port (its device) at the reply
   that admitted the last byte, or to a participant (``[ordinal, generation]``)
@@ -52,7 +52,7 @@ from navpy.sim.lockstep.router_framer import RouterPacket, Segment
 PacketId = tuple[Hashable, int, str, int]
 ROUTER_ORIGIN = "router"
 DISCARD_REASONS = ("unadmitted", "retired", "drain")
-TERMINALS = ("delivered", "discarded", RADIO_FAULT, "router_dropped", "router_filtered", "routed", "undelivered")
+FATES = ("delivered", "discarded", RADIO_FAULT, "router_dropped", "router_filtered", "routed", "undelivered")
 _DECODER = mavlink.MAVLink(None)
 
 
@@ -96,7 +96,7 @@ def _wire(packet_id: PacketId) -> list[object]:
 class PacketBook:
     def __init__(self) -> None:
         self._seqs: dict[tuple[Hashable, int, str], int] = {}
-        #: Open ids (emitted, no terminal disposition yet) and their tally keys.
+        #: Open ids (emitted, no fate yet) and their tally keys.
         self._open: dict[PacketId, str] = {}
         self._events: list[list[object]] = []
 
@@ -129,7 +129,7 @@ class PacketBook:
         self._events.append(event)
 
     def end(self, packet_id: PacketId, disposition: str, *detail: object) -> str:
-        """Record ``packet_id``'s terminal disposition; returns its tally key."""
+        """Record ``packet_id``'s fate; returns its tally key."""
         key = self._open.pop(packet_id, None)
         if key is None:
             raise CoordinatorFault("packet_disposition",
@@ -152,6 +152,6 @@ class PacketBook:
 
 
 __all__ = [
-    "DISCARD_REASONS", "PacketBook", "PacketId", "ROUTER_ORIGIN", "TERMINALS", "navlink_fields",
+    "DISCARD_REASONS", "PacketBook", "PacketId", "ROUTER_ORIGIN", "FATES", "navlink_fields",
     "packet_key", "sitl_origin",
 ]

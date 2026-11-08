@@ -14,7 +14,7 @@ Built as the coordinator writes them (``scripts/eval_gcs_demo_lockstep.py``):
   each crossing the five hops of a NAVLINK trace (``navlink_trace``);
 - each NavPy's lines with ticks: its role's markers, ``CONFIRMING`` at its
   request's delivery tick, the rest after its approval's answer;
-- an ``ok`` outcome whose terminal tick is the last first SNAP.
+- an ``ok`` outcome whose result tick is the last first SNAP.
 """
 
 from __future__ import annotations
@@ -214,16 +214,16 @@ def fleet_records(records: list[dict], lines: dict[int, list[tuple[int, str]]],
         packets.respond(k, sys_id)
     snaps = {sys_id: next(k for k, line in rows if "SNAP(VISION-NAV" in line)
              for sys_id, rows in lines.items()}
-    terminal = max(snaps.values())
+    result = max(snaps.values())
     grid, ticks = records[0], {r["k"]: r for r in records[1:]}
     out = [grid]
-    for k in range(1, terminal + 3):
+    for k in range(1, result + 3):
         record = ticks.get(k, {"k": k, "t_us": k * GRID_US})
         record["members"] = [{"ordinal": i, "generation": 1} for i in SYS_IDS]
         record["packets"] = packets.events.get(k, [])
         out.append(record)
-    out.append({"outcome": "ok", "terminal_tick": terminal, "final_tick": terminal + 2,
-                "parked_tick": terminal + 3,
+    out.append({"outcome": "ok", "result_tick": result, "final_tick": result + 2,
+                "parked_tick": result + 3,
                 "first_snaps": [[sys_id, 1, snaps[sys_id]] for sys_id in SYS_IDS]})
     return out
 

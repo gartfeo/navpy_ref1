@@ -1,4 +1,4 @@
-"""The HITL terminal handoff (navpy.app.terminal_handoff, navpy.app.router_barrier; design hitl_guidance.md
+"""The HITL result handoff (navpy.app.result_handoff, navpy.app.router_barrier; design hitl_guidance.md
 sections 2-3): the episode latch reports its first outcome, the fence drops every later MAVLink write, the barrier
 client waits bounded for the router's ack, and the record comes only after the fence and the barrier."""
 from __future__ import annotations
@@ -15,11 +15,11 @@ from pymavlink import mavutil
 
 from navpy.app.navpy_argparse import make_parser
 from navpy.app.router_barrier import BarrierResult, RouterBarrier, parse_address
-from navpy.app.terminal_handoff import (NAVPY_TERMINAL_MARKER, LinkFence, TerminalHandoff, build_terminal_handoff,
-                                        fenced_opener, parse_terminal_record, print_terminal_record,
-                                        siyi_fence, terminal_observer)
+from navpy.app.result_handoff import (NAVPY_RESULT_MARKER, LinkFence, ResultHandoff, build_result_handoff,
+                                        fenced_opener, parse_result_record, print_result_record,
+                                        siyi_fence, result_observer)
 from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
-from navpy.core.approach.vision_nav.episode_latch import GuidanceTerminal as Terminal
+from navpy.core.approach.vision_nav.episode_latch import GuidanceResult as Result
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
 from navpy.plugins.gimbal.siyi.siyi_message import SIYIMESSAGE
@@ -44,7 +44,7 @@ def test_the_first_latch_is_reported_once_with_the_armed_identity():
     latch.begin(IDENTITY)
     assert latch.latch_docked(contact())
     assert not latch.latch_missed() and latch.latch_failure() is False
-    assert seen == [(Terminal.DOCKED, IDENTITY)]
+    assert seen == [(Result.DOCKED, IDENTITY)]
 
 
 def test_a_miss_then_its_nav_fail_is_one_outcome():
@@ -52,14 +52,14 @@ def test_a_miss_then_its_nav_fail_is_one_outcome():
     latch.begin(IDENTITY)
     assert latch.latch_missed()
     assert latch.latch_failure()                 # the NAV_FAIL report of the miss is admitted, not a new outcome
-    assert seen == [(Terminal.MISSED, IDENTITY)]
+    assert seen == [(Result.MISSED, IDENTITY)]
 
 
 def test_a_nav_fail_with_no_armed_episode_is_reported_without_identity():
     latch, seen = observed_latch()
     assert latch.latch_failure()
     assert not latch.latch_docked(contact())
-    assert seen == [(Terminal.FAILED, None)]
+    assert seen == [(Result.FAILED, None)]
 
 
 def test_a_contact_of_another_episode_is_not_an_outcome():
@@ -162,13 +162,13 @@ def test_the_opener_installs_the_fence_only_with_a_handoff():
         return Bus()
 
     assert fenced_opener(opener, None) is opener
-    handoff = TerminalHandoff(LinkFence(), RouterBarrier((LOOPBACK, 9), "navpy"))
+    handoff = ResultHandoff(LinkFence(), RouterBarrier((LOOPBACK, 9), "navpy"))
     bus = fenced_opener(opener, handoff)("udpin:x", 115200)
     handoff.fence.close()
     with bus.send_lock:
         bus.conn.write(b"x")
     assert bus.conn.written == [] and handoff.fence.dropped == 1
-    assert terminal_observer(None) is None and terminal_observer(handoff) == handoff.on_terminal
+    assert result_observer(None) is None and result_observer(handoff) == handoff.on_result
 
 
 # ---- the barrier client --------------------------------------------------------------------------
@@ -273,18 +273,18 @@ class ScriptedBarrier:
         return self.result
 
 
-def scripted(result: BarrierResult) -> tuple[TerminalHandoff, ScriptedBarrier, list]:
+def scripted(result: BarrierResult) -> tuple[ResultHandoff, ScriptedBarrier, list]:
     events: list = []
     fence = LinkFence()
     barrier = ScriptedBarrier(events, fence, result)
-    return TerminalHandoff(fence, barrier, publish=lambda record: events.append(("record", record))), barrier, events
+    return ResultHandoff(fence, barrier, publish=lambda record: events.append(("record", record))), barrier, events
 
 
 def test_the_record_follows_the_fence_and_the_barrier_ack():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy", "dropped_queued": 2}))
     lock = threading.Lock()
     with lock:                                   # the latch calls under the guidance lock: it must not block
-        handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+        handoff.on_result(Result.DOCKED, IDENTITY)
     assert handoff.fence.closed
     assert not handoff.join(0.2)                 # the barrier is waiting: no record yet
     assert events == [("barrier", True)]
@@ -298,7 +298,7 @@ def test_the_record_follows_the_fence_and_the_barrier_ack():
 def test_no_ack_writes_a_barrier_failed_record():
     handoff, barrier, events = scripted(BarrierResult(None, "no ack within 2 s"))
     barrier.release.set()
-    handoff.on_terminal(Terminal.FAILED, None)
+    handoff.on_result(Result.FAILED, None)
     assert handoff.join(WAIT_S)
     record = events[-1][1]
     assert record["outcome"] == "failed" and record["barrier"] == "failed"
@@ -308,8 +308,8 @@ def test_no_ack_writes_a_barrier_failed_record():
 def test_only_the_first_outcome_hands_off():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
     barrier.release.set()
-    handoff.on_terminal(Terminal.MISSED, IDENTITY)
-    handoff.on_terminal(Terminal.FAILED, IDENTITY)
+    handoff.on_result(Result.MISSED, IDENTITY)
+    handoff.on_result(Result.FAILED, IDENTITY)
     assert handoff.join(WAIT_S)
     assert barrier.calls == 1 and [e[0] for e in events] == ["barrier", "record"]
     assert events[1][1]["outcome"] == "missed"
@@ -328,7 +328,7 @@ def test_the_barrier_starts_only_after_the_write_in_progress_returns():
     sender = threading.Thread(target=send)
     sender.start()
     assert link.entered.wait(WAIT_S)
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    handoff.on_result(Result.DOCKED, IDENTITY)
     assert not handoff.join(0.2) and events == []   # the write passed the fence before it closed: wait for it
     link.release.set()
     assert handoff.join(WAIT_S)
@@ -341,7 +341,7 @@ def test_the_record_counts_writes_dropped_by_the_fence():
     link, lock = SlowLink(), threading.RLock()
     link.release.set()
     handoff.fence.install(link, lock)
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    handoff.on_result(Result.DOCKED, IDENTITY)
     with lock:
         link.write(b"held refresh")
     barrier.release.set()
@@ -352,19 +352,19 @@ def test_the_record_counts_writes_dropped_by_the_fence():
 def test_the_record_is_one_flushed_line_the_runner_parses():
     out = io.StringIO()
     with redirect_stdout(out):
-        print_terminal_record({"outcome": "docked", "barrier": "acked"})
+        print_result_record({"outcome": "docked", "barrier": "acked"})
     line = out.getvalue().strip()
-    assert line.startswith(NAVPY_TERMINAL_MARKER + " ")
-    assert parse_terminal_record(line) == {"outcome": "docked", "barrier": "acked"}
-    assert parse_terminal_record("NAVPY_TERMINAL_V1 not json") is None
-    assert parse_terminal_record("NAVPY_RUNTIME_READY_V1 {}") is None
+    assert line.startswith(NAVPY_RESULT_MARKER + " ")
+    assert parse_result_record(line) == {"outcome": "docked", "barrier": "acked"}
+    assert parse_result_record("NAVPY_RESULT_V1 not json") is None
+    assert parse_result_record("NAVPY_RUNTIME_READY_V1 {}") is None
 
 
 def test_the_handoff_exists_only_with_a_router_control_address():
     parser = make_parser()
     base = ["-c", "udpin:127.0.0.1:14550", "-ss", "1"]
-    assert build_terminal_handoff(parser.parse_args(base)) is None
-    handoff = build_terminal_handoff(parser.parse_args(base + ["--router-control", "127.0.0.1:9643"]))
+    assert build_result_handoff(parser.parse_args(base)) is None
+    handoff = build_result_handoff(parser.parse_args(base + ["--router-control", "127.0.0.1:9643"]))
     assert handoff is not None
 
 
@@ -389,7 +389,7 @@ class RecordingGimbal:
 def test_the_gimbal_is_fenced_at_once_and_stopped_before_the_barrier():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
     gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    handoff.on_result(Result.DOCKED, IDENTITY)
     assert handoff.gimbal_fence.closed           # closed on the latch's thread, before the handoff thread runs
     gimbal.requestGimbalSpeed(40, 0)             # a tracker command after the outcome
     barrier.release.set()
@@ -402,7 +402,7 @@ def test_the_gimbal_is_fenced_at_once_and_stopped_before_the_barrier():
 def test_a_tracker_command_after_the_outcome_never_reaches_the_gimbal():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
     gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
-    handoff.on_terminal(Terminal.MISSED, IDENTITY)
+    handoff.on_result(Result.MISSED, IDENTITY)
     barrier.release.set()
     assert handoff.join(WAIT_S)
     gimbal.requestGimbalSpeed(40, 0)
@@ -414,14 +414,14 @@ def test_a_tracker_command_after_the_outcome_never_reaches_the_gimbal():
 def test_without_a_siyi_gimbal_the_record_says_so():
     handoff, barrier, events = scripted(BarrierResult({"op": "closed", "client": "navpy"}))
     barrier.release.set()
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    handoff.on_result(Result.DOCKED, IDENTITY)
     assert handoff.join(WAIT_S)
     assert events[-1][1]["gimbal_stop"] == "no_gimbal" and events[-1][1]["fenced_gimbal_commands"] == 0
 
 
 def test_the_vision_path_gets_the_handoff_gimbal_fence():
     assert siyi_fence(None) is None
-    handoff = TerminalHandoff(LinkFence(), RouterBarrier((LOOPBACK, 9), "navpy"))
+    handoff = ResultHandoff(LinkFence(), RouterBarrier((LOOPBACK, 9), "navpy"))
     assert siyi_fence(handoff) is handoff.gimbal_fence
 
 
@@ -441,13 +441,13 @@ def test_a_stuck_gimbal_send_still_gives_the_record_with_a_timeout():
     events: list = []
     fence = LinkFence()
     barrier = ScriptedBarrier(events, fence, BarrierResult({"op": "closed", "client": "navpy"}))
-    handoff = TerminalHandoff(fence, barrier, publish=lambda record: events.append(("record", record)),
+    handoff = ResultHandoff(fence, barrier, publish=lambda record: events.append(("record", record)),
                               gimbal_fence=SiyiCommandFence(stop_timeout_s=0.3))
     gimbal = handoff.gimbal_fence.wrap(lambda **_: StuckGimbal(events))(server_ip=LOOPBACK, port=1)
     threading.Thread(target=gimbal.sendMsg, args=(SIYIMESSAGE().gimbalAttMsg(),), daemon=True).start()
     time.sleep(0.05)                             # the poll's send is in progress, holding the fence
     barrier.release.set()
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+    handoff.on_result(Result.DOCKED, IDENTITY)
     assert handoff.join(WAIT_S)
     record = [e for e in events if e[0] == "record"][0][1]
     assert record["gimbal_stop"] == "timeout" and record["barrier"] == "acked"

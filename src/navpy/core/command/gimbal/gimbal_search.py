@@ -4,7 +4,7 @@ Inputs are camera state only: the newest SIYI attitude readback (body-relative j
 history on the capture clock), the frame tick and the detector's own detections. No dock, aircraft pose, heading,
 altitude or ground speed is read, so the scan is the same in every scenario.
 
-It writes through the mount's gimbal actuator, the same fenced SIYI writer as rate tracking (the terminal handoff's
+It writes through the mount's gimbal actuator, the same fenced SIYI writer as rate tracking (the result handoff's
 SiyiCommandFence, and the stage-3 envelope that will wrap that writer). Each tick runs under the gimbal command
 gate, so it never interleaves with a detection, geo or loss-recovery transaction.
 

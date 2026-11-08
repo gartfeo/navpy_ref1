@@ -56,13 +56,13 @@ class GuidanceCommandReset:
     def reset_phase(self) -> None:
         """RESET or the next episode: the only reset of the episode latch."""
         with self._ports.lock:
-            # A failed drain keeps the episode (its terminal is the NAV exit's
+            # A failed drain keeps the episode (its result is the NAV exit's
             # evidence); the exit retries next cycle and resets it then.
             self._retire_and_flush_locked()
             self._ports.liveness.reset()
             self._ports.episode.reset()
 
-    def retire_after_terminal(self) -> None:
+    def retire_after_result(self) -> None:
         """Stop all actuation once the episode ended; keep the episode latch."""
         with self._ports.lock:
             self._invalidate_locked()

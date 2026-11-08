@@ -14,7 +14,7 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.approach.dock_contact_episode import GuidanceDockContact
-from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, GuidanceTerminal
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, GuidanceResult
 from navpy.core.kernel.location import Location
 from navpy.plugins.contact import hitl_contact_wire as wire
 from navpy.plugins.contact.hitl_contact_link import ContactLinkConfig
@@ -103,9 +103,9 @@ class Rig:
         return self.latch.docked
 
     @property
-    def terminal(self) -> Optional[GuidanceTerminal]:
-        snapshot = self.latch.terminal_snapshot()
-        return None if snapshot is None else snapshot.terminal
+    def result(self) -> Optional[GuidanceResult]:
+        snapshot = self.latch.result_snapshot()
+        return None if snapshot is None else snapshot.outcome
 
     def last_contact(self) -> dict[str, Any]:
         return wire.decode(self.to_navpy[-1], KEY, frozenset({wire.KIND_CONTACT}))

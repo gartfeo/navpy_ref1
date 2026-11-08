@@ -59,7 +59,7 @@ Each change is forced by code added since `f744062`, or by a v4 statement that i
    product (glossary), so the state, the contact latch, the failed-dock end, the post-dock climb (`rec:117-130`),
    the swarm "docked = busy" flag and the one-shot DOCKED hold (`nd:239-242`) are platform. The failed-dock end
    reads no product state: only the requested state, the GUIDED session, the cleanup errors, the contact and the
-   episode terminal (`nx:69-80`). Only the AUTO restart is delivery's: it is wired at three pairs, RESET, RECOVERY
+   episode result (`nx:69-80`). Only the AUTO restart is delivery's: it is wired at three pairs, RESET, RECOVERY
    and DOCKED → DETECT (`nth:67-69`), not two. c6 renames all three.
    One coupling: core reads the flow's RESET request at NAV exit as "the approach ended" and alone picks DOCKED or
    RESET (`nx:69-89`). Delivery maps FAILED and PASSED to RESET (`nd:160,204`), so its behaviour does not change.
@@ -178,7 +178,7 @@ Core still picks these states:
 - **ONHOLD after a one-shot finish** when neither a contact nor a failed dock ends the approach: core redirects
   (`nx:90-95`) and holds (`rec:80-84,132-137`);
 - **DOCKED** at a NAV exit of a RESET request with own-dock contact, or with an armed sim episode's FAILED or MISSED
-  terminal, reported as "STATE DOCK_FAILED" and a `DOCK_FAILED` row (`nx:68-102,105-122,138-142`); a one-shot DOCKED
+  result, reported as "STATE DOCK_FAILED" and a `DOCK_FAILED` row (`nx:68-102,105-122,138-142`); a one-shot DOCKED
   stays final (`nd:239-242`); a cyclic DOCKED climbs, then DETECT (`rec:117-130`);
 - **RECOVERY** at the altitude floor;
 - **DETECT** after RESET or RECOVERY;
@@ -363,7 +363,7 @@ Unchanged from v4, except that the record holds ten calls.
   `AAS_NAV_ONESHOT` in `NavArgs`. Roadmap R19 lists the sortie-done latch as platform (`roadmap.md:52`;
   `docs/design/architecture_split.md:171`).
 - **The failed-dock end** (`missed_dock.md`): the reasoned episode latch and its command end
-  (`core/approach/vision_nav/episode_latch.py`, `core/approach/vision_nav/runtime.py:194-201`), the NAV-exit terminal
+  (`core/approach/vision_nav/episode_latch.py`, `core/approach/vision_nav/runtime.py:194-201`), the NAV-exit result
   snapshot (`core/approach/nav_exit_cleanup.py`, `core/approach/navigation_dock_outcome.py`,
   `core/approach/vision_nav/dock_outcome.py`), the RESET → DOCKED redirect and the `DOCK_FAILED` row and status
   (`nx:68-102,105-122,138-142`). It reads no product state.

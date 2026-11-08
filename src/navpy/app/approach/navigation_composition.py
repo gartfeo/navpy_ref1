@@ -49,7 +49,7 @@ from navpy.core.approach.nav_law_factory import (
     get_nav_algorithm_spec,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
-from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import ResultObserver
 from navpy.core.approach.vision_nav.runtime_composition import (
     GuidanceVehicleActuator,
     GuidanceVehicleDiagnosticReader,
@@ -121,7 +121,7 @@ def _vision_runtime_factory(
     navigation_logger: NavigationLogger,
     logger: ILogger,
     wall_period_s: Callable[[float], float],
-    on_terminal: Optional[TerminalObserver],
+    on_result: Optional[ResultObserver],
     law_airspeed: Optional[LawAirspeed] = None,
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
@@ -146,7 +146,7 @@ def _vision_runtime_factory(
             aircraft_degrees=geo_ref.degrees,
             navigation_logger=navigation_logger,
             wall_period_s=wall_period_s,
-            on_terminal=on_terminal,
+            on_result=on_result,
             report_stale_hold=lambda check: logger.warning(
                 f"NAV hold stale: {check.describe()}",
                 key="nav",
@@ -174,7 +174,7 @@ def compose_navigation(
     logger: ILogger,
     args: NavigationArgs,
     scheduler_cadence: Optional[SchedulerCadence] = None,
-    on_terminal: Optional[TerminalObserver] = None,
+    on_result: Optional[ResultObserver] = None,
     law_airspeed: Optional[LawAirspeed] = None,
     command_formation: Callable[[], ContextManager[None]] = nullcontext,
     command_pass: Callable[[], ContextManager[None]] = nullcontext,
@@ -221,7 +221,7 @@ def compose_navigation(
         navigation_logger=navigation_logger,
         logger=logger,
         wall_period_s=wall_period,
-        on_terminal=on_terminal,
+        on_result=on_result,
         law_airspeed=law_airspeed,
     )
 

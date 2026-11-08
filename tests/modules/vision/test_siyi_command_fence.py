@@ -1,4 +1,4 @@
-"""The SIYI command fence of the HITL terminal handoff and the real gimbal path (B3), design hitl_guidance.md
+"""The SIYI command fence of the HITL result handoff and the real gimbal path (B3), design hitl_guidance.md
 sections 2, 4 and 7: once closed, only queries and the two stops reach the gimbal; a real run never gets a simulated
 gimbal, and its SIYI SDK is built through the fence."""
 from __future__ import annotations

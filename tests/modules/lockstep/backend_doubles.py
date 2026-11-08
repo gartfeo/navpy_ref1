@@ -107,7 +107,7 @@ class AutopilotSitl:
 
 def manifest(scenario: DemoScenario, *, mission_budget_us: int = 0,
              companions: bool = False, navpy: bool = False) -> Manifest:
-    """No SNAP, so no terminal tick: the mission phase ends on its budget at
+    """No SNAP, so no result tick: the mission phase ends on its budget at
     the first mission tick, and finalization lasts until the operator returns.
 
     With ``companions``, the toy rover (NavPy-like, on ``lockstep:serial0.1``)

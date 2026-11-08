@@ -76,7 +76,7 @@ class RollQualityLimits:
     among samples of at least `significant_roll_deg`, over the whole episode,
     and fails above `max_achieved_roll_reversals`. Commanded-roll reversals
     are reported as a diagnostic only: single-frame LOS-rate spikes and the
-    terminal 1/R^2 LOS-rate growth flip the command while the airframe's roll
+    close-range 1/R^2 LOS-rate growth flip the command while the airframe's roll
     loop does not follow. Its evidence fails closed: a missing, non-finite,
     duplicate or unmatched achieved roll fails the gate by name.
     Limits: it counts reversals, not duration, so two separated corrections

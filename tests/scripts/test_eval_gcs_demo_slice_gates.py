@@ -197,16 +197,16 @@ def test_approval_gate_replays_the_operators_polling_schedule(evidence):
         "approval replay: the journal holds no due checks (operator evidence off)"]
 
 
-def test_snap_gate_needs_the_first_snap_at_the_terminal_tick(evidence):
+def test_snap_gate_needs_the_first_snap_at_the_result_tick(evidence):
     _log_dir, records, lines, _approvals = evidence
     assert snap_errors(records, lines) == []
     outcome = records[-1]
-    moved = records[:-1] + [{**outcome, "terminal_tick": outcome["terminal_tick"] + 1}]
+    moved = records[:-1] + [{**outcome, "result_tick": outcome["result_tick"] + 1}]
     assert snap_errors(moved, lines) == [
-        f"first SNAP at tick {outcome['terminal_tick']}, mission terminal tick "
-        f"{outcome['terminal_tick'] + 1}"]
+        f"first SNAP at tick {outcome['result_tick']}, mission result tick "
+        f"{outcome['result_tick'] + 1}"]
     no_snap = [(k, line) for k, line in lines if "SNAP(VISION-NAV" not in line]
-    assert snap_errors(records, no_snap) == ["no SNAP at a mission terminal tick"]
+    assert snap_errors(records, no_snap) == ["no SNAP at a mission result tick"]
 
 
 

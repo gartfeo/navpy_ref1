@@ -143,7 +143,7 @@ def test_the_audit_counts_forbidden_navpy_writes_by_message_and_command(tmp_path
 
 def test_the_audit_counts_navpy_writes_after_the_first_drain_ack(tmp_path):
     path = _log(tmp_path, ["1.0,navpy,0,", "2.5,navpy,0,", "3.0,runner,11,"])
-    navpys_own = [{"trigger": "terminal", "router_ack": {"barrier_mono_s": 2.0}}]
+    navpys_own = [{"trigger": "result", "router_ack": {"barrier_mono_s": 2.0}}]
     result = audit(path, _ack(4.0), navpys_own)      # the runner's later, idempotent close does not move the drain
     assert result["drain_ack_mono_s"] == 2.0 and result["after_drain"] == 1 and not result["ok"]
 

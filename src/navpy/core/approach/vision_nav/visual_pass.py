@@ -19,7 +19,7 @@ from navpy.core.ports.frame import GuidanceVisionFrame
 # abeam, so arming on any body_x > 0 let one small turn read as "ahead, then
 # behind" 630 m out (.logs/a1-measure-b, uav_1). 60 deg keeps the abeam start
 # 30 deg outside the cone, while a closing approach (LOS a few deg off the
-# nose in the a1 terminal phase) arms well inside it.
+# nose in the a1 closing phase) arms well inside it.
 PASS_ARM_MAX_OFF_NOSE_DEG = 60.0
 PASS_ARM_MIN_BODY_X = math.cos(math.radians(PASS_ARM_MAX_OFF_NOSE_DEG))
 

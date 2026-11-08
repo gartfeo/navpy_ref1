@@ -45,8 +45,8 @@ from navpy.app.runtime_resources import (
     VehicleCloseGate,
 )
 from navpy.app.runtime_ready import emit_runtime_ready
-from navpy.app.terminal_handoff import (
-    TerminalHandoff, build_terminal_handoff, fenced_opener, own_quiesce, siyi_fence, terminal_observer,
+from navpy.app.result_handoff import (
+    ResultHandoff, build_result_handoff, fenced_opener, own_quiesce, siyi_fence, result_observer,
 )
 from navpy.core.kernel.config.arg_helper import (
     collect_non_default_args,
@@ -67,7 +67,7 @@ class RuntimeFoundation:
     vision_args: VisionArgs
     scheduler_cadence: SchedulerCadence | None
     vehicle_close_gate: VehicleCloseGate
-    terminal_handoff: TerminalHandoff | None = None
+    result_handoff: ResultHandoff | None = None
     camera_frames: CameraFrameFactoryPort | None = None
     recovery_link: NavRecoveryLink | None = None
 
@@ -120,10 +120,10 @@ def _build_foundation(
     resources.own("logger", logger.close)
     ports.observe_logger(logger)
 
-    terminal_handoff = build_terminal_handoff(args)
+    result_handoff = build_result_handoff(args)
     # HITL: a failed vehicle build (its own rollback runs first) still quiesces and publishes a shutdown record.
-    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
-    bus =open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, terminal_handoff))
+    own_quiesce(resources.own_quiescence, result_handoff, stop_requested)
+    bus =open_vehicle_bus(connection_args, fenced_opener(ports.open_bus, result_handoff))
     # After the stop the vehicle's reads and mission transfers end at once,
     # so startup reaches a stop check without waiting on the link.
     vehicle = create_vehicle(connection_args, logger, bus=bus, stop_requested=stop_requested)
@@ -132,7 +132,7 @@ def _build_foundation(
     # logger stays open until the reader has really stopped.
     resources.own_quiescence("vehicle", close_gate.close_vehicle)
     # HITL: from here a stop or failure of the start closes the fences before the vehicle closes (see _build_session).
-    own_quiesce(resources.own_quiescence, terminal_handoff, stop_requested)
+    own_quiesce(resources.own_quiescence, result_handoff, stop_requested)
     raise_if_stopped(stop_requested)
     status_logger.set_vehicle(vehicle)
     _log_configuration(args, vehicle, logger)
@@ -166,7 +166,7 @@ def _build_foundation(
         vision_args=vision_args,
         scheduler_cadence=scheduler_cadence,
         vehicle_close_gate=close_gate,
-        terminal_handoff=terminal_handoff,
+        result_handoff=result_handoff,
         camera_frames=ports.camera_frames,
         recovery_link=nav_recovery_link(bus.command_fence, vehicle),
     )
@@ -185,7 +185,7 @@ def _build_session(
         foundation.logger,
         foundation.zc_util,
         scheduler_cadence=foundation.scheduler_cadence,
-        siyi_fence=siyi_fence(foundation.terminal_handoff),
+        siyi_fence=siyi_fence(foundation.result_handoff),
         camera_frames=foundation.camera_frames,
     )
     resources.own_quiescence(
@@ -198,7 +198,7 @@ def _build_session(
     # HITL: owned after each writer, so a stop or failure at any point of the start closes the fences before any
     # component stops; the first close quiesces, the later ones only wait for the record (idempotent).
     def quiesce() -> None:
-        own_quiesce(resources.own_quiescence, foundation.terminal_handoff, hooks.get("stop_requested"))
+        own_quiesce(resources.own_quiescence, foundation.result_handoff, hooks.get("stop_requested"))
 
     quiesce()
     planner =MissionPlanner(foundation.logger, MissionPlannerArgs(args))
@@ -211,9 +211,9 @@ def _build_session(
         foundation.navigation_args,
         scheduler_cadence=foundation.scheduler_cadence,
         law_airspeed=vision.law_airspeed, **command_contexts(foundation.recovery_link),
-        on_terminal=with_dock_evidence_cut(
+        on_result=with_dock_evidence_cut(
             vision.dock_contact,
-            terminal_observer(foundation.terminal_handoff),
+            result_observer(foundation.result_handoff),
         ),
     )
     resources.own_quiescence("navigation", navigation.stop)

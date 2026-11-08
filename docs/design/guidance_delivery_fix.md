@@ -154,7 +154,7 @@ and design item, a5.
 | a1 | Measurement baseline and the written fit method (logs only) | The hop is named with evidence; tail delays (p95, max) per run |
 | a2 | Fix that hop (bounded refresh, or router) | A mechanism test for the send policy. One SITL run, per UAV, with delay measured from NavPy's socket write to the matching demand change in `DesPitch/DesRoll`, both in aircraft time: p95 at most 0.1 s, max at most 0.2 s, and a fitted delay slope over the approach of at most 0.01 s/s. Aircraft-side evidence that the override stayed active throughout, including held stretches: `DesPitch/DesRoll` stay on the last sent payload and never revert to GUIDED navigation demand. Gaps between NavPy's sends are kept as a separate diagnostic |
 | a3 | Aircraft clock port, receipt age in aircraft time, `host_link_stall` | The tests above; both watchdog paths |
-| a4 | Two 3-UAV runs | Every approach ends in its normal terminal state (contact or visual pass), not a failure; zero infrastructure faults across both runs; the a2 delay gate holds. SNAP is reported against the 0.5 m gate (todo 22) and is not claimed to pass it until it does |
+| a4 | Two 3-UAV runs | Every approach ends in its normal end state (contact or visual pass), not a failure; zero infrastructure faults across both runs; the a2 delay gate holds. SNAP is reported against the 0.5 m gate (todo 22) and is not claimed to pass it until it does |
 
 The point-mass bench's under-2 cm miss shows the law converges when commands arrive. It does not promise centimetre
 SITL results.

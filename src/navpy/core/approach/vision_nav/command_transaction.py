@@ -73,7 +73,7 @@ class GuidanceCommandOutcome(Enum):
     AFT_SUPPRESSED = "aft_suppressed"
     LAW_UNAVAILABLE = "law_unavailable"
     # The episode already ended (docked or missed): no command, no row.
-    TERMINAL_SUPPRESSED = "terminal_suppressed"
+    EPISODE_ENDED = "episode_ended"
 
 
 @dataclass(frozen=True)
@@ -123,7 +123,7 @@ class GuidanceCommandTransaction:
         self._actuator = actuator
         self._episode = episode
 
-    def terminal_result(self) -> GuidanceCommandResult | None:
+    def suppressed_result(self) -> GuidanceCommandResult | None:
         """The suppression result once the episode ended, before any check.
 
         The executor asks this before freshness, so a stale frame after
@@ -133,14 +133,14 @@ class GuidanceCommandTransaction:
             return None
         return GuidanceCommandResult(
             None,
-            GuidanceCommandOutcome.TERMINAL_SUPPRESSED,
+            GuidanceCommandOutcome.EPISODE_ENDED,
             False,
         )
 
     def execute(self, frame: GuidanceVisionFrame) -> GuidanceCommandResult:
-        terminal = self.terminal_result()
-        if terminal is not None:
-            return terminal
+        result = self.suppressed_result()
+        if result is not None:
+            return result
         pass_plan = self._pass.plan(frame)
         if pass_plan.suppress_command:
             self._pass.commit(pass_plan)

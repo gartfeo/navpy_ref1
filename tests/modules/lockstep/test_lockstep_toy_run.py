@@ -172,7 +172,7 @@ def test_an_operator_returning_before_snap_is_operator_returned_not_ok(tmp_path)
     coordinator, *_ = build(tmp_path, return_after_spawn=True)
     result = coordinator.run()
     assert result.outcome == "operator_returned"
-    assert {"operator_returned": result.terminal_tick} in coordinator.journal.records
+    assert {"operator_returned": result.result_tick} in coordinator.journal.records
     assert coordinator.journal.records[-1]["outcome"] == "operator_returned"
 
 
@@ -184,8 +184,8 @@ def test_an_operator_returning_before_snap_ends_the_mission_as_operator_returned
     coordinator, sitl, operator, roster = build(tmp_path, plan=plan, give_up_at_us=1_680_000)
     result = coordinator.run()
     assert result.outcome == "operator_returned" and operator.snap_tick is None
-    assert {"operator_returned": result.terminal_tick} in coordinator.journal.records
-    assert result.final_tick == result.terminal_tick
+    assert {"operator_returned": result.result_tick} in coordinator.journal.records
+    assert result.final_tick == result.result_tick
     assert sitl.snapshot_rows[-1][0] == result.parked_tick
     assert all(m.flushed and m.exited for m in roster.members)
 
@@ -204,7 +204,7 @@ def test_a_mission_timeout_completes_finalization_and_drain(tmp_path):
     coordinator, sitl, operator, roster = build(tmp_path, plan=plan, give_up_at_us=1_680_000)
     result = coordinator.run()
     assert result.outcome == "timeout" and operator.snap_tick is None
-    assert {"timeout": "mission sim-time budget", "k": result.terminal_tick} in coordinator.journal.records
+    assert {"timeout": "mission sim-time budget", "k": result.result_tick} in coordinator.journal.records
     assert sitl.snapshot_rows[-1][0] == result.parked_tick
     assert all(m.flushed and m.exited for m in roster.members)
 

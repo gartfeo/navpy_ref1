@@ -70,7 +70,7 @@ from navpy.core.approach.vision_nav.source_time_adapter import (
 )
 from navpy.core.approach.vision_nav.dock_outcome import GuidanceDockOutcome
 from navpy.core.approach.vision_nav.docked_evidence import GuidanceDockedEvidence
-from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, ResultObserver
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
@@ -140,7 +140,7 @@ def compose_guidance_runtime(
     aircraft_degrees: bool,
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
-    on_terminal: TerminalObserver | None = None,
+    on_result: ResultObserver | None = None,
     report_stale_hold: Callable[[GuidanceFreshnessCheck], None] = (
         lambda check: None
     ),
@@ -152,7 +152,7 @@ def compose_guidance_runtime(
         raise TypeError("guidance vehicle target_system must be an integer")
     source_time = PoseCadenceGuidanceSourceTimeObserver(sys_id)
     liveness = GuidanceCommandLiveness()
-    episode = GuidanceEpisodeLatch(on_terminal)
+    episode = GuidanceEpisodeLatch(on_result)
     worker_failures = GuidanceEpisodeFailures(lock, episode, liveness)
     freshness = GuidanceCommandFreshness(wall_period_s)
     hold = GuidanceCommandHold(

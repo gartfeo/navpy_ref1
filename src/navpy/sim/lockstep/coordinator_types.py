@@ -33,8 +33,8 @@ def fleet_sitl_ports(fleet_size: int) -> tuple[tuple[str, str], ...]:
     return tuple((serial0_device(i), serial1_device(i)) for i in range(1, fleet_size + 1))
 
 
-#: The mission terminal marker: the first tick whose log lines contain it is k_T.
-TERMINAL_MARKER = "SNAP(VISION-NAV"
+#: The mission result marker: the first tick whose log lines contain it is k_T.
+RESULT_MARKER = "SNAP(VISION-NAV"
 #: Finalization budget after k_T, sim microseconds (until the operator returns).
 FINALIZATION_BUDGET_US = 30_000_000
 #: Drain budget after k_F, sim microseconds (until every participant ended).
@@ -117,12 +117,12 @@ class Manifest:
     #: Participants the coordinator spawns itself, admitted at the barrier:
     #: ``(role, ordinal)`` in spawn order.
     initial: tuple[tuple[str, int], ...] = ()
-    #: The NavPy roles: only their log lines carry the terminal marker, and
+    #: The NavPy roles: only their log lines carry the result marker, and
     #: each must retire through an acked participant stop before drain (the
     #: operator stops companions in finalization).
     companion_roles: tuple[str, ...] = ()
     #: The expected fleet: the companion ordinals (NavPy i is sysid i) whose
-    #: first terminal marker each must be latched before the mission ends
+    #: first result marker each must be latched before the mission ends
     #: ``ok``; taken from the scenario, never from the live set. k_T is the
     #: maximum of their first-SNAP ticks. Empty: the mission never completes
     #: (it ends as a timeout or ``operator_returned``).
@@ -224,6 +224,6 @@ class OperatorHost(Protocol):
 __all__ = [
     "CoordinatorFault", "DRAIN_BUDGET_US", "RunFault", "FINALIZATION_BUDGET_US", "HostFault", "Manifest",
     "OperatorCancel", "OperatorHost", "OperatorInbox", "OperatorRequest", "ParticipantFault",
-    "ROUTER_DEVICE", "RoleSpec", "STOP_BUDGET_US", "TERMINAL_MARKER", "WallBudgets",
+    "ROUTER_DEVICE", "RoleSpec", "STOP_BUDGET_US", "RESULT_MARKER", "WallBudgets",
     "backend_ordinal", "fleet_sitl_ports", "serial0_device", "serial1_device",
 ]

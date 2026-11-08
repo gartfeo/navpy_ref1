@@ -13,8 +13,8 @@ from collections.abc import Callable
 from typing import Optional
 
 from navpy.core.approach.vision_nav.episode_latch import (
-    GuidanceTerminal,
-    TerminalObserver,
+    GuidanceResult,
+    ResultObserver,
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
@@ -40,8 +40,8 @@ def _docked_only(_identity: DockContactIdentity, docked: bool) -> DockEpisodeEnd
 
 def with_dock_evidence_cut(
     sensor: Optional[DockContactSensor],
-    then: Optional[TerminalObserver],
-) -> Optional[TerminalObserver]:
+    then: Optional[ResultObserver],
+) -> Optional[ResultObserver]:
     """Display only: NAV's FAILED or MISSED latch stops the sim record's
     evidence (gcs_sim_closest_approach.md), before ``then`` runs.
 
@@ -51,19 +51,19 @@ def with_dock_evidence_cut(
     if sensor is None:
         return then
 
-    def on_terminal(
-        terminal: GuidanceTerminal,
+    def on_result(
+        result: GuidanceResult,
         identity: Optional[DockContactIdentity],
     ) -> None:
-        if identity is not None and terminal is not GuidanceTerminal.DOCKED:
+        if identity is not None and result is not GuidanceResult.DOCKED:
             try:
                 sensor.end_evidence(identity)
             except Exception:  # noqa: BLE001 - display evidence only
                 _LOG.exception("dock evidence cut failed")
         if then is not None:
-            then(terminal, identity)
+            then(result, identity)
 
-    return on_terminal
+    return on_result
 
 
 

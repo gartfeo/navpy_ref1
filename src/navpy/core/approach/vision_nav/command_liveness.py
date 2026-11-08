@@ -62,7 +62,7 @@ class GuidanceEpisodeFailures:
             try:
                 latched = self._episode.latch_failure()
             finally:
-                # A raising terminal observer must not hide the failure from
+                # A raising result observer must not hide the failure from
                 # the NAV tick: the approach would neither command nor end.
                 if latched:
                     self._liveness.mark_failed()

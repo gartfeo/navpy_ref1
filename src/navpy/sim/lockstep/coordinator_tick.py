@@ -21,7 +21,7 @@ from navpy.sim.lockstep.coordinator_journal import TickRecord
 from navpy.sim.lockstep.coordinator_lifecycle import LifecycleBook
 from navpy.sim.lockstep.coordinator_members import Member, Roster
 from navpy.sim.lockstep.coordinator_router import RoutedPorts
-from navpy.sim.lockstep.coordinator_types import TERMINAL_MARKER, CoordinatorFault, HostFault, ParticipantFault
+from navpy.sim.lockstep.coordinator_types import RESULT_MARKER, CoordinatorFault, HostFault, ParticipantFault
 from navpy.sim.lockstep.part_wire import Done, Event, Response
 
 #: The ``DONE`` event that commits readiness (NavPy's ``runtime_ready``;
@@ -37,18 +37,18 @@ class TickOutput:
     events: list[tuple[int, Event]] = field(default_factory=list)
     log_lines: list[tuple[int, str]] = field(default_factory=list)
     #: ``(ordinal, generation)`` of each companion whose log lines carried the
-    #: terminal marker this tick, in ``DONE`` order (the first-SNAP latch reads it).
+    #: result marker this tick, in ``DONE`` order (the first-SNAP latch reads it).
     snaps: list[tuple[int, int]] = field(default_factory=list)
     faults: list[ParticipantFault] = field(default_factory=list)
 
 
 class TickExchange:
-    def __init__(self, roster: Roster, book: LifecycleBook, terminal_roles: tuple[str, ...],
+    def __init__(self, roster: Roster, book: LifecycleBook, result_roles: tuple[str, ...],
                  ports: RoutedPorts, faults: FaultRunner | None = None) -> None:
         self._roster = roster
         self._book = book
-        #: Only these roles' log lines can carry the mission terminal marker (NavPy's SNAP).
-        self._terminal_roles = terminal_roles
+        #: Only these roles' log lines can carry the mission result marker (NavPy's SNAP).
+        self._result_roles = result_roles
         #: Where the members' port bytes come from and go to (the router path);
         #: the coordinator drives its SITL side (frames, replies, parking).
         self.ports = ports
@@ -91,11 +91,11 @@ class TickExchange:
             output.events.append((member.ordinal, event))
             if event.kind == READY_EVENT:
                 self._book.ready(member, event.payload)
-        navpy = member.spawn.role in self._terminal_roles
+        navpy = member.spawn.role in self._result_roles
         snapped = False
         for line in done.log_lines:
             output.log_lines.append((member.ordinal, line))
-            snapped = snapped or (navpy and TERMINAL_MARKER in line)
+            snapped = snapped or (navpy and RESULT_MARKER in line)
         if snapped:
             output.snaps.append((member.ordinal, member.spawn.generation))
         for spawn in done.spawn_requests:

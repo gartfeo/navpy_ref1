@@ -17,7 +17,7 @@ from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
 from navpy.core.approach.navigation_source_dispatch import SourceDispatch
-from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import ResultObserver
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.app.approach.law_airspeed import LawAirspeed
@@ -36,7 +36,7 @@ class Navigation:
         logger: ILogger,
         args: NavigationArgs,
         scheduler_cadence: Optional[SchedulerCadence] = None,
-        on_terminal: Optional[TerminalObserver] = None,
+        on_result: Optional[ResultObserver] = None,
         law_airspeed: Optional[LawAirspeed] = None,
         command_formation: Callable[[], ContextManager[None]] = nullcontext,
         command_pass: Callable[[], ContextManager[None]] = nullcontext,
@@ -53,7 +53,7 @@ class Navigation:
             logger,
             args,
             scheduler_cadence,
-            on_terminal,
+            on_result,
             law_airspeed,
             command_formation,
             command_pass,

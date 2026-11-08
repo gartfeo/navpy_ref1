@@ -1,7 +1,7 @@
 """The runner's end of a HITL approach (design hitl_guidance.md section 2, "Handoff at the end").
 
 Before any RTL the runner stops navpy (NAVPY_STOP_V1 on its stdin, bounded wait; on timeout it terminates the navpy
-process it started) and then closes navpy's router endpoint itself: the barrier navpy passes before its terminal
+process it started) and then closes navpy's router endpoint itself: the barrier navpy passes before its result
 record, idempotent, so after a crash, a forced stop or a failed navpy barrier no navpy packet still buffered in the
 router can follow the RTL. Without the router's ack the router process is terminated, the runner opens the board's
 port itself and sends RTL there, and the run has failed. A floor breach or a timeout takes the same path

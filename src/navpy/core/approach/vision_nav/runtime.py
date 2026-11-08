@@ -185,9 +185,9 @@ class GuidanceSessionRuntime:
         with self._lock:
             if not self._episode.latch_docked(event):
                 return False
-            # Terminal: nothing may actuate after docking (no held refresh,
+            # Result: nothing may actuate after docking (no held refresh,
             # no queued frame); the episode latch itself is kept.
-            self._command_reset.retire_after_terminal()
+            self._command_reset.retire_after_result()
             self._docked_evidence.stage(event)
             return True
 
@@ -197,7 +197,7 @@ class GuidanceSessionRuntime:
         with self._lock:
             admitted = self._episode.latch_failure(reason)
             if admitted and self._episode.failure_ends_commands:
-                self._command_reset.retire_after_terminal()
+                self._command_reset.retire_after_result()
             return admitted
 
     def consume_missed_dock(self) -> bool:

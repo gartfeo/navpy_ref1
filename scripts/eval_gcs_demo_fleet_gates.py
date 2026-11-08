@@ -140,7 +140,7 @@ def fleet_snap_errors(records: Sequence[Mapping], lines: Mapping[int, Lines]) ->
               for sys_id, rows in lines.items()}
     missing = [sys_id for sys_id, k in firsts.items() if k is None]
     if outcome is None or missing:
-        return [f"SNAP: no terminal tick or no SNAP from vehicles {missing}"]
+        return [f"SNAP: no result tick or no SNAP from vehicles {missing}"]
     errors = []
     latched = {ordinal: (generation, k) for ordinal, generation, k in outcome.get("first_snaps", ())}
     members = {r["k"]: {m["ordinal"]: m["generation"] for m in r.get("members", ())}
@@ -150,11 +150,11 @@ def fleet_snap_errors(records: Sequence[Mapping], lines: Mapping[int, Lines]) ->
         if latched.get(sys_id) != (generation, k):
             errors.append(f"SNAP: vehicle {sys_id}'s first SNAP line at tick {k} (generation "
                           f"{generation}), latched {list(latched.get(sys_id, ()))}")
-        if k > outcome["terminal_tick"]:
+        if k > outcome["result_tick"]:
             errors.append(f"SNAP: vehicle {sys_id}'s first SNAP at tick {k}, after k_T "
-                          f"{outcome['terminal_tick']}")
-    if outcome["terminal_tick"] != max(firsts.values()):
-        errors.append(f"SNAP: k_T {outcome['terminal_tick']} is not the last first SNAP "
+                          f"{outcome['result_tick']}")
+    if outcome["result_tick"] != max(firsts.values()):
+        errors.append(f"SNAP: k_T {outcome['result_tick']} is not the last first SNAP "
                       f"{max(firsts.values())}")
     return errors
 

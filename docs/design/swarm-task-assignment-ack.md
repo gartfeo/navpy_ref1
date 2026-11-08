@@ -397,7 +397,7 @@ lockstep coordinator applies the loss where bytes enter the radio:
   tick's end wait for later ticks. At parking or close every one still
   open is broken: it is complete in the clean stream, so only the loss
   kept it from the router (also one held behind a frame the loss started).
-  The packet list and its exactly-one-terminal check are unchanged.
+  The packet list and its exactly-one-fate check are unchanged.
 - This is a different model from ArduPilot's (independent byte loss
   instead of the last byte of each write), so old and new results at the
   same seed are not comparable.
@@ -407,7 +407,7 @@ lockstep coordinator applies the loss where bytes enter the radio:
   requests the same as lost replies; their tests get uplink-loss cases.
 - Gates (`eval_gcs_demo_fleet_packets`, `eval_gcs_demo_fleet_gates`,
   `eval_gcs_demo_cli`, `eval_gcs_demo_air_load`) use that evidence, not a
-  loss flag: `navlink_trace` gives a packet the radio broke the terminal
+  loss flag: `navlink_trace` gives a packet the radio broke on the last
   hop `radio_broken` only from a `broken` record on the sender's own
   serial1 device whose bytes and tick match its emission; loss on another
   stream never excuses it. An advert may end only there, and every other

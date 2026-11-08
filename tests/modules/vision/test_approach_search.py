@@ -616,7 +616,7 @@ def replay(seed: int, index: int, duration_s: float = 90.0) -> ReplayRecord:
             if revoke_at is not None and record.revoke_s is None and clock.now >= revoke_at:
                 record.scanning_at_revoke, record.writes_at_revoke = search.scanning, search.writes
                 record.revoke_s = clock.now
-                plant.close()                          # the terminal path: fence closed, its stop sent
+                plant.close()                          # the result path: fence closed, its stop sent
             if record.revoke_s is not None and clock.now >= record.revoke_s + settle_s:
                 record.plant_moving_after_revoke += int(moving)
     record.search_writes = search.writes

@@ -562,7 +562,7 @@ def test_the_snap_latch_is_the_latest_first_snap_of_the_expected_fleet():
     latch.observe(12, [(1, 1), (3, 1)])  # a later SNAP of 1 changes nothing
     assert not latch.complete
     latch.observe(15, [(2, 2)])
-    assert latch.complete and latch.terminal_tick == 15
+    assert latch.complete and latch.result_tick == 15
     assert latch.records() == [[1, 1, 10], [2, 2, 15], [3, 1, 12]]
     assert not SnapLatch(()).complete  # an empty expected fleet never completes
     partial = SnapLatch((1, 2))

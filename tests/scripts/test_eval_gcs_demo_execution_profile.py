@@ -52,7 +52,7 @@ def _drop_docked(log_dir: Path, sys_id: int) -> None:
                              if "EVENT:DOCKED" not in line), encoding="utf-8")
 
 
-def _mark_terminal_miss(log_dir: Path, sys_id: int, *, late_s: float = 0.0) -> None:
+def _mark_result_miss(log_dir: Path, sys_id: int, *, late_s: float = 0.0) -> None:
     """The runtime's miss format: the last (unissued) command row has
     missed=True; ``late_s`` delays it after the previous row."""
     debug = log_dir / f"uav_{sys_id}_navigation_debug.csv"
@@ -158,7 +158,7 @@ def test_a_missed_dock_is_its_own_gate_and_hides_no_other_check(tmp_path):
     # 1x observations where the wall profile expects 10x: a cadence failure.
     _write_episode(tmp_path, 1, BAD_ROLLS, snap_m=float("nan"), wall_step_s=0.1)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1)
+    _mark_result_miss(tmp_path, 1)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert report.passed is False
     assert SNAP_WITHOUT_DOCKED in report.errors
@@ -175,18 +175,18 @@ def test_an_undocked_episode_still_fails_the_achieved_roll_gate(tmp_path):
     weave = [20.0 if i % 2 else -20.0 for i in range(len(ROLLS))]
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4, achieved_rolls=weave)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1)
+    _mark_result_miss(tmp_path, 1)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert SNAP_WITHOUT_DOCKED in report.errors
     assert report.metrics.achieved_roll_reversals == len(ROLLS) - 1
     assert any("significant achieved-roll reversals" in e for e in report.errors), report.errors
 
 
-def test_a_late_terminal_miss_row_keeps_its_cadence_gap(tmp_path):
+def test_a_late_result_miss_row_keeps_its_cadence_gap(tmp_path):
     """The miss row stays in the cadence: a gap before it is still a failure."""
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1, late_s=0.6)
+    _mark_result_miss(tmp_path, 1, late_s=0.6)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert SNAP_WITHOUT_DOCKED in report.errors
     assert any("max observation gap" in e for e in report.errors), report.errors

@@ -70,20 +70,20 @@ While armed, the sensor keeps the episode's best segment by **exact** distance:
 remembers whether its latch accepted DOCKED for the current episode and tells
 the sensor at the end: `DockContactSensor.disarm(end: DockEpisodeEnd)` (how
 the lifecycle saw the end; nothing flows back). `dock_episode_end` builds it
-after the contact is detached, from the episode's terminal latch and the
+after the contact is detached, from the episode's result latch and the
 POI's confirmation state: docked, a latched aft-dock miss, NAV's own failure
 (`failed`, with the `NAV_FAIL` reason), a cancel (reason `cancelled`, when
 the GCS cancelled the confirmed task), or nothing known.
 
 **Evidence cut (v6).** NAV ends the approach itself when its episode latch
 records FAILED or MISSED. The latch's existing observer
-(`GuidanceEpisodeLatch(on_terminal)`, today the HITL terminal handoff)
+(`GuidanceEpisodeLatch(on_result)`, today the HITL result handoff)
 then also calls `DockContactSensor.end_evidence(identity)`, display only.
 The latch is NAV endgame code and is not changed.
 - **Boundary.** `end_evidence` only stores the identity: one attribute store,
   no lock, no wait. The composition (`app/runtime_composition.py`) makes it
   the first observer, before the HITL handoff, and wraps it so an error is
-  logged and never reaches the latch's terminal retirement or the handoff.
+  logged and never reaches the latch's result retirement or the handoff.
   The store is the boundary.
 - **Ingress.** The sensor reads the stored identity once at the start of each
   sample, under its lock, before the sample touches any evidence. If it names
@@ -95,12 +95,12 @@ The latch is NAV endgame code and is not changed.
   stood at the boundary. A late sample (older aircraft time) after the store
   is dropped: fail-closed.
 - **Known gap (an approximation, accepted 2026-10-25 by the managing chat; todo 132).** The store runs
-  one call after the latch records the terminal (`episode_latch.py`,
+  one call after the latch records the result (`episode_latch.py`,
   `_latch`). A sample read in between counts. That needs the NAV thread to be
   paused by the scheduler inside those few instructions while a position
   sample is processed; nothing bounds how long such a pause lasts. An exact
-  boundary needs one of: a hook in the latch before it records the terminal
-  (endgame code, which this work must not change), or reading NAV's terminal
+  boundary needs one of: a hook in the latch before it records the result
+  (endgame code, which this work must not change), or reading NAV's result
   on every position sample, which makes the telemetry reader thread take the
   guidance command lock 40 times a second (held during law planning
   and command sends) and so changes NAV timing in the sim. Both are left
@@ -192,7 +192,7 @@ under a lock in `GuidanceDockContact`:
 
 So a contact callback captured by the sensor before the detach either latched
 first (docked) or finds the episode detached (not latched, and aborted: no
-terminal latched): the report and the lifecycle always agree. Contact fencing is unchanged. The sink
+result latched): the report and the lifecycle always agree. Contact fencing is unchanged. The sink
 is wrapped: an exception is logged and never reaches NAV cleanup.
 
 `ClosestApproach` (new, `src/navpy/sim/world/closest_approach_record.py`):
@@ -432,7 +432,7 @@ The record is display evidence only:
   report the exact minimum; a 500 m approach runs no exact geometry while
   sampling, and an orbit at most one per sample, both still reporting the
   exact minimum; docked reports the contact segment and matches the
-  DOCKED distance; a contact the lifecycle rejected with no terminal latched
+  DOCKED distance; a contact the lifecycle rejected with no result latched
   reports `aborted`, and with FAILED latched first after pass evidence,
   `missed`; re-arm
   reports the old episode first; no joined segment, no report; gaps and resets
@@ -440,7 +440,7 @@ The record is display evidence only:
 - Lifecycle: `disarm(docked)` is true only after an accepted latch of the
   current episode; a contact callback held between sensor sampling and
   lifecycle acceptance while disarm runs ends unlatched and aborted (no
-  terminal latched), both in disarm and in re-arm; an accepted contact
+  result latched), both in disarm and in re-arm; an accepted contact
   reports docked.
 - Record: round trip; near-miss prefixes, bad JSON, missing or non-finite
   fields ignored.
@@ -577,9 +577,9 @@ both taken: freezing the tracker when the cut got the sensor lock let a
 sample read after the latch count, so the cut is now a lock-free store by the
 first observer and each sample reads it on ingress (the latch unchanged);
 the lifecycle and sensor test requirements still expected missed with no
-terminal latched and now expect aborted. Round 5: approve after fixes, 1
-finding: samples between the latch's terminal record and its observer call
-still count; the exact alternatives (a latch hook, or reading the terminal
+result latched and now expect aborted. Round 5: approve after fixes, 1
+finding: samples between the latch's result record and its observer call
+still count; the exact alternatives (a latch hook, or reading the result
 under the command lock per sample) change endgame code or NAV timing, so the
 gap is stated above as an approximation for the owner to accept.
 Implementation (2026-10-25): Codex implementation round 1 approve, no

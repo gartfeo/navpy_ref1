@@ -19,7 +19,7 @@ class NavState(Enum):
     NAV = 3
     RESET = 4
     RECOVERY = 5
-    # Terminal state of a docked approach (docs/design/docked_state.md).
+    # Result state of a docked approach (docs/design/docked_state.md).
     DOCKED = 6
 
 

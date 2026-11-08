@@ -199,7 +199,7 @@ def test_legacy_armed_row_has_no_source_time(tmp_path: Path) -> None:
     assert window.entry_s is None
 
 
-def test_a_truncated_terminal_row_is_a_status_not_a_crash(tmp_path: Path) -> None:
+def test_a_truncated_result_row_is_a_status_not_a_crash(tmp_path: Path) -> None:
     _write_debug(tmp_path, _event("DOCK_ARMED", _ARMED), "12:00:01.000,EVENT:DOCK_DISARMED")
 
     assert cadence_annotation(tmp_path, 4)["status"].startswith("unavailable")
@@ -220,7 +220,7 @@ def test_an_armed_row_without_wall_time_fails_closed(tmp_path: Path) -> None:
 
 
 def test_an_unterminated_episode_does_not_absorb_the_next(tmp_path: Path) -> None:
-    # Episode 1 has no terminal row; episode 2 reuses its source times.
+    # Episode 1 has no result row; episode 2 reuses its source times.
     _write_observations(tmp_path, [
         (0.1 * step, 10.0 + 0.1 * step, "fresh", 0) for step in range(1, 5)
     ] + [(30.0 + 0.1 * step, 10.0 + 0.1 * step, "fresh", 1) for step in range(1, 9)])

@@ -10,7 +10,7 @@ rule (standard library, ``runtime_time``, ``navpy.sim.lockstep``).
   answered when its result arrives; ``slow`` waits for a cancel) and forwards
   every lifecycle record it gets as a ``lifecycle`` event.
 - ``rover`` (NavPy-like, ``lockstep:serial0.<i>``): ready after a bootstrap delay,
-  logs every 0.1 s, logs the terminal marker at ``snap_at_s``, stops on a
+  logs every 0.1 s, logs the result marker at ``snap_at_s``, stops on a
   lifecycle ``stop`` or the drain ``end``.
 
 Both echo their port bytes reversed behind a tag, on each of their devices
@@ -20,7 +20,7 @@ Both echo their port bytes reversed behind a tag, on each of their devices
 ``die_after_s``, ``stop_on_end``, ``report_env`` (log these variables),
 ``crash_message`` (the startup failure's text), ``end_egress_hex`` (bytes
 written to the port on the drain ``end``), ``beat_egress_hex`` (bytes written
-to the port at every beat), ``echo`` (false: no echo of the port bytes). Either toy logs the terminal
+to the port at every beat), ``echo`` (false: no echo of the port bytes). Either toy logs the result
 marker at ``snap_at_s``.
 """
 

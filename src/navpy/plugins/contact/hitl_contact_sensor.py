@@ -13,7 +13,7 @@ one ``contact`` per arm, and only when it is
   either side refuses.
 
 An accepted contact goes to the existing path unchanged (``GuidanceDockContact``: the armed identity, then the
-episode latch, which ignores it after a NAV_FAIL, a miss or an earlier contact, then the terminal handoff's fences).
+episode latch, which ignores it after a NAV_FAIL, a miss or an earlier contact, then the result handoff's fences).
 The event carries no geometry: the service sends none, so its distances are NaN.
 """
 from __future__ import annotations

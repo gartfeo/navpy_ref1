@@ -39,7 +39,7 @@ from navpy.core.flow.navigation_loop import NavigationLoop
 
 def _executor(report_stale) -> tuple[GuidanceCommandExecutor, Mock]:
     ports = Mock()
-    ports.transaction.terminal_result.return_value = None
+    ports.transaction.suppressed_result.return_value = None
     executor = GuidanceCommandExecutor(GuidanceExecutorPorts(
         slot=ports.slot,
         transaction=ports.transaction,
@@ -85,10 +85,10 @@ def test_raising_stale_report_still_fails_closed() -> None:
     ports.transaction.execute.assert_not_called()
 
 
-# --- terminal observer raising ------------------------------------------------
+# --- result observer raising ------------------------------------------------
 
 
-def test_raising_terminal_observer_still_signals_the_failure() -> None:
+def test_raising_result_observer_still_signals_the_failure() -> None:
     episode = Mock()
     episode.latch_failure.side_effect = RuntimeError("handoff failed")
     liveness = Mock()
@@ -139,7 +139,7 @@ def test_failed_drain_resets_control_but_keeps_the_episode_evidence() -> None:
     ports.hold.clear.assert_called_once_with()
     for owner in (ports.law, ports.visual_pass, ports.status):
         owner.reset.assert_called_once_with()
-    # The terminal is the NAV exit's evidence; the retried exit resets it.
+    # The result is the NAV exit's evidence; the retried exit resets it.
     ports.liveness.reset.assert_not_called()
     ports.episode.reset.assert_not_called()
 

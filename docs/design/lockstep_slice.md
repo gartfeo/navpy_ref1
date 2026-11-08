@@ -49,7 +49,7 @@ Slice checks:
 | Approval | `operator_approvals.json` and the journal | exactly one approval, for P, with the timing below |
 | Command | NavPy debug `EVENT:GUIDANCE_CMD` rows (`eval_gcs_demo_evidence.py:106`) and the named-read bounds | every command within bounds until SNAP |
 | Cadence | NavPy debug CSV | the sim-time speedup is 1 (the lockstep factor, not the wall launch speedup default at `eval_gcs_demo_vehicle.py:157`) |
-| SNAP | NavPy log lines | present, at the mission terminal tick |
+| SNAP | NavPy log lines | present, at the mission result tick |
 
 The retained checks and the slice checks are the named sim-time scoring gates the main acceptance requires. Counts that assume three vehicles take the scenario's count. Every gate in each profile is tested on passing and on failing evidence.
 
@@ -135,7 +135,7 @@ TCP loopback; length-prefixed, versioned, with golden vectors.
 ## Run phases
 1. **Boot:** step 7's firmware boot barrier.
 2. **Mission:** SITL ticks, as below.
-   - The **mission terminal tick** k_T is the first tick whose NavPy log lines contain `SNAP(VISION-NAV`. If the mission's sim-time budget (the scenario's) passes first, the run ends as a timeout, with the reason journaled.
+   - The **mission result tick** k_T is the first tick whose NavPy log lines contain `SNAP(VISION-NAV`. If the mission's sim-time budget (the scenario's) passes first, the run ends as a timeout, with the reason journaled.
    - **9g:** an operator whose run returns before k_T (its own sim-time workflow ended without SNAP, e.g. a confirmation timeout; it still stops its companion) ends the mission at that tick with the journaled outcome `operator_returned`, never `ok`, and the run drains and snapshots as usual. 9d made that a coordinator fault, which killed the run by ownership before its evidence was flushed. The eval's mission budget is a 3600 s backstop (`MISSION_BUDGET_S`); the operator's own waits (each at most `--timeout-s`) end a stalled mission first.
    - Gates are completed-evidence checks: none runs during flight. They run after the snapshot on the final files, as in wall mode (`eval_gcs_demo_vehicle.py:192`); where they need a SNAP cut they already make one (`mission_navigation_segment`, the selection window in `eval_gcs_demo_poi_binding.py:94`). Only faults (coordinator, host, participant) end a run early.
 3. **Finalization:** SITL ticks continue after k_T until the operator's run returns (approvals written, cleanup calls answered).

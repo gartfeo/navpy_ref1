@@ -73,7 +73,7 @@ def _dock_episode_ending(
         return dock_episode_end(
             identity,
             docked,
-            navigation.dock_outcome.terminal(),
+            navigation.dock_outcome.result(),
             status is ConfirmationStatus.REJECTED,
         )
 

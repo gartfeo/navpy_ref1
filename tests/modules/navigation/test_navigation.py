@@ -979,16 +979,16 @@ def test_contact_source_reset_then_late_frame_issues_zero_commands():
 
     assert len(actuator.calls) == 1
     assert runtime.poi_passed_override()
-    terminal = [
+    result = [
         record for record in diagnostics.records
         if record[2] is not None
-        and record[2].outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
+        and record[2].outcome is GuidanceCommandOutcome.EPISODE_ENDED
     ]
-    assert len(terminal) == 1
+    assert len(result) == 1
 
 
 def test_contact_source_reset_then_stale_frame_writes_no_row_and_no_liveness():
-    """The terminal state is checked before freshness: a stale late frame
+    """The result state is checked before freshness: a stale late frame
     after docking neither latches a liveness failure nor writes a row."""
     aircraft_now_s = [1.0]
     runtime, actuator, diagnostics, _ = _armed_runtime()
@@ -1006,10 +1006,10 @@ def test_contact_source_reset_then_stale_frame_writes_no_row_and_no_liveness():
     assert not runtime.consume_command_liveness_failure()
     assert len(actuator.calls) == 1
     [_, _, last] = diagnostics.records[-1]
-    assert last.outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
+    assert last.outcome is GuidanceCommandOutcome.EPISODE_ENDED
 
 
-def test_terminal_suppressed_result_writes_no_command_row():
+def test_episode_ended_result_writes_no_command_row():
     events = []
 
     class EventLogger:
@@ -1023,7 +1023,7 @@ def test_terminal_suppressed_result_writes_no_command_row():
 
     diagnostics = NavigationGuidanceDiagnostics(EventLogger(), reader=None)
     result = GuidanceCommandResult(
-        None, GuidanceCommandOutcome.TERMINAL_SUPPRESSED, False,
+        None, GuidanceCommandOutcome.EPISODE_ENDED, False,
     )
     diagnostics.record(diagnostics.capture(_frame(1.0), None, result))
     assert events == []
@@ -1792,7 +1792,7 @@ def test_valid_aft_suppression_does_not_require_available_limits():
     assert actuator.calls == []
 
 
-def test_terminal_episode_suppresses_before_the_law_or_the_aft_gate():
+def test_result_episode_suppresses_before_the_law_or_the_aft_gate():
     episode = GuidanceEpisodeLatch()
     episode.begin(_identity())
     assert episode.latch_docked(_contact())
@@ -1804,7 +1804,7 @@ def test_terminal_episode_suppresses_before_the_law_or_the_aft_gate():
 
     result = transaction.execute(_frame(1.0))
 
-    assert result.outcome is GuidanceCommandOutcome.TERMINAL_SUPPRESSED
+    assert result.outcome is GuidanceCommandOutcome.EPISODE_ENDED
     assert not result.missed
     assert actuator.calls == []
 

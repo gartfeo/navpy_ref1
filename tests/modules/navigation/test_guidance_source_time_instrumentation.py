@@ -94,7 +94,7 @@ class _Projector:
 
 class _IssuedTransaction:
     @staticmethod
-    def terminal_result():
+    def suppressed_result():
         return None
 
     @staticmethod
@@ -108,7 +108,7 @@ class _IssuedTransaction:
 
 class _UnissuedTransaction:
     @staticmethod
-    def terminal_result():
+    def suppressed_result():
         return None
 
     def __init__(self, outcome):
@@ -120,7 +120,7 @@ class _UnissuedTransaction:
 
 class _ActuatorFailureTransaction:
     @staticmethod
-    def terminal_result():
+    def suppressed_result():
         return None
 
     @staticmethod

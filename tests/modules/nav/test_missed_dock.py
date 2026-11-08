@@ -15,8 +15,8 @@ from navpy.core.approach.nav_exit_cleanup import (
 from navpy.core.approach.vision_nav.episode_latch import (
     MISSED_DOCK_REASON,
     GuidanceEpisodeLatch,
-    GuidanceEpisodeTerminal,
-    GuidanceTerminal,
+    GuidanceEpisodeResult,
+    GuidanceResult,
 )
 from navpy.core.approach.vision_nav.dock_outcome import GuidanceDockOutcome
 from navpy.core.approach.vision_nav.runtime import GuidanceSessionRuntime
@@ -39,8 +39,8 @@ def _contact() -> DockContactEvent:
     )
 
 
-def _failed(reason="no_detection", terminal=GuidanceTerminal.FAILED):
-    return GuidanceEpisodeTerminal(IDENTITY, terminal, reason)
+def _failed(reason="no_detection", result=GuidanceResult.FAILED):
+    return GuidanceEpisodeResult(IDENTITY, result, reason)
 
 
 # Episode latch
@@ -53,18 +53,18 @@ def test_a_failure_ends_commands_and_keeps_its_reason():
     assert latch.latch_failure("no_detection")
 
     assert latch.commands_ended
-    assert latch.terminal_snapshot() == _failed("no_detection")
+    assert latch.result_snapshot() == _failed("no_detection")
 
 
-def test_a_miss_stays_the_terminal_when_its_nav_fail_follows():
+def test_a_miss_stays_the_result_when_its_nav_fail_follows():
     latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     latch.latch_missed()
 
     assert latch.latch_failure("missed_dock")
 
-    assert latch.terminal_snapshot() == _failed(
-        MISSED_DOCK_REASON, GuidanceTerminal.MISSED,
+    assert latch.result_snapshot() == _failed(
+        MISSED_DOCK_REASON, GuidanceResult.MISSED,
     )
 
 
@@ -75,7 +75,7 @@ def test_the_first_named_reason_wins_over_a_repeated_nav_fail():
     latch.latch_failure("source_command_stale")
     latch.latch_failure("no_detection")
 
-    assert latch.terminal_snapshot() == _failed("source_command_stale")
+    assert latch.result_snapshot() == _failed("source_command_stale")
 
 
 def test_a_failure_after_contact_is_refused_and_a_contact_after_failure_too():
@@ -83,26 +83,26 @@ def test_a_failure_after_contact_is_refused_and_a_contact_after_failure_too():
     docked.begin(IDENTITY)
     docked.latch_docked(_contact())
     assert docked.latch_failure("no_detection") is False
-    assert docked.terminal_snapshot().terminal is GuidanceTerminal.DOCKED
+    assert docked.result_snapshot().outcome is GuidanceResult.DOCKED
 
     failed = GuidanceEpisodeLatch()
     failed.begin(IDENTITY)
     failed.latch_failure("no_detection")
     assert failed.latch_docked(_contact()) is False  # late contact not counted
-    assert failed.terminal_snapshot() == _failed("no_detection")
+    assert failed.result_snapshot() == _failed("no_detection")
 
 
 def test_no_snapshot_without_an_armed_episode_or_after_reset():
     unarmed = GuidanceEpisodeLatch()  # real build: no sensor, no episode
     unarmed.latch_failure("no_detection")
     assert not unarmed.commands_ended  # today's flow: RESET retires commands
-    assert unarmed.terminal_snapshot() is None
+    assert unarmed.result_snapshot() is None
 
     armed = GuidanceEpisodeLatch()
     armed.begin(IDENTITY)
     armed.latch_failure("no_detection")
     armed.reset()
-    assert armed.terminal_snapshot() is None
+    assert armed.result_snapshot() is None
     assert not armed.commands_ended
 
 
@@ -125,8 +125,8 @@ def test_a_failure_retires_held_and_queued_work_at_once():
 
     assert session.latch_failure("navigation_rejected")
 
-    command_reset.retire_after_terminal.assert_called_once_with()
-    assert episode.terminal_snapshot() == _failed("navigation_rejected")
+    command_reset.retire_after_result.assert_called_once_with()
+    assert episode.result_snapshot() == _failed("navigation_rejected")
 
 
 def test_an_unarmed_failure_retires_nothing_before_reset():
@@ -134,7 +134,7 @@ def test_an_unarmed_failure_retires_nothing_before_reset():
     session, command_reset, _ = _session(GuidanceEpisodeLatch())
 
     assert session.latch_failure("no_detection") is True
-    command_reset.retire_after_terminal.assert_not_called()
+    command_reset.retire_after_result.assert_not_called()
 
 
 def test_a_refused_failure_retires_nothing_more():
@@ -144,26 +144,26 @@ def test_a_refused_failure_retires_nothing_more():
     session, command_reset, _ = _session(episode)
 
     assert session.latch_failure("no_detection") is False
-    command_reset.retire_after_terminal.assert_not_called()
+    command_reset.retire_after_result.assert_not_called()
 
 
-def test_the_dock_outcome_reads_the_terminal_and_records_the_failed_row():
+def test_the_dock_outcome_reads_the_result_and_records_the_failed_row():
     episode = GuidanceEpisodeLatch()
     record = Mock()
     outcome = GuidanceDockOutcome(rt.RLock(), episode, record)
-    assert outcome.terminal() is None
+    assert outcome.result() is None
     episode.begin(IDENTITY)
     episode.latch_failure("no_detection")
 
-    assert outcome.terminal() == _failed("no_detection")
+    assert outcome.result() == _failed("no_detection")
     outcome.record_failed(_failed("no_detection"), "no_detection")
     record.assert_called_once_with(IDENTITY, "no_detection")
 
 
-# NAV exit cleanup: the terminal is read before the reset clears it
+# NAV exit cleanup: the result is read before the reset clears it
 
 
-def test_cleanup_reads_the_terminal_before_the_navigation_reset():
+def test_cleanup_reads_the_result_before_the_navigation_reset():
     latch = GuidanceEpisodeLatch()
     latch.begin(IDENTITY)
     latch.latch_failure("no_detection")
@@ -174,7 +174,7 @@ def test_cleanup_reads_the_terminal_before_the_navigation_reset():
         navigation_reset=lambda: order.append("reset") or latch.reset(),
         detector_stop=lambda: None,
         dock_outcome=Mock(
-            terminal=lambda: order.append("terminal") or latch.terminal_snapshot(),
+            result=lambda: order.append("result") or latch.result_snapshot(),
         ),
     )
     speedup = Mock()
@@ -182,32 +182,32 @@ def test_cleanup_reads_the_terminal_before_the_navigation_reset():
 
     result = NavExitCleanup(ports, speedup, Mock()).run()
 
-    assert order == ["disarm", "terminal", "close", "reset"]
-    assert result.dock_terminal == _failed("no_detection")
+    assert order == ["disarm", "result", "close", "reset"]
+    assert result.dock_result == _failed("no_detection")
     assert result.errors == ()
 
 
-def test_a_terminal_read_error_is_a_cleanup_error():
+def test_a_result_read_error_is_a_cleanup_error():
     ports = NavExitCleanupPorts(
         disarm_dock_contact=lambda: None,
         close_guidance_source=lambda: None,
         navigation_reset=lambda: None,
         detector_stop=lambda: None,
-        dock_outcome=Mock(terminal=Mock(side_effect=RuntimeError("terminal"))),
+        dock_outcome=Mock(result=Mock(side_effect=RuntimeError("result"))),
     )
     speedup = Mock()
     speedup.restore.return_value = True
 
     result = NavExitCleanup(ports, speedup, Mock()).run()
 
-    assert [str(error) for error in result.errors] == ["terminal"]
+    assert [str(error) for error in result.errors] == ["result"]
 
 
 # NAV exit: a failed dock ends like DOCKED, never back to search
 
 
 def _exit(
-    terminal=_failed(),
+    result=_failed(),
     *,
     contact=None,
     requested=NavState.RESET,
@@ -221,7 +221,7 @@ def _exit(
         snap=ClosestSnap(dist=0.7),
         errors=tuple(errors),
         own_dock_contact=contact,
-        dock_terminal=terminal,
+        dock_result=result,
     )
     completion = Mock()
     completion.run.return_value = ()
@@ -246,8 +246,8 @@ def test_each_nav_fail_reason_ends_in_docked_with_one_status_line(reason):
 
 
 def test_an_aft_dock_miss_reports_missed_dock():
-    terminal = _failed(MISSED_DOCK_REASON, GuidanceTerminal.MISSED)
-    outcome, logger, _, _ = _exit(terminal)
+    result = _failed(MISSED_DOCK_REASON, GuidanceResult.MISSED)
+    outcome, logger, _, _ = _exit(result)
 
     assert outcome.redirect is NavState.DOCKED
     assert "reason=missed_dock" in logger.info.call_args.args[0]
@@ -278,12 +278,12 @@ def test_one_shot_failed_dock_disarms_and_stays_final():
 @pytest.mark.parametrize(
     "kwargs",
     [
-        {"terminal": None},  # real build: no armed episode, today's RESET
+        {"result": None},  # real build: no armed episode, today's RESET
         {"active": False},  # GUIDED never accepted
         {"requested": NavState.ONHOLD},  # inactive guard: the operator wins
         {"requested": NavState.DETECT},  # GUIDED departure
         {"requested": None},
-        {"terminal": _failed(terminal=GuidanceTerminal.DOCKED)},
+        {"result": _failed(result=GuidanceResult.DOCKED)},
     ],
 )
 def test_out_of_scope_endings_keep_todays_flow(kwargs):

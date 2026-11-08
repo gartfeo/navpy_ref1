@@ -37,8 +37,7 @@ def _packet_events(records: list[dict]) -> list[tuple[int | None, list]]:
 
 def _routing(records: list[dict]) -> tuple[dict, dict, dict, dict]:
     """From the packet records: emissions ``id -> (tick, msgid, target sys, source comp)``, each
-    source's router copies ``id -> [destination device]``, each copy's terminal
-    disposition, and the ticks whose reply admitted bytes of each copy."""
+    source's router copies ``id -> [destination device]``, each copy's fate, and the ticks whose reply admitted bytes of each copy."""
     emitted, copies, ends, admitted = {}, {}, {}, {}
     for k, event in _packet_events(records):
         kind, packet_id = event[0], tuple(event[1])

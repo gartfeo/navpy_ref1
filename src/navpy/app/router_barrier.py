@@ -3,7 +3,7 @@
 The router (tools/tuning/mav_router.py) owns the board's USB link and serves each client a loopback UDP endpoint.
 Its control port answers a JSON request {op: "close", client, id} once it refuses the client's packets, has dropped
 those still queued and no write of them is in progress; the reply repeats the id. navpy closes its own endpoint before
-its terminal record, the runner closes navpy's before any RTL; closing a closed endpoint is answered as well.
+its result record, the runner closes navpy's before any RTL; closing a closed endpoint is answered as well.
 """
 
 from __future__ import annotations

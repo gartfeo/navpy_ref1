@@ -1,6 +1,6 @@
 # Guidance: docking is physical, not a vision decision (v4, 2026-10-13, owner-approved)
 
-Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 findings in v3; v4 adds its 2 v3 findings
+Replaces the v1 end-divergence rule ("rework"). Codex resolved all 5 v2 findings in v3; v4 adds its 2 v3 findings
 (the thread that requests RESET, and an episode-level latch). Fixes
 `architecture_todo.md` items 35 and 36. Owner approved v4 and the 0.5 m net radius. d1-d3 are built (unit-tested); d4 (SITL) is open.
 
@@ -37,7 +37,7 @@ Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 fin
   strictly under `SIM_DOCK_NET_RADIUS_M` (0.5 m, owner-set; matches the eval's strict `< 0.5 m` SNAP gate).
 - **Event:** `DOCKED` with (vehicle, task, dock uid, episode, aircraft time, closest 3D/h/v distance), published once.
 
-## Terminal transaction
+## Result transaction
 The existing a7 latch machinery is kept and re-pointed from the vision trigger to the contact trigger:
 1. Contact.
 2. Under the runtime lock: latch completion (first latch wins), retire held and queued commands, stage the `DOCKED`
