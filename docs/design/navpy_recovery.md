@@ -419,6 +419,37 @@ merges before step 4, which builds on its deadline fix.
    under the AAS table. Tests: the lua5.3 harness, as for `chute_deploy.lua`,
    including the 100-local limit and the instruction hook. Redeployed to WSL
    `~/ardupilot/{1,2,3}/scripts` before the SITL check.
+
+   As built (2026-11-08):
+   - NavPy's heartbeat is a HEARTBEAT from this aircraft's system id,
+     component `AAS_NWD_COMP` (191, `MAV_COMP_ID_ONBOARD_COMPUTER`), type
+     `MAV_TYPE_ONBOARD_CONTROLLER`, with a good CRC: ArduPilot also hands
+     scripts frames whose CRC failed (`GCS_Common.cpp`, bad-CRC framing).
+     The GCS (system 255) and the autopilot (component 1) never count.
+   - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
+     fresh. A GUIDED entered while NavPy was dead, or never alive, is left
+     alone.
+   - Params, added by the script to the AAS table (key 88, indices 20-23;
+     `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
+     `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
+     `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
+     autopilot's own clock (aircraft time).
+   - Stages: WATCH, HOLD (its LOITER), RTL (not undone, as ArduPlane's long
+     failsafe). Leaving its LOITER or RTL for any other mode stands it down.
+     A refused mode change is retried each tick and reported once; a refused
+     AUTO keeps the hold and its RTL deadline.
+   - State report: NAMED_VALUE_FLOAT `NAVWD` once a second (-1 off, 0
+     watching, 1 hold, 2 RTL), sent even after an error in a step; status
+     texts on each change. The loop's step runs under `pcall`.
+   - `mavlink:init(queue, ids)`: the order `lua_bindings.cpp` reads (the
+     docs.lua comment has it reversed). The receive queue is the scripting
+     engine's, shared by all scripts; no other script here receives MAVLink.
+   - Not covered: NavPy's own hold. If NavPy set LOITER (its in-process
+     hold) and then dies, the mode is LOITER the script did not set, which
+     it cannot tell from a pilot's LOITER, so the UAV loiters until the
+     operator acts.
+   - Eval roots (`eval_gcs_demo_sitl_root.py`) deploy every
+     `scripts/lua/*.lua`, so evals now run with the watchdog.
 8. **Evals honest.** Each stage change is counted and logged apart from the
    evidence writer; eval verdicts are clean, recovered or invalid.
 9. **Checks.** Targeted tests with `--testmon` and by name for Lua and
