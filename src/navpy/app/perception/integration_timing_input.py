@@ -19,6 +19,7 @@ from navpy.core.perception.camera.integration_timing import IntegrationTimingCon
 from navpy.core.perception.pipeline.integration_log import EVENT_LOG_END
 from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
 from navpy.app.approach.law_airspeed import LawAirspeed
+from navpy.app.perception.vision_controller_ports import ClosingContactSensor
 from navpy.plugins.vehicle.ardupilot.airspeed_attach import AirspeedVehicle
 
 
@@ -78,6 +79,8 @@ class IntegrationTimingInput:
     airspeed: LawAirspeed | None = None
     # HITL step 21: the SIYI command fence's ``closed``, the search sweep's revoke source.
     gimbal_revoked: Callable[[], bool] | None = None
+    # HITL step 26: the contact service's authenticated DOCKED events, only with --hitl-contact (hitl_contact_input).
+    contact: ClosingContactSensor | None = None
 
 
 def open_integration_input(timing_path: str, log_path: str, detector_type: str,
@@ -119,5 +122,14 @@ def with_gimbal_revoke(integration: IntegrationTimingInput | None, fence: _Closa
     return replace(integration, gimbal_revoked=None if fence is None else lambda: fence.closed)
 
 
-__all__ = ["IntegrationTimingInput", "JsonlTimingLog", "load_integration_timing", "open_integration_input",
+def close_integration(integration: IntegrationTimingInput | None) -> None:
+    """A failed composition's rollback: end the log and close the contact link."""
+    if integration is None:
+        return
+    integration.log.close()
+    if integration.contact is not None and not integration.contact.close():
+        raise RuntimeError("HITL contact link: the receiver did not end during the rollback")
+
+
+__all__ = ["IntegrationTimingInput", "close_integration", "JsonlTimingLog", "load_integration_timing", "open_integration_input",
            "with_gimbal_revoke", "with_law_airspeed"]

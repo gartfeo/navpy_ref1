@@ -113,6 +113,7 @@ class _Log:
 def test_vision_ends_the_log_only_after_a_quiescent_stop(quiescent):
     log = _Log()
     controller = VisionController.__new__(VisionController)
-    controller._ports = SimpleNamespace(lifecycle=SimpleNamespace(stop=lambda: quiescent), integration_log=log)
+    controller._ports = SimpleNamespace(lifecycle=SimpleNamespace(stop=lambda: quiescent), integration_log=log,
+                                        dock_contact=None)
     assert controller.stop() is quiescent
     assert log.closed == (1 if quiescent else 0)

@@ -292,18 +292,23 @@ def test_a_failed_start_still_stops_the_board_and_every_process(tmp_path, monkey
     monkeypatch.setattr(approach, "Board", FakeBoard)
     monkeypatch.setattr(approach, "board_param_files", lambda *args: [])
     monkeypatch.setattr(approach, "orbit_check", lambda args, scenario: {"feasible": True})
+    monkeypatch.setattr(approach.contact, "link", lambda run_dir, record_path: _written(run_dir / "contact_link.json"))
+    monkeypatch.setattr(approach.finish, "param_digests", lambda files: log.append("params hashed") or [])
     args = approach_args(tmp_path)
     assert approach.approach(args) == 1
     run_dir = next((tmp_path / "runs").iterdir())
     run = json.loads((run_dir / "approach_run.json").read_text(encoding="utf-8"))
     assert run["error"] == "RuntimeError: bridge exited"
-    assert log[:3] == ["spawn backing", "spawn router", "board start"]
-    assert log[3:] == ["board stop", "router stop", "backing stop"] and run["orphans"] == []
+    # Step 27: the host-load sampler starts first and stops last.
+    # The parameter files are hashed as the board loads them (Codex round 2), not after the run.
+    assert log[:5] == ["spawn host_load", "spawn backing", "spawn router", "params hashed", "board start"]
+    assert log[5:] == ["board stop", "router stop", "backing stop", "host_load stop"] and run["orphans"] == []
     assert (run_dir / "run_manifest.json").exists()
     assert run.get("board_stop_error") == ("OSError: link close failed" if board_stop_fails else None)
 
 
-READY_LINES = {"backing": "[backing] SITL instance 240 (hil)", "router": "[router] tcp:127.0.0.1:8160 <-> 3 clients"}
+READY_LINES = {"backing": "[backing] SITL instance 240 (hil)", "router": "[router] tcp:127.0.0.1:8160 <-> 3 clients",
+               "host_load": "host load: sampling"}
 
 
 def _written(path: Path) -> Path:
@@ -322,7 +327,7 @@ def approach_args(tmp_path):
 
 
 PUBLIC = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
-          "scene_hash": "e" * 64, "consumers": ["unreal", "scoring"],
+          "scene_hash": "e" * 64, "consumers": ["unreal", "contact", "scoring"],
           "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
           "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
 
@@ -407,8 +412,9 @@ def test_the_emulator_runs_on_windows_beside_unreal_and_stops_on_end_of_input(tm
 
 
 def test_the_bridge_copy_and_navpys_siyi_link_go_to_the_windows_emulator(tmp_path):
-    assert chain.bridge_template(Path("/m"), 0.1, "172.0.0.1").endswith(
-        f"--vehicle-state-copy 172.0.0.1:{chain.VEHICLE_STATE_PORT}")
+    # Step 27: a second copy goes to the contact service on the loopback.
+    assert chain.bridge_template(Path("/m"), 0.1, "172.0.0.1", "127.0.0.1:17122").endswith(
+        f"--vehicle-state-copy 172.0.0.1:{chain.VEHICLE_STATE_PORT} --vehicle-state-copy 127.0.0.1:17122")
     argv = list(chain.navpy(_windows_paths(tmp_path), tmp_path / "r.json", FIRST_LANE_SEQ).argv)
     assert argv[argv.index("--siyi-ip") + 1] == "172.0.0.1"
 

@@ -9,6 +9,7 @@ import usePlacementModes from './usePlacementModes';
 import usePlanDrag from './usePlanDrag';
 import useExclusionDrawing from './useExclusionDrawing';
 import { toggleSimDock, withoutDraftUndo } from '../utils/planningModes';
+import useConfirm from './useConfirm';
 
 export default function usePlanningOrchestrator({
   mission, settings, handleSaveSettings, settingsVersion, plannerReady,
@@ -38,6 +39,7 @@ export default function usePlanningOrchestrator({
     fenceCustomVertices, setFenceCustomVertices,
     exclusionPolygons, setExclusionPolygons,
   } = mission;
+  const confirm = useConfirm();
   // ---- Refs ----
   const suppressRegenRef = useRef(false);
   const regenTimerRef = useRef(null);
@@ -282,13 +284,13 @@ export default function usePlanningOrchestrator({
   });
 
   // ---- Search pattern change ----
-  const handleSearchPatternChange = useCallback((newSearchPattern) => {
+  const handleSearchPatternChange = useCallback(async (newSearchPattern) => {
     if (newSearchPattern === searchPattern) return;
     const hasPlan = plan?.zones?.length > 0 || polygon.length >= 3;
     const corridorSwitch = searchPattern === 'corridor' || newSearchPattern === 'corridor';
     let polygonCleared = false;
     if (corridorSwitch && hasPlan) {
-      if (!window.confirm('Switching search pattern will clear the current plan. Continue?')) return;
+      if (!(await confirm('Switching search pattern will clear the current plan. Continue?'))) return;
       setPolygon([]);
       setPlan(null);
       setAnalysis(null);
@@ -319,7 +321,7 @@ export default function usePlanningOrchestrator({
     } else if (newSearchPattern === 'distributed' && (polygon.length === 0 || polygonCleared)) {
       drawing.startDraw();
     }
-  }, [searchPattern, plan, polygon, setSearchPattern, setPolygon, setPlan, setAnalysis, setLaunchPoint, setCorridorPoints, setFenceCustomVertices, drawing]);
+  }, [searchPattern, plan, polygon, setSearchPattern, setPolygon, setPlan, setAnalysis, setLaunchPoint, setCorridorPoints, setFenceCustomVertices, drawing, confirm]);
 
   // ---- Enter planning with auto-draw for distributed ----
   const handleGoToPlanning = useCallback(() => {

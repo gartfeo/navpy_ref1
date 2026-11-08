@@ -1,4 +1,5 @@
 import { useCallback, useState } from 'react';
+import useConfirm from './useConfirm';
 
 /**
  * Vehicle command callbacks: estop, set mode, arm/disarm, launch, trigger,
@@ -16,6 +17,7 @@ export default function useVehicleCommands({
   resumeHistory,
   confirmBeforeStart,
 }) {
+  const confirm = useConfirm();
   const [trackResetKey, setTrackResetKey] = useState(0);
   const [historyResetKey, setHistoryResetKey] = useState(0);
 
@@ -29,12 +31,12 @@ export default function useVehicleCommands({
     api.sendCommand('set_mode', [sysId], { mode });
   }, [api.sendCommand]);
 
-  const handleSetModeAll = useCallback((mode) => {
+  const handleSetModeAll = useCallback(async (mode) => {
     const ids = vehicleList.map(v => v.sys_id);
     if (ids.length === 0) return;
-    if (!window.confirm(`Set ALL vehicles to ${mode}?`)) return;
+    if (!(await confirm(`Set ALL vehicles to ${mode}?`))) return;
     api.sendCommand('set_mode', ids, { mode });
-  }, [api.sendCommand, vehicleList]);
+  }, [api.sendCommand, vehicleList, confirm]);
 
   const handleArmDisarm = useCallback((sysId, shouldArm, opts) => {
     const cmd = shouldArm
@@ -50,11 +52,16 @@ export default function useVehicleCommands({
     [api.sendCommand]
   );
 
+  // opts.signal: the launch or start control's unmount signal. Its camera
+  // question closes with the control, and an answer that comes after the
+  // control is gone launches nothing.
   const handleLaunch = useCallback(
     async (sysIds, opts) => {
-      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
+      const { signal, ...rest } = opts ?? {};
+      if (confirmBeforeStart && !(await confirmBeforeStart(signal))) return null;
+      if (signal?.aborted) return null;
       setLaunchStates({});
-      return api.launchSequence(sysIds, opts);
+      return api.launchSequence(sysIds, opts && rest);
     },
     [api.launchSequence, setLaunchStates, confirmBeforeStart]
   );
@@ -66,13 +73,15 @@ export default function useVehicleCommands({
 
   const handleRestart = useCallback(
     async (sysIds, opts) => {
-      if (confirmBeforeStart && !(await confirmBeforeStart())) return null;
+      const { signal, ...rest } = opts ?? {};
+      if (confirmBeforeStart && !(await confirmBeforeStart(signal))) return null;
+      if (signal?.aborted) return null;
       setTrackResetKey((k) => k + 1);
       // A new mission is recorded: Restart clears history and resumes it.
       resumeHistory?.();
       taskConfirmReset();
       taskAssignReset();
-      return api.restartMission(sysIds, opts);
+      return api.restartMission(sysIds, opts && rest);
     },
     [api.restartMission, taskConfirmReset, taskAssignReset, resumeHistory, confirmBeforeStart]
   );

@@ -1,6 +1,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import useMissionUpload from './useMissionUpload';
+import { confirmStub } from '../test/confirmStub';
 import { activateUploadedSimPlan } from '../utils/missionUploadActivation';
 
 vi.mock('../utils/missionUploadActivation', () => ({
@@ -51,7 +52,9 @@ describe('camera check before upload (sim)', () => {
     problems: [{ kind: 'no_search_window', severity: 'error', near_m: 757, range_m: 829, max_height_m: 389.58 }],
   }] };
 
-  function run(checkPlanCamera, simDockWps = { 0: [1] }) {
+  // `answer`: the operator's reply to the in-page confirm, if one is asked.
+  function run(checkPlanCamera, simDockWps = { 0: [1] }, answer = false) {
+    const { confirm, wrapper } = confirmStub(answer);
     const mission = {
       polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }],
       searchPattern: 'corridor', launchPoint: null, corridorPoints: [],
@@ -70,13 +73,12 @@ describe('camera check before upload (sim)', () => {
     const getAas = (_sysId, name) => ({ targ_alt: 0, use_trn: false })[name];
     const { result } = renderHook(() => useMissionUpload({ mission, effectiveUavCount: 1,
       localGenerate: vi.fn().mockResolvedValue(null), vehicleList: [{ sys_id: 5 }], api, getAas,
-      settings: { default_delivery_hubs: [dock], simulation: { sim_mode: true } }, fence: null }));
-    return { result, api, mission };
+      settings: { default_delivery_hubs: [dock], simulation: { sim_mode: true } }, fence: null }), { wrapper });
+    return { result, api, mission, confirm };
   }
 
   it('asks what needs to be done and a cancel sends nothing', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { result, api } = run(vi.fn().mockResolvedValue(impossible));
+    const { result, api, confirm } = run(vi.fn().mockResolvedValue(impossible));
     await act(() => result.current.handleUpload());
     // Request: track waypoint 2 is the dock (targ_wps bit 1), flown at the upload altitude.
     expect(api.checkPlanCamera).toHaveBeenCalledWith([expect.objectContaining({
@@ -88,8 +90,7 @@ describe('camera check before upload (sim)', () => {
   });
 
   it('uploads after the operator confirms', async () => {
-    vi.spyOn(window, 'confirm').mockReturnValue(true);
-    const { result, api, mission } = run(vi.fn().mockResolvedValue(impossible));
+    const { result, api, mission } = run(vi.fn().mockResolvedValue(impossible), undefined, true);
     await act(() => result.current.handleUpload());
     expect(api.uploadMissions).toHaveBeenCalledOnce();
     // Activation writes the targ_wps the check was given.
@@ -100,16 +101,14 @@ describe('camera check before upload (sim)', () => {
   });
 
   it('uploads a compatible plan without asking', async () => {
-    const confirm = vi.spyOn(window, 'confirm');
-    const { result, api } = run(vi.fn().mockResolvedValue({ status: 'ok', zones: [] }));
+    const { result, api, confirm } = run(vi.fn().mockResolvedValue({ status: 'ok', zones: [] }));
     await act(() => result.current.handleUpload());
     expect(confirm).not.toHaveBeenCalled();
     expect(api.uploadMissions).toHaveBeenCalledOnce();
   });
 
   it('asks when the check fails', async () => {
-    const confirm = vi.spyOn(window, 'confirm').mockReturnValue(false);
-    const { result, api } = run(vi.fn().mockRejectedValue(new Error('down')));
+    const { result, api, confirm } = run(vi.fn().mockRejectedValue(new Error('down')));
     await act(() => result.current.handleUpload());
     expect(confirm).toHaveBeenCalledWith('cameraCheck.couldNotRun');
     expect(api.uploadMissions).not.toHaveBeenCalled();

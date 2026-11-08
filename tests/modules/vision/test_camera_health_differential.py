@@ -108,7 +108,7 @@ def _run(monkeypatch, ready: bool) -> tuple[list[tuple], list[int]]:
     vehicle = _vehicle()
     vision_args = SimpleNamespace(
         profile_name="ideal_360", detector_type="sim", model_path="", debug_show=False,
-        integration_timing="", integration_log="", siyi_ip="", capture_wrapper=None,
+        integration_timing="", integration_log="", siyi_ip="", capture_wrapper=None, hitl_contact="",
     )
     controller = VisionController(vehicle, create_mock_args(), vision_args, Mock())
     seen: list[tuple] = []

@@ -20,7 +20,7 @@ from navpy.core.perception.detector_ports import DetectorFleetMember
 from navpy.app.perception.vision_controller_composition import (
     build_vision_controller,
 )
-from navpy.app.perception.vision_controller_ports import VisionControllerPorts
+from navpy.app.perception.vision_controller_ports import ClosingContactSensor, VisionControllerPorts
 from navpy.core.perception.profile.vision_profile_types import VisionProfile
 from navpy.sim.detection.camera_frame_ports import CameraFrameFactoryPort
 from navpy.plugins.gimbal.siyi.hardware.command_fence import SiyiCommandFence
@@ -105,6 +105,11 @@ class VisionController:
         # write after its log_end.
         if stopped and self._ports.integration_log is not None:
             self._ports.integration_log.close()
+        # HITL step 26: the contact link closes on every stop, quiescent or not. A receiver still busy past the
+        # bounded join makes the stop incomplete (the runtime then refuses to close the vehicle); a later stop
+        # joins it again.
+        if isinstance(self._ports.dock_contact, ClosingContactSensor):
+            stopped = self._ports.dock_contact.close() and stopped
         return stopped
 
     @property

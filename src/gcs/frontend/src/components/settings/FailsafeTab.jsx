@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
+import useConfirm from '../../hooks/useConfirm';
 import { colors, zoneColorsSolid } from '../../styles';
 import { selectChangedNames } from '../../utils/fullParams';
 import {
@@ -24,6 +25,7 @@ import {
  */
 export default function FailsafeTab({ vehicleList, fullParams, onOpenConnect, onClose }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const vehicles = vehicleList || [];
   const sysIds = useMemo(() => vehicles.map((v) => v.sys_id), [vehicles]);
 
@@ -107,7 +109,7 @@ export default function FailsafeTab({ vehicleList, fullParams, onOpenConnect, on
     if (changed.length === 0) return;
     const vehicle = vehicles.find((v) => v.sys_id === sid);
     if (vehicle?.armed) {
-      const ok = window.confirm(
+      const ok = await confirm(
         t('settings.failsafe.armedConfirm', {
           defaultValue: 'Vehicle {{sysId}} is ARMED. Write failsafe parameters now?',
           sysId: sid,

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildPlanSnapshot, isPlanDirty } from '../utils/planSnapshot';
+import useConfirm from './useConfirm';
 
 /**
  * Manages the plan snapshot lifecycle: capture baseline on sync,
@@ -21,6 +22,7 @@ export default function usePlanSnapshot({
   drawingRef, suppressRegenRef, goToMonitor, undoRef,
 }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const vehicleSnapshotRef = useRef(null);
   const stateForSnapshotRef = useRef({});
   const [snapshotTrigger, setSnapshotTrigger] = useState(0);
@@ -39,11 +41,11 @@ export default function usePlanSnapshot({
     vehicleSnapshotRef.current = buildPlanSnapshot(stateForSnapshotRef.current);
   }, [snapshotTrigger]);
 
-  const handleExitPlanning = useCallback(() => {
+  const handleExitPlanning = useCallback(async () => {
     const snap = vehicleSnapshotRef.current;
     if (snap) {
       if (isPlanDirty(stateForSnapshotRef.current, snap)) {
-        if (!window.confirm(t('planning.exitDirtyConfirm'))) return;
+        if (!(await confirm(t('planning.exitDirtyConfirm')))) return;
         suppressRegenRef.current = true;
         setPlan(snap.plan);
         setPolygon(snap.polygon);
@@ -68,7 +70,7 @@ export default function usePlanSnapshot({
     goToMonitor();
   }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
       setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setDeliveryHubAssignments,
-      setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons]);
+      setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, confirm]);
 
   return { onPlanSynced, handleExitPlanning };
 }

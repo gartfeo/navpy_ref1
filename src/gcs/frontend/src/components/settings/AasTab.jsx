@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import useConfirm from '../../hooks/useConfirm';
 import { colors, zoneColorsSolid } from '../../styles';
 import { inputStyle } from './SettingsField.jsx';
 import { PARAM_SECTIONS, SIM_PARAM_SECTIONS, CONFIRMATION_PARAM_SECTION } from './paramSections.js';
@@ -9,6 +10,7 @@ import { applyMissionAnswers } from '../../utils/missionAssembly';
 
 export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMissions, setVehicleMissions, simMode, onVehicleTargWpsChange, onVehicleNavLastWpChange, preSaveRef, preResetRef, aasParams }) {
   const { t } = useTranslation();
+  const confirm = useConfirm();
   const vehicles = vehicleList || [];
   const [selectedVehicles, setSelectedVehicles] = useState(() => new Set(vehicles.map((v) => v.sys_id)));
   const [paramStatus, setParamStatus] = useState(null);
@@ -205,7 +207,7 @@ export default function AasTab({ vehicleList, onOpenConnect, onClose, vehicleMis
 
   const handleDownloadMissions = async () => {
     if (Object.keys(vehicleMissions).length > 0) {
-      if (!window.confirm(t('vehicle.replaceWaypoints'))) return;
+      if (!(await confirm(t('vehicle.replaceWaypoints')))) return;
     }
     setDlMissionStatus(true);
     try {

@@ -12,26 +12,24 @@ role; once the chain is up, and again before the run ends, each role must have e
 | emulator  | emulator  | UDP SIYI and vehicle-state ports; ``-m tools.hitl.zr10_emulator``, ``-m aas_hitl zr10``   |
 | publisher | publisher | TCP listeners on the native-frame and RTSP ports; ``-m aas_hitl.video.gstreamer_encoder``, |
 |           |           | ``-m aas_hitl video``                                                                   |
+| contact   | contact   | UDP service and pose ports on the loopback; ``-m tools.hitl.contact_service``            |
 
-``sources`` checks the same at the data level after the run, where a process that came and went between censuses
-still shows: Unreal took its pose from one stream on the run's port only and its gimbal from the emulator's one
-session, and the emulator took its attitude from one bridge session of one system.
+approach_sources.py checks the same at the data level after the run.
 """
 from __future__ import annotations
 
-import json
 import os
 import re
 import subprocess
 from dataclasses import dataclass
-from pathlib import Path
 from typing import Callable, Iterable, Mapping, Optional
 
-from tools.tuning import approach_chain as chain
+from tools.tuning import approach_chain as chain, approach_contact as contact
 from tools.tuning.approach_procs import ProcessGroup, RunnerError
 from tools.tuning.approach_tables import WINDOWS, WSL, Proc, Sock, Tables, windows_tables, wsl_tables
 
-ROLE_OWNER = {"autopilot": "backing", "bridge": "bridge", "emulator": "emulator", "publisher": "publisher"}
+ROLE_OWNER = {"autopilot": "backing", "bridge": "bridge", "emulator": "emulator", "publisher": "publisher",
+              "contact": contact.ROLE}
 FOREIGN = "foreign"
 
 
@@ -54,11 +52,14 @@ PORT_RULES = (
     PortRule("emulator", "udp", chain.VEHICLE_STATE_PORT, "bound", "emulator", "emulator"),
     PortRule("publisher", "tcp", chain.NATIVE_PORT, "listen", "publisher", "native server"),
     PortRule("publisher", "tcp", chain.RTSP_PORT, "listen", "publisher", "rtsp server"),
+    PortRule("contact", "udp", contact.SERVICE_PORT, "bound", contact.ROLE, "contact"),
+    PortRule("contact", "udp", contact.POSE_PORT, "bound", contact.ROLE, "contact"),
 )
 # Programs by the module they run (``-m MODULE``): navpy's and aas-hitl's implementations of each role. aas-hitl's
 # CLI by its command (cli.py): ``run`` is its flight launcher with the truth bridge, ``sitl start|mission`` its SITL.
 PROGRAMS = {"tools.tuning.hitl_bridge": ("bridge",), "tools.hitl.zr10_emulator": ("emulator",),
-            "aas_hitl.zr10": ("emulator",), "aas_hitl.video.gstreamer_encoder": ("publisher",)}
+            "aas_hitl.zr10": ("emulator",), "aas_hitl.video.gstreamer_encoder": ("publisher",),
+            "tools.hitl.contact_service": ("contact",)}
 AAS_HITL_COMMANDS = {("run",): ("autopilot", "bridge"), ("sitl", "start"): ("autopilot",),
                      ("sitl", "mission"): ("autopilot",), ("bridge",): ("bridge",), ("zr10", "emulate"): ("emulator",),
                      ("video", "publish"): ("publisher",)}
@@ -248,52 +249,5 @@ def verdicts(run: dict) -> tuple[bool, list[str]]:
     return passed, problems
 
 
-# ---- the same at the data level, after the run --------------------------------------------------------------------
-POSE_GENERATION = re.compile(r"NavPyRenderClock port=(\d+) event=generation")
-POSE_ADMIT = re.compile(r"NavPyPoseAdmit port=(\d+)")
-GIMBAL_SESSION = re.compile(r"NavPyGimbalHistory sys_id=\d+ event=session session=(\S+)")
-SLOT_SESSION = re.compile(r"NavPyCaptureSlot outcome=sent .*?\bgimbal_session=(\S+)")
-
-
-def sources(unreal_log: Path, emulator_log: Path) -> dict:
-    """One pose stream on the run's port, one gimbal session (the emulator's) behind every rendered frame, and one
-    bridge session of one system behind the emulator. A missing or unreadable log fails."""
-    problems, session, summary = [], None, None
-    try:
-        for line in emulator_log.read_text(encoding="utf-8").splitlines():
-            if '"event":"start"' not in line and '"event":"summary"' not in line:
-                continue
-            record = json.loads(line)
-            if record.get("event") == "start":
-                session = session or record.get("session_id")
-            elif record.get("event") == "summary":
-                summary = record
-        text = unreal_log.read_text(encoding="utf-8", errors="replace")
-    except (OSError, ValueError) as exc:
-        return {"ok": False, "problems": [f"source logs unreadable: {type(exc).__name__}: {exc}"]}
-    generations = [int(port) for port in POSE_GENERATION.findall(text)]
-    pose_ports = sorted({int(port) for port in POSE_ADMIT.findall(text)})
-    gimbal = GIMBAL_SESSION.findall(text)
-    slots = sorted(set(SLOT_SESSION.findall(text)))
-    if generations != [chain.POSE_PORT]:
-        problems.append(f"Unreal pose streams {generations}: exactly 1 on port {chain.POSE_PORT}")
-    if pose_ports not in ([], [chain.POSE_PORT]):
-        problems.append(f"Unreal took poses on ports {pose_ports}")
-    if not session or gimbal != [session]:
-        problems.append(f"Unreal gimbal sessions {gimbal}: exactly the emulator's ({session})")
-    if any(slot != session for slot in slots):
-        problems.append(f"frames rendered from gimbal sessions {slots}")
-    vehicle = (summary or {}).get("vehicle_state")
-    if not vehicle:
-        problems.append("no emulator summary")
-    elif (vehicle.get("sessions"), vehicle.get("other_system"), vehicle.get("board_time_regressions")) != (1, 0, 0):
-        problems.append(f"the emulator's attitude came from {vehicle.get('sessions')} bridge session(s), "
-                        f"{vehicle.get('other_system')} from another system, {vehicle.get('board_time_regressions')} "
-                        "board time regression(s)")
-    return {"ok": not problems, "problems": problems, "emulator_session": session, "pose_generations": generations,
-            "pose_ports": pose_ports, "gimbal_sessions": gimbal, "slot_sessions": slots,
-            "bridge_sessions": (vehicle or {}).get("sessions")}
-
-
 __all__ = ["END", "Owners", "PORT_RULES", "PREFLIGHT", "READY", "ROLE_OWNER", "census", "check", "claims",
-           "group_owners", "host_tables", "program_roles", "sources", "verdict", "verdicts"]
+           "group_owners", "host_tables", "program_roles", "verdicts"]
