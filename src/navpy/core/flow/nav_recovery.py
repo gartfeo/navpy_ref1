@@ -33,7 +33,6 @@ from navpy.core.flow.nav_mode_sender import ModeSender
 from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownership, OwnershipEnd
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold
-from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.ports.flight_mode import FlightMode
 
 #: Bad, then good, time that starts the hold and the resume: ArduPlane's FS_SHORT_TIMEOUT default.
@@ -253,7 +252,7 @@ class NavRecovery:
 
     def _report(self, message: str) -> None:
         try:
-            self._ports.logger.warning(message, key="nav", status=message, dest=LogStatusDest.DRONE)
+            self._ports.logger.recovery(message, "nav")
         except Exception:  # noqa: BLE001 - reporting must not end recovery
             pass
 

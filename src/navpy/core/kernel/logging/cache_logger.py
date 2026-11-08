@@ -178,6 +178,8 @@ class CacheLogger(ILogger):
     def close(self, *, drain_unstarted: bool = False) -> None:
         self.info("Logger closed", dest=None)
         self._worker.close(drain_unstarted=drain_unstarted)
+        if self.recovery_journal is not None:
+            self.recovery_journal.close()
         # The worker has stopped, so texts the status sink could not send are
         # written to the text log directly.
         for text in self._status_output.close():

@@ -40,6 +40,7 @@ from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_sce
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
 from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, slice_gate_errors
+from scripts.eval_gcs_demo_recovery import faults_planned, run_verdict, unexpected_recovery_errors
 from scripts.eval_gcs_demo_vehicle import analyze_vehicle
 
 
@@ -259,6 +260,9 @@ def analyze_run(
     for report in reports:
         # After every verdict: cadence is reported beside them, never in them.
         report.cadence = cadence_annotation(log_dir, report.sys_id)
+    # The clean-run gate (navpy_recovery.md, step 8): only a run with scheduled faults may recover.
+    planned = mode == LOCKSTEP and faults_planned(log_dir, JOURNAL_FILE)
+    errors += unexpected_recovery_errors(reports, planned)
     passed = (
         not errors
         and len(reports) == len(scenario.slots)
@@ -274,6 +278,7 @@ def analyze_run(
         global_assignments=assignments,
         vehicles=reports,
         errors=errors,
+        verdict=run_verdict(reports, passed, planned),
     )
 
 

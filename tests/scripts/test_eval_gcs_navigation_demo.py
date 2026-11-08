@@ -17,6 +17,8 @@ from scripts.eval_gcs_demo_execution import SystemClock
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 
 CERTIFIED = load_scenario(CERTIFIED_SCENARIO_PATH)
+#: A NavPy recovery journal with nothing recovered (navpy_recovery.md, step 8).
+RECOVERY_JOURNAL_OPENED = '{"event": "open", "t": 0.0}\n'
 
 
 def _clock(index: int, step_s: float) -> str:
@@ -91,6 +93,8 @@ def _write_episode(
         f"2026-07-10 12:00:03,000 INFO SNAP(VISION-NAV-PN): 3d={snap_m:.1f}\n"
     )
     (log_dir / f"uav_{sys_id}_navigation.log").write_text(navigation, encoding="utf-8")
+    # NavPy's recovery journal (navpy_recovery.md, step 8): opened, nothing recovered.
+    (log_dir / f"uav_{sys_id}_recovery.jsonl").write_text(RECOVERY_JOURNAL_OPENED, encoding="utf-8")
 
     compact_rows = [
         "ts,dist,h_dist,v_dist,cmd_r,cmd_p,yaw_err,pitch_err,act_r,act_p,x_err,y_err"

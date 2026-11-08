@@ -504,6 +504,40 @@ merges before step 4, which builds on its deadline fix.
      `scripts/lua/*.lua`, so evals now run with the watchdog.
 8. **Evals honest.** Each stage change is counted and logged apart from the
    evidence writer; eval verdicts are clean, recovered or invalid.
+
+   As built (2026-11-08):
+   - Recovery journal: every recovery report goes through
+     `ILogger.recovery(message, source)`. It is counted and appended to
+     `uav_<id>_recovery.jsonl` (`core/kernel/logging/recovery_journal.py`)
+     first, then logged as before (a warning with its status text to the
+     vehicle). The journal line is written and flushed in the caller's
+     thread, apart from the evidence writer (the navigation CSV streams) and
+     from the log worker's queue and its de-duplication. Sources: `nav` (NAV
+     recovery stages), `watchdog` (a stuck loop and its end), `vision`
+     (detector restarts), `swarm` (swarm heartbeat restarts), `heartbeat`
+     (a failed companion heartbeat send and its recovery). The file opens in
+     append mode with an `open` line, so a restarted NavPy adds to the same
+     journal. A failed open or write is reported once with
+     `RECOVERY_JOURNAL_FAILURE` in the NavPy log.
+   - Verdict (`scripts/eval_gcs_demo_recovery.py`), set by the evaluator,
+     per vehicle and per run, in `report.json` (`verdict`, and each
+     vehicle's `recoveries`):
+     - `invalid`: the evidence is missing or incomplete: a missing file
+       (the recovery journal included), the evidence-writer or
+       recovery-journal failure marker, unreadable final-approach evidence or
+       journal, or a lockstep analysis that raised. Not scored, never a pass.
+     - `failed`: a product gate failed, or a run without scheduled faults
+       recovered (the clean-run gate, "unexpected recovery in a clean run").
+     - `recovered`: every gate passed, and NavPy recovered or the run's
+       scheduled faults bit and recovered (their gates,
+       `eval_gcs_demo_fleet_faults`, already require that). A pass only
+       where faults were scheduled, that is a lockstep grid with faults.
+     - `clean`: every gate passed and nothing recovered.
+     The exit status is unchanged: 0 only for a pass (clean, or recovered
+     with scheduled faults), else 1; the verdict tells invalid from failed.
+   - Not covered: the autopilot Lua watchdog's own actions (NavPy is dead
+     then, so it journals nothing); in a clean run they show only through
+     the existing mission and mode gates.
 9. **Checks.** Targeted tests with `--testmon` and by name for Lua and
    configs; `tests/gcs` and `npm test`/`npm run build` if GCS UI text changes.
    live-tester on its own slot, every stack stopped afterwards:

@@ -146,14 +146,18 @@ class HeartbeatRuntime:
         except Exception as error:  # noqa: BLE001 - the next period retries; a BaseException still ends it
             if not self._send_failing:
                 self._send_failing = True
-                self._warn(f"Companion heartbeat send failed: {error!r}; retrying every period")
+                self._warn(f"Companion heartbeat send failed: {error!r}; retrying every period", recovery=True)
             return
         if self._send_failing:
             self._send_failing = False
-            self._warn("Companion heartbeat sent again")
+            self._warn("Companion heartbeat sent again", recovery=True)
 
-    def _warn(self, message: str) -> None:
+    def _warn(self, message: str, *, recovery: bool = False) -> None:
+        """``recovery``: a failed send and its recovery are recovery reports (the journal, navpy_recovery.md step 8)."""
         try:
-            self._logger_ref.value.warning(message)
+            if recovery:
+                self._logger_ref.value.recovery(message, "heartbeat")
+            else:
+                self._logger_ref.value.warning(message)
         except Exception:  # noqa: BLE001 - reporting must not end the heartbeat
             pass

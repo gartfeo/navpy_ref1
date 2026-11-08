@@ -18,7 +18,6 @@ from collections.abc import Callable
 
 from navpy.app.perception.vision_detector_factory_ports import NodeCreator, VisionDetectorNode
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.flow.nav_recovery_clock import AircraftTimeClock, attitude_boot_s
 from navpy.core.kernel.restart_budget import RestartBudget
@@ -216,7 +215,7 @@ def restarting_detector_node(
     """``build_detector_nodes``' node maker: each mount's detector behind a restarting proxy, its tries timed in
     aircraft time (owner ruling Q1)."""
     def report(message: str) -> None:
-        logger.warning(message, key="vision", status=message, dest=LogStatusDest.DRONE)
+        logger.recovery(message, "vision")
 
     return lambda create: stable_node(RestartingDetector(
         create, report, RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle), wall_s)),

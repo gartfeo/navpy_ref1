@@ -22,6 +22,7 @@ from scripts.eval_gcs_demo_metrics import (
     score_achieved_roll,
     score_final_approach_commands,
 )
+from scripts.eval_gcs_demo_recovery import INVALID, recovery_evidence, vehicle_verdict
 from scripts.eval_gcs_demo_models import (
     EpisodeMetrics,
     GateLimits,
@@ -201,16 +202,14 @@ def analyze_vehicle(
     }
     missing = [path.name for path in paths.values() if not path.is_file()]
     if missing:
-        return VehicleReport(
-            checked_sys_id,
-            role,
-            False,
-            metrics,
-            [f"missing {name}" for name in missing],
-        )
+        absent = [f"missing {name}" for name in missing]
+        return VehicleReport(checked_sys_id, role, False, metrics, absent, verdict=INVALID)
     navigation_text = paths["navigation"].read_text(encoding="utf-8", errors="replace")
     mission_text = mission_navigation_segment(navigation_text)
-    errors.extend(evidence_failure_errors(navigation_text))
+    # The evidence's own gates (navpy_recovery.md, step 8): any of them makes the vehicle invalid, not failed.
+    recovery = recovery_evidence(log_dir, checked_sys_id, navigation_text)
+    evidence = evidence_failure_errors(navigation_text) + list(recovery.errors)
+    errors.extend(evidence)
     errors.extend(
         workflow_errors(
             mission_text,
@@ -238,7 +237,8 @@ def analyze_vehicle(
         debug_snaps = parse_debug_snap_distances(paths["debug"])
     except (OSError, UnicodeError, ValueError) as error:
         errors.append(f"invalid final-approach evidence: {error}")
-        return VehicleReport(checked_sys_id, role, False, metrics, errors)
+        return VehicleReport(checked_sys_id, role, False, metrics, errors, verdict=INVALID,
+                             recoveries=list(recovery.events))
     if len(episodes) != 1:
         errors.append(f"expected exactly one atomic final-approach command episode, found {len(episodes)}")
     # The docking gate, apart from the episode's command and SNAP checks.
@@ -265,7 +265,8 @@ def analyze_vehicle(
             debug_snaps=debug_snaps,
         )
     )
-    return VehicleReport(checked_sys_id, role, not errors, metrics, errors)
+    return VehicleReport(checked_sys_id, role, not errors, metrics, errors,
+                         verdict=vehicle_verdict(evidence, errors, recovery.events), recoveries=list(recovery.events))
 
 
 __all__ = ["analyze_vehicle", "navigation_log"]
