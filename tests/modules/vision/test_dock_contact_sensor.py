@@ -339,7 +339,12 @@ def test_sim_detector_on_a_real_autopilot_has_no_sensor():
 
 
 def test_the_real_build_has_no_sensor():
-    assert object.__new__(RealDetectorFactory).dock_contact is None
+    """Only a pc-sitl run's integration input with --hitl-contact carries one (HITL step 26)."""
+    factory = object.__new__(RealDetectorFactory)
+    factory._integration = None
+    assert factory.dock_contact is None
+    factory._integration = Mock(contact=None)
+    assert factory.dock_contact is None
 
 
 def test_a_gap_the_old_allowance_joined_is_no_longer_joined():

@@ -215,8 +215,10 @@ def add_unreal_arguments(parser: argparse.ArgumentParser) -> argparse.ArgumentPa
                              "WGS84 ellipsoid height minus MSL altitude at the origin (Cesium takes ellipsoid "
                              "heights); required, no default")
     parser.add_argument("--vehicle-state-copy", metavar="HOST:PORT", default=None, type=_endpoint_argument,
-                        help="also send each vehicle_state datagram to this endpoint: the ZR10 emulator's "
-                             "aircraft attitude (tools/hitl, its --vehicle-state), as the real ZR10's own IMU")
+                        action="append",
+                        help="also send each vehicle_state datagram to this endpoint (repeatable): the ZR10 "
+                             "emulator's aircraft attitude (tools/hitl, its --vehicle-state), as the real ZR10's own "
+                             "IMU, and the contact service's true pose (tools/hitl/contact_service.py --poses)")
     return parser
 
 
@@ -229,8 +231,9 @@ def _endpoint_argument(text: str) -> tuple[str, int]:
 
 def unreal_pose_option(args: argparse.Namespace) -> PoseOut:
     """The pose sender for --unreal-pose and --vehicle-state-copy, or NO_POSE_OUT without either."""
-    copy = getattr(args, "vehicle_state_copy", None)
+    copies = tuple(getattr(args, "vehicle_state_copy", None) or ())
     if args.unreal_pose is None:
-        return NO_POSE_OUT if copy is None else UnrealPoseSender(copy, 0.0, label="ZR10 vehicle_state")
+        return NO_POSE_OUT if not copies else UnrealPoseSender(copies[0], 0.0, copies=copies[1:],
+                                                               label="ZR10 vehicle_state")
     endpoint, alt_offset_m = args.unreal_pose
-    return UnrealPoseSender(endpoint, alt_offset_m, copies=() if copy is None else (copy,))
+    return UnrealPoseSender(endpoint, alt_offset_m, copies=copies)

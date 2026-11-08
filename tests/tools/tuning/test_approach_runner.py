@@ -322,7 +322,7 @@ def approach_args(tmp_path):
 
 
 PUBLIC = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
-          "scene_hash": "e" * 64, "consumers": ["unreal", "scoring"],
+          "scene_hash": "e" * 64, "consumers": ["unreal", "contact", "scoring"],
           "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
           "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
 

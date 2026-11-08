@@ -247,8 +247,9 @@ def test_integration_timing_is_never_certified_and_never_beside_a_calibration():
 
 
 # Step 13: the one CLI path, the HITL runner's run record (--integration-timing), and the files wiring it.
+# Step 26 adds the contact link, which binds to the same run record.
 INTEGRATION_CLI_FILES = {"vision_args.py", "integration_timing_input.py", "real_detector_factory.py",
-                         "vision_controller_composition.py"}
+                         "vision_controller_composition.py", "hitl_contact_input.py"}
 
 
 def test_no_vision_profile_and_only_the_runner_cli_path_sets_integration_timing():

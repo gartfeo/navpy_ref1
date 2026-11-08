@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
+from navpy.app.attitude_boot_time import attitude_boot_s
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.search.detect_action import DetectAction
@@ -113,7 +114,7 @@ def compose_nav_application(
         navigation.final_approach.begin_dock_episode,
         navigation.final_approach.latch_docked,
         logger,
-        source_now_s=lambda: _attitude_boot_s(vehicle),
+        source_now_s=lambda: attitude_boot_s(vehicle),
         end_episode=navigation.final_approach.end_dock_episode,
         ending=_dock_episode_ending(navigation, poi),
     )
@@ -245,15 +246,6 @@ def _fail_active_approach(state: NavStateOwnership, _error: Exception) -> None:
     """Fail an active approach closed after a NAV cycle error; else nothing."""
     if state.phase.is_current(NavState.NAV):
         state.navigation_failures.mark_failed(fail_reason.INTERNAL_ERROR)
-
-
-def _attitude_boot_s(vehicle: IVehicle) -> Optional[float]:
-    """Latest ATTITUDE boot time (the observation clock), for evidence rows."""
-    sample = getattr(vehicle, "attitude_sample", None)
-    value = getattr(sample, "time_boot_s", None)
-    if isinstance(value, bool) or not isinstance(value, (int, float)):
-        return None
-    return float(value)
 
 
 __all__ = ["compose_nav_application"]

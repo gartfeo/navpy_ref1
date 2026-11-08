@@ -22,6 +22,8 @@ class VisionArgs:
     # HITL runner only (tools/tuning/approach.py): the run record and a new integration log.
     integration_timing: str = ""
     integration_log: str = ""
+    # HITL runner only (step 26): the run's contact link file (tools/hitl/contact_service.py link).
+    hitl_contact: str = ""
     siyi_ip: str = ""             # HITL runner only: the SIYI gimbal's address over the profile's siyi_ip
     # HITL commissioning only: a capture wrapper a launcher sets on the parsed args (tools/hitl/media_fault_injector.py);
     # no command-line option sets it.
@@ -40,6 +42,7 @@ class VisionArgs:
             debug_show=getattr(args, "detector_debug_show", False),
             integration_timing=getattr(args, "integration_timing", ""),
             integration_log=getattr(args, "integration_log", ""),
+            hitl_contact=getattr(args, "hitl_contact", ""),
             siyi_ip=getattr(args, "siyi_ip", ""),
             capture_wrapper=getattr(args, "capture_wrapper", None),
         )
@@ -107,6 +110,17 @@ class VisionArgs:
             help=(
                 "HITL runner only: a new JSONL file for the integration "
                 "timing log. Needs --integration-timing."
+            ),
+        )
+        vision_group.add_argument(
+            "--hitl-contact",
+            type=str,
+            default="",
+            metavar="LINK_FILE",
+            help=(
+                "HITL runner only: the run's contact link file; the contact "
+                "service's authenticated DOCKED events end the episode. Needs "
+                "--integration-timing and a profile with hitl_contact."
             ),
         )
         vision_group.add_argument(
