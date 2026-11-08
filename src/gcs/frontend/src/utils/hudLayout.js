@@ -199,12 +199,17 @@ function fullPictureLayout({ width, height, tagHeight, corner, creditsPx, smallM
  * above the credit line (panel hidden only). The attitude indicator fills the
  * band between those rows and the two numbers, so nothing overlaps.
  *
- * When the height runs out, parts drop in a fixed order: the status texts,
- * then the heading strip; the attitude scale needs ATTITUDE_SCALE_MIN_PX of
- * band and shows only where it has it, and a band under ATTITUDE_BAND_MIN_PX
- * gives the horizon the whole picture behind the readouts. Speed and altitude never drop: with no
- * row left for them they take the waypoint's place in the top row (the next
- * waypoint stays marked and numbered on the route).
+ * When the height runs out, parts drop in the owner's order (2026-11-08),
+ * least needed first for an operator supervising autonomous vehicles:
+ *   1. the attitude scale: it needs ATTITUDE_SCALE_MIN_PX of band (its labels
+ *      are unreadable smaller); the horizon and the wings still show bank
+ *      and pitch;
+ *   2. the heading strip: the map shows the vehicle's heading;
+ *   3. the waypoint: speed and altitude take its place in the top row (the
+ *      next waypoint stays marked and numbered on the route);
+ *   4. the status line last: it carries the failsafe and EKF warnings.
+ * The horizon, speed and altitude never drop; a band under
+ * ATTITUDE_BAND_MIN_PX gives the horizon the whole picture behind the readouts.
  */
 function compactPictureLayout({ width, height, tagHeight, corner, creditsPx, panelShown }) {
   const inset = PICTURE_TAG_INSET_PX;
@@ -216,12 +221,14 @@ function compactPictureLayout({ width, height, tagHeight, corner, creditsPx, pan
   const headingRow = HEADING_TAPE_H_PX + HUD_GAP_PX;
   const stripRow = HUD_GAP_PX + READOUT_LINE_PX;
 
-  let strip = !panelShown;
   let headingShown = true;
-  const need = () => (headingShown ? headingRow : 0) + READOUT_LINE_PX + (strip ? stripRow : 0);
-  if (need() > avail) strip = false;
+  let numbersRow = true;
+  let strip = !panelShown;
+  const need = () => (headingShown ? headingRow : 0) + (numbersRow ? READOUT_LINE_PX : 0) + (strip ? stripRow : 0);
+  // The scale drops first, with the band (below); then these, in this order.
   if (need() > avail) headingShown = false;
-  const numbersRow = need() <= avail;
+  if (need() > avail) numbersRow = false;
+  if (need() > avail) strip = false;
 
   const headingWidth = Math.min(HEADING_TAPE_W_PX, Math.max(0, width - 2 * inset));
   const numbersTop = top0 + (headingShown ? headingRow : 0);
