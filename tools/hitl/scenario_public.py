@@ -21,8 +21,9 @@ LEDGER_FILE = "deliveries.jsonl"
 PRIVATE_DIR = "private"
 # The three consumers the plan lets see the dock pose: the renderer, the contact service (step 26) and scoring.
 ALLOWED_CONSUMERS = ("unreal", "contact", "scoring")
-# Every series needs these now: Unreal renders the dock and scoring checks what Unreal built. Contact joins in step 26.
-REQUIRED_CONSUMERS = ("unreal", "scoring")
+# Every series needs all three: Unreal renders the dock, the contact service judges contact (step 26) and scoring
+# checks what Unreal built.
+REQUIRED_CONSUMERS = ("unreal", "contact", "scoring")
 
 LANE_SPEC: Mapping[str, jc.Check] = {
     "bearing_deg": jc.rule(lambda v: jc.is_number(v) and 0 <= v < 360, "must be a number in [0, 360)"),

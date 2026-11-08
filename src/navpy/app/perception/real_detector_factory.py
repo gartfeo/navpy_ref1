@@ -72,8 +72,9 @@ class RealDetectorFactory:
 
     @property
     def dock_contact(self) -> DockContactSensor | None:
-        """A real aircraft is caught by the net: no software contact sensor."""
-        return None
+        """A real aircraft is caught by the net: no software contact sensor. Only a pc-sitl run's
+        ``--hitl-contact`` gives one: the contact service's (HITL step 26)."""
+        return None if self._integration is None else self._integration.contact
 
     def create(
         self,
