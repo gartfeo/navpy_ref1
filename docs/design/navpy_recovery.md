@@ -654,15 +654,13 @@ merges before step 4, which builds on its deadline fix.
     companion asks for SIM_SPEEDUP, without waiting, before its heartbeat
     starts), item 2 (a watchdog check that woke more than
     `NAV_WATCHDOG_LATE_S` late gives no new hang verdict; the next on-time
-    check decides), item 3 (a failed one-shot dock is never disarmed: RTL
-    through recovery's ownership, in sim and on hardware,
-    `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm; the
-    waiting RTL outlives a hold, which reopens instead of handing it to the
-    mission's AUTO, and an escalation hands over to RTL and never sends AUTO
-    over an RTL shown: Codex round 1, findings 2 and 3. The real build arms
-    no episode, so its one-shot NAV_FAIL keeps today's RESET to search, as
-    `missed_dock.md` rule 1 says; the RTL reaches hardware once a real capture
-    signal arms episodes: finding 1, rebutted with a test). Item 8:
+    check decides), item 3 (a failed one-shot dock is never disarmed; a
+    dock keeps the sim disarm. The real build arms no episode, so its
+    one-shot NAV_FAIL keeps today's RESET to search, as `missed_dock.md`
+    rule 1 says: Codex round 1, finding 1, rebutted with a test). Item 3 was
+    first built as an RTL through recovery's ownership; it was replaced
+    after the owner's ruling of 2026-11-09, below ("Failed one-shot dock:
+    the DDH return"). Item 8:
     no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
     Item 9 (owner ruling, "Yes, guard it"): the autopilot's watchdog guards
     NavPy's own recovery LOITER too, claimed in its heartbeat with the
@@ -684,6 +682,60 @@ merges before step 4, which builds on its deadline fix.
     - with `AAS_NAV_ONESHOT` = 1, a failed dock (DOCK_FAILED) disarms in
       simulation, and the SITL UAV fell (`Hit ground at 9.4 m/s`); seen when
       the held approach still failed stale before the step 9 fix.
+
+   Failed one-shot dock: the DDH return (owner rulings 2026-11-09,
+   replacing item 3's RTL). ArduPilot's RTL takes the UAV from NavPy, which
+   then cannot park it. So:
+   - **NavPy healthy** (a failed one-shot dock, and the mission-end DDH
+     return as before): NavPy flies to the DDH itself, circles it and
+     parks only on the operator's confirmation.
+     - The start: `OneShotCompletion` starts the return
+       (`RecoveryHold.start_sortie_return`), a latch in the task state, not a
+       mode request; the queued RTL (`nav_sortie_return.py`) is removed.
+     - Leaving DOCKED: the one-shot is not complete, so DOCKED is not final.
+       It leaves as in cyclic mode (climb if low), but without the AUTO
+       search restart.
+     - The transit: DETECT flies the existing DDH return
+       (`FallbackMissionNavigation.setup`) from wherever the mission is
+       (`can_return`, no last-waypoint rule).
+     - No other work on the way: only the home dock, which the selector puts
+       first; no peer task and no delivery dock (`work_source.py`). The swarm
+       slot stays busy until it parks.
+     - The hub's own outcome: a failed dock at the hub goes round again,
+       circle and a new confirmation. Only a park at the hub completes the
+       one-shot (DOCKED final, plus the sim disarm).
+     - What ends the latch: the park; a revoked ownership (a mode NavPy did
+       not ask for, such as the operator's or the autopilot watchdog's RTL,
+       or a disarm), since NavPy never undoes it; or no DDH in the mission
+       (reported, and NavPy holds).
+     - What still applies of the round 1 fixes 2 and 3: a hold never
+       resumes a returning sortie into the mission's AUTO; it reopens in
+       NavPy's LOITER and re-arms the transit once
+       (`RecoveryHold.take_return_rearm`).
+   - **NavPy sick or dead**: ArduPilot's RTL stays. An escalation hands a
+     returning sortie over to RTL, not AUTO, and never sends AUTO over an
+     RTL shown; the autopilot's watchdog (`nav_watchdog.lua`) RTLs as
+     before. A rally point at the DDH (another session's work) makes that
+     RTL circle the hub, and the operator decides when to hand the UAV back
+     to NavPy to park.
+   - **Parking at the hub is a standing review**
+     (`core/review/standing_review.py`): with a GCS network the hub waits
+     for the operator, with no timeout and no cancel.
+     - No auto-confirm: the hub is asked even with `AAS_NAV_AUTO_CM`, and the
+       final-approach path never confirms it locally.
+     - No deadline: the round is resent every 2 s until the operator answers.
+     - No CONFIRM maximum dwell and no re-acquire abort, so it never tears
+       down to search and never registers a cooldown.
+     - Out of view: the acquisition gates withdraw the review, and it is
+       asked again once they hold.
+     - Negative answers are ignored by NavPy and refused (409) by the GCS
+       route.
+     - The request's task type is `HOME_DOCK` (6), so the GCS card offers
+       Approve only, with no countdown and no auto-fire.
+     - With no network (`network is None`, as today) the hub is confirmed and
+       parked by NavPy itself, so a UAV with no link does not circle until
+       its battery fails.
+     - Delivery docks keep today's confirmation.
 
    Step 9 fix, re-approach after a hold (owner ruling 2026-11-09, "New
    approach"; `core/flow/nav_held_approach.py`): the command worker's held

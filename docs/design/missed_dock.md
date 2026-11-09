@@ -44,7 +44,9 @@ truth to time the end.
    First latch still wins (`physical_docking.md` unchanged): a contact after the NAV_FAIL is not counted. Hit or miss
    stays the sensor's. Lock order stays contact lock → runtime lock; nothing takes them in reverse.
 5. **Behaviour is DOCKED's.** The DOCKED entry, hold, one-shot force-disarm (SITL only, `products/delivery/nav_oneshot_completion.py`)
-   and short-circuit (final), cyclic climb
+   and short-circuit (final), cyclic climb. Since 2026-11-09 (owner rulings, `navpy_recovery.md` step 10, item 3), a
+   one-shot failed dock is not final when the mission has a DDH: it never disarms, leaves DOCKED as in cyclic mode
+   without the AUTO restart, and NavPy flies to the DDH and parks there on the operator's confirmation. Cyclic: climb
    then AUTO restart (the sim restart test, as for DOCKED), swarm BUSY. `NavState` gains no value. As built, no
    `dock_outcome` field: nothing reads it, so NAV exit reports the outcome once (status line and row) instead.
 
