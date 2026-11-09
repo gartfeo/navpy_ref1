@@ -159,16 +159,17 @@ class InboundMessageRouter:
     ) -> bool:
         """Whether a message from another MAVLink system reaches this vehicle.
 
-        A GCS-side vehicle observes exactly one system: its autopilot,
-        companion and cameras all share that system id. On a shared link the
-        bus hands an unattached system's traffic to every receiver, so a GCS
-        vehicle admitting it would take a peer's position, speed and mission
-        item as its own. An onboard (companion) vehicle still hears peers'
-        navlink traffic and camera-stream requests addressed to it.
+        On a shared link the bus hands an unattached system's traffic to
+        every receiver, so a vehicle admitting other systems' autopilot
+        telemetry would take a peer's position, speed and mission item as its
+        own. Only two kinds of foreign traffic are addressed to it:
+        swarm navlink messages, which every identity hears (peers broadcast
+        them, GCS swarm listeners subscribe to ``NAVLINK``), and, for an
+        onboard vehicle that serves the cameras, camera-stream requests.
         """
-        if self._identity.mav_type == MAV_TYPE_GCS:
-            return False
-        return is_navlink or is_camera_stream_request(
+        if is_navlink:
+            return True
+        return self._identity.mav_type != MAV_TYPE_GCS and is_camera_stream_request(
             message, self._identity.target_system
         )
 
