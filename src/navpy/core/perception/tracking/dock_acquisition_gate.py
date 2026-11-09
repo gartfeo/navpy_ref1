@@ -17,7 +17,8 @@ never reaches the NAV command or completion paths (section 4.2). While the acqui
 layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box;
 another dock in view meanwhile is held back and never replaces it. The acquisition ends only when the identity's
 ownership is released: the detector's ``stop_tracking`` (the same call that resets the POI lock, on task teardown
-or rejection) or its pipeline reset (the tracker and identity restart their ids). A lock guards the state: the
+or rejection), its pipeline reset (the tracker and identity restart their ids), or the POI lock no longer holding
+it while it is out of view (the lock's own loss budget spent, also before any task: ``release_unowned``). A lock guards the state: the
 tracking thread admits, the navigation thread releases.
 
 The profile sets, beside its rfdetr block::
@@ -89,6 +90,14 @@ class DockAcquisitionGate:
         with self._mutex:
             self._acquired = self._dwell_id = self._since_s = None
             self._ambiguous = False
+
+    def release_unowned(self, owner_id: int | None, present_ids: set[int]) -> None:
+        """Release the acquired identity when it is out of view and the POI lock no longer holds it."""
+        with self._mutex:
+            if self._acquired is None or owner_id == self._acquired or self._acquired in present_ids:
+                return
+            self._log(f"DOCK ACQ: track {self._acquired} out of view and no longer locked; released")
+            self._acquired = None
 
     def admit(self, tracks: Sequence[TrackedObject], width: int, height: int,
               now_s: float) -> tuple[list[TrackedObject], bool]:

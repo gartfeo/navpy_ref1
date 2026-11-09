@@ -28,6 +28,12 @@ def test_the_record_round_trips_and_malformed_lines_are_not_records(capsys):
         assert parse_confirm_record(bad) is None
 
 
+def _enter(sequence) -> None:
+    """One NAV entry attempt that completes."""
+    sequence.entry_started()
+    sequence.entered()
+
+
 def _sequence(released: list):
     return AcquisitionSequence(Mock(), Mock(), Mock(), Mock(), lambda *_a: None, released.append)
 
@@ -36,23 +42,24 @@ def test_the_sequence_reports_one_release_per_task_only_its_own_and_only_after_n
     released = []
     sequence = _sequence(released)
     sequence.released(make_detected_poi(task_id=3))                 # no task begun: nothing
-    sequence.entered()
+    _enter(sequence)
     sequence.begin(make_detected_poi(task_id=3))
-    sequence.entered()                                              # an entry without a confirm: nothing
+    _enter(sequence)                                              # an entry without a confirm: nothing
     sequence.released(make_detected_poi(task_id=9))                 # another task's POI: nothing
-    sequence.entered()
+    _enter(sequence)
     assert released == []
     sequence.released(make_detected_poi(task_id=3))
     assert released == []                                           # the confirm alone releases nothing
-    sequence.entered()
+    _enter(sequence)
     sequence.released(make_detected_poi(task_id=3))
-    sequence.entered()
+    _enter(sequence)
     assert released == [3]                                          # once per task
     sequence.begin(make_detected_poi(task_id=5))
     sequence.released(make_detected_poi(task_id=5))
-    sequence.entered()
+    _enter(sequence)
     assert released == [3, 5]
     OPEN_ACQUISITION.released(make_detected_poi())                  # no gates: nothing to report
+    OPEN_ACQUISITION.entry_started()
     OPEN_ACQUISITION.entered()
 
 
@@ -64,13 +71,14 @@ def test_a_nav_entry_that_fails_reports_nothing_and_one_that_completes_reports_o
     zoom = Mock()
     zoom.freeze_final_approach_wide.return_value = False            # the minimum zoom cannot be held
     entry = NavEntry(NavEntryPorts(Mock(), Mock(), lambda: True, Mock(), Mock(), lambda: False,
+                                   entry_started=lambda: told.append("start"),
                                    entered=lambda: told.append(1)), Mock(), zoom, Mock())
     with pytest.raises(RuntimeError, match="minimum zoom"):
         entry.run()
-    assert told == []
+    assert told == ["start"]                                        # the attempt started, never completed
     zoom.freeze_final_approach_wide.return_value = True
     entry.run()
-    assert told == [1]
+    assert told == ["start", "start", 1]
 
 
 @pytest.mark.parametrize("current,previous,ready,outcome,told", [
@@ -98,19 +106,29 @@ def test_the_release_is_told_only_when_a_confirm_releases_an_uncommitted_nav(cur
         assert phase.current is NavState.CONFIRM
 
 
-def test_an_entry_later_than_the_lock_frame_gap_after_the_release_reports_nothing():
-    """Codex round 3: a held or retried entry (no new confirm release on its tick) leaves the floor armed."""
-    now = [10.0]
+def test_a_failed_entry_attempt_uses_the_mark_and_only_a_new_confirm_release_reports():
+    """Codex rounds 3-4: a retried or held entry (no confirm release on its tick) leaves the floor armed; the
+    authority is the attempt, not elapsed time."""
     released = []
-    sequence = AcquisitionSequence(Mock(), Mock(), Mock(), Mock(), lambda *_a: None, released.append,
-                                   release_clock=lambda: now[0], release_window_s=0.5)
+    sequence = _sequence(released)
     sequence.begin(make_detected_poi(task_id=3))
     sequence.released(make_detected_poi(task_id=3))
-    now[0] = 10.6
-    sequence.entered()
+    sequence.entry_started()                                        # this attempt fails: entered() never comes
+    _enter(sequence)                                                # a held retry: no confirm on its tick
     assert released == []
-    sequence.released(make_detected_poi(task_id=3))                 # a new confirm release on a fresh tick
-    now[0] = 10.7
+    sequence.released(make_detected_poi(task_id=3))                 # a new confirm release passed the gates
+    _enter(sequence)
+    assert released == [3]
+
+
+def test_a_slow_first_entry_still_reports_its_release():
+    """Codex round 4: no deadline; however long the completing attempt takes, its release counts."""
+    released = []
+    sequence = _sequence(released)
+    sequence.begin(make_detected_poi(task_id=3))
+    sequence.released(make_detected_poi(task_id=3))
+    sequence.entry_started()
+    sequence.ready(None)                                            # nothing else runs on the tick before entered
     sequence.entered()
     assert released == [3]
 
@@ -124,7 +142,7 @@ def test_a_tick_without_the_gates_drops_a_pending_release():
     sequence.released(make_detected_poi(task_id=3))
     sequence._lock.locked.return_value = False                     # the lock is lost before the retry
     assert sequence.ready(make_detected_poi(task_id=3)) is False
-    sequence.entered()
+    _enter(sequence)
     assert released == []
 
 

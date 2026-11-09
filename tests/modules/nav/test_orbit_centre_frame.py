@@ -125,10 +125,9 @@ def test_the_acquisition_composition_wires_the_rule_from_the_profile(monkeypatch
     for name in ("siyi_zr10_hitl_encoded",):
         composition.compose_acquisition(Mock(), Mock(), profiles[name], Mock(), Mock(), Mock(), Mock(), Mock(),
                                         ApproachKind.ORBIT, Mock(), Mock())
-    rule, clock, window = captured[-1][-3:]
+    rule = captured[-1][-1]
     assert isinstance(rule, OrbitCentreFrame) and rule.min_box_px == 24.0
-    assert window == profiles["siyi_zr10_hitl_encoded"]["final_approach_gates"]["lock_max_frame_gap_s"]
     gates_only = {"final_approach_gates": profiles["siyi_zr10_hitl_encoded"]["final_approach_gates"]}
     composition.compose_acquisition(Mock(), Mock(), gates_only, Mock(), Mock(), Mock(), Mock(), Mock(),
                                     ApproachKind.ORBIT, Mock(), Mock())
-    assert captured[-1][-3](Mock()) is True                         # no whole-dock detector: every frame
+    assert captured[-1][-1](Mock()) is True                         # no whole-dock detector: every frame

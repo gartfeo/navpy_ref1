@@ -124,6 +124,51 @@ def test_another_dock_never_replaces_the_acquired_identity():
     assert gate.admit([small], W, H, 5.0) == ([small], True)          # 7 returns small: it passes
 
 
+def test_an_identity_out_of_view_and_no_longer_locked_is_released():
+    """Codex round 4: acquired before any task, then lost until the POI lock's own budget is spent: released, so
+    another dock can be acquired; while the lock or the frame still holds it, it is kept."""
+    log = []
+    gate = DockAcquisitionGate(SQUASH, log.append)
+    _run(gate, [[_track()]] * 11)
+    gate.release_unowned(7, set())                                   # the lock still holds it
+    gate.release_unowned(None, {7})                                  # still in view
+    assert gate.acquired_id == 7
+    gate.release_unowned(None, set())
+    assert gate.acquired_id is None and log[-1] == "DOCK ACQ: track 7 out of view and no longer locked; released"
+    assert _run(gate, [[_track(9)]] * 11) == ([_track(9)], True)
+
+
+def test_the_processor_releases_when_the_poi_lock_gives_up():
+    from navpy.core.perception.pipeline.real_tracking_batch import TrackingAssociationProcessor, TrackingModels
+    from navpy.core.perception.tracking.poi_lock import PoiLock
+
+    current = [[_track()]]
+    identity = Mock()
+    identity.update.side_effect = lambda *a, **k: current[0]
+    generation = Mock()
+    generation.is_current.return_value = True
+    recovery = Mock()
+    recovery.compute_embeddings.return_value = None
+    deep = Mock()
+    deep.take_for_tracking.return_value = []
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    processor = TrackingAssociationProcessor(TrackingModels(Mock(), identity, PoiLock(max_lost_frames=3)), recovery,
+                                             deep, Mock(), generation, True, gate)
+    batch = Mock()
+    batch.detections = []
+    batch.association.frame = object()
+    batch.association.frame_width, batch.association.frame_height = W, H
+    for i in range(11):
+        processor.process(batch, 0.1 * i)
+    assert gate.acquired_id == 7
+    current[0] = []
+    for i in range(3):                                               # within the lock's loss budget: kept
+        processor.process(batch, 2.0 + 0.1 * i)
+    assert gate.acquired_id == 7
+    processor.process(batch, 2.5)                                    # the lock gives up: released
+    assert gate.acquired_id is None
+
+
 def test_stop_tracking_releases_the_acquired_identity():
     from navpy.core.perception.pipeline.real_detector_controls import DetectorTrackingControl
 

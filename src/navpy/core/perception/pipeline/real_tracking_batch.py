@@ -148,6 +148,7 @@ class TrackingAssociationProcessor:
             embeddings=embeddings,
         )
         candidate = False
+        seen = tracks
         if self._acquisition is not None:
             tracks, candidate = self._acquisition.admit(tracks, frame_width, frame_height, now_s)
         locked = (
@@ -160,6 +161,10 @@ class TrackingAssociationProcessor:
             if self._use_poi_lock
             else None
         )
+        if self._acquisition is not None and self._use_poi_lock:
+            # HITL step 23b: an acquired identity neither in view nor held by the POI lock (its own loss budget
+            # spent, e.g. before any task) is released, so another dock can be acquired.
+            self._acquisition.release_unowned(pinned, {int(track.id) for track in seen})
         self._models.identity.pin(pinned)
         self._metrics.bump("track_updates")
         boards = tuple(item for item in batch.detections if item.board is not None)

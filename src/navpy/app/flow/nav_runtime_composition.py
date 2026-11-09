@@ -133,6 +133,7 @@ def compose_nav_application(
                 ),
                 stop_geo_tracking=detection.geo_pointing.stop_geo_tracking,
                 is_geo_armed=lambda: detection.geo_pointing.is_geo_armed,
+                entry_started=navigation_workflows.acquisition.entry_started,
                 entered=navigation_workflows.acquisition.entered,
             ),
             state.navigation_task,

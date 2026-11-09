@@ -13,17 +13,16 @@ orbit start refuses is dropped. Confirm and NAV each need the lock fresh on this
 established. Whether the gates are still held (the lock kept through a blip, the orbit established) is
 published each tick to the confirmation lock (``publish``), which refuses CONFIRMED from any path
 while it is False and withdraws a review under way. When a task's confirm releases NAV, ``released``
-marks it, and the first NAV entry that then completes (``entered``) reports it once (``on_release``: HITL step
-23b's floor release, a mission-state event); a NAV entry that fails reports nothing, and a tick on which the
-gates do not hold drops the mark, and so does time: an entry that completes more than
-``release_window_s`` (the lock's own frame gap) after the confirm released NAV reports nothing, so a
-retried or held entry needs a new confirm release, and the floor stays armed otherwise (fail closed).
+marks it; each NAV entry attempt takes the mark when it starts (``entry_started``), and the attempt that
+completes (``entered``) reports it once (``on_release``: HITL step 23b's floor release, a mission-state
+event). A failed attempt has used the mark, so a retry releases the floor only after a new confirm release,
+which passes the gates on its tick; a held retry (no confirm on its tick) leaves the floor armed (fail
+closed), however long or short the entry takes. A tick on which the gates do not hold also drops the mark.
 Without the profile's gates, ``OPEN_ACQUISITION`` keeps the old order and reports nothing.
 """
 
 from __future__ import annotations
 
-import math
 from collections.abc import Callable
 from typing import Optional, Protocol
 
@@ -39,6 +38,8 @@ class AcquisitionGate(Protocol):
 
     def released(self, poi: DetectedObject) -> None: ...
 
+    def entry_started(self) -> None: ...
+
     def entered(self) -> None: ...
 
 
@@ -53,6 +54,9 @@ class _OpenAcquisition:
         return True
 
     def released(self, poi: DetectedObject) -> None:
+        return None
+
+    def entry_started(self) -> None:
         return None
 
     def entered(self) -> None:
@@ -74,15 +78,13 @@ class AcquisitionSequence:
         publish: Callable[[int, bool], None],
         on_release: Callable[[int], None] = lambda _task_id: None,
         centre_frame: Callable[[DetectedObject], bool] = lambda _poi: True,
-        release_clock: Callable[[], float] = lambda: 0.0,
-        release_window_s: float = math.inf,
     ) -> None:
         self._lock = lock
         self._orbit = orbit
         self._orbit_start = orbit_start
         self._logger = logger
         self._publish = publish
-        self._release = _FloorRelease(on_release, release_clock, release_window_s)
+        self._release = _FloorRelease(on_release)
         self._centre_frame = centre_frame
         self._task_id: int | None = None
         self._centre_poi: DetectedObject | None = None
@@ -117,8 +119,12 @@ class AcquisitionSequence:
         if self._task_id is not None and get_poi_task_id(poi) == self._task_id:
             self._release.mark()
 
+    def entry_started(self) -> None:
+        """A NAV entry attempt starts: it takes the confirm's mark (a failed attempt has used it)."""
+        self._release.start_attempt()
+
     def entered(self) -> None:
-        """A NAV entry completed: report a pending release, once per task."""
+        """The NAV entry attempt completed: report its release, once per task."""
         if self._task_id is not None and self._release.take():
             self._report("released", f"P{self._task_id}: confirm released NAV, NAV entered")
             self._release.on_release(self._task_id)
@@ -165,28 +171,26 @@ class AcquisitionSequence:
 class _FloorRelease:
     """A task's floor release: marked by the confirm that releases NAV, reported once by the entry that completes."""
 
-    def __init__(self, on_release: Callable[[int], None], now_s: Callable[[], float], window_s: float) -> None:
+    def __init__(self, on_release: Callable[[int], None]) -> None:
         self.on_release = on_release
-        self._now_s = now_s
-        self._window_s = window_s
-        self.pending = False
+        self.pending = False      # a confirm released NAV since the last entry attempt started
+        self.attempt = False      # the entry attempt under way took a mark
         self.done = False
-        self._marked_s = 0.0
 
     def reset(self) -> None:
-        self.pending = self.done = False
+        self.pending = self.attempt = self.done = False
 
     def mark(self) -> None:
-        self.pending, self._marked_s = True, float(self._now_s())
+        self.pending = True
+
+    def start_attempt(self) -> None:
+        self.attempt, self.pending = self.pending, False
 
     def take(self) -> bool:
-        """True once per task, when a release is pending and recent."""
-        if self.done or not self.pending:
+        """True once per task, when the completed attempt took a mark."""
+        if self.done or not self.attempt:
             return False
-        if not 0.0 <= float(self._now_s()) - self._marked_s <= self._window_s:
-            self.pending = False
-            return False
-        self.done = True
+        self.attempt, self.done = False, True
         return True
 
 
