@@ -63,9 +63,9 @@ class NavTransition:
             held.bind(self._end_held_episode, self.enter)
 
     def enter(self) -> None:
-        if self._held is not None:
-            self._held.entered()
         self._entry.run()
+        if self._held is not None:
+            self._held.entered()     # only once the entry succeeded: a raising one is retried (nav_held_approach.py)
 
     def _end_held_episode(self) -> None:
         """Recovery's hold: the in-flight episode ends without failure (owner ruling 2026-11-09)."""

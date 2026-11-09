@@ -12,11 +12,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-FLOW = Path(__file__).resolve().parents[3] / "src" / "navpy" / "app" / "flow"
+SRC = Path(__file__).resolve().parents[3] / "src" / "navpy"
 
 
 def _raw_requests(path: Path) -> list[str]:
-    """``<x>.commands.request_guided()`` calls outside ``request_guided_owned``."""
+    """``<x>.commands.request_guided()`` / ``self._commands.request_guided()`` calls (the vehicle's GUIDED request)
+    outside ``request_guided_owned``."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     hits = []
     for function in [None, *[n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)]]:
@@ -25,9 +26,9 @@ def _raw_requests(path: Path) -> list[str]:
         for node in ast.walk(function or tree):
             if (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)
                     and node.func.attr == "request_guided" and isinstance(node.func.value, ast.Attribute)
-                    and node.func.value.attr == "commands"
+                    and node.func.value.attr in ("commands", "_commands")
                     and not _inside_owned(tree, node)):
-                hits.append(f"{path.name}:{node.lineno}")
+                hits.append(f"{path.relative_to(SRC).as_posix()}:{node.lineno}")
     return sorted(set(hits))
 
 
@@ -39,8 +40,9 @@ def _inside_owned(tree: ast.Module, target: ast.AST) -> bool:
     return False
 
 
-def test_no_composition_asks_for_guided_without_telling_recovery():
-    hits = [hit for path in sorted(FLOW.glob("*.py")) for hit in _raw_requests(path)]
+def test_nothing_asks_for_guided_without_telling_recovery():
+    """All of src/navpy, products included (Codex review of step 9: the DDH transit asked directly)."""
+    hits = [hit for path in sorted(SRC.rglob("*.py")) for hit in _raw_requests(path)]
     assert hits == [], hits
 
 

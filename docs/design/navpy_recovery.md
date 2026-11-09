@@ -617,3 +617,17 @@ merges before step 4, which builds on its deadline fix.
    recovery resumed in AUTO (or GUIDED was not reached before the hold, or
    shows), it starts a fresh episode to the kept dock through NAV entry;
    a mode the operator selected stands and ends the approach.
+
+   Codex review of the step 9 fixes, fixed:
+   1. The default delivery hub transit also asks for GUIDED through
+      `request_guided_owned`; the guard test scans all of `src/navpy`.
+   2. A fresh episode starts only on recovery's explicit resume in AUTO. A
+      hold that ends without it (the operator's mode, or a hold NavPy did
+      not own the mode for) ends the approach: no GUIDED over that mode.
+   3. The fresh episode's NAV entry clears the held marker only once it
+      succeeds; one that raises is retried at the next decision, unless the
+      operator selected a mode meanwhile.
+   4. The held episode's dock contact ends as aborted for the hold
+      (`HELD_REASON`, `FinalApproachDockContact.disarm_held`), never from
+      the terminal latched while fenced, so the sim record never shows it
+      as missed.

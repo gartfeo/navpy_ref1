@@ -85,6 +85,8 @@ def compose_decision_workflows(
             end_held_episode=state.held_approach.end_episode,
             held_episode_ended=lambda: state.held_approach.ended,
             start_fresh_episode=state.held_approach.start_fresh_episode,
+            fresh_episode_pending=lambda: state.held_approach.resume_pending,
+            abandon_held_episode=state.held_approach.abandon,
         ),
         state.phase,
         state.navigation_task,

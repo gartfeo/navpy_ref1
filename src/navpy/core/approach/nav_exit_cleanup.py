@@ -31,6 +31,8 @@ class NavExitCleanupPorts:
     detector_stop: Callable[[], None]
     # Its terminal is read before the reset clears it; None: no vision runtime.
     dock_outcome: Optional[DockOutcomePort] = None
+    #: The held episode's dock-contact end (FinalApproachDockContact.disarm_held); None: ``disarm_dock_contact``.
+    disarm_held_dock_contact: Optional[Callable[[], Optional[DockContactEvent]]] = None
 
 
 @dataclass(frozen=True)
@@ -109,8 +111,8 @@ class NavExitCleanup:
         episode, the source admission and the command session (``navigation_reset``: commands, liveness and the
         episode latch) end; tracking, zoom, the speedup and the task stay for the fresh episode."""
         errors: list[Exception] = []
-        for step in (self._ports.disarm_dock_contact, self._ports.close_final_approach_source,
-                     self._ports.navigation_reset):
+        disarm = self._ports.disarm_held_dock_contact or self._ports.disarm_dock_contact
+        for step in (disarm, self._ports.close_final_approach_source, self._ports.navigation_reset):
             try:
                 step()
             except Exception as error:  # noqa: BLE001 - every step runs; the NAV loop fails the cycle on the group

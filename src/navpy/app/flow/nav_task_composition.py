@@ -76,6 +76,7 @@ def compose_mission_navigation_ownership(
             current_relative=lambda: vehicle.location(True),
             set_sim_poi=detection.simulation.set_sim_poi,
             detector_is_simulation=lambda: detection.simulation.is_simulation,
+            request_guided=lambda: request_guided_owned(state, approach),
         ),
         poi.mission,
         state.navigation_task,

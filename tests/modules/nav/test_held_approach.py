@@ -37,9 +37,13 @@ class Approach:
         self.worker = FinalApproachEpisodeFailures(rt.RLock(), self.episode, self.liveness)
         self.inits = 0
         self.resets = 0
+        self.failing_inits = 0      # the next inits that raise
 
     def init(self) -> None:
         self.inits += 1
+        if self.failing_inits:
+            self.failing_inits -= 1
+            raise RuntimeError("init failed")
         self.liveness.reset()
         self.episode.reset()
 
@@ -101,6 +105,8 @@ def _rig():
             end_held_episode=held.end_episode,
             held_episode_ended=lambda: held.ended,
             start_fresh_episode=held.start_fresh_episode,
+            fresh_episode_pending=lambda: held.resume_pending,
+            abandon_held_episode=held.abandon,
         ),
         NavPhaseState(current=NavState.NAV, previous=NavState.CONFIRM),
         task, failures, Mock(passed_poi=Mock(return_value=False)), Mock(),

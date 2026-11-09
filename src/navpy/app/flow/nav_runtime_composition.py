@@ -147,6 +147,7 @@ def compose_nav_application(
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
                 dock_outcome=navigation.dock_outcome,
+                disarm_held_dock_contact=dock_contact.disarm_held,
             ),
             approach.speedup,
             logger,

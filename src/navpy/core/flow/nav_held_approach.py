@@ -23,6 +23,8 @@ class HeldApproach:
         self._start: Callable[[], None] | None = None
         #: The held episode was ended, and no fresh one started yet.
         self.ended = False
+        #: Recovery resumed and the fresh episode's NAV entry has not succeeded yet: the decision retries it.
+        self.resume_pending = False
 
     def bind(self, end: Callable[[], None], start: Callable[[], None]) -> None:
         self._end, self._start = end, start
@@ -35,13 +37,21 @@ class HeldApproach:
         self.ended = True
 
     def start_fresh_episode(self) -> None:
-        """NAV entry again, for the kept dock; it clears ``ended``."""
+        """NAV entry again, for the kept dock. Pending until it succeeds (``entered``): an entry that raises is
+        retried at the next decision, as a NAV phase entry would be."""
+        self.resume_pending = True
         if self._start is not None:
             self._start()
 
     def entered(self) -> None:
-        """Every NAV entry starts a fresh episode: nothing held is left."""
+        """A NAV entry succeeded: a fresh episode, nothing held is left."""
         self.ended = False
+        self.resume_pending = False
+
+    def abandon(self) -> None:
+        """The approach ends after the hold (the operator's mode stands): nothing to restart."""
+        self.ended = False
+        self.resume_pending = False
 
 
 __all__ = ["HeldApproach"]

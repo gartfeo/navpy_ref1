@@ -124,6 +124,9 @@ class NavDecisionPorts:
     end_held_episode: Callable[[], None] = lambda: None
     held_episode_ended: Callable[[], bool] = lambda: False
     start_fresh_episode: Callable[[], None] = lambda: None
+    #: A fresh episode recovery's resume asked for, whose NAV entry has not succeeded yet.
+    fresh_episode_pending: Callable[[], bool] = lambda: False
+    abandon_held_episode: Callable[[], None] = lambda: None
 
 
 class NavStateDecision:
@@ -182,18 +185,23 @@ class NavStateDecision:
             self._failures.consume()
             return ApproachOutcome.WAITING
         held = self._ports.held_episode_ended()
-        if (resumed and mode is FlightMode.AUTO and (held or self._navigation_task.nav_mode_observed)) or (
-            held and (not self._navigation_task.nav_mode_observed or mode == FlightMode.GUIDED)
-        ):
-            # After the hold the approach goes on (owner rulings 2026-11-07 and 2026-11-09): recovery resumed in
-            # AUTO, or GUIDED was not reached before the hold, or shows. A fresh episode to the kept dock (ended
-            # here if no decision ran in the hold); NAV entry asks for GUIDED again. A mode the operator selected
-            # after the resume stands: the approach ends below, as for any lost GUIDED.
+        pending = self._ports.fresh_episode_pending()
+        if pending and mode not in (FlightMode.AUTO, FlightMode.GUIDED):
+            # A fresh entry to retry, but the operator selected a mode meanwhile: it stands.
+            return self._abandon_held()
+        if pending or (resumed and mode is FlightMode.AUTO and (held or self._navigation_task.nav_mode_observed)):
+            # Only on recovery's resume in NavPy's AUTO (owner rulings 2026-11-07 and 2026-11-09): a fresh episode
+            # to the kept dock (ended here if no decision ran in the hold); NAV entry asks for GUIDED again. Retried
+            # while its entry has not succeeded (Codex review of step 9, finding 3).
             self._ports.end_held_episode()
             self._failures.consume()
             self._ports.start_fresh_episode()
             self._clear_guided_wait()
             return ApproachOutcome.WAITING
+        if held:
+            # The hold ended without recovery's resume: the operator's mode, or a hold NavPy did not own the mode
+            # for. No fresh episode and no GUIDED over that mode (Codex review of step 9, finding 2).
+            return self._abandon_held()
         if mode == FlightMode.GUIDED:
             self._navigation_task.nav_mode_observed = True
             self._navigation_task.final_approach_navigation_active = True
@@ -224,6 +232,11 @@ class NavStateDecision:
             self._navigation_task.guided_last_attempt_at = now_s
             self._ports.request_guided()
         return ApproachOutcome.WAITING
+
+    def _abandon_held(self) -> ApproachOutcome:
+        self._ports.abandon_held_episode()
+        self._ports.clear_navigation_task()
+        return ApproachOutcome.ABANDONED
 
     def _clear_guided_wait(self) -> None:
         self._navigation_task.guided_last_attempt_at = None
