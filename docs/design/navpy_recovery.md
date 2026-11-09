@@ -111,8 +111,15 @@ Seen in UAV 1's ArduPilot log `~/ardupilot/1/logs/00000008.BIN` (owner run,
 1800 us (`AP_RCProtocol_UDP.cpp`); our params use channel 5 as the mode switch
 with position 6 = AUTOTUNE (`scripts/eval_gcs_demo_sitl_root.py:55-57`; the
 GCS stack's values live in the WSL template eeproms). Codex confirmed the
-mechanism from upstream source; the event that made ArduPlane re-read the
-switch at 21:39 is not proven.
+mechanism from upstream source. Step 10 (item 8, 2026-11-09) found there was
+no re-read at 21:39: that MODE record has the same TimeUS as the log-start
+messages, and `Plane::Log_Write_Vehicle_Startup_Messages` (`ArduPlane/Log.cpp`)
+writes the current mode and its reason when a log opens, which with
+`LOG_DISARMED` 0 is at arming. The switch was applied once, at the SITL boot
+before (`reset_mode_switch()` from `RC_Channels.cpp` and `system.cpp`, then the
+200 ms debounce), and AUTOTUNE held until the GCS set AUTO 0.7 s after its arm.
+UAVs 2 and 3 logged AUTOTUNE too; UAV 1 logs 14-21, with this fix, start in
+AUTO. Not proven: the boot time itself, which is not logged.
 
 Fix: sim UAVs only, FLTMODE6 = 10 (AUTO) and INITIAL_MODE = 10, written before
 boot (eval root defaults, and the GCS sim stack's launcher-owned instances)
@@ -600,7 +607,13 @@ merges before step 4, which builds on its deadline fix.
     it), item 10 (declared bounded waits count in wall time on the hang
     clock), item 11 (the held episode's end is journaled), item 12 (a
     companion asks for SIM_SPEEDUP, without waiting, before its heartbeat
-    starts). Todos only (owner ruling): the systemd supervisor (todo 296,
+    starts), item 2 (a watchdog check that woke more than
+    `NAV_WATCHDOG_LATE_S` late gives no new hang verdict; the next on-time
+    check decides), item 3 (a failed one-shot dock is never disarmed: RTL
+    through recovery's ownership, in sim and on hardware,
+    `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm). Item 8:
+    no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
+    Todos only (owner ruling): the systemd supervisor (todo 296,
     with HITL) and an upstream heartbeat failsafe (todo 297). On hold for
     the owner: a NavPy that dies in its own LOITER. Follow-up, out of scope
     (approach accuracy): a fresh approach after a hold ended `no_detection`
