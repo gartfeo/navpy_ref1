@@ -211,11 +211,21 @@ def test_item12_the_gcs_does_not_ask_and_a_failed_ask_still_starts_the_heartbeat
 def test_item12_the_reply_to_the_ask_wakes_the_pacing():
     """The probe's PARAM_VALUE reaches the cache and wakes a heartbeat already waiting at speed-up 1."""
     repository = ParameterRepository()
-    pacing = HeartbeatPacing(lambda: repository.get(SIM_SPEEDUP_PARAM))
+    reading = threading.Event()
+
+    def read_speedup():
+        # The wait reads the speed-up after clearing its wake and before waiting: from here an update wakes it
+        # (Codex round 1 on step 10, finding 4: the update must not come before the waiter read speed-up 1).
+        value = repository.get(SIM_SPEEDUP_PARAM)
+        reading.set()
+        return value
+
+    pacing = HeartbeatPacing(read_speedup)
     repository.watch(SIM_SPEEDUP_PARAM, pacing.wake)
     woke = threading.Event()
     waiter = threading.Thread(target=lambda: (pacing.wait(threading.Event(), 30.0), woke.set()))
     waiter.start()
+    assert reading.wait(5.0)                                # the waiter read speed-up 1: a 30 s wait
     repository.update(SIM_SPEEDUP_PARAM, 10.0)              # the reply
     assert woke.wait(1.0)
     waiter.join(1.0)
