@@ -149,6 +149,9 @@ class TaskAssignConfirmation:
                     return None
                 attempt.floor = floor
                 attempt.progress_s = self._monotonic_s()
+                # The holder's boot is heard (task_lost_helper.py).
+                attempt.holder_heard = floor
+                attempt.holder_heard_s = attempt.progress_s
                 return task_id
         return None
 
@@ -187,6 +190,7 @@ class TaskAssignConfirmation:
                     busy_changed=busy_changed,
                 )
             if message.is_accepted:
+                attempt.note_holder_accept(response)
                 if confirming:
                     dispatch.peer_accept(peer_id)
                 return AssignVerdict(

@@ -21,6 +21,10 @@ class NavArgs(object):
     # overrides SIM_SPEEDUP during NAV, so the final approach runs at whatever speed
     # the SITL launch set (no slow-to-1x). Pass -gsu <N> to re-enable.
     NAV_SIM_SPEEDUP = 0.0
+    # What this UAV, as a task owner, does with a confirmed task whose helper
+    # is lost (silent, checked out or restarted): "keep" it with that helper
+    # (design decision 4) or re-auction it "auto" (core/swarm/task_lost_helper.py).
+    SWARM_LOST_HELPER = "keep"
 
     def __init__(self, args, vehicle: MissionParameterReader):
         self.vehicle = vehicle
@@ -36,6 +40,7 @@ class NavArgs(object):
 
         # Nav sim speedup (0 = disabled)
         self.nav_sim_speedup = getattr(args, 'nav_sim_speedup', self.NAV_SIM_SPEEDUP)
+        self.swarm_lost_helper = getattr(args, 'swarm_lost_helper', self.SWARM_LOST_HELPER)
         # SITL-only NAV cycle fault file (navpy/sim/cycle_fault.py); None: no hook.
         self.sim_cycle_fault_file = getattr(args, 'sim_cycle_fault_file', None)
 
@@ -77,6 +82,11 @@ class NavArgs(object):
                             f" after this, a sufficiently detailed frame may be sent without waiting for stable zoom. Default: {p['AAS_NAV_CGT']}")
         g.add_argument("-gsu", dest='nav_sim_speedup', type=float, default=cls.NAV_SIM_SPEEDUP,
                        help=f"Sim speedup during NAV (0=disabled). Default: {cls.NAV_SIM_SPEEDUP}")
+        g.add_argument("--swarm-lost-helper", dest='swarm_lost_helper', choices=("keep", "auto"),
+                       default=cls.SWARM_LOST_HELPER,
+                       help="A confirmed task whose helper is lost (silent, checked out or restarted): "
+                            "keep it with that helper, or re-auction it at once (auto). "
+                            f"Default: {cls.SWARM_LOST_HELPER}")
 
     def refresh(self):
         """Reset the navigation arguments to their default values."""

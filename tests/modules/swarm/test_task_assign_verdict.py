@@ -22,6 +22,7 @@ from navpy.core.link.swarm_ack_msg import (
     ACK_STATUS_RECEIVED,
     SwarmAckMsg,
 )
+from navpy.core.link.swarm_heartbeat_msg import SwarmNodeState
 from navpy.core.link.types import (
     MsgType,
     TaskDispatchStatus,
@@ -382,3 +383,23 @@ def test_reset_and_shutdown_log_dropped_handed_out_tasks(close):
 
     (call,) = logger.warning.call_args_list
     assert "task 7 CONFIRMED to peer 2" in call.args[0]
+
+
+def test_the_holder_boot_is_tracked_from_its_ack_and_acceptances():
+    # For the lost-helper policy (task_lost_helper.py): the first ack starts
+    # the holder's liveness; FREE counts only after the newest acceptance.
+    owner = Owner().acked()
+    attempt = owner.dispatch.attempt
+    assert attempt.holder_heard == MsgRef(2, HELPER_BOOT, 10)
+    assert attempt.holder_heard_s == Owner.clock()
+
+    assert owner.verdict(_response(True, seq=11)) is ResponseVerdict.CONFIRMED
+    assert attempt.holder_accept == MsgRef(2, HELPER_BOOT, 11)
+    assert attempt.holder_heard == MsgRef(2, HELPER_BOOT, 11)
+
+    owner.auction.observe_peer(2, SwarmNodeState.FREE, MsgRef(2, HELPER_BOOT, 12))
+    assert attempt.helper_freed()
+
+    # The helper took it again through a late request copy (REPEAT).
+    assert owner.verdict(_response(True, seq=13)) is ResponseVerdict.REPEAT
+    assert not attempt.helper_freed()

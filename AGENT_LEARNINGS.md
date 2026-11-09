@@ -2746,3 +2746,45 @@
 - **Re-read the branch a design cites before each review round.** Step 23's branch moved during the design
   (first-detection distance D replaced the orbit radius), and the step merged before owner review, which
   made "before step 23 merges" stale. Check `git log` of cited branches and main before sending a design.
+
+## Lost-helper takeover, todo 115 (2026-11-09)
+
+- The SOLID guard caps owned fields and direct methods per class (TaskAuctionState,
+  TaskDispatch, NavNetworkRuntime were all at the limit). Adding two methods each failed it.
+  Put a new concern in its own small class reached through one attribute
+  (`TaskAuctionState.lost_helpers`) and run `tests/guards` before the wide suite.
+- `functools.partial(TaskActor, ...)` built in a constructor binds the class at that moment,
+  so a test that patches `nav_network.TaskActor` afterwards no longer reaches it. Use a lambda
+  that looks the name up at call time.
+- In the loss-matrix bus tests the owner's re-advert runs on a zero-delay virtual timer:
+  `drain()` alone does not fire it; advance time (`run_until(0.1)`).
+- All actors in one test process share the process-wide boot id (MsgMetaProvider), so a
+  restarted boot cannot be shown on the bus; cover it at the coordinator level.
+- The Edit tool refuses a file not read in this conversation, including after a context
+  summary. Read it again first.
+- A sed insert with `\n` in Git Bash wrote a literal "n" before an import line
+  (`nfrom typing import Optional`). The existing rule held: text with backslashes goes
+  through the Edit tool, never sed or a heredoc.
+- A peer-loss rule must name the lost **boot**, not just the peer id: a late check-out or
+  an expiry raced by a new heartbeat otherwise revokes a live process's task (Codex
+  round 1). Boot ids are random, so never try to order boots ("which one is newer"):
+  round 2 broke every ordering heuristic (a retire window, a last-noted boot). What held:
+  track liveness of the one boot that matters (the attempt's floor boot), refreshed only by
+  its own newer messages, and match a check-out by `follows(newest acceptance or floor)`.
+  That also left the shared roster untouched, so the default policy kept base behaviour.
+  Compare every loss or "done" signal against the newest evidence of ownership, not the
+  first: round 3 (a late FREE) and round 4 (a late check-out before a newer acceptance of a
+  replacement actor in the same boot) were both "compared against the floor only".
+- Before rebuilding after a review round, a workflow with one skeptic per finding plus two
+  critics of the planned redesign (races; default-policy parity and simpler options) found
+  that one finding was harmless and that the redesign had two flaws, before any code changed.
+- `tests/guards/test_runtime_time_lint.py::test_reviewed_modules_host_members_dynamic_imports_and_held_modules`
+  failed on 2026-11-09 on main as well, then passed an hour later with no code change: the
+  shared venv (cv2 5.0.0) changed under the run. Check main before blaming a branch, and
+  rerun once before reporting an environment failure.
+- A full `-n 8` run hung for 40 min (2026-11-09) with every worker idle. `py-spy dump --pid`
+  on each xdist worker showed one in `test_deploy_handheld.py::test_a_backend_that_ignores_term_is_killed`,
+  stuck in `subprocess.run(..., timeout=60)`: on Windows the timeout kills only bash, and the
+  orphaned stub backend (`trap '' TERM; while :; do sleep 1; done`) and `update_gcs.sh` kept the
+  pipe open. Stopping those two orphans (by their exact command line) let the run finish. When a
+  run's log stops moving, py-spy the workers before waiting longer.
