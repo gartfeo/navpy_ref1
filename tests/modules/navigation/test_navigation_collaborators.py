@@ -17,6 +17,7 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.approach.navigation_command_session import NavigationCommandSession
 from navpy.core.approach.navigation_command_worker import (
+    AUTOPILOT_NAVIGATION_PERIOD_S,
     NavigationCommandWorker,
     NavigationCommandWorkerPorts,
 )
@@ -467,17 +468,31 @@ def test_command_worker_does_not_dispatch_source_after_stop_wakeup():
 
 
 def test_signaled_samples_cannot_bypass_fixed_autopilot_command_cadence():
+    # A deterministic clock: only the worker's own waits advance time, so the
+    # check measures the schedule, not how loaded the test machine is.
+    class FakeClock:
+        now_s = 0.0
+
+        def monotonic(self):
+            return self.now_s
+
+        def sleep(self, duration_s):
+            assert duration_s > 0.0
+            self.now_s += duration_s
+
+    clock = FakeClock()
     stop_event = threading.Event()
     command_event = threading.Event()
-    command_event.set()  # Permanently hot source: every wait wakes immediately.
+    command_event.set()  # Permanently hot source: every wait could wake now.
     issued_at = []
     runtime = Mock()
     runtime.take_work.return_value = "latest-work"
+    passes = 5
 
     def execute_and_stop(work):
         assert work == "latest-work"
-        issued_at.append(time.perf_counter())
-        if len(issued_at) == 3:
+        issued_at.append(clock.monotonic())
+        if len(issued_at) == passes:
             stop_event.set()
 
     runtime.execute_work.side_effect = execute_and_stop
@@ -487,13 +502,19 @@ def test_signaled_samples_cannot_bypass_fixed_autopilot_command_cadence():
         wall_period_s=lambda period_s: period_s,
         runtime_session=lambda: nullcontext(runtime),
         logger=Mock(),
+        monotonic_s=clock.monotonic,
+        sleep_s=clock.sleep,
     ))
 
     worker.run()
 
-    gaps = [later - earlier for earlier, later in zip(issued_at, issued_at[1:])]
-    assert len(gaps) == 2
-    assert min(gaps) >= 0.015
+    # Zero-cost passes with a hot event still issue exactly one command per
+    # fixed autopilot slot: on the grid, never sooner.
+    period_s = AUTOPILOT_NAVIGATION_PERIOD_S
+    assert command_event.is_set()
+    assert issued_at == pytest.approx(
+        [period_s * (k + 1) for k in range(passes)]
+    )
 
 
 def test_command_execution_time_does_not_accumulate_cadence_drift():
