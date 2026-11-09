@@ -111,7 +111,9 @@ Unreal tests showed RF-DETR-L calls the white van stand-in a `bus`, so candidate
   0.80. It misses only end-on views at 300-400 m: truck 0.37-0.41, the top class `bus` or `car`.
 - **Rejected candidates:** the white high-roof van (scored as `bus`, about 2/24 as the kept class), a 4 m umbrella
   (21/24 but median scores about 0.5), a football (9/24) and a concept car (1/24).
-- **Licence:** the pickup mesh is CC BY 4.0 as its uploader states, not confirmed; internal test use only.
+- **Licence:** the owner confirmed (2026-11-10) that the Silverado model is free to use.
+- **Orbit and zoom:** the larger box breaks containment at 10x on orbits under about 167 m. The owner accepted
+  this (2026-11-10): smaller orbits use a wider zoom step.
 - **Limits:** this is a view sweep, not section 6 item 1's recall-by-box-size curve, so `min_box_px` and
   `recall_min_box_px` stay placeholders. The 95 % per-frame recall target still stands; end-on misses at 300-400 m
   are a known limit. Simulation only: it proves nothing about a physical dock.
