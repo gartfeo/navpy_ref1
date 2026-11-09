@@ -921,3 +921,72 @@ class TestUploadMissions:
         assert status["action"] == "rejected"
         upload.assert_not_called()
         cache.invalidate_keys.assert_not_called()
+
+
+class TestUploadRally:
+    """The upload makes each vehicle's RTL go to its mission's DDH."""
+
+    _HUB_BODY = {
+        "assignments": [{
+            "sys_id": 1, "zone_index": 0, "altitude_m": 150.0,
+            "waypoints": [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}],
+            "default_delivery_hub": {"lat": 32.01, "lon": 34.02, "type": "dock"},
+        }],
+    }
+
+    @staticmethod
+    def _mission(success=True):
+        from gcs.backend.planner.waypoint_builder import UploadResult
+        return UploadResult(success=success, uploaded_count=4 if success else 0,
+                            expected_count=4, attempts=1,
+                            error=None if success else "Upload failed after 3 attempts")
+
+    def test_ddh_mission_sets_one_rally_point_at_the_hub(self, client, mock_vehicle):
+        mock_vehicle.upload_rally = MagicMock(return_value=True)
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["status"] == "complete" and data["rally_ok"] is True
+        assert data["results"][0]["rally"]["action"] == "set"
+        assert data["results"][0]["rally"]["applied"] is True
+        (item,) = mock_vehicle.upload_rally.call_args.args[0]
+        assert (item.x, item.y, item.z) == (round(32.01 * 1e7), round(34.02 * 1e7), 150.0)
+        writes = {c.args[0]: c.args[1] for c in mock_vehicle.set_parameter.call_args_list}
+        assert writes == {"RTL_ALTITUDE": 150.0, "RALLY_INCL_HOME": 0.0, "RALLY_LIMIT_KM": 0.0}
+
+    def test_mission_without_ddh_clears_the_rally_table(self, client, mock_vehicle):
+        mock_vehicle.get_parameter_fresh = MagicMock(return_value=0.0)
+        body = {"assignments": [{**self._HUB_BODY["assignments"][0], "default_delivery_hub": None}]}
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=body)
+
+        data = resp.json()
+        assert data["rally_ok"] is True
+        assert data["results"][0]["rally"]["action"] == "clear"
+        mock_vehicle.clear_rally.assert_called_once_with()
+        mock_vehicle.upload_rally.assert_not_called()
+
+    def test_rally_failure_is_reported_apart_from_the_mission(self, client, mock_vehicle):
+        mock_vehicle.upload_rally = MagicMock(return_value=False)
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["status"] == "complete"  # the mission is on the vehicle
+        assert data["rally_ok"] is False
+        rally = data["results"][0]["rally"]
+        assert rally["applied"] is False and "not acknowledged" in rally["error"]
+
+    def test_failed_mission_leaves_the_rally_table_alone(self, client, mock_vehicle):
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission(success=False)):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["results"][0]["rally"] is None and data["rally_ok"] is True
+        mock_vehicle.upload_rally.assert_not_called()
+        mock_vehicle.clear_rally.assert_not_called()

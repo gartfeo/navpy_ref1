@@ -4,6 +4,7 @@ import { buildTargWpsUpdates, buildNavLastWpUpdates } from '../utils/simDockRein
 import { resolveUploadAssignments } from '../utils/uploadAssignments';
 import { activateUploadedSimPlan } from '../utils/missionUploadActivation';
 import { fenceSignature, fenceUploadFailures } from '../utils/fenceIntent';
+import { rallyFailureLines, rallyUploadFailures } from '../utils/rallyOutcome';
 import { cameraCheckZone, confirmCameraCheck, zoneUploadAltitude } from '../utils/planCameraCheck';
 import { zoneLabel } from '../components/sidebar/DeliveryHubAssignmentSection';
 import useConfirm from './useConfirm';
@@ -196,7 +197,11 @@ export default function useMissionUpload({
         );
       }
       const missionFailures = (result.results || []).filter((r) => r.error);
-      if (result.status === 'complete' && fenceOk) {
+      // An RTL that would not reach the DDH is a failed upload step too, even
+      // though the mission itself is on the vehicle.
+      const rallyFailures = rallyUploadFailures(result);
+      const rallyOk = result.rally_ok !== false && rallyFailures.length === 0;
+      if (result.status === 'complete' && fenceOk && rallyOk) {
         // Write sim POI params to vehicles
         if (simMode) {
           const activated = await activateUploadedSimPlan({
@@ -214,7 +219,7 @@ export default function useMissionUpload({
         }
         onPlanSynced?.();
         goToMonitor();
-      } else if (missionFailures.length || fenceFailures.length) {
+      } else if (missionFailures.length || fenceFailures.length || rallyFailures.length) {
         // Mission and fence are independent outcomes on the same vehicle.
         // Listing only the mission failures hid a vehicle whose mission
         // uploaded but whose fence did not — and calling a fence failure a
@@ -229,9 +234,15 @@ export default function useMissionUpload({
             .map((f) => `  Vehicle ${f.sysId}: ${f.error || `${f.action} failed`}${
               f.failedParams.length ? ` (${f.failedParams.join(', ')})` : ''}`).join('\n')}`);
         }
+        if (rallyFailures.length) {
+          sections.push(`Return-to-hub point not set (mission upload unaffected):\n${
+            rallyFailureLines(rallyFailures).join('\n')}`);
+        }
         window.alert(sections.join('\n\n'));
       } else if (!fenceOk) {
         window.alert('Missions uploaded, but the vehicles did not confirm the geofence change.');
+      } else if (!rallyOk) {
+        window.alert('Missions uploaded, but the vehicles did not confirm the return-to-hub point.');
       } else {
         window.alert(`Upload failed: ${result.error || 'Unknown error'}`);
       }

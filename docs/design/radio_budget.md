@@ -444,8 +444,9 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 
 ### Review additions
 
-- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, fence clear or
-  fence parameter write past its deadline; the fence's lock wait is bounded,
+- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, rally upload or
+  clear, fence clear or fence or rally parameter write past its deadline; the
+  fence's and the rally table's lock waits are bounded,
   and a reconnect waits for the link only until the deadline. A lock won
   after the deadline is given back unused. An error ACK to `MISSION_COUNT`
   ends an upload at once.

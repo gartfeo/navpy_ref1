@@ -12,7 +12,7 @@ from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.mission_validator import parse_mission_items
 from gcs.backend.exchange_budget import DEFAULT_MISSION_REQUEST_S, MISSION_UPLOAD_REQUEST_S
 from gcs.backend.exchange_budget import expired, gcs_policy, held_within, requested_policy
-from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, FenceOutcome
+from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, RallyOutcome
 from gcs.backend.settings_store import settings_store
 from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
@@ -21,7 +21,7 @@ from gcs.backend.full_params import full_param_cache
 from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
 from gcs.backend.routes.mission_upload_helpers import (
-    assignment_geometry, apply_fence, fence_outcome_model, reconnect_within, write_rtl_altitude,
+    assignment_geometry, apply_fence, fence_outcome_model, finish_uploaded_vehicle, reconnect_within,
 )
 
 log = logging.getLogger(__name__)
@@ -36,10 +36,6 @@ async def _apply_fence(loop, entry, sys_id: int, fence: FencePlan | None,
         loop, entry, sys_id, fence, upload_fence=upload_fence_with_retry,
         cache=full_param_cache, policy=policy,
     )
-
-
-def _fence_outcome_model(status: dict | None) -> FenceOutcome | None:
-    return fence_outcome_model(status)
 
 
 @router.get("/{sys_id}/mission")
@@ -184,6 +180,7 @@ async def upload_missions(req: UploadRequest):
         })
 
         fence_status = None
+        rally_status = None
         try:
             track, poly, corr, lp, dt = assignment_geometry(assignment)
 
@@ -251,20 +248,19 @@ async def upload_missions(req: UploadRequest):
                 entry.mission_uploaded = True
                 entry.probed_search_pattern = assignment.search_pattern
                 entry.cached_mission = None  # invalidate probe cache
-                # A blocking MAVLink round trip: never on the loop thread.
-                await loop.run_in_executor(
-                    None, write_rtl_altitude, entry.vehicle, assignment.altitude_m, policy,
+                fence_status, rally_status = await finish_uploaded_vehicle(
+                    loop, entry, assignment.sys_id, assignment.altitude_m, dt,
+                    lambda: _apply_fence(loop, entry, assignment.sys_id, req.fence, policy),
+                    cache=full_param_cache, policy=policy,
                 )
-                full_param_cache.invalidate_keys(assignment.sys_id, ["RTL_ALTITUDE"])
-                # Apply the shared geofence (if any) after the mission upload.
-                fence_status = await _apply_fence(loop, entry, assignment.sys_id, req.fence, policy)
 
             progress = UploadProgress(
                 sys_id=assignment.sys_id,
                 progress=1.0 if result.success else 0.0,
                 done=True,
                 error=result.error,
-                fence=_fence_outcome_model(fence_status),
+                fence=fence_outcome_model(fence_status),
+                rally=RallyOutcome(**rally_status) if rally_status is not None else None,
             )
         except Exception as e:
             log.error("Upload to vehicle %d failed: %s", assignment.sys_id, e)
@@ -286,6 +282,7 @@ async def upload_missions(req: UploadRequest):
             "done": progress.done,
             "error": progress.error,
             **({"fence": fence_status} if fence_status is not None else {}),
+            **({"rally": rally_status} if rally_status is not None else {}),
         })
 
     all_ok = all(r.error is None for r in results)
@@ -293,8 +290,11 @@ async def upload_missions(req: UploadRequest):
     # fence attempt (none requested, or its mission failed) cannot make this
     # false, and a failed fence cannot make the mission look failed.
     fence_ok = all(r.fence is None or r.fence.applied for r in results)
+    # Same for the rally table: false only when a vehicle's RTL may not reach its DDH.
+    rally_ok = all(r.rally is None or r.rally.applied for r in results)
     return {
         "status": "complete" if all_ok else "partial_failure",
         "results": results,
         "fence_ok": fence_ok,
+        "rally_ok": rally_ok,
     }
