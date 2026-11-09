@@ -379,11 +379,14 @@ class TestTokenStep(unittest.TestCase):
         return staged
 
     def test_a_new_token_replaces_the_active_one(self):
+        # A token value no temp path can contain: "new" once matched a random
+        # temp directory name in the printed path (CI run 42670636338).
+        token = "tok-Zq7-not-in-any-path"
         self.active.write_text("old", encoding="utf-8")
-        out = self.run_step(self.stage("new")).stdout
-        self.assertEqual(self.active.read_text(encoding="utf-8"), "new")
+        out = self.run_step(self.stage(token)).stdout
+        self.assertEqual(self.active.read_text(encoding="utf-8"), token)
         self.assertIn("copied", out)
-        self.assertNotIn("new", out.replace("copied", ""))
+        self.assertNotIn(token, out)
 
     def test_a_first_token_is_put_in_place(self):
         self.run_step(self.stage("tok"))
