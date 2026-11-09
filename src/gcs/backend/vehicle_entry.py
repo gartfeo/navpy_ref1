@@ -108,13 +108,11 @@ class VehicleEntry:
     def _from_own_companion(self, msg: MAVLink_message) -> bool:
         """True if *msg*'s MAVLink source is THIS vehicle's own companion.
 
-        Every companion's gimbal/camera telemetry cross-delivers onto every
-        vehicle's connection over the shared MAVLink link (see the
-        "shared lossy link" note in ``companion_status``). Attribute gimbal
-        state by MAVLink SOURCE, not by the receiving connection — otherwise a
-        vehicle's map footprint is fed all companions' gimbal poses/optics
-        (last-writer-wins), flickering between vehicles and showing near-
-        identical poses across UAVs.
+        The router admits only this vehicle's own system
+        (``InboundMessageRouter._admits_foreign_system``), but within that
+        system the autopilot, the companion and its cameras all transmit.
+        Attribute gimbal state by MAVLink SOURCE component, not by the
+        receiving connection.
 
         The companion shares its aircraft's system id, so the COMPONENT id is
         what separates it from the autopilot: matching on system id alone

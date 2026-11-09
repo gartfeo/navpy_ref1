@@ -41,9 +41,9 @@ AUTOPILOT_TELEMETRY_TYPES = frozenset({
 })
 
 # Types admitted only with exact ownership: the target system's own autopilot
-# component. A GCS-mode router otherwise publishes other systems' messages
-# (an unregistered sysid reaches every receiver on the bus), so a peer's
-# healthy EKF report could pass another vehicle's launch gate
+# component. An unregistered sysid reaches every receiver on the bus and an
+# onboard router admits peers' navlink traffic, so without this check a
+# peer's healthy EKF report could pass another vehicle's launch gate
 # (docs/design/ekf_launch_gate.md). AIRSPEED and SYS_STATUS feed the eligible
 # airspeed source (airspeed_eligibility.py, HITL step 20): a peer's or another
 # component's healthy pitot must never stand in for the own autopilot's.
@@ -113,9 +113,7 @@ class InboundMessageRouter:
         source_system = message.get_srcSystem()
         if (
             source_system != self._identity.target_system
-            and self._identity.mav_type != MAV_TYPE_GCS
-            and not is_navlink
-            and not is_camera_stream_request(message, self._identity.target_system)
+            and not self._admits_foreign_system(message, is_navlink)
         ):
             return
         message_type = message.get_type()
@@ -153,6 +151,27 @@ class InboundMessageRouter:
         self._record_pose_arrival(message_type, receipt_time_s, boot_time_ms)
         self._mission_inbox.publish(message, receipt_time_s)
         self._callbacks.dispatch(message_type, message, is_navlink=is_navlink)
+
+    def _admits_foreign_system(
+        self,
+        message: MAVLink_message,
+        is_navlink: bool,
+    ) -> bool:
+        """Whether a message from another MAVLink system reaches this vehicle.
+
+        On a shared link the bus hands an unattached system's traffic to
+        every receiver, so a vehicle admitting other systems' autopilot
+        telemetry would take a peer's position, speed and mission item as its
+        own. Only two kinds of foreign traffic are addressed to it:
+        swarm navlink messages, which every identity hears (peers broadcast
+        them, GCS swarm listeners subscribe to ``NAVLINK``), and, for an
+        onboard vehicle that serves the cameras, camera-stream requests.
+        """
+        if is_navlink:
+            return True
+        return self._identity.mav_type != MAV_TYPE_GCS and is_camera_stream_request(
+            message, self._identity.target_system
+        )
 
     def feed_message(self, message: MAVLink_message) -> None:
         self.ingest(message)
