@@ -642,14 +642,18 @@ merges before step 4, which builds on its deadline fix.
    2. Abandonment keeps the held marker until NAV exits
       (`NavTransition.exit` clears it), so a failed cleanup abandons again
       next cycle instead of acquiring GUIDED over the operator's mode.
-   3. One RTL deadline per incident (`nav_recovery_incident.py`): an
-      incident starts at its first hold and keeps that hold's deadline across
-      re-holds until NavPy has run healthy in NORMAL for
-      `NAV_INCIDENT_CLEAR_S` (30 s, the hold budget). A failed fresh entry
-      fails its cycle, which recovery counts. Bound: an entry that always
-      raises reaches RTL `NAV_HOLD_RECOVERY_S` after the first hold, plus at
-      most one resume (`MODE_CONFIRM_S`) and one hold trigger
-      (`NAV_HOLD_TRIGGER_S`); the test allows 30 + 3 x 1.5 + 3 s.
+   3. One hold budget per incident (`nav_recovery_incident.py`; Demo's
+      review of 114dde16): the RTL budget is the time spent holding (HOLD
+      and RESUMING) summed across an incident's holds, in aircraft time. An
+      incident ends when NavPy has run healthy in NORMAL for
+      `NAV_INCIDENT_CLEAR_S` (30 s, the hold budget). A single hold reaches
+      RTL at 30 s as before; two short unrelated stalls (the 1.7 s host
+      stall) cost only their own hold time, so no early RTL. A failed fresh
+      entry fails its cycle, which recovery counts. Bound: each hold adds at
+      least `NAV_HOLD_TRIGGER_S` before it can resume, so an entry that
+      always raises reaches RTL after at most budget / trigger = 20 holds,
+      within 2 x `NAV_HOLD_RECOVERY_S` = 60 s of aircraft time after the
+      first hold.
    4. A fresh entry that raises rolls back what it completed first: the
       partial episode ends as held (`HeldApproach.start_fresh_episode`), so
       the retry arms again only after a matching end.

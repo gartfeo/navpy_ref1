@@ -13,7 +13,7 @@ from navpy.core.flow.navigation_decision import ApproachOutcome
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.sim.world.closest_approach_tracker import _outcome
 from navpy.sim.world.closest_approach_record import OUTCOME_ABORTED, OUTCOME_MISSED
-from navpy.core.flow.nav_mode_request import MODE_CONFIRM_S
+from navpy.core.flow.nav_ownership import Ownership
 from navpy.core.flow.nav_recovery import NAV_HOLD_RECOVERY_S, NAV_HOLD_TRIGGER_S, RecoveryStage
 from tests.modules.nav.test_held_approach import _rig
 from tests.modules.nav.test_nav_recovery import PERIOD_S, FakeAutopilot, Rig
@@ -155,9 +155,9 @@ def test_r2_2_a_failed_abandonment_is_retried_not_turned_into_guided_acquisition
 
 
 def test_r2_3_an_entry_that_always_raises_reaches_rtl_in_bounded_aircraft_time():
-    """Each resume's fresh entry raises (after its GUIDED request): HOLD, resume, fail, hold again. One incident
-    keeps the first hold's deadline (NAV_INCIDENT_CLEAR_S), so RTL comes NAV_HOLD_RECOVERY_S after the first hold,
-    plus at most one resume and hold trigger."""
+    """Each resume's fresh entry raises (after its GUIDED request): HOLD, resume, fail, hold again. Hold time is
+    summed across the incident (nav_recovery_incident.py): each hold adds at least NAV_HOLD_TRIGGER_S, so RTL comes
+    after at most budget / trigger holds, at most 2 x NAV_HOLD_RECOVERY_S of aircraft time after the first hold."""
     recovery = Rig(FakeAutopilot())
     approach, task, failures, held, _h, _r, requests, contact, outcome, transition, decision = _rig(recovery)
     transition.enter()
@@ -170,13 +170,52 @@ def test_r2_3_an_entry_that_always_raises_reaches_rtl_in_bounded_aircraft_time()
     holds = 0
     stage = recovery.stage
     while recovery.ap.mode is not FlightMode.RTL:
-        assert recovery.t - first_hold_s <= NAV_HOLD_RECOVERY_S + 3 * NAV_HOLD_TRIGGER_S + MODE_CONFIRM_S, (
+        assert recovery.t - first_hold_s <= 2 * NAV_HOLD_RECOVERY_S, (
             f"no RTL {recovery.t - first_hold_s:.1f} s after the first hold ({holds} re-holds)")
         _cycle(recovery, decision)
         holds += stage is not RecoveryStage.HOLD and recovery.stage is RecoveryStage.HOLD
         stage = recovery.stage
-    assert holds >= 2                                          # it did cycle through resumes and re-holds
+    assert 2 <= holds <= NAV_HOLD_RECOVERY_S / NAV_HOLD_TRIGGER_S   # cycled, within the stated bound
     assert recovery.t - first_hold_s >= NAV_HOLD_RECOVERY_S
+
+
+def _stall(recovery, seconds: float) -> None:
+    """NavPy owns GUIDED again (a fresh approach), then its cycles fail for ``seconds``, then run healthy until
+    recovery is back in NORMAL."""
+    recovery.hold.guided_requested()
+    recovery.ap.request(FlightMode.GUIDED)
+    recovery.run(True, 1.0)
+    assert recovery.recovery.ownership.state is Ownership.OWNED
+    recovery.run(False, seconds)
+    assert recovery.stage is RecoveryStage.HOLD
+    while recovery.stage is not RecoveryStage.NORMAL:
+        recovery.run(True, PERIOD_S)
+        assert recovery.ap.mode is not FlightMode.RTL
+
+
+def test_two_short_unrelated_stalls_29_s_apart_do_not_rtl():
+    """Demo's review of 114dde16: two 1.7 s stalls (a host stall hit all three NavPys at once in step 9) inside the
+    incident's clear window cost only their own hold time."""
+    recovery = Rig(FakeAutopilot())
+    start_s = recovery.t
+    _stall(recovery, 1.7)
+    recovery.run(True, start_s + 29.0 - recovery.t)
+    _stall(recovery, 1.7)
+    recovery.run(True, 5.0)
+    assert FlightMode.RTL not in recovery.ap.requests
+    assert recovery.stage is RecoveryStage.NORMAL
+
+
+def test_a_single_30_s_hold_gives_rtl_at_the_budget():
+    recovery = Rig(FakeAutopilot())
+    recovery.run(False, NAV_HOLD_TRIGGER_S)
+    while recovery.stage is not RecoveryStage.HOLD:
+        recovery.run(False, PERIOD_S)
+    hold_s = recovery.t
+    while recovery.stage is not RecoveryStage.CRITICAL:
+        recovery.run(False, PERIOD_S)
+    assert recovery.t - hold_s == NAV_HOLD_RECOVERY_S          # exact: the same deadline as one long hold
+    assert recovery.ap.requests[-1] is FlightMode.RTL
 
 
 def test_r2_4_a_fresh_entry_that_raises_after_arming_ends_its_partial_episode():
@@ -271,20 +310,21 @@ def test_the_composed_nav_application_installs_the_fault_hook_only_with_the_flag
     assert not isinstance(loop_cycle(None), FaultingCycle)
 
 
-def test_r2_3_an_incident_ends_after_a_healthy_spell_as_long_as_the_hold_budget():
-    """A new fault long after a real recovery is a new incident, with a fresh deadline."""
+def test_r2_3_an_incident_sums_its_hold_time_and_ends_after_a_healthy_spell():
     from navpy.core.flow.nav_recovery_incident import NAV_INCIDENT_CLEAR_S, RecoveryIncident
 
     incident = RecoveryIncident(30.0)
-    incident.hold(100.0)
-    incident.reopened()
-    incident.hold(110.0)                                       # a re-hold: the first hold's deadline
-    assert not incident.expired(129.9) and incident.expired(130.0)
-    incident.reopened()
-    incident.healthy(140.0, 140.0 + NAV_INCIDENT_CLEAR_S - 0.1)
-    incident.hold(175.0)
-    assert incident.expired(175.0)                             # not yet healthy long enough: same incident
-    incident.reopened()
-    incident.healthy(176.0, 176.0 + NAV_INCIDENT_CLEAR_S)       # healthy as long as the hold budget
-    incident.hold(300.0)
-    assert not incident.expired(329.9) and incident.expired(330.0)
+    incident.advance(False, 100.0)
+    incident.hold()
+    for t in range(101, 111):                                  # 10 s held
+        incident.advance(True, float(t))
+    incident.advance(False, 120.0)                             # 10 s not holding: not counted
+    for t in range(121, 140):                                  # 19 s held: 29 s in all
+        incident.advance(True, float(t))
+    assert not incident.expired()
+    incident.advance(True, 141.0)
+    assert incident.expired()                                  # 31 s held in the incident
+    incident.healthy(150.0, 150.0 + NAV_INCIDENT_CLEAR_S - 0.1)
+    assert incident.expired()                                  # not healthy long enough yet
+    incident.healthy(150.0, 150.0 + NAV_INCIDENT_CLEAR_S)
+    assert not incident.expired()                              # a new incident starts from zero

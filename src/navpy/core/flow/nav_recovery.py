@@ -9,7 +9,7 @@ The loop reports each period whether its cycle ran without an error. Then:
 - Resume (good for NAV_HOLD_TRIGGER_S while holding): if the mode is still NavPy's LOITER, ask for AUTO; once a
   newer heartbeat shows it, reopen the fence. The mission goes on from its current item (MIS_RESTART 0) and the
   normal flow approaches the kept dock again (the resume grant ``hold.resumed``, consumed once by the decision).
-  Re-holds within one incident keep the first hold's RTL deadline (NAV_INCIDENT_CLEAR_S). Without ownership
+  The RTL budget is hold time summed across one incident's holds (nav_recovery_incident.py). Without ownership
   (the operator took the mode in the hold) the fence just reopens, no mode is changed and the approach is not
   resumed: the operator's mode stands.
 - Critical (NAV_HOLD_RECOVERY_S in the hold, or LOITER/AUTO not confirmed in MODE_CONFIRM_S): RTL if owned. Not
@@ -75,7 +75,7 @@ class NavRecovery:
         self._clock = RecoveryClock()
         self._bad_since: float | None = None
         self._good_since: float | None = None
-        self._incident = RecoveryIncident(NAV_HOLD_RECOVERY_S)   # one RTL deadline per incident
+        self._incident = RecoveryIncident(NAV_HOLD_RECOVERY_S)   # hold time summed per incident
         self._mode = ModeRequest(ports.mode_sender or _inline_sender(ports, self._report), self.ownership)
         self._long_hold_reported = False
         self._guided_at: float | None = None             # when recovery learned of NavPy's last GUIDED request
@@ -84,6 +84,7 @@ class NavRecovery:
     def step(self, cycle_ok: bool, sample: TimeSample) -> None:
         """One thread at a time (nav_recovery_step.py); never blocks: modes are written by nav_mode_sender.py."""
         now = self._clock.advance(sample)
+        self._incident.advance(self.stage in (RecoveryStage.HOLD, RecoveryStage.RESUMING), now)
         observation = self._ports.observe_mode()
         self._take_signals(observation, now)
         # A stuck loop (the watchdog's signal) fails the period like a failed cycle, and holds at once: the hang
@@ -137,7 +138,7 @@ class NavRecovery:
         self._ports.close_fence()
         self._handed_over_unhealthy = False
         self.stage = RecoveryStage.HOLD
-        self._incident.hold(now)
+        self._incident.hold()
         self._good_since = None
         owned = self.ownership.may_request_mode()
         self._report(f"NavPy hold: commands fenced{', LOITER' if owned else ''}")
@@ -152,7 +153,7 @@ class NavRecovery:
             # Owned only now (NavPy's GUIDED showed after the hold began, e.g. sent just before a hang): hold.
             self._mode.send(FlightMode.LOITER, observation, now)
             self._report("NavPy hold: GUIDED now NavPy's, LOITER")
-        if self._incident.expired(now):
+        if self._incident.expired():
             if self.ownership.may_request_mode():
                 self._enter_critical(observation, now, f"no recovery in {NAV_HOLD_RECOVERY_S:g} s")
                 return
@@ -243,7 +244,6 @@ class NavRecovery:
             return
         self.stage = RecoveryStage.NORMAL
         self._mode.clear()
-        self._incident.reopened()
         self._bad_since = None
         self._long_hold_reported = False
         self._handed_over_unhealthy = False
