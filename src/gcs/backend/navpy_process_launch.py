@@ -98,6 +98,23 @@ def _normalize_log_level(value: str | None) -> str | None:
         return None
 
 
+#: Like NAVPY_SIM_LOG_LEVEL: the lost-helper policy (keep or auto) of each
+#: wall SITL companion, for the unplug demo (core/swarm/task_lost_helper.py).
+#: Lockstep companions (reproducible evals) keep NavPy's default.
+_ENV_LOST_HELPER = "NAVPY_SIM_SWARM_LOST_HELPER"
+_LOST_HELPER_POLICIES = ("keep", "auto")
+
+
+def sim_swarm_lost_helper() -> str | None:
+    value = (os.environ.get(_ENV_LOST_HELPER) or "").strip().lower()
+    if not value:
+        return None
+    if value not in _LOST_HELPER_POLICIES:
+        log.warning("Ignoring invalid %s %r", _ENV_LOST_HELPER, value)
+        return None
+    return value
+
+
 #: How the managing side stops NavPy: a request line on its stdin (wall), or
 #: the coordinator's lifecycle record (a lockstep participant; no thread
 #: reads stdin there, ``lockstep_slice.md``, "Participant stop").
@@ -116,6 +133,7 @@ def navpy_arguments(
     log_level: str | None,
     navigation_speedup: float,
     supervised: bool = False,
+    swarm_lost_helper: str | None = None,
 ) -> list[str]:
     """NavPy's command-line arguments (after ``-m navpy.main``).
 
@@ -144,6 +162,8 @@ def navpy_arguments(
         command.extend(["--log-level", normalized_level])
     if detector_debug_show:
         command.append("--detector-debug-show")
+    if swarm_lost_helper:
+        command.extend(["--swarm-lost-helper", swarm_lost_helper])
     if supervised:
         command.append(SUPERVISED_FLAG)
     return command
@@ -189,6 +209,7 @@ def _build_navpy_command(
         log_level=log_level,
         navigation_speedup=navigation_speedup,
         supervised=supervised,
+        swarm_lost_helper=sim_swarm_lost_helper(),
     )]
 
 
@@ -266,4 +287,5 @@ __all__ = [
     "launch_navpy_instance",
     "lockstep_navpy_argv",
     "navpy_arguments",
+    "sim_swarm_lost_helper",
 ]

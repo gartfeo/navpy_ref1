@@ -71,6 +71,39 @@ UAV still bids, and a peer that does not bid stalls the auction.
    **WAITING**, invisible to nav.
 4. The owner sends APPLIED only once CONFIRMED to that helper and never takes
    a CONFIRMED task back: a flying helper is never revoked, nav needs no abort.
+   Exception (owner ruling 2026-11-09, opt-in): when the helper is **lost**,
+   the owner applies its lost-helper policy, NavPy `--swarm-lost-helper`:
+   `keep` (default) is this decision unchanged and logs the loss once;
+   `auto` re-auctions the task at once among the free peers. The helper is
+   the boot of its first ack of the request (the floor). That boot is lost
+   when it checks out after its newest accepted step-4 copy (after that
+   ack when it accepted none), or when no newer message of it
+   (heartbeat, bid, accepted step-4 copy) arrived for one heartbeat TTL
+   (5 s): the peer is silent, or it restarted and only a new boot talks.
+   Late copies and other boots never keep it alive, so no boot order is
+   needed (boot ids are random) and the peer roster is unchanged. A helper
+   whose boot reported FREE (once CONFIRMED) after its newest accepted
+   step-4 copy no longer holds the task, and it is never taken back; this
+   compares sequence numbers, so a FREE delivered behind newer evidence
+   still counts and a late FREE older than an acceptance does not. A
+   check-in never keeps a holder alive: it comes from a new TaskActor,
+   which holds nothing. On a check-out of that boot, `auto` also releases a
+   reservation still CONFIRMING to it, so a late answer cannot confirm it;
+   a silent one is left to the confirm timers, and a reservation no boot
+   acked yet is never taken back. Timing: a check-out acts at once; a
+   silence or restart at the owner's first heartbeat tick after 5 s
+   unheard (up to 11 s when the helper's last copies arrive late).
+   Residuals of `auto`: a helper that is only cut off (radio, or its own
+   heartbeat stalled), or an owner whose receive path stalls for 5 s,
+   makes the task fly twice; a helper that finishes a task and takes
+   another owner's task within one heartbeat never reports FREE, so its
+   finished task is re-auctioned if it is later lost (until dock
+   confirmation can tell); a helper that dropped its WAITING slot while
+   the owner confirmed it (APPLIED arrives too late to count) and then
+   reports FREE is treated as having flown it, so that task stays
+   stranded as under `keep`. Planned: an `ask` policy (the operator
+   decides in the GCS) and skipping a task whose delivery the dock
+   confirmed. Code: `core/swarm/task_lost_helper.py`.
 5. If the owner gives up first, it re-advertises; a WAITING helper drops the
    task and re-bids. A re-advertisement never drops an ASSIGNED task.
 6. **Busy UAVs do not take part in auctions**: no bid, reject step 3, drop a
@@ -351,7 +384,9 @@ gives up only when the other side stops answering this handshake.
 - **Residual strand (unchanged, stated):** the owner CONFIRMED, every
   APPLIED then lost until the helper's no-progress drop, or the helper
   restarts after CONFIRMED: the task stays with that helper, unflown. Never
-  duplicated; recovering it needs a reconciliation rule (todo 115).
+  duplicated; recovering it needs a reconciliation rule (todo 115). With the
+  lost-helper policy `auto` (decision 4), a restarted, silent or checked-out
+  helper's task is re-auctioned.
 
 ### Fix 1: loss on the radio only (sim)
 

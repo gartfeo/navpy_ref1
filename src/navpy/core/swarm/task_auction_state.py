@@ -27,6 +27,7 @@ from navpy.core.swarm.task_auction_planning import (
     plan_retry_reserve_and_send,
 )
 from navpy.core.swarm.task_dispatch import TaskDispatch
+from navpy.core.swarm.task_lost_helper import LostHelpers
 from navpy.core.swarm.task_msg_refs import MsgRef
 
 
@@ -42,6 +43,8 @@ class TaskAuctionState:
         self._store = store
         self._lifecycle = lifecycle
         self._dispatch_factory = dispatch_factory
+        #: Confirmed tasks of lost helpers, under the same store lock.
+        self.lost_helpers = LostHelpers(store)
 
     def register(self, task: TaskMsgData) -> Optional[tuple[TaskDispatch, int]]:
         return self.register_dispatch(self._dispatch_factory(task))

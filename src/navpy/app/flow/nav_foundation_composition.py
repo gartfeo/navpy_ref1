@@ -43,6 +43,7 @@ from navpy.core.flow.nav_constants import (
     POI_REACQUIRE_COOLDOWN_SEC,
 )
 from navpy.core.swarm.nav_network import NavNetworkRuntime
+from navpy.core.swarm.task_lost_helper import LostHelperPolicy
 from navpy.core.flow.nav_state import (
     ConfirmGateState,
     ConfirmOverrideInbox,
@@ -204,6 +205,7 @@ def compose_detection_review_ownership(
         poi.confirmation_manager,
         state.overrides,
         logger,
+        lost_helper_policy=lambda: LostHelperPolicy(args.swarm_lost_helper),
     )
     publication_admission = FinalApproachPublicationAdmission(
         FinalApproachPublicationAdmissionPorts(
