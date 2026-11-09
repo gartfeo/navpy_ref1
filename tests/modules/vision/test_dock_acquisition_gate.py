@@ -113,13 +113,27 @@ def test_the_acquired_identity_returning_after_a_gap_passes_whatever_its_box():
     assert gate.admit([small], W, H, 2.1) == ([small], True)
 
 
-def test_another_dock_after_the_acquired_one_is_gone_is_acquired_from_the_start():
+def test_another_dock_replaces_the_acquired_one_only_after_passing_the_whole_gate():
     log = []
     gate = DockAcquisitionGate(SQUASH, log.append)
     _run(gate, [[_track()]] * 11)
-    assert gate.admit([_track(9)], W, H, 2.0) == ([], True)
-    assert gate.acquired_id is None and "DOCK ACQ: track 7 gone, track 9 in view; acquiring again" in log
+    assert gate.admit([_track(9)], W, H, 2.0) == ([], True)          # 7 out of view, 9 dwells: 7 still acquired
+    assert gate.acquired_id == 7
     assert gate.admit([_track(9)], W, H, 3.0) == ([_track(9)], True)
+    assert gate.acquired_id == 9 and log[-1] == "DOCK ACQ: track 9 acquired, replacing track 7 (out of view)"
+
+
+def test_a_brief_other_dock_does_not_erase_the_acquired_identity():
+    """Codex round 2: 7 out of view, 9 seen briefly, then 7 returns small (zoomed out): 7 still passes."""
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
+    assert gate.admit([_track(9)], W, H, 2.0) == ([], True)
+    assert gate.admit([], W, H, 2.1) == ([], False)
+    small = _track(w=30.0, h=20.0)
+    assert gate.admit([small], W, H, 2.2) == ([small], True)
+    assert gate.acquired_id == 7
+    assert gate.admit([_track(9)], W, H, 2.3) == ([], True)          # 9's dwell starts again from here
+    assert gate.admit([_track(9)], W, H, 3.2) == ([], True)
 
 
 def test_a_pipeline_reset_forgets_the_acquisition_and_its_dwell():

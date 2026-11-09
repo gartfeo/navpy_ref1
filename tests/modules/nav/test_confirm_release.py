@@ -73,20 +73,39 @@ def test_a_nav_entry_that_fails_reports_nothing_and_one_that_completes_reports_o
     assert told == [1]
 
 
-@pytest.mark.parametrize("phase,ready,expected", [
-    (NavState.CONFIRM, True, 1), (NavState.CONFIRM, False, 0), (NavState.NAV, True, 0),
+@pytest.mark.parametrize("current,previous,ready,outcome,told", [
+    (NavState.CONFIRM, NavState.CONFIRM, True, ReleaseOutcome.READY, 1),
+    (NavState.CONFIRM, NavState.CONFIRM, False, ReleaseOutcome.WAIT, 0),
+    (NavState.NAV, NavState.NAV, False, ReleaseOutcome.READY, 0),         # NAV committed: no gates, no release
+    # Codex round 2: a NAV entry that failed leaves current at NAV, previous at CONFIRM; the retry needs the gates.
+    (NavState.NAV, NavState.CONFIRM, False, ReleaseOutcome.WAIT, 0),
+    (NavState.NAV, NavState.CONFIRM, True, ReleaseOutcome.READY, 1),
 ])
-def test_the_release_is_told_only_when_a_confirm_releases_nav(phase, ready, expected):
-    told = []
+def test_the_release_is_told_only_when_a_confirm_releases_an_uncommitted_nav(current, previous, ready, outcome, told):
+    seen = []
     gate = Mock()
     gate.is_ready.return_value = True
     geo_hold = Mock()
     geo_hold.active = False
-    release = ConfirmedPoiRelease(NavPhaseState(phase), geo_hold, Mock(), Mock(), gate, lambda: False,
-                                  lambda: ready, told.append)
-    outcome = release.apply(make_detected_poi(task_id=2))
-    assert outcome is (ReleaseOutcome.READY if ready or phase is NavState.NAV else ReleaseOutcome.WAIT)
-    assert len(told) == expected
+    phase = NavPhaseState(current, previous)
+    release = ConfirmedPoiRelease(phase, geo_hold, Mock(), Mock(), gate, lambda: False, lambda: ready, seen.append)
+    assert release.apply(make_detected_poi(task_id=2)) is outcome
+    assert len(seen) == told
+    if outcome is ReleaseOutcome.WAIT:
+        assert phase.current is NavState.CONFIRM
+
+
+def test_a_tick_without_the_gates_drops_a_pending_release():
+    """Codex round 2: a confirm whose NAV entry failed must not release the floor at a later entry without a new
+    confirm release on a tick where the gates hold."""
+    released = []
+    sequence = _sequence(released)
+    sequence.begin(make_detected_poi(task_id=3))
+    sequence.released(make_detected_poi(task_id=3))
+    sequence._lock.locked.return_value = False                     # the lock is lost before the retry
+    assert sequence.ready(make_detected_poi(task_id=3)) is False
+    sequence.entered()
+    assert released == []
 
 
 def test_through_the_real_graph_the_record_is_printed_once_when_nav_starts(capsys):

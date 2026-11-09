@@ -46,11 +46,14 @@ class ConfirmedPoiRelease:
 
     def apply(self, active: DetectedObject) -> ReleaseOutcome:
         self._retry.clear_reask(get_poi_task_id(active))
-        if self._phase.current != NavState.NAV and not self._acquisition_ready():
+        # Before NAV is committed (``previous``): a requested NAV whose entry failed leaves ``current`` at
+        # NAV, and its retry must pass the gates again (HITL step 23b, Codex round 2).
+        committed = self._phase.previous is NavState.NAV
+        if not committed and not self._acquisition_ready():
             self._phase.request(NavState.CONFIRM)
             return ReleaseOutcome.WAIT
         if (
-            self._phase.current != NavState.NAV
+            not committed
             and self._final_approach_active()
             and not self._release.is_ready(active)
         ):
@@ -58,7 +61,7 @@ class ConfirmedPoiRelease:
             return ReleaseOutcome.WAIT
         if self._geo_hold.active and not self._recovery.reacquire_geo_hold(active):
             return ReleaseOutcome.ABORTED
-        if self._phase.current != NavState.NAV:
+        if not committed:
             self._on_release(active)
         return ReleaseOutcome.READY
 

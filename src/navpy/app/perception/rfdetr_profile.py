@@ -3,7 +3,9 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from navpy.app.perception.fixed_zoom_profile import build_fixed_zoom
 from navpy.core.kernel.config.detector_backend import RFDETR_BACKEND
+from navpy.core.skills.geo_approach.orbit_centre_frame import OrbitCentreFrame
 from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID, DOCK_PRESET_NAME
 from navpy.core.perception.tracking.dock_acquisition_gate import (
     ACQUISITION_KEY,
@@ -45,4 +47,21 @@ def dock_acquisition(backend: str, detector: Mapping[str, object]) -> DockAcquis
     )
 
 
-__all__ = ["NAVPY_CLASSES", "dock_acquisition", "rfdetr_model_settings", "whole_dock_settings"]
+def orbit_centre_frame(profile: Mapping[str, object]) -> OrbitCentreFrame | None:
+    """The whole-dock detector's centre-frame rule (the acquisition floor at the widest measured zoom step), or None
+    for a profile without the detector's acquisition block."""
+    detector = profile.get("detector") if isinstance(profile, Mapping) else None
+    block = acquisition_block(detector) if isinstance(detector, Mapping) else None
+    if block is None:
+        return None
+    built = [zoom for zoom in (build_fixed_zoom(device) for device in profile.get("devices", ())) if zoom]
+    if len(built) != 1:
+        raise ValueError(f"detector.{ACQUISITION_KEY} needs exactly one mount with measured zoom steps, "
+                         f"found {len(built)}")
+    widest = built[0].steps.steps[0].optics
+    return OrbitCentreFrame(float(block["min_box_px"]), float(widest.fx), float(widest.fy),
+                            whole_dock_settings(detector).input_scale)
+
+
+__all__ = ["NAVPY_CLASSES", "dock_acquisition", "orbit_centre_frame", "rfdetr_model_settings",
+           "whole_dock_settings"]

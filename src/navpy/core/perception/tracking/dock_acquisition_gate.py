@@ -14,9 +14,9 @@ Until acquisition the gate passes no track on, so no POI exists, nothing locks a
 reports whether a dock candidate is in view, so the search sweep holds still on it (step 21) while the dwell runs.
 Once acquired, only that track passes, whatever its box: box size is detector output used here, in acquisition, and
 never reaches the NAV command or completion paths (section 4.2). While the acquired track is out of the identity
-layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box; only
-another dock track in view starts acquisition again from the start. A pipeline reset (the tracker and identity
-restart their ids) resets the gate.
+layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box;
+another dock in view meanwhile replaces it only after passing the whole gate itself (dwell, size, alone in view).
+A pipeline reset (the tracker and identity restart their ids) resets the gate.
 
 The profile sets, beside its rfdetr block::
 
@@ -90,15 +90,15 @@ class DockAcquisitionGate:
         """This frame's tracks to pass on, and whether a dock candidate is in view."""
         docks = [t for t in tracks if t.class_id == self._settings.dock_class_id and t.missed == 0]
         self._report_ambiguity(len(docks))
+        if len(docks) > 1:
+            self._dwell_id = self._since_s = None
+            return [], True                     # ambiguous: nothing passes while more than one is in view
         if self._acquired is not None:
             kept = [track for track in tracks if track.id == self._acquired]
-            if len(docks) > 1:
-                return [], True                 # ambiguous: nothing passes while more than one is in view
-            if kept or not docks:
+            if kept or not docks:  # gone and none in view: kept, nothing passes
+                self._dwell_id = self._since_s = None
                 return kept, bool(kept)         # the acquired identity, whatever its box; or none in view
-            self._log(f"DOCK ACQ: track {self._acquired} gone, track {docks[0].id} in view; acquiring again")
-            self._acquired = None
-        if len(docks) != 1 or not self._eligible(docks[0], width, height):
+        if not docks or not self._eligible(docks[0], width, height):  # one dock: more returned above
             self._dwell_id = self._since_s = None
             return [], bool(docks)
         dock = docks[0]
@@ -106,8 +106,10 @@ class DockAcquisitionGate:
             self._dwell_id, self._since_s = dock.id, float(now_s)
         if float(now_s) - self._since_s < self._settings.min_lock_s:
             return [], True
+        replaced = self._acquired
         self._acquired, self._dwell_id, self._since_s = dock.id, None, None
-        self._log(f"DOCK ACQ: track {dock.id} acquired")
+        self._log(f"DOCK ACQ: track {dock.id} acquired"
+                  f"{'' if replaced is None else f', replacing track {replaced} (out of view)'}")
         return [dock], True
 
     def _eligible(self, track: TrackedObject, width: int, height: int) -> bool:
