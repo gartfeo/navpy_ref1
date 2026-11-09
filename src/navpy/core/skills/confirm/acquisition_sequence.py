@@ -15,12 +15,15 @@ published each tick to the confirmation lock (``publish``), which refuses CONFIR
 while it is False and withdraws a review under way. When a task's confirm releases NAV, ``released``
 marks it, and the first NAV entry that then completes (``entered``) reports it once (``on_release``: HITL step
 23b's floor release, a mission-state event); a NAV entry that fails reports nothing, and a tick on which the
-gates do not hold drops the mark, so a retried entry needs a new confirm release.
+gates do not hold drops the mark, and so does time: an entry that completes more than
+``release_window_s`` (the lock's own frame gap) after the confirm released NAV reports nothing, so a
+retried or held entry needs a new confirm release, and the floor stays armed otherwise (fail closed).
 Without the profile's gates, ``OPEN_ACQUISITION`` keeps the old order and reports nothing.
 """
 
 from __future__ import annotations
 
+import math
 from collections.abc import Callable
 from typing import Optional, Protocol
 
@@ -71,13 +74,15 @@ class AcquisitionSequence:
         publish: Callable[[int, bool], None],
         on_release: Callable[[int], None] = lambda _task_id: None,
         centre_frame: Callable[[DetectedObject], bool] = lambda _poi: True,
+        release_clock: Callable[[], float] = lambda: 0.0,
+        release_window_s: float = math.inf,
     ) -> None:
         self._lock = lock
         self._orbit = orbit
         self._orbit_start = orbit_start
         self._logger = logger
         self._publish = publish
-        self._release = _FloorRelease(on_release)
+        self._release = _FloorRelease(on_release, release_clock, release_window_s)
         self._centre_frame = centre_frame
         self._task_id: int | None = None
         self._centre_poi: DetectedObject | None = None
@@ -110,7 +115,7 @@ class AcquisitionSequence:
     def released(self, poi: DetectedObject) -> None:
         """The task's confirm released NAV: report it at the NAV entry that completes (``entered``)."""
         if self._task_id is not None and get_poi_task_id(poi) == self._task_id:
-            self._release.pending = True
+            self._release.mark()
 
     def entered(self) -> None:
         """A NAV entry completed: report a pending release, once per task."""
@@ -160,17 +165,26 @@ class AcquisitionSequence:
 class _FloorRelease:
     """A task's floor release: marked by the confirm that releases NAV, reported once by the entry that completes."""
 
-    def __init__(self, on_release: Callable[[int], None]) -> None:
+    def __init__(self, on_release: Callable[[int], None], now_s: Callable[[], float], window_s: float) -> None:
         self.on_release = on_release
+        self._now_s = now_s
+        self._window_s = window_s
         self.pending = False
         self.done = False
+        self._marked_s = 0.0
 
     def reset(self) -> None:
         self.pending = self.done = False
 
+    def mark(self) -> None:
+        self.pending, self._marked_s = True, float(self._now_s())
+
     def take(self) -> bool:
-        """True once per task, when a release is pending."""
+        """True once per task, when a release is pending and recent."""
         if self.done or not self.pending:
+            return False
+        if not 0.0 <= float(self._now_s()) - self._marked_s <= self._window_s:
+            self.pending = False
             return False
         self.done = True
         return True

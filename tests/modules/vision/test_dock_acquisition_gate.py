@@ -113,14 +113,27 @@ def test_the_acquired_identity_returning_after_a_gap_passes_whatever_its_box():
     assert gate.admit([small], W, H, 2.1) == ([small], True)
 
 
-def test_another_dock_replaces_the_acquired_one_only_after_passing_the_whole_gate():
-    log = []
-    gate = DockAcquisitionGate(SQUASH, log.append)
+def test_another_dock_never_replaces_the_acquired_identity():
+    """Codex round 3: the acquired identity keeps its entitlement while the POI lock may still own it."""
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
     _run(gate, [[_track()]] * 11)
-    assert gate.admit([_track(9)], W, H, 2.0) == ([], True)          # 7 out of view, 9 dwells: 7 still acquired
+    for i in range(30):                                                # 9 alone for 3 s while 7 is out of view
+        assert gate.admit([_track(9)], W, H, 2.0 + 0.1 * i) == ([], True)
     assert gate.acquired_id == 7
-    assert gate.admit([_track(9)], W, H, 3.0) == ([_track(9)], True)
-    assert gate.acquired_id == 9 and log[-1] == "DOCK ACQ: track 9 acquired, replacing track 7 (out of view)"
+    small = _track(w=30.0, h=20.0)
+    assert gate.admit([small], W, H, 5.0) == ([small], True)          # 7 returns small: it passes
+
+
+def test_stop_tracking_releases_the_acquired_identity():
+    from navpy.core.perception.pipeline.real_detector_controls import DetectorTrackingControl
+
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
+    poi_lock = Mock()
+    DetectorTrackingControl(None, poi_lock, gate).stop_tracking()
+    poi_lock.reset.assert_called_once_with()
+    assert gate.acquired_id is None
+    assert _run(gate, [[_track(9)]] * 11) == ([_track(9)], True)       # now another dock can be acquired
 
 
 def test_a_brief_other_dock_does_not_erase_the_acquired_identity():

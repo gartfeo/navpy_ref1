@@ -40,9 +40,12 @@ class DetectorTrackingControl:
         self,
         navigation: GimbalTrackingCommandPort | None,
         poi_lock: PoiLock,
+        acquisition: DockAcquisitionGate | None = None,
     ) -> None:
         self._navigation = navigation
         self._poi_lock = poi_lock
+        # HITL step 23b: the acquired identity is released with the POI lock.
+        self._acquisition = acquisition
 
     @property
     def rate_result(self) -> GimbalTrackResult | None:
@@ -89,6 +92,8 @@ class DetectorTrackingControl:
 
     def stop_tracking(self, to_neutral: bool = True) -> None:
         self._poi_lock.reset()
+        if self._acquisition is not None:
+            self._acquisition.reset()
         if self._navigation is not None:
             self._navigation.stop_tracking(to_neutral=to_neutral)
 

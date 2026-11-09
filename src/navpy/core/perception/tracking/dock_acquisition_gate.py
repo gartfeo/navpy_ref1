@@ -15,8 +15,10 @@ reports whether a dock candidate is in view, so the search sweep holds still on 
 Once acquired, only that track passes, whatever its box: box size is detector output used here, in acquisition, and
 never reaches the NAV command or completion paths (section 4.2). While the acquired track is out of the identity
 layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box;
-another dock in view meanwhile replaces it only after passing the whole gate itself (dwell, size, alone in view).
-A pipeline reset (the tracker and identity restart their ids) resets the gate.
+another dock in view meanwhile is held back and never replaces it. The acquisition ends only when the identity's
+ownership is released: the detector's ``stop_tracking`` (the same call that resets the POI lock, on task teardown
+or rejection) or its pipeline reset (the tracker and identity restart their ids). A lock guards the state: the
+tracking thread admits, the navigation thread releases.
 
 The profile sets, beside its rfdetr block::
 
@@ -31,6 +33,7 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
+from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.tracks import TrackedObject
 
 ACQUISITION_KEY = "acquisition"
@@ -71,6 +74,7 @@ class DockAcquisitionGate:
     def __init__(self, settings: DockAcquisitionSettings, log: Callable[[str], None]) -> None:
         self._settings = settings
         self._log = log
+        self._mutex = rt.RLock()
         self._acquired: int | None = None
         self._dwell_id: int | None = None
         self._since_s: float | None = None
@@ -81,13 +85,19 @@ class DockAcquisitionGate:
         return self._acquired
 
     def reset(self) -> None:
-        """Forget the acquisition and the dwell (the pipeline reset: track ids start again)."""
-        self._acquired = self._dwell_id = self._since_s = None
-        self._ambiguous = False
+        """Forget the acquisition and the dwell (stop_tracking, or the pipeline reset: track ids start again)."""
+        with self._mutex:
+            self._acquired = self._dwell_id = self._since_s = None
+            self._ambiguous = False
 
     def admit(self, tracks: Sequence[TrackedObject], width: int, height: int,
               now_s: float) -> tuple[list[TrackedObject], bool]:
         """This frame's tracks to pass on, and whether a dock candidate is in view."""
+        with self._mutex:
+            return self._admit(tracks, width, height, now_s)
+
+    def _admit(self, tracks: Sequence[TrackedObject], width: int, height: int,
+               now_s: float) -> tuple[list[TrackedObject], bool]:
         docks = [t for t in tracks if t.class_id == self._settings.dock_class_id and t.missed == 0]
         self._report_ambiguity(len(docks))
         if len(docks) > 1:
@@ -95,9 +105,8 @@ class DockAcquisitionGate:
             return [], True                     # ambiguous: nothing passes while more than one is in view
         if self._acquired is not None:
             kept = [track for track in tracks if track.id == self._acquired]
-            if kept or not docks:  # gone and none in view: kept, nothing passes
-                self._dwell_id = self._since_s = None
-                return kept, bool(kept)         # the acquired identity, whatever its box; or none in view
+            self._dwell_id = self._since_s = None
+            return kept, bool(kept or docks)    # the acquired identity, whatever its box; never another
         if not docks or not self._eligible(docks[0], width, height):  # one dock: more returned above
             self._dwell_id = self._since_s = None
             return [], bool(docks)
@@ -106,10 +115,8 @@ class DockAcquisitionGate:
             self._dwell_id, self._since_s = dock.id, float(now_s)
         if float(now_s) - self._since_s < self._settings.min_lock_s:
             return [], True
-        replaced = self._acquired
         self._acquired, self._dwell_id, self._since_s = dock.id, None, None
-        self._log(f"DOCK ACQ: track {dock.id} acquired"
-                  f"{'' if replaced is None else f', replacing track {replaced} (out of view)'}")
+        self._log(f"DOCK ACQ: track {dock.id} acquired")
         return [dock], True
 
     def _eligible(self, track: TrackedObject, width: int, height: int) -> bool:

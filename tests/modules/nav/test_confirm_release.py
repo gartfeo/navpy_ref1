@@ -80,6 +80,9 @@ def test_a_nav_entry_that_fails_reports_nothing_and_one_that_completes_reports_o
     # Codex round 2: a NAV entry that failed leaves current at NAV, previous at CONFIRM; the retry needs the gates.
     (NavState.NAV, NavState.CONFIRM, False, ReleaseOutcome.WAIT, 0),
     (NavState.NAV, NavState.CONFIRM, True, ReleaseOutcome.READY, 1),
+    # Codex round 3: a NAV exit that failed leaves previous at NAV with current moved on; the gates apply.
+    (NavState.DETECT, NavState.NAV, False, ReleaseOutcome.WAIT, 0),
+    (NavState.RESET, NavState.NAV, True, ReleaseOutcome.READY, 1),
 ])
 def test_the_release_is_told_only_when_a_confirm_releases_an_uncommitted_nav(current, previous, ready, outcome, told):
     seen = []
@@ -93,6 +96,23 @@ def test_the_release_is_told_only_when_a_confirm_releases_an_uncommitted_nav(cur
     assert len(seen) == told
     if outcome is ReleaseOutcome.WAIT:
         assert phase.current is NavState.CONFIRM
+
+
+def test_an_entry_later_than_the_lock_frame_gap_after_the_release_reports_nothing():
+    """Codex round 3: a held or retried entry (no new confirm release on its tick) leaves the floor armed."""
+    now = [10.0]
+    released = []
+    sequence = AcquisitionSequence(Mock(), Mock(), Mock(), Mock(), lambda *_a: None, released.append,
+                                   release_clock=lambda: now[0], release_window_s=0.5)
+    sequence.begin(make_detected_poi(task_id=3))
+    sequence.released(make_detected_poi(task_id=3))
+    now[0] = 10.6
+    sequence.entered()
+    assert released == []
+    sequence.released(make_detected_poi(task_id=3))                 # a new confirm release on a fresh tick
+    now[0] = 10.7
+    sequence.entered()
+    assert released == [3]
 
 
 def test_a_tick_without_the_gates_drops_a_pending_release():

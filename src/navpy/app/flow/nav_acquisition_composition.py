@@ -94,6 +94,9 @@ def compose_acquisition(
         # HITL step 23b: the runner releases its recovery floor on this record.
         print_confirm_record,
         (lambda _poi: True) if centre_frame is None else centre_frame,
+        # The confirm's release counts only for an entry within the lock's frame gap of it.
+        lambda: state.clock.decision_s(),
+        settings.lock_max_frame_gap_s,
     )
     return AcquisitionComposition(GatedOrbitStart(sequence), sequence)
 
