@@ -135,6 +135,8 @@ def compose_nav_application(
                 ),
                 stop_geo_tracking=detection.geo_pointing.stop_geo_tracking,
                 is_geo_armed=lambda: detection.geo_pointing.is_geo_armed,
+                entry_started=navigation_workflows.acquisition.entry_started,
+                entered=navigation_workflows.acquisition.entered,
             ),
             state.navigation_task,
             observation.zoom,
@@ -178,34 +180,7 @@ def compose_nav_application(
         logger,
         state.post_dock_climb,
     )
-    detect_action = DetectAction(
-        state.detections,
-        navigation_workflows.selector,
-        navigation_workflows.work_source.handle_new_poi,
-        navigation_workflows.peer_notifier,
-        poi.confirmation_manager,
-        PeerGeoTick(
-            state.navigation_task,
-            state.geo_hold,
-            DetectPointingPorts(
-                is_detection_armed=(
-                    lambda: detection.tracking_status.is_detection_armed
-                ),
-                prepare_geo_acquisition=(
-                    detection.geo_pointing.prepare_geo_acquisition
-                ),
-                update_geo=detection.geo_pointing.update_geo,
-            ),
-            navigation_workflows.peer_geo_acquisition,
-            lambda: state.phase.is_current(NavState.NAV),
-            lambda: vehicle.location(False),
-            lambda: vehicle.attitude,
-        ),
-        lambda: navigation_workflows.mission_navigation.mission_pass.holds_own_search(
-            vehicle.get_mode,
-            vehicle.mission_items_next,
-        ),
-    )
+    detect_action = _detect_action(vehicle, detection, state, poi, navigation_workflows)
     actions = StateActionDispatcher(
         state.phase,
         transitions,
@@ -244,6 +219,44 @@ def compose_nav_application(
         logger,
     )
     return NavApplication(loop, observation.network, shutdown, state.overrides, watchdog)
+
+
+def _detect_action(
+    vehicle: IVehicle,
+    detection: DetectionCoordination,
+    state: NavStateOwnership,
+    poi: PoiMissionOwnership,
+    navigation_workflows: NavigationTaskWorkflows,
+) -> DetectAction:
+    """The DETECT state's action: new POI work, peer notice and the peer geo tick."""
+    return DetectAction(
+        state.detections,
+        navigation_workflows.selector,
+        navigation_workflows.work_source.handle_new_poi,
+        navigation_workflows.peer_notifier,
+        poi.confirmation_manager,
+        PeerGeoTick(
+            state.navigation_task,
+            state.geo_hold,
+            DetectPointingPorts(
+                is_detection_armed=(
+                    lambda: detection.tracking_status.is_detection_armed
+                ),
+                prepare_geo_acquisition=(
+                    detection.geo_pointing.prepare_geo_acquisition
+                ),
+                update_geo=detection.geo_pointing.update_geo,
+            ),
+            navigation_workflows.peer_geo_acquisition,
+            lambda: state.phase.is_current(NavState.NAV),
+            lambda: vehicle.location(False),
+            lambda: vehicle.attitude,
+        ),
+        lambda: navigation_workflows.mission_navigation.mission_pass.holds_own_search(
+            vehicle.get_mode,
+            vehicle.mission_items_next,
+        ),
+    )
 
 
 def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
