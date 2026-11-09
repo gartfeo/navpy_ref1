@@ -134,8 +134,50 @@ def test_an_identity_out_of_view_and_no_longer_locked_is_released():
     gate.release_unowned(None, {7})                                  # still in view
     assert gate.acquired_id == 7
     gate.release_unowned(None, set())
-    assert gate.acquired_id is None and log[-1] == "DOCK ACQ: track 7 out of view and no longer locked; released"
+    assert gate.acquired_id is None and log[-1] == "DOCK ACQ: track 7 out of view, owned by no task or lock; released"
     assert _run(gate, [[_track(9)]] * 11) == ([_track(9)], True)
+
+
+def test_an_identity_a_task_tracks_is_kept_when_the_lock_gives_up():
+    """Codex round 5: a task holding in LOITER still owns the dock; the POI lock's budget alone does not release it."""
+    from navpy.core.perception.pipeline.real_detector_controls import DetectorTrackingControl
+
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
+    control = DetectorTrackingControl(None, Mock(), gate)
+    control.start_tracking(7)                                         # the task starts on the acquired dock
+    gate.release_unowned(None, set())                                 # out of view, the lock gave up
+    assert gate.acquired_id == 7
+    small = _track(w=30.0, h=20.0)
+    assert gate.admit([small], W, H, 9.0) == ([small], True)          # it returns small: it still passes
+    control.stop_tracking()                                            # the task ends: released
+    assert gate.acquired_id is None
+
+
+def test_stop_tracking_ends_the_task_ownership_too():
+    """A later acquisition of the same id, with no task tracking it, is released when the lock gives up."""
+    from navpy.core.perception.pipeline.real_detector_controls import DetectorTrackingControl
+
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    control = DetectorTrackingControl(None, Mock(), gate)
+    _run(gate, [[_track()]] * 11)
+    control.start_tracking(7)
+    control.stop_tracking()
+    _run(gate, [[_track()]] * 11)                                     # 7 acquired again, no task on it
+    gate.release_unowned(None, set())
+    assert gate.acquired_id is None
+
+
+def test_a_failed_start_tracking_leaves_no_task_ownership():
+    from navpy.core.perception.pipeline.real_detector_controls import DetectorTrackingControl
+
+    gate = DockAcquisitionGate(SQUASH, lambda _m: None)
+    _run(gate, [[_track()]] * 11)
+    navigation = Mock()
+    navigation.start_tracking.side_effect = RuntimeError("gimbal")
+    with pytest.raises(RuntimeError):
+        DetectorTrackingControl(navigation, Mock(), gate).start_tracking(7)
+    assert gate.acquired_id is None
 
 
 def test_the_processor_releases_when_the_poi_lock_gives_up():

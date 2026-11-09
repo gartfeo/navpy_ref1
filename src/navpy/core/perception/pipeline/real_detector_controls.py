@@ -82,12 +82,16 @@ class DetectorTrackingControl:
                 f"Detector.start_tracking requires obj_id >= 0, got {obj_id}"
             )
         self._poi_lock.force_lock(obj_id)
+        if self._acquisition is not None:
+            self._acquisition.own(obj_id)
         if self._navigation is None:
             return
         try:
             self._navigation.start_tracking(obj_id)
         except Exception:
             self._poi_lock.reset()
+            if self._acquisition is not None:
+                self._acquisition.reset()
             raise
 
     def stop_tracking(self, to_neutral: bool = True) -> None:

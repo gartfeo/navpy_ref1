@@ -17,8 +17,10 @@ never reaches the NAV command or completion paths (section 4.2). While the acqui
 layer's view the acquisition is kept, so the same identity passes again when it returns, whatever its box;
 another dock in view meanwhile is held back and never replaces it. The acquisition ends only when the identity's
 ownership is released: the detector's ``stop_tracking`` (the same call that resets the POI lock, on task teardown
-or rejection), its pipeline reset (the tracker and identity restart their ids), or the POI lock no longer holding
-it while it is out of view (the lock's own loss budget spent, also before any task: ``release_unowned``). A lock guards the state: the
+or rejection), its pipeline reset (the tracker and identity restart their ids), or, while it is out of view,
+neither a task nor the POI lock owning it (the lock's own loss budget spent, before any task or after its
+``stop_tracking``: ``release_unowned``). A task owns the identity from the detector's ``start_tracking`` on it
+(``own``) until ``stop_tracking`` (``reset``). A lock guards the state: the
 tracking thread admits, the navigation thread releases.
 
 The profile sets, beside its rfdetr block::
@@ -76,6 +78,7 @@ class DockAcquisitionGate:
         self._settings = settings
         self._log = log
         self._mutex = rt.RLock()
+        self._owned: int | None = None  # the identity a task tracks (start_tracking), until stop_tracking
         self._acquired: int | None = None
         self._dwell_id: int | None = None
         self._since_s: float | None = None
@@ -88,15 +91,21 @@ class DockAcquisitionGate:
     def reset(self) -> None:
         """Forget the acquisition and the dwell (stop_tracking, or the pipeline reset: track ids start again)."""
         with self._mutex:
-            self._acquired = self._dwell_id = self._since_s = None
+            self._acquired = self._dwell_id = self._since_s = self._owned = None
             self._ambiguous = False
 
-    def release_unowned(self, owner_id: int | None, present_ids: set[int]) -> None:
-        """Release the acquired identity when it is out of view and the POI lock no longer holds it."""
+    def own(self, obj_id: int) -> None:
+        """A task tracks this identity (the detector's start_tracking): never released while it is out of view."""
         with self._mutex:
-            if self._acquired is None or owner_id == self._acquired or self._acquired in present_ids:
+            self._owned = int(obj_id)
+
+    def release_unowned(self, owner_id: int | None, present_ids: set[int]) -> None:
+        """Release the acquired identity when it is out of view and neither a task nor the POI lock owns it."""
+        with self._mutex:
+            if self._acquired is None or self._acquired == self._owned or owner_id == self._acquired \
+                    or self._acquired in present_ids:
                 return
-            self._log(f"DOCK ACQ: track {self._acquired} out of view and no longer locked; released")
+            self._log(f"DOCK ACQ: track {self._acquired} out of view, owned by no task or lock; released")
             self._acquired = None
 
     def admit(self, tracks: Sequence[TrackedObject], width: int, height: int,
