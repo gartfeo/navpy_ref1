@@ -20,7 +20,6 @@ from pymavlink.dialects.v20 import ardupilotmega as mav2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HARNESS = REPO_ROOT / "tests" / "lua" / "nav_watchdog_harness.lua"
 SCRIPT = REPO_ROOT / "scripts" / "lua" / "nav_watchdog.lua"
-AAS_PARAMS = REPO_ROOT / "scripts" / "lua" / "aas_params.lua"
 VM_I_COUNT = 10000
 GUIDED, AUTO, RTL, LOITER, FBWA = 15, 10, 11, 12, 5
 NAVPY_COMPONENT = mav2.MAV_COMP_ID_ONBOARD_COMPUTER
@@ -111,17 +110,28 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
     out = run("h.run(100)")
     state = out["state"]
     assert state["init_args"] == [10, 1] and state["registered"] == [0]       # (queue length, message ids)
-    assert state["table_added"] == [88, "AAS_", 30]
+    assert state["table_added"] == [89, "AAS_NWD_", 8]
     assert [(p["index"], p["name"]) for p in state["added_params"]] == [
-        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"),
+        (1, "ENABLE"), (2, "TMO"), (3, "RTL"), (4, "COMP"),
     ]
     assert "NavPy watchdog loaded" in texts(out)
 
 
-def test_aas_params_lua_leaves_the_watchdog_indices_free():
-    used = {int(line.split(",")[1]) for line in AAS_PARAMS.read_text(encoding="utf-8").splitlines()
-            if "add_param(PARAM_TABLE_KEY" in line}
-    assert used.isdisjoint({20, 21, 22, 23})
+def test_no_two_deployed_scripts_add_the_same_param_table():
+    """ArduPilot's add_table on a key another script already added re-blanks every entry of that table
+    (AP_Param.cpp, "fill in footer for all entries"): in SITL, nav_watchdog.lua on aas_params.lua's key 88 left
+    AAS_NWD_ENABLE unset and the watchdog disabled (step 9, 2026-11-09). Each script owns its key."""
+    import re
+
+    keys = {}
+    for script in sorted(SCRIPT.parent.glob("*.lua")):
+        text = script.read_text(encoding="utf-8")
+        key = re.search(r"^local PARAM_TABLE_KEY\s*=\s*(\d+)", text, re.MULTILINE)
+        if "param:add_table(" in text:
+            assert key, f"{script.name}: add_table without a PARAM_TABLE_KEY"
+            keys.setdefault(int(key.group(1)), []).append(script.name)
+    assert all(len(names) == 1 for names in keys.values()), keys
+    assert keys[89] == ["nav_watchdog.lua"] and keys[88] == ["aas_params.lua"]
 
 
 def test_reports_its_state_once_a_second():

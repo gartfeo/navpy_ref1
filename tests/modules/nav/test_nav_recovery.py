@@ -268,7 +268,7 @@ def _until_normal(rig: Rig) -> None:
         rig.run(True, PERIOD_S)
 
 
-def test_the_resume_is_kept_until_the_decision_takes_it():
+def test_the_resume_grant_is_kept_until_the_decision_uses_it():
     rig = Rig(FakeAutopilot())
     rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
     rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
@@ -276,7 +276,7 @@ def test_the_resume_is_kept_until_the_decision_takes_it():
     assert rig.hold.resumed and not rig.hold.holding
     rig.run(True, 1.0)
     assert rig.hold.resumed
-    assert rig.hold.take_resumed() and not rig.hold.take_resumed()
+    assert rig.hold.consume_resume() and not rig.hold.consume_resume()   # used once
 
 
 def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
@@ -288,10 +288,11 @@ def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
     _until_normal(rig)
     rig.run(False, PERIOD_S)   # the next cycle fails in sensing, before its decision
     assert rig.hold.resumed
-    decision, ports, task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
+    ports.start_fresh_episode.assert_called_once()     # a fresh episode asks for GUIDED (owner ruling 2026-11-09)
+    assert not rig.hold.resumed                         # the grant is used
 
 
 def test_an_operators_mode_after_the_resume_is_not_resumed_over():
@@ -303,10 +304,14 @@ def test_an_operators_mode_after_the_resume_is_not_resumed_over():
     _until_normal(rig)
     rig.run(False, PERIOD_S)            # sensing fails before the decision
     rig.ap.mode = FlightMode.LOITER     # the operator's LOITER
-    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, _task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.LOITER) is ApproachOutcome.ABANDONED
     ports.request_guided.assert_not_called()
+    ports.start_fresh_episode.assert_not_called()
     ports.clear_navigation_task.assert_called_once()
+    rig.ap.heartbeat()
+    rig.run(True, PERIOD_S)
+    assert not rig.hold.resumed         # recovery voids the grant for the operator's mode
 
 
 def test_a_new_hold_voids_a_resume_not_yet_taken():
@@ -331,9 +336,10 @@ def test_an_operators_auto_in_the_hold_is_not_resumed_over():
     _until_normal(rig)
     assert not rig.hold.resumed
     assert rig.ap.requests == [FlightMode.LOITER]
-    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, _task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.ABANDONED
     ports.request_guided.assert_not_called()
+    ports.start_fresh_episode.assert_not_called()
 
 
 def test_an_operators_mode_in_the_resume_is_not_resumed_over():
@@ -512,16 +518,27 @@ def test_escalation_in_the_hold_replaces_the_resume():
 
 
 def _decision(
-    holding: bool, take_resumed=lambda: False,
+    holding: bool, granted: bool = False, *, hold: RecoveryHold | None = None, held: bool = False,
 ) -> tuple[NavStateDecision, NavDecisionPorts, NavigationTaskState]:
+    """``hold``: recovery's resume grant from a real RecoveryHold; else ``granted``, used up by the decision."""
     task = NavigationTaskState(nav_mode_observed=True)
+    grant = [granted]
+
+    def consume() -> bool:
+        value, grant[0] = grant[0], False
+        return value
+
     ports = NavDecisionPorts(
         clock_s=lambda: 0.0,
         clear_navigation_task=Mock(),
         request_guided=Mock(),
         final_approach_active=lambda: True,
         holding=lambda: holding,
-        take_resumed=take_resumed,
+        resume_granted=(lambda: hold.resumed) if hold is not None else (lambda: grant[0]),
+        consume_resume=hold.consume_resume if hold is not None else consume,
+        end_held_episode=Mock(),
+        held_episode_ended=lambda: held,
+        start_fresh_episode=Mock(),
     )
     phase = NavPhaseState(current=NavState.NAV, previous=NavState.NAV)
     return NavStateDecision(ports, phase, task, Mock(), Mock(), Mock()), ports, task
@@ -535,12 +552,21 @@ def test_the_holds_loiter_does_not_end_the_approach():
 
 
 def test_the_resumes_auto_approaches_the_kept_dock_again():
-    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and asks for GUIDED again."""
-    decision, ports, task = _decision(holding=False, take_resumed=lambda: True)
+    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and approaches the same dock; since
+    the owner ruling of 2026-11-09 with a fresh episode, whose NAV entry asks for GUIDED again."""
+    decision, ports, task = _decision(holding=False, granted=True, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
-    assert not task.nav_mode_observed   # waiting for GUIDED again, under the usual accept timeout
+    ports.start_fresh_episode.assert_called_once()
+    assert not ports.resume_granted()                  # used up
+
+
+def test_a_resume_grant_with_nothing_held_authorizes_nothing():
+    """A hold that was not mid-approach: the grant is discarded, never restarting a later approach."""
+    decision, ports, task = _decision(holding=False, granted=True, held=False)
+    assert decision._await_guided(FlightMode.GUIDED) is ApproachOutcome.NONE
+    ports.start_fresh_episode.assert_not_called()
+    assert not ports.resume_granted()
 
 
 def test_outside_a_resume_a_non_guided_mode_ends_the_approach_as_before():

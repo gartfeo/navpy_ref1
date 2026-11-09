@@ -19,12 +19,15 @@
     second as NAMED_VALUE_FLOAT "NAVWD" (STATE_* below), so NavPy and the GCS can tell when it is not running.
 --]]
 
-local PARAM_TABLE_KEY = 88   -- the AAS_ table (aas_params.lua); this script owns indices 20-23
-assert(param:add_table(PARAM_TABLE_KEY, "AAS_", 30), "nav_watchdog: failed to add AAS_ parameter table (key 88)")
-assert(param:add_param(PARAM_TABLE_KEY, 20, "NWD_ENABLE", 1), "nav_watchdog: add_param NWD_ENABLE")
-assert(param:add_param(PARAM_TABLE_KEY, 21, "NWD_TMO", 1.5), "nav_watchdog: add_param NWD_TMO")   -- s, NAV_HOLD_TRIGGER_S
-assert(param:add_param(PARAM_TABLE_KEY, 22, "NWD_RTL", 30), "nav_watchdog: add_param NWD_RTL")    -- s, NAV_HOLD_RECOVERY_S
-assert(param:add_param(PARAM_TABLE_KEY, 23, "NWD_COMP", 191), "nav_watchdog: add_param NWD_COMP") -- MAV_COMP_ID_ONBOARD_COMPUTER
+-- A table of its own, as every script here: ArduPilot's add_table on a key another script already added re-blanks
+-- every entry of that table (AP_Param.cpp, "fill in footer for all entries"), so sharing aas_params.lua's key 88
+-- wiped one script's params. The prefix keeps the names AAS_NWD_*; AP_Param::find looks on past the AAS_ table.
+local PARAM_TABLE_KEY = 89
+assert(param:add_table(PARAM_TABLE_KEY, "AAS_NWD_", 8), "nav_watchdog: failed to add AAS_NWD_ parameter table (key 89)")
+assert(param:add_param(PARAM_TABLE_KEY, 1, "ENABLE", 1), "nav_watchdog: add_param ENABLE")
+assert(param:add_param(PARAM_TABLE_KEY, 2, "TMO", 1.5), "nav_watchdog: add_param TMO")    -- s, NAV_HOLD_TRIGGER_S
+assert(param:add_param(PARAM_TABLE_KEY, 3, "RTL", 30), "nav_watchdog: add_param RTL")     -- s, NAV_HOLD_RECOVERY_S
+assert(param:add_param(PARAM_TABLE_KEY, 4, "COMP", 191), "nav_watchdog: add_param COMP")  -- MAV_COMP_ID_ONBOARD_COMPUTER
 
 local TICK_MS = 100
 local REPORT_MS = 1000

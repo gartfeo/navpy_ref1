@@ -19,6 +19,7 @@ from navpy.core.approach.vision_nav.episode_latch import (
     FinalApproachTerminal,
 )
 from navpy.core.flow.nav_display import NavOutcomeLatch
+from navpy.core.flow.nav_held_approach import HeldApproach
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
@@ -47,6 +48,7 @@ class NavTransition:
         *,
         logger: Optional[ILogger] = None,
         outcome: Optional[NavOutcomeLatch] = None,
+        held: Optional[HeldApproach] = None,
     ) -> None:
         self._entry = entry
         self._cleanup = cleanup
@@ -56,9 +58,21 @@ class NavTransition:
         self._is_oneshot = is_oneshot
         self._logger = logger
         self._outcome = outcome
+        self._held = held
+        if held is not None:
+            held.bind(self._end_held_episode, self.enter)
 
     def enter(self) -> None:
         self._entry.run()
+        if self._held is not None:
+            self._held.clear()       # only once the entry succeeded (nav_held_approach.py)
+
+    def _end_held_episode(self) -> None:
+        """Recovery's hold: the in-flight episode ends without failure (owner ruling 2026-11-09)."""
+        self._cleanup.end_episode()
+        self._navigation_task.final_approach_navigation_active = False
+        if self._logger is not None:
+            self._logger.info("NAV approach held: episode ended, a fresh one follows the resume", key="nav")
 
     def exit(self, requested: NavState | None = None) -> NavExitOutcome:
         navigation_active = self._navigation_task.final_approach_navigation_active
@@ -103,6 +117,8 @@ class NavTransition:
 
         if errors:
             raise ExceptionGroup("NAV exit failed", errors)
+        if self._held is not None:
+            self._held.clear()       # NAV left: an abandoned held approach is over only now
         if docked:
             self._report_docked(cleanup)
         elif failed:
