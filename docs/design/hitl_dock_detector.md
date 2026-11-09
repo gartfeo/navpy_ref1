@@ -46,8 +46,8 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
   (`core/kernel/config/detector_backend.py`), opt-in, with `--detector-model-path`. The HITL profile names it; no
   implicit model. Pre- and post-processing follow `gimbal-controller` `gimbal/rfdetr_detect.py` (rfdetr's own: the
   whole frame squashed to the 704 px square, RGB, ImageNet-normalised; COCO ids mapped to 0-79). The `rfdetr` pip
-  package (1.12.0 there) is a new dependency: the step installs it in its own environment, not the shared `.venv`,
-  until the owner approves adding it.
+  package (1.12.0 there) is a new dependency, the optional extra `hitl-rfdetr` (the owner's decision, 2026-11-09):
+  only HITL venvs install it, never the shared `.venv` or CI; set-up in step 23b's Built record.
 - **Phase A model:** RF-DETR-L, pretrained COCO weights (Apache-2.0), class `car` only, mapped to `dock` in the
   profile. Evidence: on the owner's 11 real car clips it found 0.878 of the cars at score 0.45 (YOLOX-s 0.604) and
   tracked best (recall 0.898, 58 ID switches); TensorRT FP16 engines exist on orin1 (`gimbal-controller`
