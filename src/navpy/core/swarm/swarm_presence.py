@@ -7,7 +7,6 @@ from dataclasses import dataclass
 from typing import Optional
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.check_msg import CheckInMsg, CheckOutMsg
 from navpy.core.link.location_msg import LocationMsgData
@@ -64,7 +63,7 @@ class SwarmPresence:
         # (owner ruling Q1); the operator is told.
         self._heartbeat = SwarmHeartbeatRuntime(
             self,
-            lambda message: logger.warning(message, key="swarm", status=message, dest=LogStatusDest.DRONE),
+            lambda message: logger.recovery(message, "swarm"),
             RestartBudget(clock=AircraftTimeClock(lambda: attitude_boot_s(vehicle))),
         )
 

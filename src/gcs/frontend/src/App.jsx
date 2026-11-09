@@ -27,6 +27,7 @@ import PlanningSidebar from './components/sidebar/PlanningSidebar';
 import MonitoringSidebar from './components/sidebar/MonitoringSidebar';
 import SettingsModal from './components/SettingsModal';
 import PreflightReadiness from './components/PreflightReadiness';
+import MessagesWindow from './components/MessagesWindow';
 import MapIconBtn from './components/MapIconBtn';
 import MapDisplayToggles from './components/map/MapDisplayToggles';
 import MapLayerPicker from './components/map/MapLayerPicker';
@@ -381,6 +382,8 @@ export default function App() {
 
   // One-click preflight readiness overlay (opened from the top bar).
   const [showReadiness, setShowReadiness] = useState(false);
+  // The UAV whose Messages window is open, or null.
+  const [messagesSysId, setMessagesSysId] = useState(null);
 
   // ---- AAS params (vehicle-side source of truth) ----
   const aasParams = useAasParams(vehicleList);
@@ -1128,6 +1131,7 @@ export default function App() {
               onTriggerVehicle={commands.handleTriggerVehicle}
               navpyStatus={ws.navpyStatus}
               onFlyToLocation={flyToLocation}
+              onOpenMessages={setMessagesSysId}
               onOpenReadiness={() => setShowReadiness(true)}
               footerEl={panelFooterEl}
               startPinned={!roundsExist}
@@ -1179,6 +1183,14 @@ export default function App() {
             setSettingsTab(null);
             planning.startPlacingDeliveryHubFromSettings();
           }}
+        />
+      )}
+
+      {messagesSysId != null && vehicleList.some((v) => v.sys_id === messagesSysId) && (
+        <MessagesWindow
+          sysId={messagesSysId}
+          onSelect={setMessagesSysId}
+          onClose={() => setMessagesSysId(null)}
         />
       )}
 

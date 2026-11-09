@@ -32,6 +32,7 @@ from pathlib import Path
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.sim.lockstep.coordinator_mavlink import MessageKey, parse_key
+from scripts.eval_gcs_demo_recovery import SLICE_EVIDENCE_ERROR
 from scripts.eval_certificate_source_time import SOURCE_TIME_SUBDIR
 from scripts.eval_gcs_demo_approval_replay import approval_replay_errors
 from scripts.eval_gcs_demo_confirmation_timing import confirmation_timing_errors
@@ -234,7 +235,7 @@ def slice_gate_errors(log_dir: Path, plan: DemoMissionPlan,
     try:
         evidence = load_slice_evidence(log_dir)
     except (OSError, ValueError) as error:
-        return [f"slice evidence: {error}"]
+        return [f"{SLICE_EVIDENCE_ERROR}: {error}"]
     records, lines = evidence.records, evidence.lines
     poi, sys_id = plan.pois[0].task_id, plan.owner.sys_id
     return (run_errors(records) + sensor_errors(lines, poi) + workflow_tick_errors(lines)

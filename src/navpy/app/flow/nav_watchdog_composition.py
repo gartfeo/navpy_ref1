@@ -12,7 +12,6 @@ from navpy.core.flow.nav_recovery_clock import TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts, RecoveryHold
 from navpy.core.flow.nav_recovery_step import SharedRecoveryStep
 from navpy.core.flow.nav_watchdog import NavWatchdog, NavWatchdogPorts
-from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.progress_beacon import ProgressBeacon
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -79,7 +78,7 @@ def _close_when_held(link: NavRecoveryLink) -> Callable[[bool], object]:
 
 def _reporter(logger: ILogger) -> Callable[[str], None]:
     def report(message: str) -> None:
-        logger.warning(message, key="nav", status=message, dest=LogStatusDest.DRONE)
+        logger.recovery(message, "watchdog")
 
     return report
 

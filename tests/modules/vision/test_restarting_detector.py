@@ -415,14 +415,17 @@ def test_restart_reports_reach_the_operator_as_status_texts() -> None:
 
     from navpy.app.perception.restarting_detector import restarting_detector_node
 
-    logger = Mock()
+    from tests.logger.recording_logger import RecordingLogger
+
+    logger = RecordingLogger()
     old = _Detector(1)
     old.failure = RuntimeError("capture died")
     factory = _Factory(old, _Detector(2))
     node = restarting_detector_node(logger, SimpleNamespace(attitude_sample=None))(factory)
     node.detector.raise_if_failed()
-    statuses = [c.kwargs.get("status") for c in logger.warning.call_args_list]
+    statuses = logger.statuses
     assert statuses and all(isinstance(status, str) and "Detector" in status for status in statuses)
+    assert logger.journal.records == [("vision", status) for status in statuses]     # step 8
 
 
 # --- Codex review round 2 of steps 5b-5c -------------------------------------------------------------------------
