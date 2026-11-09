@@ -328,3 +328,22 @@ def test_r2_3_an_incident_sums_its_hold_time_and_ends_after_a_healthy_spell():
     assert incident.expired()                                  # not healthy long enough yet
     incident.healthy(150.0, 150.0 + NAV_INCIDENT_CLEAR_S)
     assert not incident.expired()                              # a new incident starts from zero
+
+
+def test_codex2_5_an_incident_tells_its_hold_budget_left():
+    """Step 10, item 9 (Codex round 2): the autopilot's watchdog gets the budget left, so its deadline keeps the
+    summed-hold bound."""
+    from navpy.core.flow.nav_recovery_incident import NAV_INCIDENT_CLEAR_S, RecoveryIncident
+
+    incident = RecoveryIncident(30.0)
+    assert incident.remaining_s() == 30.0                      # no incident: the whole budget
+    incident.advance(False, 100.0)
+    incident.hold()
+    for t in range(101, 111):                                  # 10 s held
+        incident.advance(True, float(t))
+    assert incident.remaining_s() == 20.0
+    for t in range(111, 135):                                  # 34 s held in all
+        incident.advance(True, float(t))
+    assert incident.remaining_s() == 0.0
+    incident.healthy(140.0, 140.0 + NAV_INCIDENT_CLEAR_S)
+    assert incident.remaining_s() == 30.0                      # the incident is over

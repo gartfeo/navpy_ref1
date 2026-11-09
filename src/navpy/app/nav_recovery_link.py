@@ -14,11 +14,15 @@ from navpy.core.ports.flight_mode import FlightMode
 from navpy.core.kernel.logging.logger_api import ILogger
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.ports.vehicle_contract import IVehicle
+from navpy.plugins.vehicle.ardupilot.companion_hold_claim import CompanionHoldClaim
 from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
 
 
-def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryLink:
-    """The heartbeat count is read first, so a newer count means a mode at least that new."""
+def nav_recovery_link(
+    fence: MavCommandFence, vehicle: IVehicle, hold_claim: CompanionHoldClaim | None = None,
+) -> NavRecoveryLink:
+    """The heartbeat count is read first, so a newer count means a mode at least that new. ``hold_claim``: the bus's
+    claim on NavPy's own recovery LOITER, sent in the companion heartbeat (None: not sent)."""
 
     def observe_mode() -> ModeObservation:
         count = vehicle.heartbeat_count
@@ -37,6 +41,7 @@ def nav_recovery_link(fence: MavCommandFence, vehicle: IVehicle) -> NavRecoveryL
         close_fence=fence.close, reopen_fence=fence.try_reopen, observe_mode=observe_mode,
         latch_fence=fence.latch_closed, formed_now=fence.formed_now, request_mode=request_mode,
         hold_fence=fence.hold_closed,
+        claim_hold=(lambda _claimed: None) if hold_claim is None else hold_claim.set,
     )
 
 

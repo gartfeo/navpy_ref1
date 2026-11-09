@@ -20,8 +20,9 @@ from navpy.core.ports.vehicle_contract import IVehicle
 NAVWD_NAME = "NAVWD"
 LUA_TEXT_PREFIX = "NavPy watchdog: "
 SOURCE = "autopilot"
-#: nav_watchdog.lua's STATE_* values; HOLD and RTL are its recoveries.
-NAVWD_STATES = {-1: "off", 0: "watching", 1: "hold", 2: "RTL"}
+#: nav_watchdog.lua's STATE_* values; HOLD and RTL are its recoveries. GUARD is not: it owns the deadline of NavPy's
+#: own recovery LOITER (step 10, item 9), whose hold NavPy reports itself, and acts only by its RTL.
+NAVWD_STATES = {-1: "off", 0: "watching", 1: "hold", 2: "RTL", 3: "guarding NavPy's hold"}
 NAVWD_ACTING = frozenset({1, 2})
 
 

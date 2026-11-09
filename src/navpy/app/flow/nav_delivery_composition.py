@@ -51,12 +51,14 @@ def compose_sortie_finish(
     reset: NavigationTaskResetTransaction,
     logger: ILogger,
     is_stopping: Callable[[], bool],
+    request_rtl: Callable[[], None],
 ) -> OneShotCompletion:
     return OneShotCompletion(
         OneShotCompletionPorts(
             is_simulated_autopilot=vehicle.is_simulated_autopilot,
             disarm=vehicle.disarm,
             is_stopping=is_stopping,
+            request_rtl=request_rtl,
         ),
         reset,
         logger,

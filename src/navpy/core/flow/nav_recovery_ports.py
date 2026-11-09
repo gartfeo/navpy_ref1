@@ -15,6 +15,16 @@ from navpy.core.kernel.progress_beacon import ProgressBeacon
 from navpy.core.ports.flight_mode import FlightMode
 
 
+@dataclass(frozen=True)
+class HoldClaim:
+    """NavPy's claim on the LOITER of its recovery hold, for the autopilot's watchdog (nav_watchdog.lua; step 10,
+    item 9 and Codex round 2): ``token`` names the LOITER request (each request a new one, so the watchdog takes a
+    claim once, at the switch into that LOITER); ``budget_s`` is the incident's hold budget left, so the watchdog's RTL
+    deadline keeps the summed-hold bound (nav_recovery_incident.py)."""
+    token: int
+    budget_s: float
+
+
 class NavEscalation:
     """Between the main thread, which sees a latched component failure, and the NAV loop, which owns the mode."""
 
@@ -75,6 +85,9 @@ class NavRecoveryLink:
     request_mode: Callable[[FlightMode, Callable[[], bool]], bool] | None = None
     #: The watchdog's veto on reopening (MavCommandFence.hold_closed), while a loop is stuck.
     hold_fence: Callable[[bool], object] | None = None
+    #: NavPy's claim on its own recovery LOITER, sent to the autopilot's watchdog in the companion heartbeat
+    #: (companion_hold_claim.py, step 10 item 9); None: no claim.
+    claim_hold: Callable[[HoldClaim | None], object] = lambda _claim: None
 
 
 @dataclass(frozen=True)
@@ -89,6 +102,8 @@ class NavRecoveryPorts:
     #: Writes recovery's modes on its own thread (nav_mode_sender.py); None: written inline through
     #: ``request_mode`` (tests, no link).
     mode_sender: ModeSender | None = None
+    #: NavPy holds in its own LOITER (NavRecoveryLink.claim_hold): the autopilot's watchdog then owns its deadline.
+    claim_hold: Callable[[HoldClaim | None], object] = lambda _claim: None
 
 
 class RecoveryHold:
@@ -109,6 +124,8 @@ class RecoveryHold:
         self._resumed = False
         # NavPy's last GUIDED event since the last step: asked (the heartbeat read just before sending), or withdrawn
         self._guided: ModeObservation | bool | None = None
+        # A failed one-shot dock's RTL, until a heartbeat shows it or a mode not NavPy's stands (nav_sortie_return.py)
+        self._sortie_rtl = False
 
     def guided_requested(self) -> None:
         """NavPy is about to send GUIDED: the heartbeat count and mode are read now, at the request boundary, so
@@ -150,6 +167,20 @@ class RecoveryHold:
             resumed, self._resumed = self._resumed, False
             return resumed
 
+    def request_sortie_rtl(self) -> None:
+        """The one-shot sortie ended in a failed dock: RTL, through recovery's ownership (step 10, item 3)."""
+        with self._guided_lock:
+            self._sortie_rtl = True
+
+    @property
+    def sortie_rtl(self) -> bool:
+        with self._guided_lock:
+            return self._sortie_rtl
+
+    def end_sortie_rtl(self) -> None:
+        with self._guided_lock:
+            self._sortie_rtl = False
+
     def take_guided_request(self) -> ModeObservation | bool | None:
         with self._guided_lock:
             guided, self._guided = self._guided, None
@@ -157,6 +188,7 @@ class RecoveryHold:
 
 
 __all__ = [
+    "HoldClaim",
     "NavEscalation",
     "NavRecoveryLink",
     "NavRecoveryPorts",
