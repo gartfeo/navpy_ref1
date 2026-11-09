@@ -23,6 +23,9 @@ class PoiRejectionPorts:
     clear_active_poi: Callable[[], None]
     stop_tracking: Callable[[], None]
     logger: ILogger
+    #: A standing review (core/review/standing_review.py): only the operator's confirmation ends it, so no
+    #: maximum dwell and no re-acquire abort (and so no cooldown); out of view it is withdrawn and asked again.
+    standing: Callable[[DetectedObject], bool] = lambda _poi: False
 
 
 class PoiRejectionExit:
@@ -52,6 +55,9 @@ class PoiRejectionExit:
         if status == ConfirmationStatus.TIMEOUT_REJECTED:
             self._teardown()
             return True
+        if self._ports.standing(active):
+            self._phase.request(NavState.CONFIRM)
+            return False
         if status == ConfirmationStatus.CONFIRMING:
             return self._review_expired(active)
         if self._timing.reacquire_timed_out():

@@ -33,6 +33,8 @@ class FinalApproachConfirmationPorts:
     can_confirm: Callable[[DetectedObject], bool]
     record_confirmed: Callable[[DetectedObject], bool]
     auto_confirm: Callable[[], bool]
+    #: A standing review is never confirmed locally: the operator confirms it (core/review/standing_review.py).
+    standing: Callable[[DetectedObject], bool] = lambda _poi: False
 
 
 class FinalApproachConfirmationAdmission:
@@ -54,7 +56,7 @@ class FinalApproachConfirmationAdmission:
         if not self._ports.can_confirm(poi):
             self._debug.log(f"final_approach_los_unavailable obj={poi.identity.obj_id}")
             return True
-        if not self._ports.auto_confirm():
+        if not self._ports.auto_confirm() or self._ports.standing(poi):
             return False
         if not self._ports.record_confirmed(poi):
             self._debug.log(f"final_approach_record_unavailable obj={poi.identity.obj_id}")

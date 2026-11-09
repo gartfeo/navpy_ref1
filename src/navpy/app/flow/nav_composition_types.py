@@ -61,6 +61,7 @@ from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.standing_review import StandingReview
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
 from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
@@ -121,6 +122,8 @@ class PoiMissionOwnership:
     retry_state: PoiRetryState
     confirmation_manager: ConfirmationManager
     source_session: FinalApproachSourceSession
+    #: POIs only the operator confirms, without timeout or cancel (core/review/standing_review.py).
+    standing: StandingReview
 
 
 @dataclass(frozen=True)

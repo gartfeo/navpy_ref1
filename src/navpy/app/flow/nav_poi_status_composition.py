@@ -83,6 +83,7 @@ def _compose_poi_status(
                 ),
                 stop_tracking=detection.tracking_commands.stop_tracking,
                 logger=logger,
+                standing=poi.standing,
             ),
             state.phase,
             observation.timing,

@@ -394,3 +394,15 @@ class TestDockAssociationRadius(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestParkingAtTheHomeDockIsAStandingReview(unittest.TestCase):
+    """Step 10, item 3 (owner rulings 2026-11-09): the composition makes the home dock, and only it, a standing
+    review: no timeout, no cancel (core/review/standing_review.py)."""
+
+    def test_the_home_dock_stands_and_a_delivery_dock_does_not(self):
+        controller, _ = _homing_controller()
+        standing = controller.poi_status._rejection._ports.standing
+        self.assertTrue(standing(_dock(4, HOME)))
+        self.assertFalse(standing(_dock(5, DELIVERY)))
+        self.assertTrue(controller.confirmation_action._final_approach_admission._ports.standing(_dock(4, HOME)))

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from collections.abc import Callable
+
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.link.task_confirmation_msg import (
@@ -30,11 +32,14 @@ class ConfirmationInboundHandler:
         state: ConfirmationInboundStatePort,
         media: ConfirmationMedia,
         logger: ILogger,
+        standing_id: Callable[[int], bool] = lambda _poi_id: False,
     ) -> None:
         self._sys_id = sys_id
         self._state = state
         self._media = media
         self._logger = logger
+        #: The POI with this id is a standing review (standing_review.py): no negative answer ends it.
+        self._standing_id = standing_id
 
     def on_message(self, message: MsgABC) -> None:
         if message.receiver_id is not None and message.receiver_id != self._sys_id:
@@ -73,6 +78,15 @@ class ConfirmationInboundHandler:
 
     def handle_response(self, message: TaskConfirmResponseMsg) -> None:
         poi_id = message.task_id
+        if not message.is_confirmed and self._standing_id(poi_id):
+            # Parking at the return dock has no cancel (standing_review.py): a deny, a cancel or a card's timeout
+            # is ignored; the request stays open until the operator confirms.
+            self._logger.warning(
+                f"Ignoring a negative answer for P{poi_id}: it waits for the operator's confirmation.",
+                key="nav_state",
+                dest=LogStatusDest.DRONE,
+            )
+            return
         result = self._state.resolve_response(
             poi_id,
             message.is_confirmed,

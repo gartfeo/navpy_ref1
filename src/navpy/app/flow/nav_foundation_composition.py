@@ -56,7 +56,8 @@ from navpy.core.flow.nav_state import (
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.flow.navigation_zoom import ZoomController
 from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
-from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.confirmation_manager import ConfirmationManager
+from navpy.core.review.standing_review import StandingReview
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.core.approach.final_approach_source_admission import (
     FinalApproachSourceAdmission,
@@ -122,11 +123,13 @@ def compose_poi_mission_ownership(
         cooldown_s=POI_REACQUIRE_COOLDOWN_SEC,
         max_reask_attempts=CONFIRM_REASK_MAX_ATTEMPTS,
     )
+    standing = StandingReview()
     confirmation_manager = ConfirmationManager(
         vehicle.source_system,
         args,
         logger,
         is_simulation=detection.simulation.is_simulation,
+        standing=standing,
     )
     return PoiMissionOwnership(
         mission=mission,
@@ -134,6 +137,7 @@ def compose_poi_mission_ownership(
         retry_state=retry_state,
         confirmation_manager=confirmation_manager,
         source_session=FinalApproachSourceSession(detection.events),
+        standing=standing,
     )
 
 

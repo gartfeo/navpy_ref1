@@ -51,8 +51,10 @@ class ConfirmationRoundRunner:
         logger: ILogger,
         monotonic: Callable[[], float],
         event_factory: Callable[[], rt.Event],
+        standing: Callable[[DetectedObject], bool] = lambda _poi: False,
     ) -> None:
         self._sys_id = sys_id
+        self._standing = standing             # no deadline: only the operator ends it (standing_review.py)
         self._is_simulation = is_simulation
         self._state = state
         self._network = network
@@ -111,12 +113,19 @@ class ConfirmationRoundRunner:
                     f"{confirmation.poi_id}: {exc}",
                     exc,
                 )
-                self._state.complete_round(
-                    confirmation,
-                    self._failure_policy.status(confirmation.poi_id),
-                )
-                return
+                if not self._standing(poi):
+                    self._state.complete_round(
+                        confirmation,
+                        self._failure_policy.status(confirmation.poi_id),
+                    )
+                    return
+                # A standing review resends below until the operator answers.
 
+            if self._standing(poi):   # no deadline; only a network gone ends it unanswered: confirmed, as with none
+                self._wait_for_response(confirmation, request, math.inf)
+                if self._network() is None:
+                    self._state.complete_round(confirmation, ConfirmationStatus.CONFIRMED)
+                return
             wait_time_s = self._wait_time_s()
             if wait_time_s <= 0:
                 if self._state.complete_round(

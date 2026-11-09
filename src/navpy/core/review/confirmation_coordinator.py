@@ -33,11 +33,13 @@ class ConfirmationCoordinator:
         logger: ILogger,
         event_factory: Callable[[], rt.Event],
         thread_factory: Callable[..., rt.Thread],
+        standing: Callable[[DetectedObject], bool] = lambda _poi: False,
     ) -> None:
         self._sys_id = sys_id
         self._state = state
         self._network = network
         self._auto_confirm = auto_confirm
+        self._standing = standing             # the operator alone confirms it (standing_review.py)
         self._assignment = assignment
         self._round_runner = round_runner
         self._logger = logger
@@ -64,7 +66,7 @@ class ConfirmationCoordinator:
                 return
             self._assignment.publish(poi)
             network = self._network()
-            if self._auto_confirm() or network is None:
+            if (self._auto_confirm() and not self._standing(poi)) or network is None:
                 if not self._state.set_worker_status(
                     worker,
                     ConfirmationStatus.CONFIRMED,

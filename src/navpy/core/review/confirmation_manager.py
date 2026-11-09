@@ -30,10 +30,17 @@ from navpy.core.review.confirmation_media import (
 from navpy.core.review.confirmation_manager_state import ConfirmationManagerState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
 from navpy.core.review.image_utils import create_confirmation_thumbnail
+from navpy.core.review.standing_review import StandingReview
 
 
 RESEND_INTERVAL_S = 2.0
+
+
+def _active_standing(active: Optional[DetectedObject], poi_id: int, standing: StandingReview) -> bool:
+    """An answer for ``poi_id`` is about the active POI, and that POI is a standing review."""
+    return active is not None and get_poi_task_id(active) == poi_id and standing(active)
 
 
 class ConfirmationManager(ListenerAbc):
@@ -47,11 +54,14 @@ class ConfirmationManager(ListenerAbc):
         *,
         is_simulation: bool = False,
         freshness_check: Optional[Callable[[Optional[int]], bool]] = None,
+        standing: Optional[StandingReview] = None,
     ) -> None:
+        """``standing``: the mission module's standing reviews (standing_review.py), set by the composition."""
         self._sys_id = sys_id
         self._args = args
         self._logger = logger
         self._state = ConfirmationManagerState()
+        standing = StandingReview() if standing is None else standing
         self._network_slot = ConfirmationNetworkSlot()
         self._freshness = FreshnessGate(logger)
         if freshness_check is not None:
@@ -89,6 +99,7 @@ class ConfirmationManager(ListenerAbc):
             logger=logger,
             monotonic=lambda: rt.monotonic(),
             event_factory=lambda: rt.Event(),
+            standing=standing,
         )
         self._coordinator = ConfirmationCoordinator(
             sys_id=sys_id,
@@ -100,12 +111,14 @@ class ConfirmationManager(ListenerAbc):
             logger=logger,
             event_factory=lambda: rt.Event(),
             thread_factory=lambda **kwargs: rt.Thread(**kwargs),
+            standing=standing,
         )
         self._inbound = ConfirmationInboundHandler(
             sys_id=sys_id,
             state=self._state,
             media=self._media,
             logger=logger,
+            standing_id=lambda poi_id: _active_standing(self._state.registry.active_poi, poi_id, standing),
         )
 
     def set_network(self, network: Optional[NetworkAbc]) -> None:

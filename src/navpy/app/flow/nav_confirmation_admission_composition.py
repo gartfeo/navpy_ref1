@@ -105,6 +105,7 @@ def compose_confirmation_admission_workflows(
             can_confirm=navigation.final_approach.can_confirm_detection,
             record_confirmed=navigation.final_approach.record_confirmed_detection,
             auto_confirm=lambda: args.is_auto_confirm,
+            standing=poi.standing,
         ),
         state.final_approach,
         review,

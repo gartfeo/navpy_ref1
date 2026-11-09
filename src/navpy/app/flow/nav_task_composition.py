@@ -196,6 +196,8 @@ def compose_navigation_task_workflows(
     )
     focus = _task_focus(detection, state, navigation, peer_task_priority)
     home_dock = compose_home_dock_rules(focus, poi, state.recovery_hold)
+    # Parking at the home dock waits for the operator: no timeout, no cancel (core/review/standing_review.py).
+    poi.standing.set_check(home_dock.is_home_dock)
     acquisition = compose_acquisition(
         vehicle, detection, profile, state, approach, observation, navigation, home_dock,
         approach_kind, logger, poi.confirmation_manager,
