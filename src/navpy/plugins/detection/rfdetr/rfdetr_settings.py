@@ -4,11 +4,12 @@ The rfdetr backend runs only with this block; nothing is implied::
 
     "rfdetr": {
         "variant": "large",          # RF-DETR-L: its 704 px square input
-        "classes": {"car": "dock"},  # phase A: COCO car only, mapped to the dock class
+        "classes": {"truck": "dock"},  # phase A: COCO truck only (the pickup), mapped to the dock class
         "input": "tiles"             # "squash" (the whole frame to one square) or "tiles" (native 704 px tiles)
     }
 
-The detector's minimum confidence is the profile's ``detector.conf``. A malformed block is refused when the detector
+``classes`` names exactly one COCO class: one detector, one class, no fallback chain. The detector's minimum
+confidence is the profile's ``detector.conf``. A malformed block is refused when the detector
 is built.
 """
 from __future__ import annotations
@@ -63,8 +64,8 @@ def rfdetr_settings(detector: Mapping[str, object], navpy_classes: Mapping[str, 
     if mode not in INPUT_MODES:
         raise ValueError(f"detector.{RFDETR_KEY}.input must be one of {INPUT_MODES}")
     classes = block.get("classes")
-    if not isinstance(classes, Mapping) or not classes:
-        raise ValueError(f"detector.{RFDETR_KEY}.classes must map COCO names to navpy classes")
+    if not isinstance(classes, Mapping) or len(classes) != 1:
+        raise ValueError(f"detector.{RFDETR_KEY}.classes must map exactly one COCO class to a navpy class")
     pairs = []
     for coco, navpy in classes.items():
         if coco not in COCO80_NAMES or navpy not in navpy_classes:

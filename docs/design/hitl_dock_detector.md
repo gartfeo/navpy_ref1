@@ -1,4 +1,4 @@
-# HITL whole-dock detector (design v2.2, 2026-11-08)
+# HITL whole-dock detector (design v2.3, 2026-11-09)
 
 Status: approved by the owner 2026-11-08. Phase A is built as HITL step 23b (`hitl_final_approach.md` section 9,
 its Built record holds what was built, measured and left open). It added one step to the HITL lean plan
@@ -6,6 +6,8 @@ its Built record holds what was built, measured and left open). It added one ste
 v2 applies Codex review round 1 (section 10), v2.1 round 2 (section 11). v2.2 applies the owner's answers of
 2026-11-08 (section 8): a car as the placeholder dock, on the ground, found by RF-DETR-L; one detector, no
 fallback chain; the floor guards only until the operator confirms. The real net's shape is still open.
+v2.3 applies the owner's choice of 2026-11-09 (section 8 item 10): phase A's dock is a pickup truck, scored as COCO
+`truck`, instead of the car (section 3.1 holds the Unreal evidence).
 
 ## 1. Why
 
@@ -27,9 +29,10 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
 1. **Detector: RF-DETR-L, one detector, in two phases** (owner, 2026-11-08). The HITL profile runs a new
    `rfdetr` backend (`plugins/detection/rfdetr/`); ChArUco and YOLO are not used in this profile. Other profiles
    keep ChArUco as the product default. One detector with one job: no fallback model inside the step.
-   - **Phase A, now (placeholder):** the dock is a Ford car standing on the ground in the Unreal scene, about the
-     net's size, and the detector is RF-DETR-L with its pretrained COCO weights, only class `car` kept, mapped to
-     `dock`. No training. It is the detector the owner's real ZR10 car tests picked (`gimbal-controller`).
+   - **Phase A, now (placeholder):** the dock is a pickup truck (a 2020 Silverado 1500 crew cab) standing on the
+     ground in the Unreal scene, and the detector is RF-DETR-L with its pretrained COCO weights, only class `truck`
+     kept, mapped to `dock`. No training. RF-DETR-L is the detector the owner's real ZR10 car tests picked
+     (`gimbal-controller`); the first placeholder, a car, gave way to the pickup on 2026-11-09 (section 3.1).
    - **Phase B, later (the real net):** the same RF-DETR-L fine-tuned for one class, `dock`: the net as one box. The
      net's shape is not decided; the owner's idea is a globe (sphere) net in a colour that does not disturb nature
      and animals. Phase B gets its own plan step once the net is defined.
@@ -48,18 +51,20 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
   whole frame squashed to the 704 px square, RGB, ImageNet-normalised; COCO ids mapped to 0-79). The `rfdetr` pip
   package (1.12.0 there) is a new dependency, the optional extra `hitl-rfdetr` (the owner's decision, 2026-11-09):
   only HITL venvs install it, never the shared `.venv` or CI; set-up in step 23b's Built record.
-- **Phase A model:** RF-DETR-L, pretrained COCO weights (Apache-2.0), class `car` only, mapped to `dock` in the
-  profile. Evidence: on the owner's 11 real car clips it found 0.878 of the cars at score 0.45 (YOLOX-s 0.604) and
+- **Phase A model:** RF-DETR-L, pretrained COCO weights (Apache-2.0), class `truck` only, mapped to `dock` in the
+  profile; `car` is not mapped (one class, no car-and-truck chain; `rfdetr_settings.py` refuses more than one).
+  Evidence for the model: on the owner's 11 real car clips it found 0.878 of the cars at score 0.45 (YOLOX-s 0.604) and
   tracked best (recall 0.898, 58 ID switches); TensorRT FP16 engines exist on orin1 (`gimbal-controller`
   `docs/CAR-MOT.md`, `docs/CAR-MOT-LIVE.md`). Section 6 measures it exactly as it would a trained model. If it
   misses a target, the step stops FAILED with the numbers and the owner decides; no automatic fallback.
 - **Phase B model:** fine-tune RF-DETR-L on one class, `dock`
   (`vision_class_profile.py` `DOCK_PRESET_NAME`). Weights stay out of git, in the private HITL folder; the run
   record (step 1, `approach_records.py`) records the model, dataset and preprocessing hashes.
-- **What is boxed and aimed at, phase A:** the car. A car is not the same from every side (about 4.5 x 1.8 m from
-  above), so its box centre moves with the viewing azimuth. The POI is the car's centre at mid-height; section 6
-  item 3 measures the box-centre bias by azimuth. Other cars in view would each be a `dock` track, so the scene has
-  no other car near the dock (the ambiguity rule below would refuse them anyway).
+- **What is boxed and aimed at, phase A:** the pickup. It is not the same from every side (5.887 x 2.490 m from
+  above, 1.958 m high, measured in Unreal with mirrors), so its box centre moves with the viewing azimuth. The POI is
+  the pickup's centre at mid-height; section 6 item 3 measures the box-centre bias by azimuth. Other trucks in view
+  would each be a `dock` track, so the scene has no other truck near the dock (the ambiguity rule below would
+  refuse them anyway).
 - **What is boxed and aimed at, phase B:** the net only, not its platform. A 360-degree net looks the same from every
   azimuth, so its box centre stays near one physical point, the net's axis at mid-height. That point is the POI.
   Section 6 item 3 measures how far the box centre moves from it.
@@ -70,8 +75,9 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
   (thresholds, input size) and a final held-out set. Weights, confidence threshold and preprocessing are frozen
   before the held-out set and before any series; the series' private seeds are in none of the sets. Include
   terrain, light and haze variation and dock-free frames.
-- **Input size and crop:** at 300 m radius and 80 m above the dock (about 7.4 px/m at 10x), the phase A car is about
-  33 x 14 px on the full frame, but RF-DETR-L squashes the whole 1920 x 1080 frame to 704 x 704, so about 12 x 9 px:
+- **Input size and crop:** at 300 m radius and 80 m above the dock (about 7.4 px/m at 10x), the phase A pickup is
+  about 44 x 18 px on the full frame, but RF-DETR-L squashes the whole 1920 x 1080 frame to 704 x 704, so about
+  16 x 12 px:
   likely too small for search on the full frame. A fixed tiling of the frame into 704 px squares for search is the
   expected answer; section 6 item 1 decides. Search and reacquisition cover the whole frame. Once locked, an optional
   crop around the track box is resized to 704 with a recorded transform, and box pixels are mapped back to the full
@@ -93,6 +99,22 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
     the negative tests measure (section 6 item 2).
 - **Identity:** the detector cannot tell two docks apart, and assignment rules do not prove which physical dock is
   seen. The HITL series has one dock; several docks are out of scope and the ambiguity rule above refuses them.
+
+
+### 3.1 Phase A dock: the pickup scored as `truck` (owner, 2026-11-09)
+
+Unreal tests showed RF-DETR-L calls the white van stand-in a `bus`, so candidates were swept and the owner chose
+"Pickup as truck": a 2020 Silverado 1500 crew-cab pickup on the ground, scored as COCO `truck`.
+
+- **Sweep:** the Unreal scene, 8 azimuths at 300, 400 and 500 m, 80 m above, zoom 10x, native 704 px tiles,
+  threshold 0.45. The pickup passed as `truck` in 6/8, 7/8 and 8/8 views (21/24), median truck score 0.94, 0.92 and
+  0.80. It misses only end-on views at 300-400 m: truck 0.37-0.41, the top class `bus` or `car`.
+- **Rejected candidates:** the white high-roof van (scored as `bus`, about 2/24 as the kept class), a 4 m umbrella
+  (21/24 but median scores about 0.5), a football (9/24) and a concept car (1/24).
+- **Licence:** the pickup mesh is CC BY 4.0 as its uploader states, not confirmed; internal test use only.
+- **Limits:** this is a view sweep, not section 6 item 1's recall-by-box-size curve, so `min_box_px` and
+  `recall_min_box_px` stay placeholders. The 95 % per-frame recall target still stands; end-on misses at 300-400 m
+  are a known limit. Simulation only: it proves nothing about a physical dock.
 
 ## 4. Orbit centre without a ChArUco pose
 
@@ -122,8 +144,8 @@ bounds (stage 1's emulated gimbal and SITL attitude give small values; stage 3 a
 compass bounds), the measured box-centre bias (section 6 item 3) and the measured capture-time skew.
 
 The error does not lose the dock: the gimbal tracks the box, and the picture at 10x covers about 35 x 20 m at 310 m.
-With the dock on the ground (owner, 2026-11-08) the POI height term hd is only the dock's mid-height, about 0.75 m
-for the phase A car, if home is on the same ground.
+With the dock on the ground (owner, 2026-11-08) the POI height term hd is only the dock's mid-height, about 0.98 m
+for the phase A pickup, if home is on the same ground.
 
 It does change the horizontal distance to the dock round the circle to between r - e and r + e (slant
 sqrt((r ± e)^2 + h^2)), which every check must cover.
@@ -157,7 +179,7 @@ step with its own approval.
 - **First-detection distance D_max:** from the enforced acquisition floor `ACQ_MIN_BOX_PX` at the search zoom and
   the net's size, as in section 4.1. It sets the ground-ray bound e; no truth is read.
 - **Dock size** comes from the scenario's public half (`scenario_public.py`, its owner is the step 23 tooling): the
-  car's length, width and height in phase A, the net's size in phase B. It is a scene design fact, validated like
+  pickup's length, width and height in phase A, the net's size in phase B. It is a scene design fact, validated like
   the other public fields, read only by the
   check, never by navpy. Per-seed dock height or pose stay private.
 - **Containment:** the same both-axis margins with the net's box instead of the ChArUco grid, at r - e (zoom-in) and
@@ -178,7 +200,7 @@ All in Unreal through the encoded HITL stream, on the held-out set unless stated
 reported with 95 % intervals.
 
 1. **Detection versus box size:** per-frame recall and false-box rate against the smaller box side, at the series'
-   zoom steps and depressions 10-20 deg, per tiling and crop (commissioning set; in phase A, also by car
+   zoom steps and depressions 10-20 deg, per tiling and crop (commissioning set; in phase A, also by pickup
    azimuth). Sets
    `detector.min_box_px`: the smallest size with recall ≥ 95 % per frame and a lock within `MIN_LOCK_S` + 1 s in
    ≥ 99 % of passes (my targets, for approval).
@@ -214,7 +236,8 @@ replace the reader check with the detector check; release the recovery floor at 
 detector-gate tests (two tracks, short track, class mapping), floor-release tests and the isolation guards with
 the section 4.2 mutations. Done: the section 6 measurements recorded; the check passes at 300 m with measured
 values; 0 false confirms in the declared exposure; 0 box-size, centre, heading, position or altitude reads on
-NAV command and completion paths.
+NAV command and completion paths. (Changed 2026-11-09, section 8 item 10: the dock is a pickup scored as `truck`,
+not a car.)
 
 Later steps, each with its own approval: **23c, supervised automatic confirm** (the operator turns it on and can
 cancel a false confirm before contact; needs the section 6 item 2 bound); **phase B, the real net** (scene mesh,
@@ -223,7 +246,7 @@ RF-DETR-L fine-tuned for one class, once the net's shape is decided); the multi-
 
 ## 8. Owner decisions (2026-11-08)
 
-1. **Target for now:** a pretrained object as placeholder, a Ford car (about the net's size; matches the ZR10 car
+1. **Target for now** (superseded by item 10): a pretrained object as placeholder, a Ford car (about the net's size; matches the ZR10 car
    tests), found by RF-DETR-L. One detector, single responsibility, no fallback chain. Not the ChArUco board, not a
    new net mesh yet.
 2. **The real net:** not decided. Idea: a globe (sphere) net in a colour that does not disturb nature and animals.
@@ -238,6 +261,8 @@ RF-DETR-L fine-tuned for one class, once the net's shape is decided); the multi-
 
 9. **Recovery floor with a dock on the ground:** option A. The floor guards the lane, search and orbit and is
    released at the operator's confirm; in the sim a miss ends on the ground and is scored as a miss (section 5).
+10. **Phase A dock (2026-11-09):** "Pickup as truck": a 2020 Silverado crew-cab pickup on the ground, scored as COCO
+    `truck`, one class mapped to `dock`, no fallback (section 3.1).
    Stage 5 flight needs its own answer.
 
 ## 9. What this cannot prove

@@ -26,7 +26,7 @@ from navpy.plugins.detection.rfdetr.rfdetr_settings import RfDetrSettings
 from navpy.plugins.detection.rfdetr.rfdetr_tiling import Tile, merge_tiles, tiles
 
 CAR_SLOT, TRUCK_SLOT, PERSON_SLOT = 3, 8, 1     # COCO category ids (the model's logit slots)
-BLOCK = {"variant": "large", "classes": {"car": "dock"}, "input": "squash"}
+BLOCK = {"variant": "large", "classes": {"truck": "dock"}, "input": "squash"}
 
 
 def _logit(p: float) -> float:
@@ -146,9 +146,10 @@ def test_a_cut_box_alone_is_kept_and_overlapping_duplicates_merge_to_the_best():
 
 # --- detector -------------------------------------------------------------------------------------------------------
 
-def test_squash_keeps_only_cars_at_the_profile_confidence_as_the_dock_class():
-    runtime = FakeRuntime(lambda _i: [(0.5, 0.5, 0.02, 0.02, CAR_SLOT, 0.8), (0.2, 0.2, 0.02, 0.02, CAR_SLOT, 0.3),
-                                      (0.7, 0.7, 0.02, 0.02, TRUCK_SLOT, 0.9), (0.3, 0.6, 0.02, 0.02, PERSON_SLOT, 0.9)])
+def test_squash_keeps_only_trucks_at_the_profile_confidence_as_the_dock_class():
+    """Phase A's dock is the pickup, scored as COCO truck: a car is not the dock, however confident."""
+    runtime = FakeRuntime(lambda _i: [(0.5, 0.5, 0.02, 0.02, TRUCK_SLOT, 0.8), (0.2, 0.2, 0.02, 0.02, TRUCK_SLOT, 0.3),
+                                      (0.7, 0.7, 0.02, 0.02, CAR_SLOT, 0.9), (0.3, 0.6, 0.02, 0.02, PERSON_SLOT, 0.9)])
     detector = RfDetrDetector(runtime, _settings(), 0.45)
     found = detector.detect(np.zeros((1080, 1920, 3), np.uint8))
     assert [(d.class_id, round(d.cx), round(d.cy)) for d in found] == [(DOCK_DETECT_CLASS_ID, 960, 540)]
@@ -159,7 +160,7 @@ def test_squash_keeps_only_cars_at_the_profile_confidence_as_the_dock_class():
 
 
 def test_tiles_run_one_batch_and_map_boxes_back_to_the_full_frame():
-    runtime = FakeRuntime(lambda i: [(0.5, 0.5, 0.02, 0.02, CAR_SLOT, 0.9)] if i == 5 else [])
+    runtime = FakeRuntime(lambda i: [(0.5, 0.5, 0.02, 0.02, TRUCK_SLOT, 0.9)] if i == 5 else [])
     found = RfDetrDetector(runtime, _settings("tiles"), 0.45).detect(np.zeros((1080, 1920, 3), np.uint8))
     assert runtime.blobs[0].shape == (6, 3, 704, 704)
     assert [(round(d.cx), round(d.cy), round(d.w)) for d in found] == [(1216 + 352, 376 + 352, 14)]
@@ -172,16 +173,25 @@ def test_no_detection_is_no_detection_there_is_no_fallback():
 
 # --- settings and routing -------------------------------------------------------------------------------------------
 
-def test_settings_map_car_to_the_dock_and_give_the_input_scale():
+def test_settings_map_truck_to_the_dock_and_give_the_input_scale():
     squash, tiled = _settings(), _settings("tiles")
-    assert squash.class_map == ((2, DOCK_DETECT_CLASS_ID),) and squash.input_px == 704
+    assert squash.class_map == ((7, DOCK_DETECT_CLASS_ID),) and squash.input_px == 704
+    assert squash.navpy_class(7) == DOCK_DETECT_CLASS_ID and squash.navpy_class(2) is None    # car is not the dock
     assert squash.input_scale(1920, 1080) == pytest.approx((704 / 1920, 704 / 1080))
     assert tiled.input_scale(1920, 1080) == (1.0, 1.0)
+
+
+def test_the_hitl_profile_scores_the_pickup_as_coco_truck_only():
+    """Step 23b (owner, 2026-11-09): phase A's dock is a pickup, scored as COCO truck; car is not mapped."""
+    from navpy.core.perception.profile.vision_profile_loader import load_profiles
+    settings = rfdetr_settings(load_profiles()[0]["siyi_zr10_hitl_encoded"]["detector"])
+    assert settings.class_map == ((codec.COCO80_NAMES["truck"], DOCK_DETECT_CLASS_ID),)
 
 
 @pytest.mark.parametrize("block", [
     None, {}, {**BLOCK, "variant": "medium"}, {**BLOCK, "input": "crop"}, {**BLOCK, "classes": {}},
     {**BLOCK, "classes": {"car": "truck"}}, {**BLOCK, "classes": {"boat": "dock"}}, {**BLOCK, "extra": 1},
+    {**BLOCK, "classes": {"truck": "dock", "car": "dock"}},     # one class only: no car-and-truck fallback
 ])
 def test_malformed_rfdetr_blocks_are_refused(block):
     with pytest.raises(ValueError):

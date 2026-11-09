@@ -802,7 +802,7 @@
         "rfdetr": {
           "variant": "large",
           "classes": {
-            "car": "dock"
+            "truck": "dock"
           },
           "input": "tiles"
         },
@@ -810,7 +810,7 @@
           "min_lock_s": 1.0,
           "min_box_px": 24.0,
           "recall_min_box_px": 24.0,
-          "recall_evidence": "hitl_final_approach.md step 23b: a placeholder; the real ZR10 clip proxy never reached 95 % per frame, and the Unreal car is not measured yet"
+          "recall_evidence": "hitl_final_approach.md step 23b: a placeholder; the real ZR10 car clip proxy never reached 95 % per frame, and the Unreal pickup sweep (21/24 views as truck) measured views, not a box-size recall curve"
         }
       }
     },
