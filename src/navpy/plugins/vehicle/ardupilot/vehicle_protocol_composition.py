@@ -60,6 +60,7 @@ def build_protocol_parts(
         foundation.link.logger_ref,
         request.startup.heartbeat_hz,
         pacing,
+        foundation.link.active_bus.companion_hold,
     )
     snapshot = ParameterSnapshotClient(
         foundation.link.transport,

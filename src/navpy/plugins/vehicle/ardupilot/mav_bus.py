@@ -8,6 +8,7 @@ from collections.abc import Callable
 from pymavlink import mavutil
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.companion_hold_claim import CompanionHoldClaim
 from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
 from navpy.plugins.vehicle.ardupilot.airspeed_decode import AirspeedDecoder
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
@@ -125,6 +126,10 @@ class MavBus:
         # fence, checked under the send lock (mav_command_fence.py). NavPy's
         # recovery closes it; a process runs one NavPy vehicle per bus.
         self.command_fence = MavCommandFence()
+        # Public plain attribute, like ``command_fence``: NavPy's claim on its
+        # own recovery LOITER, sent in its companion heartbeat
+        # (companion_hold_claim.py).
+        self.companion_hold = CompanionHoldClaim()
         self._heartbeats = MavBusHeartbeats()
         # Public plain attribute, like ``device``: each scheduler sharing the
         # bus requests a reader-batch budget here (``request(owner)``); the

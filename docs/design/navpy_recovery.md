@@ -489,6 +489,24 @@ merges before step 4, which builds on its deadline fix.
      failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
      stands it down. A refused mode change is retried each tick and reported
      once; a refused AUTO keeps the hold and its RTL deadline.
+   - NavPy's own recovery LOITER (step 10, item 9; owner ruling
+     2026-11-09, "Yes, guard it"): while NAV recovery holds in a LOITER
+     NavPy asked for and owns (or did when last seen, a stale link), the
+     companion heartbeat's `custom_mode` has `NAVPY_HOLD_CLAIM` (bit 1,
+     `companion_hold_claim.py`; `HOLD_CLAIM` in the script), sent at once
+     on a change. In an armed LOITER a live NavPy claimed, no heartbeat for
+     `AAS_NWD_TMO` gives HOLD without a mode write, then RTL after
+     `AAS_NWD_RTL` from that moment, the autopilot's clock. NavPy back still
+     claiming has its hold again (the script stands down, no mode change;
+     NavPy's own budget goes on); NavPy back without the claim (restarted,
+     so it does not own the LOITER) gets AUTO, as after the script's own
+     hold. A pilot's LOITER is never claimed (NavPy claims only a LOITER it
+     owns), and any mode change after the guard starts stands it down as
+     above. Once a claimed LOITER is left, a claim counts again only after
+     an unclaimed heartbeat, so a pilot who leaves NavPy's LOITER and goes
+     back to LOITER before NavPy has seen it is not guarded on NavPy's stale
+     claim; NavPy's own resume (AUTO, then GUIDED) always sends unclaimed
+     heartbeats before a later hold.
    - Mode writes, a known limit: each is preceded, as the last binding
      call, by a read that the mode is still the one it decided from (GUIDED
      for the hold, its LOITER for AUTO or RTL); a test checks the read is
@@ -613,9 +631,10 @@ merges before step 4, which builds on its deadline fix.
     through recovery's ownership, in sim and on hardware,
     `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm). Item 8:
     no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
+    Item 9 (owner ruling, "Yes, guard it"): the autopilot's watchdog guards
+    NavPy's own recovery LOITER too, claimed in its heartbeat (step 7 above).
     Todos only (owner ruling): the systemd supervisor (todo 296,
-    with HITL) and an upstream heartbeat failsafe (todo 297). On hold for
-    the owner: a NavPy that dies in its own LOITER. Follow-up, out of scope
+    with HITL) and an upstream heartbeat failsafe (todo 297). Follow-up, out of scope
     (approach accuracy): a fresh approach after a hold ended `no_detection`
     31.8 m out (todo 298; step 9 SITL, S1, two runs).
     Original plan: done entries for 292 (and 291/290 from their sessions); new

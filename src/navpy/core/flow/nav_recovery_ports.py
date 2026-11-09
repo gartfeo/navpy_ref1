@@ -75,6 +75,9 @@ class NavRecoveryLink:
     request_mode: Callable[[FlightMode, Callable[[], bool]], bool] | None = None
     #: The watchdog's veto on reopening (MavCommandFence.hold_closed), while a loop is stuck.
     hold_fence: Callable[[bool], object] | None = None
+    #: NavPy's claim on its own recovery LOITER, sent to the autopilot's watchdog in the companion heartbeat
+    #: (companion_hold_claim.py, step 10 item 9).
+    claim_hold: Callable[[bool], object] = lambda _claimed: None
 
 
 @dataclass(frozen=True)
@@ -89,6 +92,8 @@ class NavRecoveryPorts:
     #: Writes recovery's modes on its own thread (nav_mode_sender.py); None: written inline through
     #: ``request_mode`` (tests, no link).
     mode_sender: ModeSender | None = None
+    #: NavPy holds in its own LOITER (NavRecoveryLink.claim_hold): the autopilot's watchdog guards it if NavPy dies.
+    claim_hold: Callable[[bool], object] = lambda _claimed: None
 
 
 class RecoveryHold:

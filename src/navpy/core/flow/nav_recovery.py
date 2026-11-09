@@ -58,6 +58,13 @@ def _inline_sender(ports: NavRecoveryPorts, report: Callable[[str], None]) -> Mo
                       ports.observe_mode, report, threaded=False)
 
 
+def _owned_loiter(observation: ModeObservation, ownership: NavOwnership) -> bool:
+    """Step 10, item 9: a LOITER NavPy owns (or did when last seen) is claimed in a hold, so the autopilot's watchdog
+    guards it if NavPy dies (companion_hold_claim.py). Never a mode NavPy does not own: a pilot's LOITER stays the
+    pilot's."""
+    return observation.mode is FlightMode.LOITER and ownership.state is not Ownership.NOT_OWNED
+
+
 class NavRecovery:
     """Owned by the NAV loop thread: ``step`` once per period, after the cycle. Critical RTL needs ownership;
     without it (search in the mission's AUTO, a pilot mode) NavPy stays fenced in the hold and resumes when healthy,
@@ -97,6 +104,7 @@ class NavRecovery:
         self._step_stage(observation, now, hung)
         normal = self.stage is RecoveryStage.NORMAL
         self.hold.stepped(normal, observation)
+        self._ports.claim_hold(not normal and _owned_loiter(observation, self.ownership))
         if normal:
             self._incident.healthy(self._good_since, now)
             return_after_failed_dock(self.hold, self._mode, self.ownership, observation, now, self._ports.logger)
@@ -237,15 +245,14 @@ class NavRecovery:
     def _resume_normal(self, message: str, resumed: bool = False, *, healthy: bool = True) -> None:
         """Reopen; ``resumed``: approach the kept dock again. Unhealthy, or the fence held by the watchdog
         (MavCommandFence.hold_closed): stay in the hold, and resume from it once healthy."""
+        self._mode.clear()
         if not healthy or self._ports.reopen_fence() is False:
             self.stage = RecoveryStage.HOLD
             self._good_since = None
-            self._mode.clear()
             self._handed_over_unhealthy = resumed
             self._report("NavPy not healthy, or a loop stuck: commands stay fenced")
             return
         self.stage = RecoveryStage.NORMAL
-        self._mode.clear()
         self._bad_since = None
         self._long_hold_reported = False
         self._handed_over_unhealthy = False

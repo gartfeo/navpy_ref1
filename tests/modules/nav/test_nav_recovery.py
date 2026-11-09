@@ -64,6 +64,7 @@ class Rig:
         self.logger = Mock()
         self.hold = RecoveryHold(autopilot.observe)   # GUIDED requests read the heartbeat at the request
         self.escalation = NavEscalation()
+        self.claims: list[bool] = []                  # the claim on NavPy's own LOITER, after each step
         self.recovery = NavRecovery(
             NavRecoveryPorts(
                 close_fence=self.fence.close,
@@ -72,6 +73,7 @@ class Rig:
                 request_mode=autopilot.request,
                 logger=self.logger,
                 escalation=self.escalation,
+                claim_hold=self.claims.append,
             ),
             self.hold,
         )
@@ -676,3 +678,55 @@ def test_item3_a_stale_link_waits_for_a_fresh_heartbeat():
     ap.fresh = True
     rig.run(True, 2.0)
     assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL
+
+
+# Step 10, item 9 (owner ruling 2026-11-09, "Yes, guard it"): while recovery holds in a LOITER NavPy owns, it claims
+# it, so the autopilot's watchdog (nav_watchdog.lua) guards it if NavPy dies. Never a LOITER that is not NavPy's.
+
+
+def test_item9_navpys_own_hold_loiter_is_claimed_once_it_shows():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD and rig.ap.mode is FlightMode.GUIDED
+    assert not any(rig.claims)                                 # not before the LOITER shows
+    rig.run(False, 1.0)
+    assert rig.ap.mode is FlightMode.LOITER and rig.claims[-1] is True
+
+
+def test_item9_the_claim_ends_when_navpy_resumes_in_auto():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    assert rig.claims[-1] is True
+    rig.run(True, NAV_HOLD_TRIGGER_S + 1.2)
+    assert rig.stage is RecoveryStage.NORMAL and rig.ap.mode is FlightMode.AUTO
+    assert rig.claims[-1] is False
+
+
+def test_item9_a_pilot_mode_in_the_hold_ends_the_claim_and_a_pilot_loiter_is_not_claimed():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    assert rig.claims[-1] is True
+    ap.mode = FlightMode.FBWA                                  # the pilot takes the mode
+    rig.run(False, 1.0)
+    assert rig.claims[-1] is False
+    ap.mode = FlightMode.LOITER                                # and goes to LOITER: the pilot's
+    rig.run(False, 2.0)
+    assert rig.stage is RecoveryStage.HOLD and not any(rig.claims[-16:])
+
+
+def test_item9_a_hold_in_a_loiter_navpy_never_owned_is_not_claimed():
+    ap = FakeAutopilot(FlightMode.LOITER)
+    rig = Rig(ap, owned=False)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 2.0)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == [] and not any(rig.claims)
+
+
+def test_item9_a_stale_link_keeps_the_claim():
+    """Owned when last seen (UNKNOWN): NavPy still holds its LOITER, so the guard stays claimed while it is alive."""
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    ap.fresh = False
+    rig.run(False, 1.0)
+    assert rig.recovery.ownership.state is Ownership.UNKNOWN and rig.claims[-1] is True
