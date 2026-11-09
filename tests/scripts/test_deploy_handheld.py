@@ -418,20 +418,17 @@ class TestTokenStep(unittest.TestCase):
 
     def test_a_failed_install_stops_the_update(self):
         """Codex P2 (round 2): set -e ignores a failure left of &&, so a failed
-        chmod still reported the copy and went on to the update."""
-        fake_bin = self.dir / "bin"
-        fake_bin.mkdir()
-        chmod = fake_bin / "chmod"
-        chmod.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
-        chmod.chmod(0o755)
-        env = {**os.environ, "PATH": f"{fake_bin.as_posix()}{os.pathsep}{os.environ.get('PATH', '')}"}
-        bash_path = subprocess.run([_bash(), "-c", f"PATH='{fake_bin.as_posix()}':$PATH; command -v chmod"],
-                                   capture_output=True, text=True).stdout.strip()
-        self.assertTrue(bash_path.endswith("bin/chmod"), bash_path)  # the fake shadows the real one
+        chmod still reported the copy and went on to the update. The step must
+        stop by itself: it runs here without -e. A failing chmod is a shell
+        function, which bash runs before any chmod on PATH: a fake on PATH
+        was not reliably found (CI run 42653138450; in Git bash a Windows
+        path's drive colon splits PATH)."""
+        failing_chmod = "chmod() { echo 'chmod failed' >&2; return 1; }\n"
         self.active.write_text("old", encoding="utf-8")
         script = handheld_token.token_step(self.stage("new").as_posix(), self.active.as_posix())
-        proc = subprocess.run([_bash(), "-e", "-c", f"PATH='{fake_bin.as_posix()}':$PATH\n" + script + "echo UPDATE\n"],
-                              capture_output=True, text=True, env=env)
+        proc = subprocess.run([_bash(), "-c", failing_chmod + script + "echo UPDATE\n"],
+                              capture_output=True, text=True)
+        self.assertIn("chmod failed", proc.stderr)  # the failing chmod is the one that ran
         self.assertNotEqual(proc.returncode, 0)
         self.assertNotIn("UPDATE", proc.stdout)
         self.assertNotIn("copied", proc.stdout)
