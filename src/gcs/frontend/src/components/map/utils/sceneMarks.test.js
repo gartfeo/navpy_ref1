@@ -72,7 +72,11 @@ describe('createSceneMarks', () => {
 
   it('destroy removes its collections', () => {
     const scene = fakeScene();
-    createSceneMarks(fakeCesium(), scene).destroy();
+    const marks = createSceneMarks(fakeCesium(), scene);
+    marks.update({ dock, dockText: 'Dock · 1 m', hub, hubText: 'DDH', fleet: [{ position: { x: 1, y: 2, z: 3 }, label: 'u2', zone: 0 }] });
+    expect(scene.list).toHaveLength(4);
+    expect(scene.list.every((c) => c.items.length > 0)).toBe(true);
+    marks.destroy();
     expect(scene.list).toHaveLength(0);
   });
 });

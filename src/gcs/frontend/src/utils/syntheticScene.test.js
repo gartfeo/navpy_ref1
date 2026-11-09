@@ -48,6 +48,7 @@ describe('syntheticHub', () => {
     expect(syntheticHub(fleet, hubs, [1, 0], 5)).toEqual({ lat: 1, lon: 2, type: 'building' });
   });
   it('none without an assignment, a hub or the UAV', () => {
+    expect(syntheticHub(fleet, hubs, [0], 4)).toEqual({ lat: 1, lon: 2, type: 'building' });
     expect(syntheticHub(fleet, hubs, [null], 4)).toBeNull();
     expect(syntheticHub(fleet, hubs, [1, 0], 9)).toBeNull();
     expect(syntheticHub(fleet, null, [0], 4)).toBeNull();
@@ -59,6 +60,7 @@ describe('velocityEnu', () => {
     expect(velocityEnu([20, 5, -2])).toEqual([5, 20, 2]);
   });
   it('none for a parked UAV, a missing or bad reading', () => {
+    expect(velocityEnu([1.5, 0, 0])).toEqual([0, 1.5, -0]);
     expect(velocityEnu([0.5, 0.5, 0])).toBeNull();
     expect(velocityEnu(null)).toBeNull();
     expect(velocityEnu([1, Number.NaN, 0])).toBeNull();
@@ -73,6 +75,7 @@ describe('smoothVector', () => {
     expect(n).toBeCloseTo(20 * Math.exp(-1), 9);
   });
   it('none when the UAV stops', () => {
+    expect(smoothVector([0, 20, 0], [0, 10, 0], 0.2)).not.toBeNull();
     expect(smoothVector([0, 20, 0], null, 0.2)).toBeNull();
   });
 });

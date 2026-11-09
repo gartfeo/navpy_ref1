@@ -71,15 +71,31 @@ class TestSnapshotDevice:
 class TestSnapshotVelocity:
     """Display-only ground velocity for the Synthetic view's flight path marker."""
 
+    @staticmethod
+    def _position(vn, ve, vd, age_s):
+        from types import SimpleNamespace
+        from navpy.core.kernel import runtime_time as rt
+        return SimpleNamespace(vn=vn, ve=ve, vd=vd, receipt_time_s=rt.time() - age_s)
+
     def test_velocity_ned_present(self):
         v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
-        v.velocity = (3.0, -4.0, 0.5)
+        v.position_sample = self._position(3.0, -4.0, 0.5, 0.2)
         snap = VehicleEntry(1, v, "uav1").snapshot()
         assert snap["velocity_ned"] == [3.0, -4.0, 0.5]
 
+    def test_velocity_ned_none_once_its_position_stream_is_older_than_the_link_rule(self):
+        """Codex P2: GLOBAL_POSITION_INT stopped while heartbeats go on left the last
+        direction on screen. Same rule as a lost link (VEHICLE_LINK_TIMEOUT_S)."""
+        from gcs.backend.vehicle_link import VEHICLE_LINK_TIMEOUT_S
+        v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
+        v.position_sample = self._position(3.0, -4.0, 0.5, VEHICLE_LINK_TIMEOUT_S - 0.5)
+        assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] == [3.0, -4.0, 0.5]
+        v.position_sample = self._position(3.0, -4.0, 0.5, VEHICLE_LINK_TIMEOUT_S + 0.5)
+        assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] is None
+
     def test_velocity_ned_none_without_a_message_or_with_bad_numbers(self):
         v = _make_vehicle(alt_msl=250.0, alt_rel=150.0)
-        v.velocity = None
+        v.position_sample = None
         assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] is None
-        v.velocity = (float("nan"), 0.0, 0.0)
+        v.position_sample = self._position(float("nan"), 0.0, 0.0, 0.2)
         assert VehicleEntry(1, v, "uav1").snapshot()["velocity_ned"] is None

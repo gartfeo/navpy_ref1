@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import scripts.deploy_handheld as deploy
+import scripts.handheld_token as handheld_token
 
 _UPDATE = Path(deploy.REPO) / "scripts" / "termux" / "update_gcs.sh"
 _HEALTHY = '{"status":"ok","vehicles_connected":0,"unavailable_routes":[]}'
@@ -127,9 +128,9 @@ _RESULTS = {0: ["update result: updated"], 2: ["update result: app build failed"
 
 class _FakeHandheld:
     def __init__(self, built="b1", installed="b1", app_running=True, update_code=0,
-                 update_lines=None, preflight_code=0, other_key=False, token_sha=None):
+                 update_lines=None, preflight_code=0, other_key=False):
         self.built, self.installed, self.running = built, installed, app_running
-        self.other_key, self.token_sha, self.tokens = other_key, token_sha, []
+        self.other_key, self.tokens = other_key, []
         self.update_code, self.preflight_code = update_code, preflight_code
         self.update_lines = _RESULTS.get(update_code, []) if update_lines is None else update_lines
         self.calls = []
@@ -151,7 +152,7 @@ class _FakeHandheld:
         return self.running
 
     def termux_sha256(self, path):
-        return self.token_sha if path == deploy.TOKEN_ON_DEVICE else self.built
+        return self.built
 
     def installed_apk_sha256(self):
         return self.installed
@@ -168,9 +169,9 @@ class _FakeHandheld:
         self.calls.append("uninstall")
         self.other_key = False
 
-    def put_token(self, token):
+    def put_token(self, token, remote):
         self.calls.append("token")
-        self.tokens.append(token)
+        self.tokens.append((token, remote))
 
     def restart_app(self):
         self.calls.append("restart_app")
@@ -183,15 +184,15 @@ class TestLocalToken(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "tok"
             path.write_text(" from-file " + chr(10), encoding="utf-8")
-            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "from-env",
-                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
-                self.assertEqual(deploy.local_cesium_token(), "from-env")
-            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "",
-                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
-                self.assertEqual(deploy.local_cesium_token(), "from-file")
-            with mock.patch.dict(os.environ, {deploy.CESIUM_ION_TOKEN_ENV: "",
-                                              deploy.CESIUM_ION_TOKEN_FILE_ENV: str(path) + ".missing"}):
-                self.assertIsNone(deploy.local_cesium_token())
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "from-env",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(handheld_token.local_cesium_token(), "from-env")
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(handheld_token.local_cesium_token(), "from-file")
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path) + ".missing"}):
+                self.assertIsNone(handheld_token.local_cesium_token())
 
 
 class TestDeploySteps(unittest.TestCase):
@@ -303,37 +304,104 @@ class TestDeploySteps(unittest.TestCase):
     def test_replace_app_never_uninstalls_an_app_that_updates_in_place(self):
         handheld = _FakeHandheld(built="new", installed="old")
         deploy.deploy(handheld, self.bundle, replace_app=True)
-        self.assertNotIn("uninstall", handheld.calls)
+        self.assertEqual(handheld.calls, ["upload", "update", "download", "install", "restart_app"])
 
-    def test_the_pcs_cesium_token_is_copied_before_the_backend_restarts(self):
-        """Owner (2026-11-08): the handheld had no token, so no satellite layer."""
-        handheld = _FakeHandheld()
-        deploy.deploy(handheld, self.bundle, token="tok")
-        self.assertEqual(handheld.tokens, ["tok"])
-        self.assertLess(handheld.calls.index("token"), handheld.calls.index("update"))
-
-    def test_a_token_the_handheld_already_has_is_not_copied_again(self):
-        import hashlib
-        handheld = _FakeHandheld(token_sha=hashlib.sha256(b"tok").hexdigest())
-        deploy.deploy(handheld, self.bundle, token="tok")
-        self.assertNotIn("token", handheld.calls)
+    def test_the_pcs_token_is_staged_and_put_in_place_under_the_deploy_lock(self):
+        """Owner (2026-11-08): the handheld had no token, so no satellite layer.
+        Codex P2: a deploy that does not get the lock must change no token, and
+        two deploys must not share a staging file."""
+        first, second = _FakeHandheld(), _FakeHandheld()
+        deploy.deploy(first, self.bundle, token="tok")
+        deploy.deploy(second, self.bundle, token="tok")
+        [(token, staged)] = first.tokens
+        self.assertEqual(token, "tok")
+        self.assertNotEqual(staged, deploy.TOKEN_ON_DEVICE)
+        self.assertNotEqual(staged, second.tokens[0][1])
+        script = first.update_script
+        lock = script.index("flock -n 9")
+        lock_failed = script[lock:script.index("exit 1", lock)]
+        self.assertIn(f"'{staged}'", lock_failed)  # removed when the lock is not taken
+        put = script.index(f"mv -f '{staged}' '{deploy.TOKEN_ON_DEVICE}'")
+        self.assertLess(script.index("flock -n 9"), put)
+        self.assertLess(put, script.index("update_gcs.sh"))
+        self.assertLess(first.calls.index("token"), first.calls.index("update"))
 
     def test_without_a_token_on_the_pc_the_handhelds_is_kept(self):
-        handheld = _FakeHandheld(token_sha="whatever")
-        deploy.deploy(handheld, self.bundle, token=None)
-        self.assertNotIn("token", handheld.calls)
-
-    def test_the_token_is_never_printed(self):
+        handheld = _FakeHandheld()
         printed = []
         with mock.patch("builtins.print", lambda *a, **k: printed.append(" ".join(map(str, a)))):
-            deploy.deploy(_FakeHandheld(), self.bundle, token="s3cr3t-token")
+            deploy.deploy(handheld, self.bundle, token=None)
+        self.assertNotIn("token", handheld.calls)
+        self.assertNotIn(f"'{deploy.TOKEN_ON_DEVICE}'", handheld.update_script.split("done")[-1])
+        self.assertNotIn("mv -f", handheld.update_script)
+        self.assertTrue(any("no Cesium Ion token" in line for line in printed))
+
+    def test_the_token_is_never_printed_or_put_in_the_script(self):
+        handheld = _FakeHandheld()
+        printed = []
+        with mock.patch("builtins.print", lambda *a, **k: printed.append(" ".join(map(str, a)))):
+            deploy.deploy(handheld, self.bundle, token="s3cr3t-token")
+        self.assertEqual(handheld.tokens[0][0], "s3cr3t-token")  # it was copied
         self.assertFalse(any("s3cr3t-token" in line for line in printed))
+        self.assertNotIn("s3cr3t-token", handheld.update_script)
 
     def test_no_run_as_stops_before_copying(self):
         handheld = _FakeHandheld(preflight_code=1)
         with self.assertRaises(deploy.DeployError):
             deploy.deploy(handheld, self.bundle)
         self.assertEqual(handheld.calls, [])
+
+
+@unittest.skipUnless(_bash(), "bash is not installed")
+class TestTokenStep(unittest.TestCase):
+    """The locked token step (handheld_token.token_step) run by bash on real files."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.active = self.dir / "cesium_ion_token"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_step(self, staged):
+        script = handheld_token.token_step(staged and staged.as_posix(), self.active.as_posix())
+        proc = subprocess.run([_bash(), "-e", "-c", script], capture_output=True, text=True)
+        self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc.stdout
+
+    def stage(self, text, name="cesium_ion_token.ab12.new"):
+        staged = self.dir / name
+        staged.write_text(text, encoding="utf-8")
+        return staged
+
+    def test_a_new_token_replaces_the_active_one(self):
+        self.active.write_text("old", encoding="utf-8")
+        out = self.run_step(self.stage("new"))
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "new")
+        self.assertIn("copied", out)
+        self.assertNotIn("new", out.replace("copied", ""))
+
+    def test_a_first_token_is_put_in_place(self):
+        self.run_step(self.stage("tok"))
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "tok")
+
+    def test_the_same_token_leaves_the_active_file_untouched(self):
+        self.active.write_text("tok", encoding="utf-8")
+        os.utime(self.active, (1_000_000, 1_000_000))
+        staged = self.stage("tok")
+        out = self.run_step(staged)
+        self.assertEqual(self.active.stat().st_mtime, 1_000_000)
+        self.assertFalse(staged.exists())
+        self.assertNotIn("copied", out)
+
+    def test_tokens_staged_by_interrupted_deploys_are_removed(self):
+        left = self.stage("old", "cesium_ion_token.dead.new")
+        self.run_step(self.stage("tok"))
+        self.assertFalse(left.exists())
+        left = self.stage("old", "cesium_ion_token.dead.new")
+        self.run_step(None)
+        self.assertFalse(left.exists())
 
 
 @unittest.skipUnless(_bash(), "bash is not installed")

@@ -29,11 +29,13 @@ describe('flightPathMarkerPoint', () => {
 
   it('none when the UAV flies away from where the camera looks', () => {
     const C = withProjection(() => ({ x: 100, y: 100 }));
+    expect(flightPathMarkerPoint(C, sceneLooking(fixedDir(0, 1, 0)), position, [0, 25, 0], SIZE)).toEqual({ x: 100, y: 100 });
     expect(flightPathMarkerPoint(C, sceneLooking(fixedDir(0, -1, 0)), position, [0, 25, 0], SIZE)).toBeNull();
   });
 
   it('none off the picture, without a projection, or without a velocity', () => {
     const north = sceneLooking(fixedDir(0, 1, 0));
+    expect(flightPathMarkerPoint(withProjection(() => ({ x: 320, y: 180 })), north, position, [0, 25, 0], SIZE)).toEqual({ x: 320, y: 180 });
     expect(flightPathMarkerPoint(withProjection(() => ({ x: 400, y: 10 })), north, position, [0, 25, 0], SIZE)).toBeNull();
     expect(flightPathMarkerPoint(withProjection(() => undefined), north, position, [0, 25, 0], SIZE)).toBeNull();
     expect(flightPathMarkerPoint(withProjection(() => ({ x: 1, y: 1 })), north, position, [0, 0, 0], SIZE)).toBeNull();

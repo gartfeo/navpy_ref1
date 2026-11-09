@@ -552,7 +552,8 @@ large vehicle view.
   with live telemetry (a dot in its zone colour and its name;
   `map/utils/sceneMarks.js`, `utils/syntheticScene.js`). A flight path marker
   (ring with wings) shows where the UAV is going: its measured ground velocity
-  (`velocity_ned` in the snapshot, display only) smoothed over
+  (`velocity_ned` in the snapshot, display only; null once its
+  GLOBAL_POSITION_INT is older than the link rule, `VEHICLE_LINK_TIMEOUT_S`) smoothed over
   `FPM_SMOOTHING_S` and projected `FPM_PROJECTION_M` ahead
   (`map/utils/flightPathMarker.js`); none below `MIN_ETE_SPEED_MPS`, off the
   picture or behind the camera. While the window's "View held" row shows, the

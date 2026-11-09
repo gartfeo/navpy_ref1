@@ -587,6 +587,11 @@ describe('Synthetic view marks (owner 2026-11-09)', () => {
     const [e, n] = calls.at(-1).enu;
     expect(e).toBeLessThan(20);
     expect(n).toBeGreaterThan(0);
+    // Codex P2: the backend drops a stale velocity (velocity_ned null); the marker goes.
+    store.vehicles = { ...store.vehicles, 1: { ...linked, velocity_ned: null } };
+    emitAll(store);
+    frame(w);
+    expect(queryByTestId('synthetic-fpm')).toBeNull();
   });
 
   it('no marker where the direction of travel is off the picture', async () => {

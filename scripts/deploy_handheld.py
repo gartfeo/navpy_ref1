@@ -26,25 +26,20 @@ Needs a Termux build that allows run-as (the GitHub build does).
 from __future__ import annotations
 
 import argparse
-import hashlib
-import io
 import os
 import re
 import secrets
-import shutil
 import subprocess
 import sys
-import tarfile
 import tempfile
-import time
-from datetime import datetime, timezone
 from pathlib import Path
 
-REPO = Path(__file__).resolve().parents[1]
-# What the handheld runs. Anything else in the repository stays on the PC.
-PATHS = ("src", "scripts/termux", "pyproject.toml")
-FRONTEND = Path("src/gcs/frontend")
-DIST = FRONTEND / "dist"
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.handheld_bundle import REPO, DeployError, build_bundle, build_frontend, git, uncommitted  # noqa: E402
+from scripts.handheld_token import local_cesium_token, token_step  # noqa: E402
 
 TERMUX = "com.termux"
 PREFIX = "/data/data/com.termux/files/usr"
@@ -60,8 +55,6 @@ APP = "com.aas.gcs"
 APP_ACTIVITY = f"{APP}/.MainActivity"
 # Where the handheld's backend reads the Cesium Ion token (map_config.py).
 TOKEN_ON_DEVICE = f"{HOME}/.gcs/cesium_ion_token"
-CESIUM_ION_TOKEN_ENV = "CESIUM_ION_TOKEN"
-CESIUM_ION_TOKEN_FILE_ENV = "GCS_CESIUM_ION_TOKEN_FILE"
 # adb install's answer when the installed app is signed with another key.
 _OTHER_KEY = b"INSTALL_FAILED_UPDATE_INCOMPATIBLE"
 # update_gcs.sh ends with one of these lines and exit codes; the code alone
@@ -84,86 +77,8 @@ cd "$HOME"
 """
 
 
-class DeployError(RuntimeError):
-    pass
-
-
 class OtherSigningKey(DeployError):
     """The installed app is signed with another key; adb install -r cannot replace it."""
-
-
-def local_cesium_token() -> str | None:
-    """This PC's Cesium Ion token, found as the backend finds it (map_config.py), or None."""
-    token = os.environ.get(CESIUM_ION_TOKEN_ENV, "").strip()
-    if token:
-        return token
-    override = os.environ.get(CESIUM_ION_TOKEN_FILE_ENV, "").strip()
-    path = Path(override).expanduser() if override else Path.home() / ".gcs" / "cesium_ion_token"
-    try:
-        token = path.read_text(encoding="utf-8").strip()
-    except OSError:
-        return None
-    return token or None
-
-
-def git(*args: str, repo: Path = REPO) -> str:
-    # rstrip only: a status line starts with a meaningful space.
-    return subprocess.run(["git", *args], cwd=repo, check=True, capture_output=True,
-                          text=True).stdout.rstrip()
-
-
-def uncommitted(repo: Path = REPO) -> list[str]:
-    """Changed or untracked files in the deployed paths; ignored files do not count."""
-    out = git("status", "--porcelain", "--untracked-files=all", "--", *PATHS, repo=repo)
-    return [line for line in out.splitlines() if line]
-
-
-def build_frontend(repo: Path = REPO) -> None:
-    frontend = repo / FRONTEND
-    if not (frontend / "node_modules").is_dir():
-        raise DeployError(f"No node_modules in {frontend}; run npm ci there first.")
-    npm = shutil.which("npm")
-    if npm is None:
-        raise DeployError("npm is not on PATH.")
-    subprocess.run([npm, "run", "build"], cwd=frontend, check=True)
-
-
-def _normalize(info: tarfile.TarInfo) -> tarfile.TarInfo:
-    # Windows reports 0666/0777; the handheld gets ordinary modes.
-    info.mode = 0o755 if info.isdir() else 0o644
-    info.uid = info.gid = 0
-    info.uname = info.gname = ""
-    return info
-
-
-def deployed_text(repo: Path = REPO) -> str:
-    return (f"commit {git('rev-parse', 'HEAD', repo=repo)}\n"
-            f"subject {git('log', '-1', '--format=%s', repo=repo)}\n"
-            f"built {datetime.now(timezone.utc).isoformat(timespec='seconds')}\n")
-
-
-def build_bundle(out: Path, repo: Path = REPO) -> None:
-    """Writes HEAD's deployed paths, the frontend build and a DEPLOYED file to out."""
-    dist = repo / DIST
-    if not (dist / "index.html").is_file():
-        raise DeployError(f"No frontend build at {dist}.")
-    # LF endings whatever core.autocrlf says: the handheld runs bash and Python.
-    archive = subprocess.run(
-        ["git", "-c", "core.autocrlf=false", "archive", "--format=tar", "HEAD", *PATHS],
-        cwd=repo, check=True, capture_output=True).stdout
-    with tarfile.open(out, "w:gz") as bundle:
-        with tarfile.open(fileobj=io.BytesIO(archive)) as source:
-            for member in source:
-                if member.isfile():
-                    bundle.addfile(member, source.extractfile(member))
-                elif member.isdir():
-                    bundle.addfile(member)
-        bundle.add(dist, arcname=DIST.as_posix(), filter=_normalize)
-        text = deployed_text(repo).encode()
-        info = _normalize(tarfile.TarInfo("DEPLOYED"))
-        info.size = len(text)
-        info.mtime = int(time.time())
-        bundle.addfile(info, io.BytesIO(text))
 
 
 def _sha256(output: bytes) -> str | None:
@@ -228,28 +143,16 @@ class Handheld:
     def uninstall_app(self) -> None:
         self._adb("uninstall", APP, check=True)
 
-    def put_token(self, token: str) -> None:
-        """Writes the token to TOKEN_ON_DEVICE, mode 600, replacing it whole."""
-        tmp = f"{TOKEN_ON_DEVICE}.new"
+    def put_token(self, token: str, remote: str) -> None:
+        """Writes the token to `remote`, readable by Termux only. The locked
+        update step (token_step) puts it in place; this changes nothing live."""
         subprocess.run([*self.base, "exec-in", "run-as", TERMUX, "sh", "-c",
-                        f"umask 077; mkdir -p '{HOME}/.gcs' && cat > '{tmp}' && chmod 600 '{tmp}' "
-                        f"&& mv -f '{tmp}' '{TOKEN_ON_DEVICE}'"],
+                        f"umask 077; mkdir -p '{HOME}/.gcs' && cat > '{remote}'"],
                        input=token.encode(), check=True)
 
     def restart_app(self) -> None:
         self._adb("shell", "am", "force-stop", APP, check=True)
         self._adb("shell", "am", "start", "-n", APP_ACTIVITY, check=True)
-
-
-def copy_token(handheld: Handheld, token: str | None) -> None:
-    """Gives the handheld this PC's token unless it already has the same one."""
-    if not token:
-        print("no Cesium Ion token on this PC; the handheld keeps whatever it has")
-        return
-    if handheld.termux_sha256(TOKEN_ON_DEVICE) == hashlib.sha256(token.encode()).hexdigest():
-        return
-    handheld.put_token(token)
-    print(f"copied this PC's Cesium Ion token to {TOKEN_ON_DEVICE}")
 
 
 def install_app(handheld: Handheld, apk: Path, replace_app: bool) -> None:
@@ -271,25 +174,35 @@ def deploy(handheld: Handheld, bundle: Path, token: str | None = None, replace_a
     if handheld.run("true\n")[0] != 0:
         raise DeployError("Cannot run commands in Termux over adb; run-as needs Termux's GitHub build "
                           "(see the guide, or use --out).")
-    # Before the update, which restarts the backend.
-    copy_token(handheld, token)
+    # Staged under its own name now, put in place under the lock below, before
+    # the update restarts the backend: a deploy that does not get the lock
+    # changes no token, and two deploys never share a staging file.
+    staged = None
+    if token:
+        staged = f"{TOKEN_ON_DEVICE}.{secrets.token_hex(4)}.new"
+        handheld.put_token(token, staged)
+    else:
+        print("no Cesium Ion token on this PC; the handheld keeps whatever it has")
     app_was_open = handheld.app_running()
     print(f"copying {bundle.stat().st_size / 1e6:.1f} MB to the handheld")
     # Its own name, so a deploy started meanwhile cannot overwrite it.
     on_device = f"{HOME}/navpy-update-{secrets.token_hex(4)}.tgz"
     handheld.upload(bundle, on_device)
+    uploaded = f"'{on_device}'" + (f" '{staged}'" if staged else "")
     # The lock on fd 9 is taken before the shared navpy.new is touched and
     # held until this shell exits; update_gcs.sh keeps it from the backend.
     code, lines = handheld.run(
         f"exec 9> '{DEPLOY_LOCK}'\n"
         f"if ! {FLOCK} -n 9; then\n"
-        f"    rm -f '{on_device}'\n"
+        f"    rm -f {uploaded}\n"
         f"    echo 'another deploy is running on the handheld; nothing was changed' >&2\n"
         f"    exit 1\n"
         f"fi\n"
-        # Bundles left by interrupted deploys. A deploy that has uploaded but
-        # not yet taken the lock then fails at tar, before it changes anything.
+        # Bundles and tokens left by interrupted deploys. A deploy that has
+        # uploaded but not yet taken the lock then fails at tar or at its
+        # token, before it changes anything.
         f"for f in '{HOME}'/navpy-update-*.tgz; do [ \"$f\" = '{on_device}' ] || rm -f \"$f\"; done\n"
+        + token_step(staged, TOKEN_ON_DEVICE) +
         f"rm -rf '{NEW_COPY}'\nmkdir '{NEW_COPY}'\n"
         f"tar -xzf '{on_device}' -C '{NEW_COPY}'\nrm -f '{on_device}'\n"
         f"bash '{NEW_COPY}/scripts/termux/update_gcs.sh'\n")
