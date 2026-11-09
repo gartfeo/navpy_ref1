@@ -26,6 +26,8 @@ def mock_entry(mock_vehicle):
 def client(mock_entry):
     mock_mgr = MagicMock()
     mock_mgr.get_vehicle = MagicMock(return_value=mock_entry)
+    # A delivery dock's card: deny and cancel allowed (the home dock's is approve-only, see the HOME_DOCK tests).
+    mock_mgr.get_task_confirm_listener.return_value.is_standing.return_value = False
 
     with patch("gcs.backend.routes.task_confirm.vehicle_mgr", mock_mgr), \
          patch("gcs.backend.routes.task_confirm.ws_manager") as mock_ws:
@@ -308,3 +310,28 @@ class TestTaskConfirmResponseMessage:
 
         mav_msg = mock_vehicle.send_mavlink_message.call_args[0][0]
         assert mav_msg.confirmed == 0
+
+
+class TestHomeDockIsApproveOnly:
+    """Owner ruling 2026-11-09 (docs/design/navpy_recovery.md step 10, item 3): parking at the home dock has no
+    deny, cancel or timeout; the route refuses any negative answer for a task asked as HOME_DOCK."""
+
+    @pytest.mark.parametrize("action", ["deny", "cancel", "timeout_deny"])
+    def test_a_negative_answer_for_the_home_dock_is_refused_and_nothing_is_sent(self, client, mock_vehicle, action):
+        tc, mock_mgr, mock_ws = client
+        mock_mgr.get_task_confirm_listener.return_value.is_standing.return_value = True
+        resp = tc.post("/api/control/task_confirm", json={
+            "sys_id": 1, "task_id": 5, "is_confirmed": False, "action": action, "round_uid": "legacy",
+        })
+        assert resp.status_code == 409
+        mock_vehicle.send_mavlink_message.assert_not_called()
+        mock_ws.broadcast.assert_not_called()
+
+    def test_the_home_dock_is_approved(self, client, mock_vehicle):
+        tc, mock_mgr, _ = client
+        mock_mgr.get_task_confirm_listener.return_value.is_standing.return_value = True
+        resp = tc.post("/api/control/task_confirm", json={
+            "sys_id": 1, "task_id": 5, "is_confirmed": True, "action": "approve", "round_uid": "legacy",
+        })
+        assert resp.status_code == 200
+        assert mock_vehicle.send_mavlink_message.call_count == 3

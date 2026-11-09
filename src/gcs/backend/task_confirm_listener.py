@@ -22,6 +22,7 @@ from gcs.backend.task_confirm_transport import ConfirmationTransport
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.task_confirmation_msg import TaskConfirmRequestMsg
 from navpy.core.link.msg_abc import MsgRegistry
+from navpy.core.link.types import TaskTypeMsgData
 
 
 log = logging.getLogger(__name__)
@@ -49,6 +50,9 @@ class TaskConfirmListener:
         self._loop = loop
         self._vehicles: dict[int, TaskConfirmVehiclePort] = {}
         self._rounds = ConfirmationRoundRegistry()
+        # (sys_id, task_id) asked as HOME_DOCK: parking at the home dock is approve-only, no deny or cancel
+        # (owner ruling 2026-11-09; NavPy's standing review, docs/design/navpy_recovery.md step 10, item 3).
+        self._standing: set[tuple[int, int]] = set()
         self._transport = ConfirmationTransport(self._vehicles.get)
         self._images = ConfirmationImageSession(
             self._rounds.open_uid,
@@ -82,6 +86,8 @@ class TaskConfirmListener:
             return
 
         task = request.task
+        if task.task_type is TaskTypeMsgData.HOME_DOCK:
+            self._standing.add((sys_id, task.task_id))
         uid = round_uid(request)
         action, is_confirmed = self._rounds.classify(
             sys_id,
@@ -113,6 +119,10 @@ class TaskConfirmListener:
             "alt": _known(task.location.alt),
             "round_uid": uid,
         })
+
+    def is_standing(self, sys_id: int, task_id: int) -> bool:
+        """The task was asked as HOME_DOCK: only an approval may be sent for it."""
+        return (sys_id, task_id) in self._standing
 
     def clear_handled(self, sys_id: int, task_id: int) -> None:
         self._rounds.clear(sys_id, task_id)

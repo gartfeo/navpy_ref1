@@ -134,8 +134,10 @@ class TestClassToTaskType(unittest.TestCase):
         from navpy.core.link.types import class_to_task_type
         self.assertEqual(class_to_task_type(99), TaskTypeMsgData.UNKNOWN)
 
-    def test_task_type_members_are_dock_and_unknown(self):
-        self.assertEqual({m.name for m in TaskTypeMsgData}, {"DOCK", "UNKNOWN"})
+    def test_task_type_members_are_dock_unknown_and_home_dock(self):
+        # HOME_DOCK (6): a confirmation request to park at the mission's return dock, approve-only (step 10,
+        # item 3, owner ruling 2026-11-09). Wire values stay stable.
+        self.assertEqual({m.name: m.value for m in TaskTypeMsgData}, {"DOCK": 1, "UNKNOWN": 5, "HOME_DOCK": 6})
 
 
 if __name__ == "__main__":

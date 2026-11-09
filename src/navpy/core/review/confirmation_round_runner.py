@@ -13,7 +13,7 @@ from navpy.core.link.task_message_data import (
     TaskMsgData,
 )
 from navpy.core.link.location_msg import LocationMsgData
-from navpy.core.link.types import class_to_task_type
+from navpy.core.link.types import TaskTypeMsgData, class_to_task_type
 from navpy.core.review.confirmation_dependencies import ConfirmationFailurePolicy
 from navpy.core.review.confirmation_ports import (
     ConfirmationMessageBroadcaster,
@@ -219,7 +219,7 @@ class ConfirmationRoundRunner:
         class_id = poi.classification.class_id
         task = TaskMsgData(
             task_id=poi_id,
-            task_type=class_to_task_type(class_id),
+            task_type=TaskTypeMsgData.HOME_DOCK if self._standing(poi) else class_to_task_type(class_id),
             location=location,
             class_id=class_id,
         )

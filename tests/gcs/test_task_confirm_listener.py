@@ -35,13 +35,14 @@ def mock_vehicle():
     return vehicle
 
 
-def _make_navlink_msg(task_id, lat, lon, alt, sys_id=1, src_component=COMPANION_COMPONENT_ID):
+def _make_navlink_msg(task_id, lat, lon, alt, sys_id=1, src_component=COMPANION_COMPONENT_ID,
+                      task_type=TaskTypeMsgData.UNKNOWN):
     """Create a mock MAVLink message that looks like a TaskConfirmRequest."""
     req = TaskConfirmRequestMsg(
         sender_id=sys_id,
         task=TaskMsgData(
             task_id=task_id,
-            task_type=TaskTypeMsgData.UNKNOWN,
+            task_type=task_type,
             location=LocationMsgData(lat=lat, lng=lon, alt=alt),
         ),
     )
@@ -68,6 +69,19 @@ class TestRegisterVehicle:
 
 
 class TestOnNavlink:
+    @patch("gcs.backend.task_confirm_listener.ws_manager")
+    def test_a_home_dock_request_reaches_the_ui_as_home_dock_and_is_approve_only(self, mock_ws, listener, loop):
+        """Step 10, item 3 (owner ruling 2026-11-09): the card is approve-only; the route asks is_standing."""
+        mock_ws.broadcast = AsyncMock()
+        listener._on_navlink(1, _make_navlink_msg(task_id=7, lat=1.0, lon=2.0, alt=3.0,
+                                                  task_type=TaskTypeMsgData.HOME_DOCK))
+        listener._on_navlink(1, _make_navlink_msg(task_id=8, lat=1.0, lon=2.0, alt=3.0,
+                                                  task_type=TaskTypeMsgData.DOCK))
+        loop.run_until_complete(asyncio.sleep(0.05))
+        assert mock_ws.broadcast.call_args_list[0][0][0]["task_type"] == "HOME_DOCK"
+        assert listener.is_standing(1, 7)
+        assert not listener.is_standing(1, 8) and not listener.is_standing(2, 7)
+
     @patch("gcs.backend.task_confirm_listener.ws_manager")
     def test_broadcasts_task_confirm_request(self, mock_ws, listener, loop):
         mock_ws.broadcast = AsyncMock()

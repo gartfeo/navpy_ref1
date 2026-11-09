@@ -32,10 +32,13 @@ class TaskTypeMsgData(Enum):
 
     The detector publishes a single class (``dock``), so a detected POI maps to
     one task type. Wire values are stable: ``DOCK`` reuses 1 and ``UNKNOWN``
-    keeps 5.
+    keeps 5. ``HOME_DOCK`` (6) marks a confirmation request to park at the
+    mission's return dock, a standing review (core/review/standing_review.py):
+    the GCS offers Approve only, with no countdown and no cancel.
     """
     DOCK = 1
     UNKNOWN = 5  # Undefined types
+    HOME_DOCK = 6
 
 
 def class_to_task_type(class_id: int) -> TaskTypeMsgData:

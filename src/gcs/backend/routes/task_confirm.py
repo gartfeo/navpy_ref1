@@ -72,6 +72,11 @@ async def respond_to_task_confirm(req: TaskConfirmResponseRequest):
     entry = vehicle_mgr.get_vehicle(req.sys_id)
     if not entry:
         raise HTTPException(404, f"Vehicle {req.sys_id} not connected")
+    listener = vehicle_mgr.get_task_confirm_listener()
+    if not req.is_confirmed and listener is not None and listener.is_standing(req.sys_id, req.task_id):
+        # Owner ruling 2026-11-09: parking at the home dock has no cancel and no timeout; NavPy ignores a negative
+        # answer for it too (core/review/standing_review.py).
+        raise HTTPException(409, f"Task {req.task_id} is parking at the home dock: approve only, no deny or cancel")
 
     # The action string is operator-intent audit only; is_confirmed is what
     # the vehicle acts on. Falls back to the plain approve/deny label when no
@@ -110,7 +115,6 @@ async def respond_to_task_confirm(req: TaskConfirmResponseRequest):
     # now: the x3 burst above takes ~0.5s, long enough for the companion to
     # open a new round in the meantime, and that new round must get its own
     # popup rather than inherit this answer.
-    listener = vehicle_mgr.get_task_confirm_listener()
     if listener is not None:
         listener.mark_decided(req.sys_id, req.task_id, req.is_confirmed, req.round_uid)
 

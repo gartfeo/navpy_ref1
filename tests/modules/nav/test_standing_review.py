@@ -198,3 +198,14 @@ def test_the_final_approach_path_never_confirms_a_standing_review_locally(standi
     )
     assert admission.handle(_poi()) is confirmed_locally
     assert review.confirm_local.called is confirmed_locally
+
+
+@pytest.mark.parametrize("standing, task_type", [(True, "HOME_DOCK"), (False, "DOCK")])
+def test_the_request_names_a_standing_review_home_dock_for_the_gcs(standing, task_type):
+    """The GCS shows an approve-only card for HOME_DOCK (step 10, item 3)."""
+    from navpy.core.perception.profile.vision_class_profile import DOCK_DETECT_CLASS_ID
+
+    state = ConfirmationManagerState()
+    runner = _runner(state, [Mock()], standing=standing)
+    poi = make_detected_poi(obj_id=7, task_id=7, class_id=DOCK_DETECT_CLASS_ID)
+    assert runner._request_message(poi, 7).task.task_type.name == task_type
