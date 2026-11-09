@@ -593,7 +593,19 @@ merges before step 4, which builds on its deadline fix.
    on a non-simulated autopilot and by the lockstep host. Arming it and each
    mode change are recovery reports (source `sim_fault`), so an eval run with
    it fails the clean-run gate, never scores clean.
-10. **Todos.** Done entries for 292 (and 291/290 from their sessions); new
+10. **Todos.** As built (2026-11-09): 292 moved to `architecture_todo_done.md`
+    (290 and 291 were done in their sessions). Done, one commit each with
+    tests: item 1 (a NAV exit in recovery's hold ends the episode as held, so
+    the sim record says `held`, not `nav_fail`, when the operator's mode ends
+    it), item 10 (declared bounded waits count in wall time on the hang
+    clock), item 11 (the held episode's end is journaled), item 12 (a
+    companion asks for SIM_SPEEDUP, without waiting, before its heartbeat
+    starts). Todos only (owner ruling): the systemd supervisor (todo 296,
+    with HITL) and an upstream heartbeat failsafe (todo 297). On hold for
+    the owner: a NavPy that dies in its own LOITER. Follow-up, out of scope
+    (approach accuracy): a fresh approach after a hold ended `no_detection`
+    31.8 m out (todo 298; step 9 SITL, S1, two runs).
+    Original plan: done entries for 292 (and 291/290 from their sessions); new
     todos: systemd supervisor on the aircraft (with HITL), an upstream
     ArduPilot companion-heartbeat failsafe, and the unproven trigger of the
     21:39 mode-switch re-read. From the step 9 SITL checks (2026-11-09),
