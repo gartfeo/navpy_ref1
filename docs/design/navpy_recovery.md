@@ -490,23 +490,50 @@ merges before step 4, which builds on its deadline fix.
      stands it down. A refused mode change is retried each tick and reported
      once; a refused AUTO keeps the hold and its RTL deadline.
    - NavPy's own recovery LOITER (step 10, item 9; owner ruling
-     2026-11-09, "Yes, guard it"): while NAV recovery holds in a LOITER
-     NavPy asked for and owns (or did when last seen, a stale link), the
-     companion heartbeat's `custom_mode` has `NAVPY_HOLD_CLAIM` (bit 1,
-     `companion_hold_claim.py`; `HOLD_CLAIM` in the script), sent at once
-     on a change. In an armed LOITER a live NavPy claimed, no heartbeat for
-     `AAS_NWD_TMO` gives HOLD without a mode write, then RTL after
-     `AAS_NWD_RTL` from that moment, the autopilot's clock. NavPy back still
-     claiming has its hold again (the script stands down, no mode change;
-     NavPy's own budget goes on); NavPy back without the claim (restarted,
-     so it does not own the LOITER) gets AUTO, as after the script's own
-     hold. A pilot's LOITER is never claimed (NavPy claims only a LOITER it
-     owns), and any mode change after the guard starts stands it down as
-     above. Once a claimed LOITER is left, a claim counts again only after
-     an unclaimed heartbeat, so a pilot who leaves NavPy's LOITER and goes
-     back to LOITER before NavPy has seen it is not guarded on NavPy's stale
-     claim; NavPy's own resume (AUTO, then GUIDED) always sends unclaimed
-     heartbeats before a later hold.
+     2026-11-09, "Yes, guard it"; redesigned after Codex round 2). From
+     the moment NAV recovery requests its hold's LOITER (before any
+     heartbeat shows it), and while it owns the LOITER shown (or did when
+     last seen, a stale link), the companion heartbeat's `custom_mode`
+     carries a claim (`companion_hold_claim.py`): bit 0 `NAVPY_HOLD_CLAIM`,
+     bits 1-7 the LOITER request's token (`ModeRequest.requests`, so each
+     request a new one), bits 8-23 the incident's hold budget left
+     (`RecoveryIncident.remaining_s`) in tenths of a second, rounded down.
+     A claim starting, ending or naming a new token goes out at once; the
+     falling budget goes out at the heartbeat's own rate.
+     The script takes a claim only at a switch into an armed LOITER, and
+     only one received within `CLAIM_WINDOW_MS` (500 ms, two NavPy
+     heartbeat periods) of it, either side, whose token it never took
+     before. It then GUARDs (NAVWD 3, no mode write: the mode is LOITER
+     already) and owns the deadline: RTL at the claim's receipt plus
+     min(budget, `AAS_NWD_RTL`), the autopilot's clock, whatever NavPy's
+     heartbeat does. Any mode change or a disarm stands it down, and the
+     token stays spent. NavPy ends its hold only by changing the mode
+     (AUTO on resume, RTL for a failed sortie or at its own budget), never by
+     dropping the claim. So:
+     - NavPy dying after its LOITER shows but before a heartbeat said so is
+       guarded: the claim went out with the request (finding 1).
+     - A NavPy restarted within `AAS_NWD_TMO` (not knowing it held), or the
+       failed sortie's reopen in LOITER, sends unclaimed heartbeats; the
+       deadline stands (finding 2). The round-1 hand-back to a returning
+       NavPy, and its AUTO for one back without the claim, are gone.
+     - A pilot mode for one sample then LOITER, or a disarm then a re-arm,
+       while NavPy still claims (it has not seen the change yet), is not
+       guarded: that token is spent (finding 3).
+     - A claim received outside the window, delayed or spoofed, is never
+       taken over a pilot's LOITER (finding 4). Against a spoofer, the
+       window is all a script can do: an unsigned MAVLink link lets a
+       spoofer command modes directly anyway, so MAVLink signing is the
+       defence, not this script.
+     - The deadline keeps the summed-hold bound: NavPy dying 29 s into its
+       hold gives RTL at 30 s, not 60.5 s, and a later hold of the same
+       incident gets only what is left (finding 5). While NavPy lives, its
+       own RTL at the budget and the script's come at about the same time;
+       either is RTL.
+     A pilot's LOITER is never claimed (NavPy claims only a LOITER it
+     requested or owns). Known limit: a pilot who switches to LOITER within
+     the window of NavPy's own LOITER request (half a second) is taken for
+     NavPy's; any later mode change stands it down. NavPy's hold reports are
+     its own, so GUARD is no autopilot recovery report; its RTL is.
    - Mode writes, a known limit: each is preceded, as the last binding
      call, by a read that the mode is still the one it decided from (GUIDED
      for the hold, its LOITER for AUTO or RTL); a test checks the read is
@@ -638,7 +665,9 @@ merges before step 4, which builds on its deadline fix.
     signal arms episodes: finding 1, rebutted with a test). Item 8:
     no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
     Item 9 (owner ruling, "Yes, guard it"): the autopilot's watchdog guards
-    NavPy's own recovery LOITER too, claimed in its heartbeat (step 7 above).
+    NavPy's own recovery LOITER too, claimed in its heartbeat with the
+    request's token and the incident's budget left, and owns its RTL
+    deadline (step 7 above; Codex round 2's five findings answered there).
     Todos only (owner ruling): the systemd supervisor (todo 296,
     with HITL) and an upstream heartbeat failsafe (todo 297). Follow-up, out of scope
     (approach accuracy): a fresh approach after a hold ended `no_detection`

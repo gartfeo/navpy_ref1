@@ -36,7 +36,7 @@ from navpy.core.flow.nav_mode_sender import ModeSender
 from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownership, OwnershipEnd
 from navpy.core.flow.nav_recovery_incident import RecoveryIncident
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
-from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold
+from navpy.core.flow.nav_recovery_ports import HoldClaim, NavRecoveryPorts, RecoveryHold
 from navpy.core.flow.nav_sortie_return import return_after_failed_dock
 from navpy.core.ports.flight_mode import FlightMode
 
@@ -60,11 +60,18 @@ def _inline_sender(ports: NavRecoveryPorts, report: Callable[[str], None]) -> Mo
                       ports.observe_mode, report, threaded=False)
 
 
-def _owned_loiter(observation: ModeObservation, ownership: NavOwnership) -> bool:
-    """Step 10, item 9: a LOITER NavPy owns (or did when last seen) is claimed in a hold, so the autopilot's watchdog
-    guards it if NavPy dies (companion_hold_claim.py). Never a mode NavPy does not own: a pilot's LOITER stays the
-    pilot's."""
-    return observation.mode is FlightMode.LOITER and ownership.state is not Ownership.NOT_OWNED
+def _hold_claim(
+    normal: bool, observation: ModeObservation, ownership: NavOwnership, mode: ModeRequest, incident: RecoveryIncident,
+) -> HoldClaim | None:
+    """Step 10, item 9 (Codex round 2): in a hold, from the moment its LOITER is requested (before any heartbeat
+    shows it) and while NavPy owns the LOITER shown (or did when last seen), the autopilot's watchdog is told it is
+    NavPy's, with the request's token and the incident's budget left (companion_hold_claim.py). The watchdog takes a
+    token once, at the switch into LOITER, and then owns the RTL deadline. Never a mode NavPy does not own."""
+    requested = mode.pending is FlightMode.LOITER
+    owned = observation.mode is FlightMode.LOITER and ownership.state is not Ownership.NOT_OWNED
+    if normal or not (requested or owned):
+        return None
+    return HoldClaim(token=mode.requests, budget_s=incident.remaining_s())
 
 
 class NavRecovery:
@@ -106,7 +113,7 @@ class NavRecovery:
         self._step_stage(observation, now, hung)
         normal = self.stage is RecoveryStage.NORMAL
         self.hold.stepped(normal, observation)
-        self._ports.claim_hold(not normal and _owned_loiter(observation, self.ownership))
+        self._ports.claim_hold(_hold_claim(normal, observation, self.ownership, self._mode, self._incident))
         if normal:
             self._incident.healthy(self._good_since, now)
             return_after_failed_dock(self.hold, self._mode, self.ownership, observation, now, self._ports.logger)

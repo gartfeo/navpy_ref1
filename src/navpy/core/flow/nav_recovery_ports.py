@@ -15,6 +15,16 @@ from navpy.core.kernel.progress_beacon import ProgressBeacon
 from navpy.core.ports.flight_mode import FlightMode
 
 
+@dataclass(frozen=True)
+class HoldClaim:
+    """NavPy's claim on the LOITER of its recovery hold, for the autopilot's watchdog (nav_watchdog.lua; step 10,
+    item 9 and Codex round 2): ``token`` names the LOITER request (each request a new one, so the watchdog takes a
+    claim once, at the switch into that LOITER); ``budget_s`` is the incident's hold budget left, so the watchdog's RTL
+    deadline keeps the summed-hold bound (nav_recovery_incident.py)."""
+    token: int
+    budget_s: float
+
+
 class NavEscalation:
     """Between the main thread, which sees a latched component failure, and the NAV loop, which owns the mode."""
 
@@ -76,8 +86,8 @@ class NavRecoveryLink:
     #: The watchdog's veto on reopening (MavCommandFence.hold_closed), while a loop is stuck.
     hold_fence: Callable[[bool], object] | None = None
     #: NavPy's claim on its own recovery LOITER, sent to the autopilot's watchdog in the companion heartbeat
-    #: (companion_hold_claim.py, step 10 item 9).
-    claim_hold: Callable[[bool], object] = lambda _claimed: None
+    #: (companion_hold_claim.py, step 10 item 9); None: no claim.
+    claim_hold: Callable[[HoldClaim | None], object] = lambda _claim: None
 
 
 @dataclass(frozen=True)
@@ -92,8 +102,8 @@ class NavRecoveryPorts:
     #: Writes recovery's modes on its own thread (nav_mode_sender.py); None: written inline through
     #: ``request_mode`` (tests, no link).
     mode_sender: ModeSender | None = None
-    #: NavPy holds in its own LOITER (NavRecoveryLink.claim_hold): the autopilot's watchdog guards it if NavPy dies.
-    claim_hold: Callable[[bool], object] = lambda _claimed: None
+    #: NavPy holds in its own LOITER (NavRecoveryLink.claim_hold): the autopilot's watchdog then owns its deadline.
+    claim_hold: Callable[[HoldClaim | None], object] = lambda _claim: None
 
 
 class RecoveryHold:
@@ -178,6 +188,7 @@ class RecoveryHold:
 
 
 __all__ = [
+    "HoldClaim",
     "NavEscalation",
     "NavRecoveryLink",
     "NavRecoveryPorts",
