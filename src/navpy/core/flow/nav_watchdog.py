@@ -33,6 +33,14 @@ from navpy.core.kernel.progress_beacon import ProgressBeacon
 NAV_HANG_S = 1.5
 #: Wall time between checks: 30 within NAV_HANG_S at speed-up 1.
 NAV_WATCHDOG_TICK_S = 0.05
+#: A check whose wall time since the previous check exceeds NAV_WATCHDOG_TICK_S by more than this woke late: the
+#: watchdog thread itself did not run, as in a whole-process or host stall, so the loops it watches very likely did
+#: not either, and their busy time measures the stall, not a hang. A late check gives no new hang verdict (it keeps
+#: one that already holds); the next on-time check decides, so a loop still busy then is a hang (owner ruling, step
+#: 10 item 2: the step 9 SITL saw a false "NAV loop stuck" on all three NavPys at once for about 1.7 s). Five ticks:
+#: thread wake-up jitter under load is tens of milliseconds, and a real hang still trips within NAV_HANG_S plus one
+#: tick of on-time checks.
+NAV_WATCHDOG_LATE_S = 0.25
 #: How long the watchdog waits for recovery's lock to step in the stuck NAV loop's place: a step never blocks (its
 #: mode writes are the mode sender's), so a second is ample; one not taken is reported, and tried next check.
 NAV_WATCHDOG_STEP_LOCK_S = 1.0
@@ -44,8 +52,16 @@ class _HangTracker:
         self._beacon = beacon
         self._passes = -1
         self._busy_since: tuple[float, float] | None = None   # (hang clock, wall) at the pass's start
+        self._hung = False
 
-    def hung(self, now: float, wall_s: float) -> bool:
+    def hung(self, now: float, wall_s: float, late: bool) -> bool:
+        """The verdict of a check: a hang (``_busy``), but from a ``late`` check only if it already held
+        (NAV_WATCHDOG_LATE_S)."""
+        busy = self._busy(now, wall_s)
+        self._hung = busy and (self._hung or not late)
+        return self._hung
+
+    def _busy(self, now: float, wall_s: float) -> bool:
         """The pass's busy time, less its declared bounded waits, has reached NAV_HANG_S on the hang clock.
 
         The waits are wall-time bounds (a parameter reply), so they are taken as their share of the pass's wall time,
@@ -90,14 +106,17 @@ class NavWatchdog:
         self._clock = HangClock()
         self._stuck: str | None = None      # what is reported stuck now
         self._step_missed = False
+        self._last_check_wall_s: float | None = None
         self._stop = rt.Event()
         self._thread: rt.Thread | None = None
 
     def check(self) -> None:
         sample = self._ports.sample()
         now = self._clock.advance(sample)
-        nav_hung = self._nav.hung(now, sample.wall_s)
-        worker_hung = self._worker.hung(now, sample.wall_s)
+        last, self._last_check_wall_s = self._last_check_wall_s, sample.wall_s
+        late = last is not None and sample.wall_s - last > NAV_WATCHDOG_TICK_S + NAV_WATCHDOG_LATE_S
+        nav_hung = self._nav.hung(now, sample.wall_s, late)
+        worker_hung = self._worker.hung(now, sample.wall_s, late)
         stuck = "NAV loop" if nav_hung else "command worker" if worker_hung else None
         # The veto first: from here no reopen opens the fence, even one recovery decided before this check.
         self._ports.hold_fence(stuck is not None)
@@ -142,4 +161,4 @@ class NavWatchdog:
             pass
 
 
-__all__ = ["NAV_HANG_S", "NAV_WATCHDOG_TICK_S", "NavWatchdog", "NavWatchdogPorts"]
+__all__ = ["NAV_HANG_S", "NAV_WATCHDOG_LATE_S", "NAV_WATCHDOG_TICK_S", "NavWatchdog", "NavWatchdogPorts"]

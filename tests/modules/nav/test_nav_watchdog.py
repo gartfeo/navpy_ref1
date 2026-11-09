@@ -19,7 +19,9 @@ from navpy.core.flow.nav_recovery_clock import TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold, WatchdogSignal
 from navpy.core.flow.nav_recovery_step import SharedRecoveryStep
 from navpy.core.flow.nav_recovery_clock import AIRCRAFT_TIME_STALE_S, HangClock
-from navpy.core.flow.nav_watchdog import NAV_HANG_S, NavWatchdog, NavWatchdogPorts
+from navpy.core.flow.nav_watchdog import (
+    NAV_HANG_S, NAV_WATCHDOG_LATE_S, NAV_WATCHDOG_TICK_S, NavWatchdog, NavWatchdogPorts,
+)
 from navpy.core.kernel.progress_beacon import ProgressBeacon, bounded_wait
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
@@ -612,3 +614,70 @@ def test_step10_item10_a_declared_wait_covers_its_aircraft_time_at_a_sim_speedup
         assert not rig.signal.hung
         rig.run(PERIOD_S, nav_runs=False)                      # 2.5 s past it: NAV_HANG_S of aircraft time reached
         assert rig.signal.hung
+
+
+def _late_check(rig: WatchdogRig, seconds: float) -> None:
+    """The whole process stops for ``seconds`` (a host stall): wall and aircraft time move on, nothing runs, and the
+    watchdog's next check wakes that late."""
+    rig.t += seconds
+    if not rig.frozen:
+        rig.aircraft += seconds * rig.speedup
+    rig.watchdog.check()
+
+
+def test_step10_item2_a_whole_process_pause_mid_cycle_is_not_a_hang():
+    """Step 9 SITL: all three NavPys reported "NAV loop stuck" at once for about 1.7 s, with no fault injected. The
+    check that wakes after the stall sees the NAV pass it saw before as busy for 1.7 s; it gives no verdict, and the
+    pass ends before the next on-time check (step 10, item 2)."""
+    rig = WatchdogRig()
+    with rig.nav_beacon.busy():
+        rig.run(PERIOD_S, nav_runs=False)                       # an on-time check sees the cycle busy
+        _late_check(rig, 1.7)
+        assert not rig.signal.hung and rig.fence.is_open
+    rig.run(2.0)
+    assert rig.reports == [] and rig.ap.requests == [] and rig.stage is RecoveryStage.NORMAL
+
+
+def test_step10_item2_a_late_check_never_starts_a_verdict_for_either_loop():
+    rig = WatchdogRig()
+    with rig.nav_beacon.busy(), rig.worker_beacon.busy():
+        rig.run(PERIOD_S, nav_runs=False)
+        _late_check(rig, NAV_HANG_S + 1.0)
+        assert not rig.signal.hung and rig.fence.is_open
+        rig.run(PERIOD_S, nav_runs=False)                       # on time, both still busy: stuck
+        assert rig.signal.hung and not rig.fence.is_open
+
+
+def test_step10_item2_a_real_hang_still_trips_within_nav_hang_s_plus_one_tick():
+    """Checks on time, every NAV_WATCHDOG_TICK_S of wall time, as the watchdog thread runs them."""
+    rig = WatchdogRig()
+    with rig.nav_beacon.busy():
+        rig.watchdog.check()
+        start_s = rig.t
+        while not rig.signal.hung:
+            _late_check(rig, NAV_WATCHDOG_TICK_S)
+            assert rig.t - start_s <= NAV_HANG_S + NAV_WATCHDOG_TICK_S
+    assert rig.ap.requests == [FlightMode.LOITER]
+
+
+def test_step10_item2_a_hang_that_spans_a_stall_trips_at_the_first_on_time_check():
+    """The stall is not subtracted: a pass still busy at the first on-time check after it is stuck."""
+    rig = WatchdogRig()
+    with rig.nav_beacon.busy():
+        rig.run(PERIOD_S, nav_runs=False)
+        _late_check(rig, NAV_WATCHDOG_TICK_S + NAV_WATCHDOG_LATE_S + 0.01)
+        _late_check(rig, NAV_HANG_S)
+        assert not rig.signal.hung                              # every check so far woke late
+        _late_check(rig, NAV_WATCHDOG_TICK_S)
+        assert rig.signal.hung
+
+
+def test_step10_item2_a_late_check_keeps_a_hang_that_already_holds():
+    rig = WatchdogRig()
+    with rig.nav_beacon.busy():
+        rig.run(NAV_HANG_S + 0.1, nav_runs=False)
+        assert rig.signal.hung
+        _late_check(rig, 1.0)
+        assert rig.signal.hung and not rig.fence.is_open
+    rig.run(PERIOD_S)
+    assert not rig.signal.hung
