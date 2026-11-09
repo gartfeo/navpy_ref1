@@ -626,3 +626,53 @@ def test_recovery_reports_reach_the_operator_as_status_texts():
     assert rig.stage is RecoveryStage.HOLD
     assert logger.warnings and all(w["status"] == w["msg"] for w in logger.warnings)
     assert logger.journal.records == [("nav", w["msg"]) for w in logger.warnings]
+
+
+# Step 10, item 3 (owner ruling 2026-11-09): after a failed one-shot dock recovery asks for RTL, only while NavPy owns
+# the mode (nav_sortie_return.py).
+
+
+def test_item3_a_failed_dock_gives_rtl_through_ownership_and_it_is_kept():
+    rig = Rig(FakeAutopilot())
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
+    assert not rig.hold.sortie_rtl and rig.stage is RecoveryStage.NORMAL
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.0)                   # a later NavPy hold never undoes the RTL
+    assert rig.stage is RecoveryStage.HOLD
+    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
+
+
+def test_item3_the_rtl_is_repeated_until_a_heartbeat_shows_it():
+    ap = FakeAutopilot(takes=False)
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 3.5)
+    assert len(ap.requests) >= 3 and set(ap.requests) == {FlightMode.RTL}   # every MODE_RETRY_S, never given up
+    assert rig.hold.sortie_rtl
+    ap.takes = True
+    rig.run(True, 3.0)
+    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
+
+
+def test_item3_an_operators_mode_stands_no_rtl():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    ap.mode = FlightMode.FBWA                                  # the operator took the mode
+    rig.run(True, 2.0)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert FlightMode.RTL not in ap.requests and ap.mode is FlightMode.FBWA
+    assert not rig.hold.sortie_rtl
+
+
+def test_item3_a_stale_link_waits_for_a_fresh_heartbeat():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    ap.fresh = False
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert ap.requests == [] and rig.hold.sortie_rtl
+    ap.fresh = True
+    rig.run(True, 2.0)
+    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL

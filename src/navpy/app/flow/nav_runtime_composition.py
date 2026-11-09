@@ -155,7 +155,7 @@ def compose_nav_application(
         NavSnapReporter(navigation.algorithm_info, logger),
         compose_sortie_finish(
             vehicle, confirmation.reset.reset, logger,
-            lambda: loop is not None and loop.is_stopping(),
+            lambda: loop is not None and loop.is_stopping(), state.recovery_hold.request_sortie_rtl,
         ).run,
         state.navigation_task,
         lambda: args.is_oneshot,

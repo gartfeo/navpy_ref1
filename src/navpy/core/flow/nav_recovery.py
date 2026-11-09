@@ -35,6 +35,7 @@ from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownersh
 from navpy.core.flow.nav_recovery_incident import RecoveryIncident
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold
+from navpy.core.flow.nav_sortie_return import return_after_failed_dock
 from navpy.core.ports.flight_mode import FlightMode
 
 #: Bad, then good, time that starts the hold and the resume: ArduPlane's FS_SHORT_TIMEOUT default.
@@ -98,6 +99,7 @@ class NavRecovery:
         self.hold.stepped(normal, observation)
         if normal:
             self._incident.healthy(self._good_since, now)
+            return_after_failed_dock(self.hold, self._mode, self.ownership, observation, now, self._ports.logger)
 
     def _take_signals(self, observation: ModeObservation, now: float) -> None:
         """What the mode sender and the cycle told recovery since its last step, then the heartbeat."""
@@ -142,7 +144,7 @@ class NavRecovery:
         self._good_since = None
         owned = self.ownership.may_request_mode()
         self._report(f"NavPy hold: commands fenced{', LOITER' if owned else ''}")
-        if owned and observation.mode is not FlightMode.LOITER:
+        if owned and observation.mode not in (FlightMode.LOITER, FlightMode.RTL):   # an RTL is never undone
             self._mode.send(FlightMode.LOITER, observation, now)
 
     def _hold(self, observation: ModeObservation, now: float) -> None:

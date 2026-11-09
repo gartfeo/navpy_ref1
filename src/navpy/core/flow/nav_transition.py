@@ -32,7 +32,7 @@ class NavExitOutcome:
 class NavTransition:
     """Coordinate NAV entry, fenced cleanup, diagnostics, and completion.
 
-    ``finish_sortie`` ends with the task teardown;
+    ``finish_sortie(failed=...)`` ends with the task teardown (a failed dock: RTL, no disarm);
     ``NavigationTransitionHandler._enter_docked`` relies on it for a one-shot
     DOCKED entry, contact or dock failed.
     """
@@ -42,7 +42,7 @@ class NavTransition:
         entry: NavEntry,
         cleanup: NavExitCleanup,
         snap_reporter: NavSnapReporter,
-        finish_sortie: Callable[[], tuple[Exception, ...]],
+        finish_sortie: Callable[..., tuple[Exception, ...]],
         navigation_task: NavigationTaskState,
         is_oneshot: Callable[[], bool],
         *,
@@ -115,7 +115,7 @@ class NavTransition:
             # One-shot is how a real dock ends: the sortie finishes, final.
             oneshot = self._is_oneshot()
             if oneshot:
-                errors.extend(self._finish_sortie())
+                errors.extend(self._finish_sortie(failed=failed))
             outcome = NavExitOutcome(
                 redirect=NavState.DOCKED,
                 oneshot_completed=oneshot,

@@ -268,11 +268,13 @@ def test_a_kept_contact_is_docked_not_failed():
     assert logger.info.call_args.args[0].startswith("STATE DOCKED (sim):")
 
 
-def test_one_shot_failed_dock_disarms_and_stays_final():
+def test_one_shot_failed_dock_finishes_as_failed_and_stays_final():
+    # Owner ruling 2026-11-09 (navpy_recovery.md step 10, item 3): the sortie finish is told the dock failed, so it
+    # asks for RTL instead of disarming.
     outcome, _, _, completion = _exit(oneshot=True)
 
     assert outcome == NavExitOutcome(redirect=NavState.DOCKED, oneshot_completed=True)
-    completion.run.assert_called_once_with()
+    completion.run.assert_called_once_with(failed=True)
 
 
 @pytest.mark.parametrize(
@@ -429,6 +431,7 @@ def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
+            request_rtl=lambda: events.append("rtl"),
         ),
         reset,
         Mock(),
@@ -462,7 +465,8 @@ def test_a_failed_dock_enters_docked_after_the_drain_and_never_restarts_auto(one
     assert result.effective_state is NavState.DOCKED
     ports.return_to_search.assert_not_called()
     row = ("row", IDENTITY, "no_detection")
-    expected = ["reset", "disarm", row] if oneshot else ["reset", row]
+    # One-shot: RTL through recovery, no disarm (owner ruling 2026-11-09, step 10 item 3).
+    expected = ["reset", "rtl", row] if oneshot else ["reset", row]
     assert events == expected  # the row follows the reset that drained commands
     assert [call.args[0] for call in logger.info.call_args_list] == [
         "STATE DOCK_FAILED (sim): reason=no_detection dock=0 task=11",

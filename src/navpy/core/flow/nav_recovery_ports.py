@@ -109,6 +109,8 @@ class RecoveryHold:
         self._resumed = False
         # NavPy's last GUIDED event since the last step: asked (the heartbeat read just before sending), or withdrawn
         self._guided: ModeObservation | bool | None = None
+        # A failed one-shot dock's RTL, until a heartbeat shows it or a mode not NavPy's stands (nav_sortie_return.py)
+        self._sortie_rtl = False
 
     def guided_requested(self) -> None:
         """NavPy is about to send GUIDED: the heartbeat count and mode are read now, at the request boundary, so
@@ -149,6 +151,20 @@ class RecoveryHold:
         with self._guided_lock:
             resumed, self._resumed = self._resumed, False
             return resumed
+
+    def request_sortie_rtl(self) -> None:
+        """The one-shot sortie ended in a failed dock: RTL, through recovery's ownership (step 10, item 3)."""
+        with self._guided_lock:
+            self._sortie_rtl = True
+
+    @property
+    def sortie_rtl(self) -> bool:
+        with self._guided_lock:
+            return self._sortie_rtl
+
+    def end_sortie_rtl(self) -> None:
+        with self._guided_lock:
+            self._sortie_rtl = False
 
     def take_guided_request(self) -> ModeObservation | bool | None:
         with self._guided_lock:
