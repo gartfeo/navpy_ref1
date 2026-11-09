@@ -120,6 +120,10 @@ class NavDecisionPorts:
     holding: Callable[[], bool] = lambda: False
     #: Takes recovery's resume (the hold ended in NavPy's own AUTO): the approach goes on to the kept dock.
     take_resumed: Callable[[], bool] = lambda: False
+    #: The held episode (nav_held_approach.py): ended while recovery holds, a fresh one after.
+    end_held_episode: Callable[[], None] = lambda: None
+    held_episode_ended: Callable[[], bool] = lambda: False
+    start_fresh_episode: Callable[[], None] = lambda: None
 
 
 class NavStateDecision:
@@ -170,21 +174,31 @@ class NavStateDecision:
     def _await_guided(self, mode: FlightMode) -> ApproachOutcome:
         # Taken by the first decision after the hold, whatever the mode: a resume applies to that moment only.
         resumed = self._ports.take_resumed()
+        if self._ports.holding():
+            # Recovery's hold: NavPy's commands are fenced. Keep the task and dock; no GUIDED request, no timeout.
+            # The in-flight episode ends now, without failure, and what it latched is dropped (owner ruling
+            # 2026-11-09): a fenced command stream goes stale, and that is the hold's, not the approach's.
+            self._ports.end_held_episode()
+            self._failures.consume()
+            return ApproachOutcome.WAITING
+        held = self._ports.held_episode_ended()
+        if (resumed and mode is FlightMode.AUTO and (held or self._navigation_task.nav_mode_observed)) or (
+            held and (not self._navigation_task.nav_mode_observed or mode == FlightMode.GUIDED)
+        ):
+            # After the hold the approach goes on (owner rulings 2026-11-07 and 2026-11-09): recovery resumed in
+            # AUTO, or GUIDED was not reached before the hold, or shows. A fresh episode to the kept dock (ended
+            # here if no decision ran in the hold); NAV entry asks for GUIDED again. A mode the operator selected
+            # after the resume stands: the approach ends below, as for any lost GUIDED.
+            self._ports.end_held_episode()
+            self._failures.consume()
+            self._ports.start_fresh_episode()
+            self._clear_guided_wait()
+            return ApproachOutcome.WAITING
         if mode == FlightMode.GUIDED:
             self._navigation_task.nav_mode_observed = True
             self._navigation_task.final_approach_navigation_active = True
             self._clear_guided_wait()
             return ApproachOutcome.NONE
-        if self._ports.holding():
-            # Recovery's hold: the mode is its LOITER and NavPy's commands are
-            # fenced. Keep the task and dock; no GUIDED request, no timeout.
-            return ApproachOutcome.WAITING
-        if resumed and mode is FlightMode.AUTO and self._navigation_task.nav_mode_observed:
-            # Recovery resumed in AUTO (owner ruling 2026-11-07): ask for GUIDED again and approach the same dock,
-            # instead of reading the AUTO as GUIDED lost. Only while AUTO still shows: a mode the operator selected
-            # after the resume stands, and the approach ends as for any lost GUIDED.
-            self._navigation_task.nav_mode_observed = False
-            self._clear_guided_wait()
         if self._navigation_task.nav_mode_observed:
             self._ports.clear_navigation_task()
             return ApproachOutcome.ABANDONED

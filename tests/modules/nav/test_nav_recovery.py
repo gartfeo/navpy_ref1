@@ -291,7 +291,7 @@ def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
     decision, ports, task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
+    ports.start_fresh_episode.assert_called_once()     # a fresh episode asks for GUIDED (owner ruling 2026-11-09)
 
 
 def test_an_operators_mode_after_the_resume_is_not_resumed_over():
@@ -522,6 +522,8 @@ def _decision(
         final_approach_active=lambda: True,
         holding=lambda: holding,
         take_resumed=take_resumed,
+        end_held_episode=Mock(),
+        start_fresh_episode=Mock(),
     )
     phase = NavPhaseState(current=NavState.NAV, previous=NavState.NAV)
     return NavStateDecision(ports, phase, task, Mock(), Mock(), Mock()), ports, task
@@ -535,12 +537,13 @@ def test_the_holds_loiter_does_not_end_the_approach():
 
 
 def test_the_resumes_auto_approaches_the_kept_dock_again():
-    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and asks for GUIDED again."""
+    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and approaches the same dock; since
+    the owner ruling of 2026-11-09 with a fresh episode, whose NAV entry asks for GUIDED again."""
     decision, ports, task = _decision(holding=False, take_resumed=lambda: True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
-    assert not task.nav_mode_observed   # waiting for GUIDED again, under the usual accept timeout
+    ports.end_held_episode.assert_called_once()
+    ports.start_fresh_episode.assert_called_once()
 
 
 def test_outside_a_resume_a_non_guided_mode_ends_the_approach_as_before():

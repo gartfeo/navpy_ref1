@@ -160,6 +160,7 @@ def compose_nav_application(
         lambda: args.is_oneshot,
         logger=logger,
         outcome=outcome,
+        held=state.held_approach,
     )
     display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(

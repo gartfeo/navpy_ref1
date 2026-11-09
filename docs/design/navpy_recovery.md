@@ -595,4 +595,25 @@ merges before step 4, which builds on its deadline fix.
 10. **Todos.** Done entries for 292 (and 291/290 from their sessions); new
     todos: systemd supervisor on the aircraft (with HITL), an upstream
     ArduPilot companion-heartbeat failsafe, and the unproven trigger of the
-    21:39 mode-switch re-read.
+    21:39 mode-switch re-read. From the step 9 SITL checks (2026-11-09),
+    not fixed here:
+    - a false "NavPy NAV loop stuck" on all three NavPys at once, for about
+      1.7 s, with no fault injected (likely a host stall; the in-process
+      watchdog's `NAV_HANG_S` counts it). A UAV owning GUIDED would have
+      held for it;
+    - with `AAS_NAV_ONESHOT` = 1, a failed dock (DOCK_FAILED) disarms in
+      simulation, and the SITL UAV fell (`Hit ground at 9.4 m/s`); seen when
+      the held approach still failed stale before the step 9 fix.
+
+   Step 9 fix, re-approach after a hold (owner ruling 2026-11-09, "New
+   approach"; `core/flow/nav_held_approach.py`): the command worker's held
+   command goes stale (1.0 s) before the hold triggers (1.5 s), latching the
+   episode's failure and command liveness, which the resumed approach read
+   as `NAV_FAIL: source_command_stale`. Now the NAV decision ends the
+   in-flight episode at its first decision while recovery holds
+   (`NavExitCleanup.end_episode`: dock-contact episode, source admission,
+   navigation reset; tracking, zoom, speedup and task stay) and drops what
+   it latched: not DOCK_FAILED, no one-shot finish. After the hold, if
+   recovery resumed in AUTO (or GUIDED was not reached before the hold, or
+   shows), it starts a fresh episode to the kept dock through NAV entry;
+   a mode the operator selected stands and ends the approach.

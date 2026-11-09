@@ -9,6 +9,7 @@ from typing import Optional, Protocol
 from navpy.core.approach.vision_nav.episode_latch import (
     FinalApproachEpisodeTerminal,
 )
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.dock_contact import DockContactEvent
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
@@ -102,6 +103,20 @@ class NavExitCleanup:
             own_dock_contact=contact,
             dock_terminal=terminal,
         )
+
+    def end_episode(self) -> None:
+        """Recovery's hold ends the final-approach episode, without failure (nav_held_approach.py): the dock-contact
+        episode, the source admission and the command session (``navigation_reset``: commands, liveness and the
+        episode latch) end; tracking, zoom, the speedup and the task stay for the fresh episode."""
+        errors: list[Exception] = []
+        for step in (self._ports.disarm_dock_contact, self._ports.close_final_approach_source,
+                     self._ports.navigation_reset):
+            try:
+                step()
+            except Exception as error:  # noqa: BLE001 - every step runs; the NAV loop fails the cycle on the group
+                errors.append(error)
+        if errors:
+            raise ExceptionGroup("held final-approach episode did not end", errors)
 
     def record_dock_failed(
         self,
