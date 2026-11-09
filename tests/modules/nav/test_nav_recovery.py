@@ -22,7 +22,7 @@ from navpy.core.flow.nav_recovery import (
     RecoveryStage,
 )
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
-from navpy.core.flow.nav_recovery_ports import NavEscalation, NavRecoveryPorts, RecoveryHold
+from navpy.core.flow.nav_recovery_ports import HoldClaim, NavEscalation, NavRecoveryPorts, RecoveryHold
 from navpy.core.flow.nav_state import NavigationTaskState, NavPhaseState, NavState
 from navpy.core.flow.navigation_decision import ApproachOutcome, NavDecisionPorts, NavStateDecision
 from navpy.core.ports.flight_mode import FlightMode
@@ -64,6 +64,7 @@ class Rig:
         self.logger = Mock()
         self.hold = RecoveryHold(autopilot.observe)   # GUIDED requests read the heartbeat at the request
         self.escalation = NavEscalation()
+        self.claims: list[bool] = []                  # the claim on NavPy's own LOITER, after each step
         self.recovery = NavRecovery(
             NavRecoveryPorts(
                 close_fence=self.fence.close,
@@ -72,6 +73,7 @@ class Rig:
                 request_mode=autopilot.request,
                 logger=self.logger,
                 escalation=self.escalation,
+                claim_hold=self.claims.append,
             ),
             self.hold,
         )
@@ -268,7 +270,7 @@ def _until_normal(rig: Rig) -> None:
         rig.run(True, PERIOD_S)
 
 
-def test_the_resume_is_kept_until_the_decision_takes_it():
+def test_the_resume_grant_is_kept_until_the_decision_uses_it():
     rig = Rig(FakeAutopilot())
     rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
     rig.run(True, NAV_HOLD_TRIGGER_S + 0.1)
@@ -276,7 +278,7 @@ def test_the_resume_is_kept_until_the_decision_takes_it():
     assert rig.hold.resumed and not rig.hold.holding
     rig.run(True, 1.0)
     assert rig.hold.resumed
-    assert rig.hold.take_resumed() and not rig.hold.take_resumed()
+    assert rig.hold.consume_resume() and not rig.hold.consume_resume()   # used once
 
 
 def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
@@ -288,10 +290,11 @@ def test_a_failed_cycle_right_after_the_resume_does_not_lose_it():
     _until_normal(rig)
     rig.run(False, PERIOD_S)   # the next cycle fails in sensing, before its decision
     assert rig.hold.resumed
-    decision, ports, task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
+    ports.start_fresh_episode.assert_called_once()     # a fresh episode asks for GUIDED (owner ruling 2026-11-09)
+    assert not rig.hold.resumed                         # the grant is used
 
 
 def test_an_operators_mode_after_the_resume_is_not_resumed_over():
@@ -303,10 +306,14 @@ def test_an_operators_mode_after_the_resume_is_not_resumed_over():
     _until_normal(rig)
     rig.run(False, PERIOD_S)            # sensing fails before the decision
     rig.ap.mode = FlightMode.LOITER     # the operator's LOITER
-    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, _task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.LOITER) is ApproachOutcome.ABANDONED
     ports.request_guided.assert_not_called()
+    ports.start_fresh_episode.assert_not_called()
     ports.clear_navigation_task.assert_called_once()
+    rig.ap.heartbeat()
+    rig.run(True, PERIOD_S)
+    assert not rig.hold.resumed         # recovery voids the grant for the operator's mode
 
 
 def test_a_new_hold_voids_a_resume_not_yet_taken():
@@ -331,9 +338,10 @@ def test_an_operators_auto_in_the_hold_is_not_resumed_over():
     _until_normal(rig)
     assert not rig.hold.resumed
     assert rig.ap.requests == [FlightMode.LOITER]
-    decision, ports, _task = _decision(holding=False, take_resumed=rig.hold.take_resumed)
+    decision, ports, _task = _decision(holding=False, hold=rig.hold, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.ABANDONED
     ports.request_guided.assert_not_called()
+    ports.start_fresh_episode.assert_not_called()
 
 
 def test_an_operators_mode_in_the_resume_is_not_resumed_over():
@@ -512,16 +520,27 @@ def test_escalation_in_the_hold_replaces_the_resume():
 
 
 def _decision(
-    holding: bool, take_resumed=lambda: False,
+    holding: bool, granted: bool = False, *, hold: RecoveryHold | None = None, held: bool = False,
 ) -> tuple[NavStateDecision, NavDecisionPorts, NavigationTaskState]:
+    """``hold``: recovery's resume grant from a real RecoveryHold; else ``granted``, used up by the decision."""
     task = NavigationTaskState(nav_mode_observed=True)
+    grant = [granted]
+
+    def consume() -> bool:
+        value, grant[0] = grant[0], False
+        return value
+
     ports = NavDecisionPorts(
         clock_s=lambda: 0.0,
         clear_navigation_task=Mock(),
         request_guided=Mock(),
         final_approach_active=lambda: True,
         holding=lambda: holding,
-        take_resumed=take_resumed,
+        resume_granted=(lambda: hold.resumed) if hold is not None else (lambda: grant[0]),
+        consume_resume=hold.consume_resume if hold is not None else consume,
+        end_held_episode=Mock(),
+        held_episode_ended=lambda: held,
+        start_fresh_episode=Mock(),
     )
     phase = NavPhaseState(current=NavState.NAV, previous=NavState.NAV)
     return NavStateDecision(ports, phase, task, Mock(), Mock(), Mock()), ports, task
@@ -535,12 +554,21 @@ def test_the_holds_loiter_does_not_end_the_approach():
 
 
 def test_the_resumes_auto_approaches_the_kept_dock_again():
-    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and asks for GUIDED again."""
-    decision, ports, task = _decision(holding=False, take_resumed=lambda: True)
+    """Codex finding 4 on steps 1-4: AUTO right after the hold keeps the task and approaches the same dock; since
+    the owner ruling of 2026-11-09 with a fresh episode, whose NAV entry asks for GUIDED again."""
+    decision, ports, task = _decision(holding=False, granted=True, held=True)
     assert decision._await_guided(FlightMode.AUTO) is ApproachOutcome.WAITING
     ports.clear_navigation_task.assert_not_called()
-    ports.request_guided.assert_called_once()
-    assert not task.nav_mode_observed   # waiting for GUIDED again, under the usual accept timeout
+    ports.start_fresh_episode.assert_called_once()
+    assert not ports.resume_granted()                  # used up
+
+
+def test_a_resume_grant_with_nothing_held_authorizes_nothing():
+    """A hold that was not mid-approach: the grant is discarded, never restarting a later approach."""
+    decision, ports, task = _decision(holding=False, granted=True, held=False)
+    assert decision._await_guided(FlightMode.GUIDED) is ApproachOutcome.NONE
+    ports.start_fresh_episode.assert_not_called()
+    assert not ports.resume_granted()
 
 
 def test_outside_a_resume_a_non_guided_mode_ends_the_approach_as_before():
@@ -584,3 +612,182 @@ def test_the_state_reads_the_links_heartbeat_at_navpys_guided_request():
     unlinked = compose_state_ownership(None).recovery_hold
     unlinked.guided_requested()
     assert unlinked.take_guided_request() is None
+
+
+def test_recovery_reports_reach_the_operator_as_status_texts():
+    """Codex review of steps 5b-5c, finding 6: a destination without ``status`` writes only the log. Step 8: each
+    report is also journaled, as source "nav"."""
+    from dataclasses import replace
+
+    from tests.logger.recording_logger import RecordingLogger
+
+    rig = Rig(FakeAutopilot())
+    logger = RecordingLogger()
+    rig.recovery._ports = replace(rig.recovery._ports, logger=logger)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD
+    assert logger.warnings and all(w["status"] == w["msg"] for w in logger.warnings)
+    assert logger.journal.records == [("nav", w["msg"]) for w in logger.warnings]
+
+
+# Step 10, item 3 (owner ruling 2026-11-09): after a failed one-shot dock recovery asks for RTL, only while NavPy owns
+# the mode (nav_sortie_return.py).
+
+
+def test_item3_a_failed_dock_gives_rtl_through_ownership_and_it_is_kept():
+    rig = Rig(FakeAutopilot())
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
+    assert not rig.hold.sortie_rtl and rig.stage is RecoveryStage.NORMAL
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.0)                   # a later NavPy hold never undoes the RTL
+    assert rig.stage is RecoveryStage.HOLD
+    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
+
+
+def test_item3_the_rtl_is_repeated_until_a_heartbeat_shows_it():
+    ap = FakeAutopilot(takes=False)
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 3.5)
+    assert len(ap.requests) >= 3 and set(ap.requests) == {FlightMode.RTL}   # every MODE_RETRY_S, never given up
+    assert rig.hold.sortie_rtl
+    ap.takes = True
+    rig.run(True, 3.0)
+    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
+
+
+def test_item3_an_operators_mode_stands_no_rtl():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    ap.mode = FlightMode.FBWA                                  # the operator took the mode
+    rig.run(True, 2.0)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert FlightMode.RTL not in ap.requests and ap.mode is FlightMode.FBWA
+    assert not rig.hold.sortie_rtl
+
+
+def test_item3_a_stale_link_waits_for_a_fresh_heartbeat():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    ap.fresh = False
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert ap.requests == [] and rig.hold.sortie_rtl
+    ap.fresh = True
+    rig.run(True, 2.0)
+    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL
+
+
+# Step 10, item 9 (owner ruling 2026-11-09, "Yes, guard it"; Codex round 2): from the hold's LOITER request on, and
+# while NavPy owns the LOITER shown, recovery claims it for the autopilot's watchdog (nav_watchdog.lua), with the
+# request's token and the incident's budget left. Never a LOITER that is not NavPy's.
+
+
+def test_codex2_1_the_claim_goes_out_with_the_loiter_request_before_it_shows():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)
+    assert rig.stage is RecoveryStage.HOLD and rig.ap.mode is FlightMode.GUIDED   # requested, not shown yet
+    assert rig.claims[-1] == HoldClaim(token=rig.recovery._mode.requests, budget_s=rig.claims[-1].budget_s)
+    rig.run(False, 1.0)
+    assert rig.ap.mode is FlightMode.LOITER and rig.claims[-1] is not None
+
+
+def test_codex2_5_the_claim_carries_the_incidents_hold_budget_left():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    first = rig.claims[-1]
+    assert NAV_HOLD_RECOVERY_S - 1.2 <= first.budget_s <= NAV_HOLD_RECOVERY_S - 0.9
+    rig.run(True, NAV_HOLD_TRIGGER_S + 1.2)                    # resumed in AUTO: the incident goes on
+    assert rig.stage is RecoveryStage.NORMAL and rig.claims[-1] is None
+    rig.hold.guided_requested()                                # the fresh approach's GUIDED
+    rig.ap.request(FlightMode.GUIDED)
+    rig.run(True, 1.0)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 0.1)                   # the next hold of the same incident
+    second = rig.claims[-1]
+    assert second.token != first.token                         # a new LOITER request
+    assert second.budget_s < first.budget_s - 1.0              # the first hold's time is spent
+
+
+def test_item9_the_claim_ends_when_navpy_resumes_in_auto():
+    rig = Rig(FakeAutopilot())
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    assert rig.claims[-1] is not None
+    rig.run(True, NAV_HOLD_TRIGGER_S + 1.2)
+    assert rig.stage is RecoveryStage.NORMAL and rig.ap.mode is FlightMode.AUTO
+    assert rig.claims[-1] is None
+
+
+def test_item9_a_pilot_mode_in_the_hold_ends_the_claim_and_a_pilot_loiter_is_not_claimed():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    assert rig.claims[-1] is not None
+    ap.mode = FlightMode.FBWA                                  # the pilot takes the mode
+    rig.run(False, 1.0)
+    assert rig.claims[-1] is None
+    ap.mode = FlightMode.LOITER                                # and goes to LOITER: the pilot's
+    rig.run(False, 2.0)
+    assert rig.stage is RecoveryStage.HOLD and not any(rig.claims[-16:])
+
+
+def test_item9_a_hold_in_a_loiter_navpy_never_owned_is_not_claimed():
+    ap = FakeAutopilot(FlightMode.LOITER)
+    rig = Rig(ap, owned=False)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 2.0)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == [] and not any(rig.claims)
+
+
+def test_item9_a_stale_link_keeps_the_claim():
+    """Owned when last seen (UNKNOWN): NavPy still holds its LOITER."""
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    ap.fresh = False
+    rig.run(False, 1.0)
+    assert rig.recovery.ownership.state is Ownership.UNKNOWN and rig.claims[-1] is not None
+
+
+# Codex round 1 on step 10: a failed sortie's RTL survives a hold (finding 2) and a component escalation (finding 3).
+
+
+def test_codex1_2_a_hold_before_the_sortie_rtl_was_sent_still_ends_in_rtl_not_the_mission():
+    """The failed dock queues RTL, then a hang holds (LOITER) before recovery sends it. Healthy again, the hold must
+    not hand the UAV back to the mission's AUTO (which ended ownership and dropped the RTL as not NavPy's)."""
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.recovery._ports.watchdog.set_hung(True)              # the step that would send it holds first
+    rig.run(False, PERIOD_S)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == [FlightMode.LOITER]
+    rig.recovery._ports.watchdog.set_hung(False)
+    rig.run(False, 1.0)
+    assert ap.mode is FlightMode.LOITER
+    rig.run(True, NAV_HOLD_TRIGGER_S + 3.0)
+    assert FlightMode.AUTO not in ap.requests
+    assert ap.requests[-1] is FlightMode.RTL and ap.mode is FlightMode.RTL
+    assert rig.stage is RecoveryStage.NORMAL and not rig.hold.sortie_rtl
+
+
+def test_codex1_3_an_escalation_after_the_sortie_rtl_showed_keeps_it_and_releases():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
+    rig.escalation.request()
+    rig.run(True, 3.0)
+    assert rig.stage is RecoveryStage.ESCALATED
+    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL   # no AUTO over the return
+    assert rig.escalation.released
+
+
+def test_codex1_3_an_escalation_with_the_sortie_rtl_still_pending_hands_over_to_rtl():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.escalation.request()                                 # in the same step, before recovery sends the RTL
+    rig.run(True, 3.0)
+    assert FlightMode.AUTO not in ap.requests and ap.mode is FlightMode.RTL
+    assert rig.escalation.released

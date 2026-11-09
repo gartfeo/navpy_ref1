@@ -39,6 +39,7 @@ class Navigation:
         on_terminal: Optional[TerminalObserver] = None,
         law_airspeed: Optional[LawAirspeed] = None,
         command_formation: Callable[[], ContextManager[None]] = nullcontext,
+        command_pass: Callable[[], ContextManager[None]] = nullcontext,
     ) -> None:
         if zc_util is None and getattr(args, "use_terrain", True):
             raise ValueError(
@@ -55,6 +56,7 @@ class Navigation:
             on_terminal,
             law_airspeed,
             command_formation,
+            command_pass,
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state

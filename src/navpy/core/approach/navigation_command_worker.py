@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import math
 from dataclasses import dataclass
-from contextlib import suppress
+from contextlib import ExitStack, nullcontext, suppress
 from typing import Any, Callable, ContextManager, Protocol
 
 from navpy.core.kernel import runtime_time as rt
@@ -95,10 +95,13 @@ class NavigationCommandWorkerPorts:
 
 
 class NavigationCommandWorker:
-    """Issue the first command after one AP slot, then hold fixed deadlines."""
+    """Issue the first command after one AP slot, then hold fixed deadlines; each pass in ``command_pass``."""
 
-    def __init__(self, ports: NavigationCommandWorkerPorts) -> None:
+    def __init__(
+        self, ports: NavigationCommandWorkerPorts, command_pass: Callable[[], ContextManager[None]] = nullcontext,
+    ) -> None:
         self._ports = ports
+        self._command_pass = command_pass
 
     def run_until_stopped(self) -> None:
         while not self._ports.stop_event.is_set():
@@ -115,13 +118,16 @@ class NavigationCommandWorker:
         next_deadline_s = ports.monotonic_s() + period_s
         command_cadence_active = False
         iteration = 0
+        current_pass = ExitStack()   # the watched pass: ended before each wait and in the finally
         try:
             while not ports.stop_event.is_set():
+                current_pass.close()
                 signaled, stopped = self._wait_for_deadline(
                     next_deadline_s, period_s
                 )
                 if stopped:
                     break
+                current_pass.enter_context(self._command_pass())
                 # Numbered at the TOP of the pass, not before the source
                 # dispatch: the command issued below and the dispatch that
                 # follows it belong to the SAME iteration, and attributing
@@ -235,6 +241,7 @@ class NavigationCommandWorker:
                         period_s,
                     )
         finally:
+            current_pass.close()
             if command_cadence_active:
                 ports.set_process_command_cadence_active(False)
 

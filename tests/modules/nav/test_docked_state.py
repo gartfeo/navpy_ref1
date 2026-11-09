@@ -141,7 +141,7 @@ def _exit(
         own_dock_contact=docked,
     )
     completion = Mock()
-    completion.run.side_effect = lambda: events.append("oneshot") or ()
+    completion.run.side_effect = lambda failed=False: events.append("oneshot") or ()
     logger = Mock()
     transition = NavTransition(
         Mock(), cleanup, Mock(), completion.run, navigation_task,
@@ -451,6 +451,7 @@ def _flow(*, oneshot: bool):
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
+            request_rtl=lambda: events.append("rtl"),
         ),
         reset,
         Mock(),

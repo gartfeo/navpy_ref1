@@ -58,6 +58,21 @@ Frontend:
   token, so restrict it in the Ion dashboard (assets:read, assets 1 and 3, the
   GCS URLs). The repository is public — never commit the token
   (`tests/gcs/test_no_committed_tokens.py` enforces this).
+- Messages window (Mission Planner's Messages tab): the speech-bubble button
+  on each UAV card opens a non-modal panel at the map's bottom left with that
+  UAV's STATUSTEXT and named-value changes (NAMED_VALUE_FLOAT/INT, e.g. the
+  watchdog's NAVWD), a filter, UAV switching and a text export; the latest
+  named values sit on top and turn amber when not heard for 3 s. The backend
+  keeps 500 entries and 32 named values per UAV, attributed by MAVLink
+  source system, and joins chunked long STATUSTEXTs (a lost chunk, a reused
+  id or more than 8 at once shows as incomplete) (`vehicle_message_log.py`). New entries ride the telemetry
+  snapshot's `messages`; the backlog is at
+  `GET /api/vehicles/{sys_id}/messages`, loaded on open, on every socket
+  reconnect and when the UAV's log epoch (snapshot `message_epoch`) changes;
+  a reply of another epoch is dropped, and a failed load retries on that
+  UAV's next telemetry. Each entry carries its log's `epoch`, so the browser
+  tells a restarted log from an overlap.
+  No extra radio traffic: it shows what the link already carries.
 - Base map layers (bottom-right layers button): terrain (OpenTopoMap, the
   default), satellite (Ion, needs the token) and street (OSM). The choice
   changes imagery only and is kept per browser (`gcs-base-layer` in

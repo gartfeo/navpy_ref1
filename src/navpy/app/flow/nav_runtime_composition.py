@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from navpy.app.attitude_boot_time import attitude_boot_s
 from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.sim.cycle_fault import sim_cycle_fault
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.search.detect_action import DetectAction
 from navpy.core.skills.acquire.peer_geo_tick import DetectPointingPorts
@@ -17,6 +18,7 @@ from navpy.core.approach.nav_exit_cleanup import (
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
 from navpy.core.flow.nav_application import NavApplication, NavShutdown
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_composition_types import (
     ConfirmationWorkflows,
     DecisionWorkflows,
@@ -38,9 +40,9 @@ from navpy.core.flow.navigation_loop import (
     NavigationLoop,
     StateActionDispatcher,
 )
-from navpy.core.flow.nav_recovery import NavRecovery
-from navpy.core.flow.nav_recovery_clock import TimeSample
-from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, NavRecoveryPorts
+from navpy.app.flow.nav_watchdog_composition import nav_recovery, nav_watchdog, recovery_period
+from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -125,7 +127,7 @@ def compose_nav_application(
     nav_transition = NavTransition(
         NavEntry(
             NavEntryPorts(
-                request_guided=lambda: approach.commands.request_guided(),
+                request_guided=lambda: request_guided_owned(state, approach),
                 navigation_init=navigation.init,
                 final_approach_active=lambda: navigation.final_approach.is_active,
                 arm_dock_contact=lambda: dock_contact.arm(
@@ -133,6 +135,8 @@ def compose_nav_application(
                 ),
                 stop_geo_tracking=detection.geo_pointing.stop_geo_tracking,
                 is_geo_armed=lambda: detection.geo_pointing.is_geo_armed,
+                entry_started=navigation_workflows.acquisition.entry_started,
+                entered=navigation_workflows.acquisition.entered,
             ),
             state.navigation_task,
             observation.zoom,
@@ -145,6 +149,7 @@ def compose_nav_application(
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
                 dock_outcome=navigation.dock_outcome,
+                disarm_held_dock_contact=dock_contact.disarm_held,
             ),
             approach.speedup,
             logger,
@@ -152,12 +157,14 @@ def compose_nav_application(
         NavSnapReporter(navigation.algorithm_info, logger),
         compose_sortie_finish(
             vehicle, confirmation.reset.reset, logger,
-            lambda: loop is not None and loop.is_stopping(),
+            lambda: loop is not None and loop.is_stopping(), state.recovery_hold.request_sortie_rtl,
         ).run,
         state.navigation_task,
         lambda: args.is_oneshot,
         logger=logger,
         outcome=outcome,
+        held=state.held_approach,
+        holding=lambda: state.recovery_hold.holding,
     )
     display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(
@@ -174,7 +181,56 @@ def compose_nav_application(
         logger,
         state.post_dock_climb,
     )
-    detect_action = DetectAction(
+    detect_action = _detect_action(vehicle, detection, state, poi, navigation_workflows)
+    actions = StateActionDispatcher(
+        state.phase,
+        transitions,
+        {
+            NavState.ONHOLD: navigation.pause,
+            NavState.DETECT: detect_action.act,
+            NavState.CONFIRM: confirmation.confirmation_action.act,
+            NavState.NAV: final_approach_nav.act_nav,
+            NavState.RESET: navigation.pause,
+            NavState.RECOVERY: decision.recovery.act,
+            NavState.DOCKED: navigation.pause,
+        },
+        lambda committed: observation.network.publish_participation(
+            is_approaching(committed),
+            committed is NavState.DOCKED,
+            display.build(committed),
+        ),
+    )
+    sensor = DetectionSensor(
+        detection.snapshot,
+        detection.events,
+        state.detections,
+        state.phase,
+    )
+    cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
+    cycle = sim_cycle_fault(cycle, args.sim_cycle_fault_file, vehicle, logger)   # itself unless the SITL flag is given
+    recovery = nav_recovery(vehicle, state.recovery_hold, logger, recovery_link)
+    sample = lambda: TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s())  # noqa: E731
+    loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))
+    watchdog = nav_watchdog(recovery_link, loop.progress, recovery, sample, logger)
+    shutdown = NavShutdown(
+        final_approach_nav.close_source_admission,
+        navigation.reset,
+        confirmation.reset.reset,
+        observation.network,
+        logger,
+    )
+    return NavApplication(loop, observation.network, shutdown, state.overrides, watchdog)
+
+
+def _detect_action(
+    vehicle: IVehicle,
+    detection: DetectionCoordination,
+    state: NavStateOwnership,
+    poi: PoiMissionOwnership,
+    navigation_workflows: NavigationTaskWorkflows,
+) -> DetectAction:
+    """The DETECT state's action: new POI work, peer notice and the peer geo tick."""
+    return DetectAction(
         state.detections,
         navigation_workflows.selector,
         navigation_workflows.work_source.handle_new_poi,
@@ -202,47 +258,6 @@ def compose_nav_application(
             vehicle.mission_items_next,
         ),
     )
-    actions = StateActionDispatcher(
-        state.phase,
-        transitions,
-        {
-            NavState.ONHOLD: navigation.pause,
-            NavState.DETECT: detect_action.act,
-            NavState.CONFIRM: confirmation.confirmation_action.act,
-            NavState.NAV: final_approach_nav.act_nav,
-            NavState.RESET: navigation.pause,
-            NavState.RECOVERY: decision.recovery.act,
-            NavState.DOCKED: navigation.pause,
-        },
-        lambda committed: observation.network.publish_participation(
-            is_approaching(committed),
-            committed is NavState.DOCKED,
-            display.build(committed),
-        ),
-    )
-    sensor = DetectionSensor(
-        detection.snapshot,
-        detection.events,
-        state.detections,
-        state.phase,
-    )
-    cycle = NavigationCycle(
-        lambda: vehicle.is_armed,
-        state.detections,
-        sensor,
-        decision.decision,
-        actions,
-    )
-    loop = NavigationLoop(cycle, state.clock, logger, on_period=_recovery_step(
-        vehicle, state, logger, recovery_link))
-    shutdown = NavShutdown(
-        final_approach_nav.close_source_admission,
-        navigation.reset,
-        confirmation.reset.reset,
-        observation.network,
-        logger,
-    )
-    return NavApplication(loop, observation.network, shutdown, state.overrides)
 
 
 def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
@@ -250,35 +265,6 @@ def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
     stand, and the mission goes on from its current item on resume."""
     if not state.recovery_hold.holding:
         restart_search(vehicle)
-
-
-def _recovery_step(
-    vehicle: IVehicle,
-    state: NavStateOwnership,
-    logger: ILogger,
-    link: Optional[NavRecoveryLink],
-) -> Callable[[bool], None]:
-    """The NAV loop's per-period hook: recovery's stages (nav_recovery.py).
-
-    Without a link (no MAVLink bus: tests, other vehicles) there is no fence
-    to close and no recovery."""
-    if link is None:
-        return lambda _cycle_ok: None
-    recovery = NavRecovery(
-        NavRecoveryPorts(
-            close_fence=link.close_fence,
-            reopen_fence=link.reopen_fence,
-            observe_mode=link.observe_mode,
-            request_mode=vehicle.set_mode,
-            logger=logger,
-            escalation=link.escalation,
-        ),
-        state.recovery_hold,
-    )
-    return lambda cycle_ok: recovery.step(
-        cycle_ok,
-        TimeSample(aircraft_s=_attitude_boot_s(vehicle), wall_s=state.clock.wall_s()),
-    )
 
 
 __all__ = ["compose_nav_application"]

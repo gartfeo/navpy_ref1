@@ -2739,3 +2739,10 @@
 - Making SCHED_LOOP_RATE strict (refuse outside 50..2000 Hz) broke vehicle doubles that answer
   `Mock(return_value=1)` for every parameter. Give such doubles a real SCHED_LOOP_RATE, and run the full
   suite after tightening any widely read parameter: a targeted run finds them one at a time.
+## HITL whole-dock detector design (2026-11-05)
+
+- **Recompute a brief's numbers.** The brief said ChArUco gets "at most about 8 px" per square at 300 m;
+  fy x 0.4 x sin(d) / R gives 5.6 px. Codex caught it. Recompute every quoted number from its formula.
+- **Re-read the branch a design cites before each review round.** Step 23's branch moved during the design
+  (first-detection distance D replaced the orbit radius), and the step merged before owner review, which
+  made "before step 23 merges" stale. Check `git log` of cited branches and main before sending a design.

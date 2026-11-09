@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -15,12 +16,14 @@ from navpy.core.perception.camera.capture_lookup import CaptureLookupCalibration
 from navpy.core.perception.camera.integration_timing import IntegrationTimingConfig
 from navpy.core.perception.pipeline.integration_log import TimingLog
 from navpy.core.perception.zoom.fixed_step_zoom_drive import FixedStepZoom
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionSettings
 from navpy.core.ports.frame_capture_ports import CaptureBackendWrapper
 from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
     CharucoDetectionSettings,
 )
 from navpy.core.kernel.config.detector_backend import (
+    RFDETR_BACKEND,
     YOLO_BACKEND,
     DetectorBackend,
     validate_detector_backend,
@@ -54,6 +57,15 @@ class DetectorDependencies:
     logger: ILogger
 
 
+class ModelInputSettings(Protocol):
+    """A plugin backend's own model settings, carried opaquely by core (the rfdetr plugin's ``RfDetrSettings``).
+
+    Core needs only the frame-to-model-input scale; the app builds the settings and hands them to the plugin.
+    """
+
+    def input_scale(self, width: int, height: int) -> tuple[float, float]: ...
+
+
 @dataclass(frozen=True)
 class DetectorModelConfig:
     """Per-frame inference backend configuration.
@@ -64,8 +76,9 @@ class DetectorModelConfig:
     (``VisionArgs``), which passes ``backend`` explicitly.
     ``model_path``, ``imgsz``, ``device``, ``classes`` and ``deep_search``
     apply to ``yolo`` only; ``charuco_board`` and ``charuco_detection`` apply
-    to ``charuco`` only;
-    ``conf`` is the minimum detection confidence for either backend.
+    to ``charuco`` only; ``rfdetr`` (the profile's ``detector.rfdetr`` block)
+    applies to ``rfdetr`` only and is required by it;
+    ``conf`` is the minimum detection confidence for every backend.
     """
 
     model_path: str
@@ -81,9 +94,12 @@ class DetectorModelConfig:
     charuco_detection: CharucoDetectionSettings = field(
         default_factory=CharucoDetectionSettings,
     )
+    rfdetr: ModelInputSettings | None = None
 
     def __post_init__(self) -> None:
         validate_detector_backend(self.backend)
+        if (self.backend == RFDETR_BACKEND) != (self.rfdetr is not None):
+            raise ValueError("the rfdetr backend and its profile settings go together")
 
 
 @dataclass(frozen=True)
@@ -136,6 +152,8 @@ class RealDetectorConfig:
     pipeline: DetectorPipelineConfig = field(default_factory=DetectorPipelineConfig)
     debug: DetectorDebugConfig = field(default_factory=DetectorDebugConfig)
     gimbal: DetectorGimbalConfig = field(default_factory=DetectorGimbalConfig)
+    # HITL step 23b: the whole-dock detector's acquisition and ambiguity gates (rfdetr backend only).
+    acquisition: DockAcquisitionSettings | None = None
 
 
 @dataclass(frozen=True)

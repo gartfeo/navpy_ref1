@@ -76,6 +76,7 @@ class TestTelemetryLoopPath(unittest.TestCase):
             mgr = MagicMock()
             mgr.get_all_snapshots.side_effect = next_snapshots
             mgr.drain_position_path.side_effect = lambda sid: real.drain()
+            mgr.drain_messages.return_value = []  # no Messages-window entries
             mgr.get_seen_ids.return_value = []
             loop = TelemetryLoop(mgr)
             settings = SimpleNamespace(simulation=SimpleNamespace(sim_mode=False),

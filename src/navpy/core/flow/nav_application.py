@@ -13,6 +13,7 @@ from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.swarm.nav_network import NavNetworkRuntime
 from navpy.core.flow.nav_state import ConfirmOverrideInbox
 from navpy.core.flow.navigation_loop import NavigationLoop
+from navpy.core.flow.nav_watchdog import NavWatchdog
 
 
 def _run_shutdown_steps(
@@ -83,7 +84,9 @@ class NavApplication:
         network: NavNetworkRuntime,
         shutdown: NavShutdown,
         overrides: ConfirmOverrideInbox,
+        watchdog: NavWatchdog | None = None,
     ) -> None:
+        self._watchdog = watchdog
         self._loop = loop
         self._network = network
         self._shutdown = shutdown
@@ -94,8 +97,13 @@ class NavApplication:
 
     def start(self, loop_rate_hz: float) -> None:
         self._loop.start(loop_rate_hz)
+        if self._watchdog is not None:
+            self._watchdog.start()
 
     def stop(self) -> None:
+        # The watchdog stops first: the loops' shutdown joins must not read as a hang.
+        if self._watchdog is not None:
+            self._watchdog.stop()
         self._shutdown.run(self._loop.stop)
 
     def raise_if_failed(self) -> None:

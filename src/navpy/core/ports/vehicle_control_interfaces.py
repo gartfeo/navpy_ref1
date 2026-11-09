@@ -36,7 +36,14 @@ class VehicleFlightControl(ABC):
         flight_mode: FlightMode | str,
         *,
         fallback_custom_mode: int | None = None,
-    ) -> bool: ...
+        lock_timeout_s: float | None = None,
+        guard: Callable[[], bool] | None = None,
+    ) -> bool:
+        """``lock_timeout_s`` bounds the wait for the link's send lock: no write when it is not taken in time.
+        ``guard`` is called under that lock right before the write, and the write happens only if it returns True
+        (NAV recovery's mode sender: the mode it decided from must still show; docs/design/navpy_recovery.md step 6).
+        """
+        ...
 
     @property
     @abstractmethod

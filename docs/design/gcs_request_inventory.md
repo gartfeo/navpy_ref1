@@ -37,6 +37,7 @@ These are about the requests the relay forwards into the run (the backend's rout
 | GET | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:158,165` | connect (prewarm, `App.jsx:396-398`), user | sent | MAVLink (MAVFTP) | eval (step 13; a torn file is fetched again, todo 286) |
 | PUT | /api/vehicles/{sys_id}/parameters | `hooks/useFullParams.js:465` | user | no | MAVLink | eval |
 | POST | /api/vehicles/{sys_id}/parameters/arm-token | `hooks/useFullParams.js:386` | user (long press) | no | local | probed |
+| GET | /api/vehicles/{sys_id}/messages | `components/MessagesWindow.jsx:88` | user (opens or switches the Messages window) | no | local (the backend's per-UAV message history) | untested |
 | GET | /api/vehicles/{sys_id}/mission | `hooks/usePlanningApi.js:272`, `settings/AasTab.jsx:86,213` | connect, user (45 s abort, retries) | yes | MAVLink | eval |
 | GET | /api/vehicles/{sys_id}/fence | `hooks/usePlanningApi.js:299` | user | no | MAVLink | probed |
 | POST | /api/vehicles/upload | `hooks/usePlanningApi.js:100` | user (retries) | yes | MAVLink | eval |

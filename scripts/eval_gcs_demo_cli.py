@@ -23,6 +23,7 @@ from scripts.eval_gcs_demo_models import (
     finite_number,
 )
 from scripts.eval_gcs_demo_ports import JsonValue
+from scripts.eval_gcs_demo_recovery import INVALID, scored_with
 from scripts.eval_gcs_demo_process import exclusive_evaluator_lock
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE
 from scripts.eval_gcs_demo_lockstep import LockstepOptions, execute_lockstep_run
@@ -149,8 +150,9 @@ def run_lockstep(
         else:
             report = analyze_run(run_dir, scenario=scenario, approvals=run.approvals, limits=limits)
     except (OSError, ValueError, TypeError, RegressionError) as error:
+        # Not scored: the evidence could not be analysed (navpy_recovery.md, step 8).
         report = RunReport(False, ".", [], 1.0, 0.0, run.approvals, {}, [],
-                           [f"analysis: {type(error).__name__}: {error}"])
+                           [f"analysis: {type(error).__name__}: {error}"], verdict=INVALID)
     # Errors may quote host paths (an analysis exception, a missing file):
     # they become run tokens, so report.json stays a byte-equal artifact.
     scrub = HostPathScrubber(run_dir)
@@ -164,6 +166,7 @@ def run_lockstep(
         load = {"error": scrub(f"{type(error).__name__}: {error}")}  # report only: no gate
         unverified = None
     report = dataclasses.replace(report, log_dir=".", passed=report.passed and not errors,
+                                 verdict=scored_with(report.verdict, errors),
                                  errors=[scrub(error) for error in errors + report.errors],
                                  air_load=load, unverified_sources=unverified)
     (run_dir / "report.json").write_text(json.dumps(report_dict(report), indent=2),

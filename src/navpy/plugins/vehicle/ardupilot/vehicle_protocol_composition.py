@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
+from navpy.plugins.vehicle.ardupilot.heartbeat_pacing import SIM_SPEEDUP_PARAM, HeartbeatPacing
 from navpy.plugins.vehicle.ardupilot.heartbeat_runtime import HeartbeatRuntime
 from navpy.plugins.vehicle.ardupilot.inbound_router import InboundMessageRouter
 from navpy.plugins.vehicle.ardupilot.mav_mission import MavMission
@@ -49,12 +50,17 @@ def build_protocol_parts(
         foundation.state.mission_inbox,
         foundation.link.logger_ref,
     )
+    repository = foundation.state.parameter_repository
+    pacing = HeartbeatPacing(lambda: repository.get(SIM_SPEEDUP_PARAM))
+    repository.watch(SIM_SPEEDUP_PARAM, pacing.wake)
     heartbeat = HeartbeatRuntime(
         foundation.link.transport,
         foundation.link.identity,
         foundation.state.heartbeat_state,
         foundation.link.logger_ref,
         request.startup.heartbeat_hz,
+        pacing,
+        foundation.link.active_bus.companion_hold,
     )
     snapshot = ParameterSnapshotClient(
         foundation.link.transport,

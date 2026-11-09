@@ -36,6 +36,8 @@ class NavArgs(object):
 
         # Nav sim speedup (0 = disabled)
         self.nav_sim_speedup = getattr(args, 'nav_sim_speedup', self.NAV_SIM_SPEEDUP)
+        # SITL-only NAV cycle fault file (navpy/sim/cycle_fault.py); None: no hook.
+        self.sim_cycle_fault_file = getattr(args, 'sim_cycle_fault_file', None)
 
         self.refresh()
 

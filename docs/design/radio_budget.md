@@ -453,7 +453,10 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
   end past the deadline (one write, about 6 s; building the reconnected
   vehicle is not bounded). The eval's HTTP timeout is 15 s above the budget.
 - `VehicleMav` lost its `heartbeat_hz` argument (a constant now, 1 Hz as
-  every caller passed) to stay within the constructor guard.
+  every caller passed) to stay within the constructor guard. Since
+  2026-11-08 the companion's is 4 Hz (the autopilot's NavPy watchdog,
+  `navpy_recovery.md` step 7: about +63 B/s per UAV forwarded to the GCS
+  radio); the GCS backend's own stays 1 Hz.
 
 ## Results (round 5, `.logs/radio-budget-r5`, `-r5b`, `-r5c`)
 

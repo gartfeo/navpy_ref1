@@ -25,3 +25,6 @@ assert(param:add_param(PARAM_TABLE_KEY, 16, "LOG_RATE", 2), "Failed to add LOG_R
 assert(param:add_param(PARAM_TABLE_KEY, 17, "DEL_CTRL", 2), "Failed to add DEL_CTRL parameter")  -- 0=PID (legacy geo), 1=PN (legacy geo), 2=vision-nav-pn
 
 assert(param:add_param(PARAM_TABLE_KEY, 19, "NAV_CGT", 15), "Failed to add NAV_CGT parameter")  -- operator gate timeout (sec)
+
+-- This script owns key 88: another script adding it would re-blank this table. nav_watchdog.lua's AAS_NWD_* params
+-- are its own table, key 89.

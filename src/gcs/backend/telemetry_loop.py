@@ -29,7 +29,7 @@ _RC_CHANGE_THRESHOLD_US = 2
 
 def _has_changed(prev: dict, curr: dict) -> bool:
     """Check if telemetry has meaningful change."""
-    if curr.get("status_texts"):
+    if curr.get("status_texts") or curr.get("messages"):
         return True
     if _gimbals_changed(prev.get("gimbals"), curr.get("gimbals")):
         return True
@@ -42,7 +42,8 @@ def _has_changed(prev: dict, curr: dict) -> bool:
                 "prearm_ok", "prearm_check_state", "is_probing", "mission_uploaded",
                 "mission_total", "mission_download_progress", "swarm",
                 "video_streams", "cameras", "camera_wait_over",
-                "video_stream_expected", "video_stream_duplicates", "velocity_ned"):
+                "video_stream_expected", "video_stream_duplicates",
+                "named_values", "message_epoch", "velocity_ned"):
         p, c = prev.get(key), curr.get(key)
         if p is None and c is None:
             continue
@@ -200,6 +201,11 @@ class TelemetryLoop:
                             "prompt_text": evt.get("prompt_text"),
                             "ts": rt.time(),
                         })
+                    # New Messages-window entries; drained every cycle, so
+                    # they force this vehicle's broadcast.
+                    messages = self._mgr.drain_messages(sid)
+                    if messages:
+                        snap["messages"] = messages
                     if prev is None or _has_changed(prev, snap):
                         # Every fix since this vehicle's last broadcast, so
                         # the trail follows the flown path, not straight lines

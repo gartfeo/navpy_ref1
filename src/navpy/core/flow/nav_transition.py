@@ -19,6 +19,7 @@ from navpy.core.approach.vision_nav.episode_latch import (
     FinalApproachTerminal,
 )
 from navpy.core.flow.nav_display import NavOutcomeLatch
+from navpy.core.flow.nav_held_approach import HeldApproach
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
@@ -31,7 +32,7 @@ class NavExitOutcome:
 class NavTransition:
     """Coordinate NAV entry, fenced cleanup, diagnostics, and completion.
 
-    ``finish_sortie`` ends with the task teardown;
+    ``finish_sortie(failed=...)`` ends with the task teardown (a failed dock: RTL, no disarm);
     ``NavigationTransitionHandler._enter_docked`` relies on it for a one-shot
     DOCKED entry, contact or dock failed.
     """
@@ -41,12 +42,14 @@ class NavTransition:
         entry: NavEntry,
         cleanup: NavExitCleanup,
         snap_reporter: NavSnapReporter,
-        finish_sortie: Callable[[], tuple[Exception, ...]],
+        finish_sortie: Callable[..., tuple[Exception, ...]],
         navigation_task: NavigationTaskState,
         is_oneshot: Callable[[], bool],
         *,
         logger: Optional[ILogger] = None,
         outcome: Optional[NavOutcomeLatch] = None,
+        held: Optional[HeldApproach] = None,
+        holding: Callable[[], bool] = lambda: False,
     ) -> None:
         self._entry = entry
         self._cleanup = cleanup
@@ -56,15 +59,38 @@ class NavTransition:
         self._is_oneshot = is_oneshot
         self._logger = logger
         self._outcome = outcome
+        self._held = held
+        #: Recovery's hold (RecoveryHold.holding): a NAV exit in it ends the episode as held.
+        self._holding = holding
+        if held is not None:
+            held.bind(self._end_held_episode, self.enter)
 
     def enter(self) -> None:
         self._entry.run()
+        if self._held is not None:
+            self._held.clear()       # only once the entry succeeded (nav_held_approach.py)
+
+    def _end_held_episode(self) -> None:
+        """Recovery's hold: the in-flight episode ends without failure (owner ruling 2026-11-09)."""
+        self._cleanup.end_episode()
+        self._navigation_task.final_approach_navigation_active = False
+        if self._logger is not None:
+            # A recovery report (journaled, step 8): the eval sees the held episode end, not only the NavPy log.
+            self._logger.recovery("NAV approach held: episode ended, a fresh one follows the resume", "nav")
 
     def exit(self, requested: NavState | None = None) -> NavExitOutcome:
+        held_errors: list[Exception] = []
+        if self._held is not None and self._holding():
+            # NAV leaves in recovery's hold (the operator's mode, a disarm): the episode ends as held, never by what
+            # it latched while fenced (step 10, item 1). Idempotent if the decision ended it already.
+            try:
+                self._held.end_episode()
+            except Exception as error:  # noqa: BLE001 - teardown transaction
+                held_errors.append(error)
         navigation_active = self._navigation_task.final_approach_navigation_active
         completed = self._navigation_task.final_approach_nav_completed
         cleanup = self._cleanup.run()
-        errors = list(cleanup.errors)
+        errors = held_errors + list(cleanup.errors)
 
         if navigation_active and cleanup.snap is not None:
             try:
@@ -89,7 +115,7 @@ class NavTransition:
             # One-shot is how a real dock ends: the sortie finishes, final.
             oneshot = self._is_oneshot()
             if oneshot:
-                errors.extend(self._finish_sortie())
+                errors.extend(self._finish_sortie(failed=failed))
             outcome = NavExitOutcome(
                 redirect=NavState.DOCKED,
                 oneshot_completed=oneshot,
@@ -103,6 +129,8 @@ class NavTransition:
 
         if errors:
             raise ExceptionGroup("NAV exit failed", errors)
+        if self._held is not None:
+            self._held.clear()       # NAV left: an abandoned held approach is over only now
         if docked:
             self._report_docked(cleanup)
         elif failed:

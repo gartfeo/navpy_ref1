@@ -16,6 +16,7 @@ from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.position_path import PositionPath
 from gcs.backend.producer_inventory import producers
 from gcs.backend.video_streams import VehicleVideoStreams
+from gcs.backend.vehicle_message_log import VehicleMessageLog
 from gcs.backend.vehicle_status import ACCEL_CAL_ACTIVE_WINDOW_S, RC_CHANNELS_MAX, CONFIRM_BLOCKED_STALE_S
 from gcs.backend import vehicle_status, vehicle_camera, vehicle_snapshot
 
@@ -68,8 +69,13 @@ class VehicleEntry:
         # Camera-protocol video discovery of the own companion's cameras
         # (display only, gcs_video_streams.md).
         self._video_streams = VehicleVideoStreams(sys_id, vehicle)
+        # Messages window history (STATUSTEXT and named values), attributed
+        # by MAVLink source system.
+        self.message_log = VehicleMessageLog(sys_id)
         for name, handler in (
             ("STATUSTEXT", self._on_statustext),
+            ("NAMED_VALUE_FLOAT", self.message_log.on_named_value),
+            ("NAMED_VALUE_INT", self.message_log.on_named_value),
             ("GIMBAL_DEVICE_ATTITUDE_STATUS", self._on_gimbal_device_attitude_status),
             ("CAMERA_FOV_STATUS", self._on_camera_fov_status),
             ("CAMERA_SETTINGS", self._on_camera_settings),
@@ -102,13 +108,11 @@ class VehicleEntry:
     def _from_own_companion(self, msg: MAVLink_message) -> bool:
         """True if *msg*'s MAVLink source is THIS vehicle's own companion.
 
-        Every companion's gimbal/camera telemetry cross-delivers onto every
-        vehicle's connection over the shared MAVLink link (see the
-        "shared lossy link" note in ``companion_status``). Attribute gimbal
-        state by MAVLink SOURCE, not by the receiving connection — otherwise a
-        vehicle's map footprint is fed all companions' gimbal poses/optics
-        (last-writer-wins), flickering between vehicles and showing near-
-        identical poses across UAVs.
+        The router admits only this vehicle's own system
+        (``InboundMessageRouter._admits_foreign_system``), but within that
+        system the autopilot, the companion and its cameras all transmit.
+        Attribute gimbal state by MAVLink SOURCE component, not by the
+        receiving connection.
 
         The companion shares its aircraft's system id, so the COMPONENT id is
         what separates it from the autopilot: matching on system id alone

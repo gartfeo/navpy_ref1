@@ -52,6 +52,30 @@ function CompanionBadge({ status }) {
   );
 }
 
+// Opens this UAV's Messages window (STATUSTEXT and named values history).
+function MessagesButton({ onClick }) {
+  const { t } = useTranslation();
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      title={t('messages.open')}
+      aria-label={t('messages.title')}
+      style={{
+        display: 'inline-flex', alignItems: 'center', padding: '1px 3px',
+        background: 'none', border: `1px solid ${colors.border}`, borderRadius: 3,
+        color: colors.textDim, cursor: 'pointer', lineHeight: '12px',
+      }}
+    >
+      <svg width="12" height="12" viewBox="0 0 12 12" fill="none" aria-hidden="true">
+        <rect x="1" y="1.5" width="10" height="7" rx="1.2" stroke="currentColor" strokeWidth="1.1" />
+        <path d="M3.5 8.5L3 11l2.8-2.5" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round" />
+        <path d="M3.2 4h5.6M3.2 6h3.6" stroke="currentColor" strokeWidth="1" strokeLinecap="round" />
+      </svg>
+    </button>
+  );
+}
+
 // BUSY / UNKNOWN from the companion's swarm heartbeat; nothing while FREE.
 function SwarmBadge({ swarm }) {
   const { t } = useTranslation();
@@ -141,7 +165,7 @@ export default function VehicleStatusCard({
   vehicle: v, index: i, zoneDistance: zd, wpOffset,
   assignments, pendingConfirms, onForceConfirm, isContainer, phase, launchStates,
   onLaunch, gates, simMode, devMode, navpyStatus, navpyBusy, navpyConn,
-  onToggleNavpy, onFlyToLocation, loadStage,
+  onToggleNavpy, onFlyToLocation, loadStage, onOpenMessages,
 }) {
   const { t } = useTranslation();
   const linkDown = !v.link_ok;
@@ -203,6 +227,7 @@ export default function VehicleStatusCard({
           <UavBadge name={v.name} index={i} />
           <CompanionBadge status={v.companion_status} />
           <SwarmBadge swarm={v.swarm} />
+          {onOpenMessages && <MessagesButton onClick={() => onOpenMessages(v.sys_id)} />}
         </span>
         <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11 }}>
           <span style={{ display: 'flex', alignItems: 'center', gap: 2 }}>
