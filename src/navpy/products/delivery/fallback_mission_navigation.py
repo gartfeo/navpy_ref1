@@ -22,6 +22,8 @@ class FallbackMissionPorts:
     current_relative: Callable[[], Optional[Location]]
     set_sim_poi: Callable[..., None]
     detector_is_simulation: Callable[[], bool]
+    #: NavPy's GUIDED request, told to NAV recovery first (request_guided_owned): the transit's GUIDED is NavPy's.
+    request_guided: Callable[[], None]
 
 
 class FallbackMissionNavigation:
@@ -77,7 +79,7 @@ class FallbackMissionNavigation:
                 "radius will not be restored when the navigation task ends",
                 key="nav",
             )
-        self._commands.request_guided()
+        self._ports.request_guided()
         self._commands.dispatch_approach(plan, loiter_alt_rel=loiter_alt)
         self._logger.info(
             f"Default delivery hub navigation: {poi} "

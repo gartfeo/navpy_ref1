@@ -9,6 +9,7 @@ from typing import Optional, Protocol
 from navpy.core.approach.vision_nav.episode_latch import (
     GuidanceEpisodeResult,
 )
+from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.dock_contact import DockContactEvent
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
@@ -30,6 +31,8 @@ class NavExitCleanupPorts:
     detector_stop: Callable[[], None]
     # Its result is read before the reset clears it; None: no vision runtime.
     dock_outcome: Optional[DockOutcomePort] = None
+    #: The held episode's dock-contact end (GuidanceDockContact.disarm_held); None: ``disarm_dock_contact``.
+    disarm_held_dock_contact: Optional[Callable[[], Optional[DockContactEvent]]] = None
 
 
 @dataclass(frozen=True)
@@ -102,6 +105,20 @@ class NavExitCleanup:
             own_dock_contact=contact,
             dock_result=result,
         )
+
+    def end_episode(self) -> None:
+        """Recovery's hold ends the guidance episode, without failure (nav_held_approach.py): the dock-contact
+        episode, the source admission and the command session (``navigation_reset``: commands, liveness and the
+        episode latch) end; tracking, zoom, the speedup and the task stay for the fresh episode."""
+        errors: list[Exception] = []
+        disarm = self._ports.disarm_held_dock_contact or self._ports.disarm_dock_contact
+        for step in (disarm, self._ports.close_guidance_source, self._ports.navigation_reset):
+            try:
+                step()
+            except Exception as error:  # noqa: BLE001 - every step runs; the NAV loop fails the cycle on the group
+                errors.append(error)
+        if errors:
+            raise ExceptionGroup("held guidance episode did not end", errors)
 
     def record_dock_failed(
         self,

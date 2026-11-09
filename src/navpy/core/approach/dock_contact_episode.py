@@ -12,6 +12,7 @@ import logging
 from collections.abc import Callable
 from typing import Optional
 
+from navpy.core.approach.dock_episode_end import HELD_REASON
 from navpy.core.approach.vision_nav.episode_latch import (
     GuidanceResult,
     ResultObserver,
@@ -130,11 +131,23 @@ class GuidanceDockContact:
         The sensor publishes only a closest pass inside the net, and only
         for the armed identity, so the event is the DOCKED evidence.
         """
+        return self._disarm(lambda armed, docked: self._end(armed, docked))
+
+    def disarm_held(self) -> Optional[DockContactEvent]:
+        """NAV recovery's hold ends the episode (nav_held_approach.py): reported as aborted for the hold, never from
+        the result the episode latched while its commands were fenced, so never a miss or a failure."""
+        return self._disarm(lambda armed, docked: DockEpisodeEnd(
+            docked=docked, abort_reason=None if docked else HELD_REASON,
+        ))
+
+    def _disarm(
+        self, end: Callable[[Optional[DockContactIdentity], bool], DockEpisodeEnd],
+    ) -> Optional[DockContactEvent]:
         with self._lock:
             armed, self._armed = self._armed, None
             docked, self._docked = self._docked, None
         if self._sensor is not None:
-            self._sensor.disarm(self._end(armed, docked is not None))
+            self._sensor.disarm(end(armed, docked is not None))
         if armed is not None:
             self._end_episode(armed, self._source_now_s())
         return docked

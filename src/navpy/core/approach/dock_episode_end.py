@@ -18,6 +18,9 @@ from navpy.core.ports.dock_contact import DockContactIdentity, DockEpisodeEnd
 
 # The ground station cancelled the confirmed task during the approach.
 CANCELLED_REASON = "cancelled"
+# NAV recovery's hold ended the episode (nav_held_approach.py): neither a miss nor a failure, whatever the episode
+# latched while its commands were fenced; a fresh episode follows the resume.
+HELD_REASON = "held"
 
 
 def dock_episode_end(
@@ -42,4 +45,4 @@ def dock_episode_end(
     return DockEpisodeEnd()
 
 
-__all__ = ["CANCELLED_REASON", "dock_episode_end"]
+__all__ = ["CANCELLED_REASON", "HELD_REASON", "dock_episode_end"]

@@ -6,6 +6,7 @@ from typing import Callable, Optional
 
 from navpy.app.attitude_boot_time import attitude_boot_s
 from navpy.core.kernel.config.nav_args import NavArgs
+from navpy.sim.cycle_fault import sim_cycle_fault
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.search.detect_action import DetectAction
 from navpy.core.skills.acquire.peer_geo_tick import DetectPointingPorts
@@ -17,6 +18,7 @@ from navpy.core.approach.nav_exit_cleanup import (
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.skills.acquire.peer_geo_tick import PeerGeoTick
 from navpy.core.flow.nav_application import NavApplication, NavShutdown
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_composition_types import (
     ConfirmationWorkflows,
     DecisionWorkflows,
@@ -125,7 +127,7 @@ def compose_nav_application(
     nav_transition = NavTransition(
         NavEntry(
             NavEntryPorts(
-                request_guided=lambda: approach.commands.request_guided(),
+                request_guided=lambda: request_guided_owned(state, approach),
                 navigation_init=navigation.init,
                 guidance_active=lambda: navigation.guidance.is_active,
                 arm_dock_contact=lambda: dock_contact.arm(
@@ -145,6 +147,7 @@ def compose_nav_application(
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
                 dock_outcome=navigation.dock_outcome,
+                disarm_held_dock_contact=dock_contact.disarm_held,
             ),
             approach.speedup,
             logger,
@@ -158,6 +161,7 @@ def compose_nav_application(
         lambda: args.is_oneshot,
         logger=logger,
         outcome=outcome,
+        held=state.held_approach,
     )
     display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(
@@ -227,6 +231,7 @@ def compose_nav_application(
         state.phase,
     )
     cycle = NavigationCycle(lambda: vehicle.is_armed, state.detections, sensor, decision.decision, actions)
+    cycle = sim_cycle_fault(cycle, args.sim_cycle_fault_file, vehicle, logger)   # itself unless the SITL flag is given
     recovery = nav_recovery(vehicle, state.recovery_hold, logger, recovery_link)
     sample = lambda: TimeSample(aircraft_s=attitude_boot_s(vehicle), wall_s=state.clock.wall_s())  # noqa: E731
     loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))

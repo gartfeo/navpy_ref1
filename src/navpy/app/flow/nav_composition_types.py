@@ -11,6 +11,7 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
+from navpy.core.flow.nav_held_approach import HeldApproach
 from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.approach.geo.legacy_destination_resolver import LegacyDestinationResolver
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
@@ -107,6 +108,8 @@ class NavStateOwnership:
     post_dock_climb: PostDockClimb
     #: Recovery's hold, read by the decision and the RESET hook (nav_recovery.py).
     recovery_hold: RecoveryHold = field(default_factory=RecoveryHold)
+    #: Recovery's guidance hold ended, until NAV entry starts a fresh one (nav_held_approach.py).
+    held_approach: HeldApproach = field(default_factory=HeldApproach)
 
 
 @dataclass(frozen=True)

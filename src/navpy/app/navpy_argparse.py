@@ -11,6 +11,7 @@ from navpy.core.kernel.config.mission_planner_args import MissionPlannerArgs
 from navpy.core.kernel.config.nav_args import NavArgs
 from navpy.app.vision_args import VisionArgs
 from navpy.app import runtime_escalation, runtime_stop, result_handoff
+from navpy.sim import cycle_fault
 
 # every (*class*, extra-positional-args)
 _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
@@ -36,6 +37,8 @@ _ARG_MODULES: Sequence[tuple[Callable, tuple]] = (
     (runtime_escalation.add_args, ()),
     # HITL result handoff (router barrier)
     (result_handoff.add_args, ()),
+    # SITL-only NAV cycle fault injection (navpy_recovery.md, step 9)
+    (cycle_fault.add_args, ()),
 )
 
 

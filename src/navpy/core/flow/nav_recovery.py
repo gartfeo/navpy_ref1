@@ -8,7 +8,8 @@ The loop reports each period whether its cycle ran without an error. Then:
   for seeing LOITER, and the search mission is not restarted (``holding``).
 - Resume (good for NAV_HOLD_TRIGGER_S while holding): if the mode is still NavPy's LOITER, ask for AUTO; once a
   newer heartbeat shows it, reopen the fence. The mission goes on from its current item (MIS_RESTART 0) and the
-  normal flow approaches the kept dock again (``hold.resumed``, kept until the decision takes it). Without ownership
+  normal flow approaches the kept dock again (the resume grant ``hold.resumed``, consumed once by the decision).
+  The RTL budget is hold time summed across one incident's holds (nav_recovery_incident.py). Without ownership
   (the operator took the mode in the hold) the fence just reopens, no mode is changed and the approach is not
   resumed: the operator's mode stands.
 - Critical (NAV_HOLD_RECOVERY_S in the hold, or LOITER/AUTO not confirmed in MODE_CONFIRM_S): RTL if owned. Not
@@ -31,6 +32,7 @@ from enum import Enum
 from navpy.core.flow.nav_mode_request import MODE_CONFIRM_S, ModeRequest
 from navpy.core.flow.nav_mode_sender import ModeSender
 from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownership, OwnershipEnd
+from navpy.core.flow.nav_recovery_incident import RecoveryIncident
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import NavRecoveryPorts, RecoveryHold
 from navpy.core.ports.flight_mode import FlightMode
@@ -56,11 +58,9 @@ def _inline_sender(ports: NavRecoveryPorts, report: Callable[[str], None]) -> Mo
 
 
 class NavRecovery:
-    """Owned by the NAV loop thread: ``step`` once per period, after the cycle.
-
-    Critical RTL needs ownership; without it (search in the mission's AUTO, a pilot mode) NavPy stays fenced in the
-    hold and resumes when healthy, since the autopilot flies on safely.
-    """
+    """Owned by the NAV loop thread: ``step`` once per period, after the cycle. Critical RTL needs ownership;
+    without it (search in the mission's AUTO, a pilot mode) NavPy stays fenced in the hold and resumes when healthy,
+    since the autopilot flies on safely."""
 
     def __init__(
         self,
@@ -75,7 +75,7 @@ class NavRecovery:
         self._clock = RecoveryClock()
         self._bad_since: float | None = None
         self._good_since: float | None = None
-        self._hold_since: float | None = None
+        self._incident = RecoveryIncident(NAV_HOLD_RECOVERY_S)   # hold time summed per incident
         self._mode = ModeRequest(ports.mode_sender or _inline_sender(ports, self._report), self.ownership)
         self._long_hold_reported = False
         self._guided_at: float | None = None             # when recovery learned of NavPy's last GUIDED request
@@ -84,6 +84,7 @@ class NavRecovery:
     def step(self, cycle_ok: bool, sample: TimeSample) -> None:
         """One thread at a time (nav_recovery_step.py); never blocks: modes are written by nav_mode_sender.py."""
         now = self._clock.advance(sample)
+        self._incident.advance(self.stage in (RecoveryStage.HOLD, RecoveryStage.RESUMING), now)
         observation = self._ports.observe_mode()
         self._take_signals(observation, now)
         # A stuck loop (the watchdog's signal) fails the period like a failed cycle, and holds at once: the hang
@@ -93,10 +94,10 @@ class NavRecovery:
         if self._ports.escalation.requested and self.stage not in (RecoveryStage.ESCALATED, RecoveryStage.CRITICAL):
             self._enter_escalated()
         self._step_stage(observation, now, hung)
-        # The fence is closed by recovery: the approach must not end for the hold's LOITER, nor search restart.
-        self.hold.holding = self.stage is not RecoveryStage.NORMAL
-        if self.stage is not RecoveryStage.NORMAL:
-            self.hold.resumed = False   # a resume not yet taken is void in a new hold
+        normal = self.stage is RecoveryStage.NORMAL
+        self.hold.stepped(normal, observation)
+        if normal:
+            self._incident.healthy(self._good_since, now)
 
     def _take_signals(self, observation: ModeObservation, now: float) -> None:
         """What the mode sender and the cycle told recovery since its last step, then the heartbeat."""
@@ -137,7 +138,7 @@ class NavRecovery:
         self._ports.close_fence()
         self._handed_over_unhealthy = False
         self.stage = RecoveryStage.HOLD
-        self._hold_since = now
+        self._incident.hold()
         self._good_since = None
         owned = self.ownership.may_request_mode()
         self._report(f"NavPy hold: commands fenced{', LOITER' if owned else ''}")
@@ -152,7 +153,7 @@ class NavRecovery:
             # Owned only now (NavPy's GUIDED showed after the hold began, e.g. sent just before a hang): hold.
             self._mode.send(FlightMode.LOITER, observation, now)
             self._report("NavPy hold: GUIDED now NavPy's, LOITER")
-        if self._hold_since is not None and now - self._hold_since >= NAV_HOLD_RECOVERY_S:
+        if self._incident.expired():
             if self.ownership.may_request_mode():
                 self._enter_critical(observation, now, f"no recovery in {NAV_HOLD_RECOVERY_S:g} s")
                 return
@@ -243,11 +244,11 @@ class NavRecovery:
             return
         self.stage = RecoveryStage.NORMAL
         self._mode.clear()
-        self._hold_since = None
         self._bad_since = None
         self._long_hold_reported = False
         self._handed_over_unhealthy = False
-        self.hold.resumed = resumed
+        if resumed:
+            self.hold.grant_resume()
         self._report(message)
 
     def _report(self, message: str) -> None:
