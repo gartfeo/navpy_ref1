@@ -246,3 +246,71 @@ def test_a_gcs_exchange_logs_every_send_and_its_outcome():
     lines = [c.args[0] for c in writer._logger_ref.value.info.call_args_list]
     assert lines == ["PARAM_SET TEST send 1/12: no echo", "PARAM_SET TEST send 2/12: no echo",
                      "PARAM_SET TEST send 3/12: echo", "PARAM_SET TEST: confirmed after 3/12 sends"]
+
+
+def _reader(link: HeartbeatState, transport: MavTransport) -> ParameterReader:
+    messages = MessageStore(MESSAGE_HISTORY_POLICY)
+    return ParameterReader(SimpleNamespace(target_system=7), transport, ParameterRepository(),
+                           messages, SimpleNamespace(value=MagicMock()), link)
+
+
+def _hold_send_lock(transport: MavTransport, released: threading.Event) -> threading.Thread:
+    """Another sender holds the transport's send lock until ``released``."""
+    taken = threading.Event()
+
+    def hold() -> None:
+        with transport.transaction():
+            taken.set()
+            released.wait(5.0)
+
+    holder = threading.Thread(target=hold)
+    holder.start()
+    assert taken.wait(5.0)
+    return holder
+
+
+def test_a_send_lock_busy_past_the_deadline_sends_no_write():
+    """Codex round 2 on the rally change, finding 3: the exchange's sends wait
+    for the transport's send lock only until the request's deadline, so a
+    write is never sent after it (here: a rally parameter)."""
+    link = HeartbeatState(7, 5.0)
+    link.observe_frame()
+    writer, connection = _writer(link)
+    released = threading.Event()
+    holder = _hold_send_lock(writer._transport, released)
+    try:
+        exchange = writer.write("RALLY_LIMIT_KM", 0.0,
+                                ExchangePolicy(3, time.monotonic() + 0.05, stop_on_silence=True))
+    finally:
+        released.set()
+        holder.join(5.0)
+    assert (exchange.outcome, exchange.reason, exchange.attempts) == (
+        ExchangeOutcome.UNATTEMPTED, ExchangeReason.DEADLINE, 0)
+    connection.mav.param_set_send.assert_not_called()
+
+
+def test_a_send_lock_busy_past_the_deadline_sends_no_read():
+    link = HeartbeatState(7, 5.0)
+    link.observe_frame()
+    connection = SimpleNamespace(mav=MagicMock())
+    transport = MavTransport(connection, threading.RLock())
+    reader = _reader(link, transport)
+    released = threading.Event()
+    holder = _hold_send_lock(transport, released)
+    try:
+        exchange = reader.read("RALLY_TOTAL",
+                               ExchangePolicy(3, time.monotonic() + 0.05, stop_on_silence=True))
+    finally:
+        released.set()
+        holder.join(5.0)
+    assert (exchange.outcome, exchange.reason, exchange.attempts) == (
+        ExchangeOutcome.UNATTEMPTED, ExchangeReason.DEADLINE, 0)
+    connection.mav.param_request_read_send.assert_not_called()
+
+
+def test_without_a_deadline_a_send_waits_for_the_send_lock_as_before():
+    link = HeartbeatState(7, 5.0)
+    writer, connection = _writer(link)
+    sent = writer._transport.call_by(None, lambda c: c.mav.param_set_send(7, 0, b"X", 1.0, 9))
+    assert sent is True
+    connection.mav.param_set_send.assert_called_once()

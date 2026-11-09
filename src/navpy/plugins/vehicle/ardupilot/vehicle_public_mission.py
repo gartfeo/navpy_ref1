@@ -6,6 +6,7 @@ from collections.abc import Callable, Iterable
 
 from pymavlink.dialects.v20.ardupilotmega import (
     MAV_MISSION_TYPE_FENCE,
+    MAV_MISSION_TYPE_RALLY,
     MAVLink_message,
 )
 from pymavlink.mavwp import MAVWPLoader
@@ -108,3 +109,28 @@ class VehicleFenceFacet:
 
     def clear_fence(self) -> None:
         return self._parts.mission.clear(MAV_MISSION_TYPE_FENCE)
+
+
+class VehicleRallyFacet:
+    """Delegate rally-point transfers using the rally mission namespace.
+
+    ArduPilot RTL flies to the nearest rally point instead of HOME.
+    """
+
+    _parts: MissionParts
+
+    def upload_rally(
+        self,
+        items: Iterable[MAVLink_message],
+        policy: ExchangePolicy | None = None,
+    ) -> bool:
+        """True once the autopilot ACKs the whole table; it replaces the old one."""
+        return self._parts.mission.upload(
+            items=items,
+            mission_type=MAV_MISSION_TYPE_RALLY,
+            policy=policy,
+        )
+
+    def clear_rally(self) -> None:
+        """Send MISSION_CLEAR_ALL for the rally table (not awaited: read RALLY_TOTAL)."""
+        return self._parts.mission.clear(MAV_MISSION_TYPE_RALLY)
