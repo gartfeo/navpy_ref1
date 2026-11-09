@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from typing import Protocol
 
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -21,7 +22,6 @@ from navpy.plugins.detection.charuco.charuco_board import (
     CharucoBoardSpec,
     CharucoDetectionSettings,
 )
-from navpy.plugins.detection.rfdetr.rfdetr_settings import RfDetrSettings
 from navpy.core.kernel.config.detector_backend import (
     RFDETR_BACKEND,
     YOLO_BACKEND,
@@ -57,6 +57,15 @@ class DetectorDependencies:
     logger: ILogger
 
 
+class ModelInputSettings(Protocol):
+    """A plugin backend's own model settings, carried opaquely by core (the rfdetr plugin's ``RfDetrSettings``).
+
+    Core needs only the frame-to-model-input scale; the app builds the settings and hands them to the plugin.
+    """
+
+    def input_scale(self, width: int, height: int) -> tuple[float, float]: ...
+
+
 @dataclass(frozen=True)
 class DetectorModelConfig:
     """Per-frame inference backend configuration.
@@ -85,7 +94,7 @@ class DetectorModelConfig:
     charuco_detection: CharucoDetectionSettings = field(
         default_factory=CharucoDetectionSettings,
     )
-    rfdetr: RfDetrSettings | None = None
+    rfdetr: ModelInputSettings | None = None
 
     def __post_init__(self) -> None:
         validate_detector_backend(self.backend)
