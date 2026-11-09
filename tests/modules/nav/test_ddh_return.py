@@ -174,3 +174,50 @@ def test_a_dock_skipped_on_the_return_is_reported_and_the_return_still_flies():
     skipped.assert_called_once_with(delivery)
     tasks.try_start.assert_not_called()
     fallback.setup.assert_called_once_with()
+
+
+# SITL 2026-11-10 (live-tester, run A3): after a failed park at the hub the UAV circled it for 20 min and never asked
+# again. It starts that circle over the hub, so it never flies at it: the hub stayed 90 degrees off the nose the whole
+# time (tlog) and the forward-looking camera never saw it. The hub's circle now aims the camera at the hub, as a peer
+# task's circle does (PeerGeoTracker).
+
+
+def _hub_navigation(kind, *, dispatch_error=None):
+    from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
+
+    catalog = MissionCatalog()
+    catalog.default_delivery_hub = HUB
+    planner = Mock()
+    plan = ApproachPlan(kind=getattr(ApproachKind, kind), approach_location=HUB, offset_distance=0.0,
+                        orbit_radius=500.0 if kind == "ORBIT" else None)
+    planner.plan_orbit_approach.return_value = (plan, 240.0)
+    commands = Mock()
+    commands.absolute_location.return_value = Location(47.0, 8.0, 1316.9, is_absolute=True)
+    if dispatch_error is not None:
+        commands.dispatch_approach.side_effect = dispatch_error
+    camera = Mock()
+    camera.start.return_value = True
+    ports = SimpleNamespace(next_waypoint=lambda: 1, mission_item_count=lambda: 10, current_relative=lambda: None,
+                            set_sim_poi=Mock(), detector_is_simulation=lambda: False, request_guided=Mock())
+    navigation = FallbackMissionNavigation(ports, catalog, SimpleNamespace(), planner, commands, Mock(), camera)
+    return navigation, camera
+
+
+def test_the_hubs_circle_aims_the_camera_at_the_hub():
+    navigation, camera = _hub_navigation("ORBIT")
+    navigation.setup()
+    camera.start.assert_called_once_with(Location(47.0, 8.0, 1316.9, is_absolute=True))
+    camera.prime.assert_called_once_with()
+
+
+def test_an_offset_approach_to_the_hub_leaves_the_camera_alone():
+    navigation, camera = _hub_navigation("OFFSET")
+    navigation.setup()
+    camera.start.assert_not_called()
+
+
+def test_the_camera_is_released_when_the_circle_cannot_be_flown():
+    navigation, camera = _hub_navigation("ORBIT", dispatch_error=RuntimeError("no link"))
+    with pytest.raises(RuntimeError):
+        navigation.setup()
+    camera.stop.assert_called_once_with()

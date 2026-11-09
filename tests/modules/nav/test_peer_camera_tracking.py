@@ -106,7 +106,6 @@ class TestPeerGeoTickGate(unittest.TestCase):
         acquisition = Mock()
         acquisition.snapshot.return_value = None
         tick = PeerGeoTick(
-            NavigationTaskState(peer_navigation=True),
             GeoHoldState(poi_location=_TASK_LOCATION),
             pointing,
             acquisition,
@@ -117,6 +116,7 @@ class TestPeerGeoTickGate(unittest.TestCase):
         return tick, pointing
 
     def test_updates_geo_pointing_before_nav(self):
+        """Any armed known dock, a peer task's or the DDH's (no peer task; navpy_recovery.md step 10, item 3)."""
         tick, pointing = self._tick(NavPhaseState(current=NavState.DETECT))
 
         tick.update()

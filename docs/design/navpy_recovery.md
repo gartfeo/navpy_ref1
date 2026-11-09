@@ -698,6 +698,14 @@ merges before step 4, which builds on its deadline fix.
      - The transit: DETECT flies the existing DDH return
        (`FallbackMissionNavigation.setup`) from wherever the mission is
        (`can_return`, no last-waypoint rule).
+     - The camera on the circle: the hub's circle aims the camera at the
+       hub's known position, as a peer task's circle does (`PeerGeoTracker`,
+       `PeerGeoTick`), until the detector sees it. A UAV that starts the
+       circle over the hub, after a failed park there, never flies at it, and
+       a forward-looking camera keeps the hub 90 degrees off the nose (SITL
+       2026-11-10: 20 minutes on the circle, never asked again). This is
+       acquisition pointing before the review, never the final approach's
+       command path; the mission-end DDH return gets it too.
      - No other work on the way: only the home dock, which the selector puts
        first; no peer task and no delivery dock (`work_source.py`). The swarm
        slot stays busy until it parks.

@@ -83,6 +83,14 @@ def compose_mission_navigation_ownership(
         approach.planner,
         approach.commands,
         logger,
+        PeerGeoTracker(
+            detection.geo_pointing,
+            state.geo_hold,
+            navigation.legacy_pois.geo_ref,
+            lambda: vehicle.location(False),
+            lambda: vehicle.attitude,
+            logger,
+        ),
     )
     mission_pass = MissionPassPolicy(
         MissionPassPorts(

@@ -238,7 +238,6 @@ def _detect_action(
         navigation_workflows.peer_notifier,
         poi.confirmation_manager,
         PeerGeoTick(
-            state.navigation_task,
             state.geo_hold,
             DetectPointingPorts(
                 is_detection_armed=(

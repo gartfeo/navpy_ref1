@@ -3,12 +3,13 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Callable, Optional
+from typing import Callable, Optional, Protocol
 
 from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 from navpy.core.skills.acquire.approach_planner import ApproachPlanner
+from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.core.flow.nav_state import NavigationTaskState
 from navpy.core.skills.acquire.vehicle_navigation import VehicleNavigationCommands
@@ -26,8 +27,34 @@ class FallbackMissionPorts:
     request_guided: Callable[[], None]
 
 
+class HubCamera(Protocol):
+    """Aims the camera at a known dock while the UAV circles it (core's PeerGeoTracker)."""
+
+    def start(self, poi: Location) -> bool: ...
+
+    def prime(self) -> bool: ...
+
+    def stop(self) -> None: ...
+
+
+class _NoCamera:
+    def start(self, poi: Location) -> bool:
+        return False
+
+    def prime(self) -> bool:
+        return False
+
+    def stop(self) -> None:
+        return None
+
+
 class FallbackMissionNavigation:
-    """Route the aircraft to the appended default delivery hub."""
+    """Route the aircraft to the appended default delivery hub.
+
+    The hub's circle aims the camera at the hub, as a peer task's circle does: a UAV that starts the circle over the
+    hub (after a failed park there) never flies at it, and a forward-looking camera keeps it 90 degrees off the nose
+    (SITL 2026-11-10; navpy_recovery.md step 10, item 3).
+    """
 
     def __init__(
         self,
@@ -37,8 +64,10 @@ class FallbackMissionNavigation:
         approach_planner: ApproachPlanner,
         commands: VehicleNavigationCommands,
         logger: ILogger,
+        camera: Optional[HubCamera] = None,
     ) -> None:
         self._ports = ports
+        self._camera = camera or _NoCamera()
         self._catalog = catalog
         self._navigation_task = navigation_task
         self._approach_planner = approach_planner
@@ -87,7 +116,13 @@ class FallbackMissionNavigation:
                 key="nav",
             )
         self._ports.request_guided()
-        self._commands.dispatch_approach(plan, loiter_alt_rel=loiter_alt)
+        aimed = plan.kind == ApproachKind.ORBIT and self._aim_camera()
+        try:
+            self._commands.dispatch_approach(plan, loiter_alt_rel=loiter_alt)
+        except Exception:
+            if aimed:
+                self._camera.stop()
+            raise
         self._logger.info(
             f"Default delivery hub navigation: {poi} "
             f"({plan.kind.value}, offset={plan.offset_distance:.0f}m"
@@ -95,3 +130,7 @@ class FallbackMissionNavigation:
             key="nav",
             dest=LogStatusDest.DRONE,
         )
+
+    def _aim_camera(self) -> bool:
+        hub = self._navigation_task.navigation_poi_location
+        return hub is not None and self._camera.start(hub) and self._camera.prime()

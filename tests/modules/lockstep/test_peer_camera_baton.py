@@ -150,7 +150,7 @@ class _PeerCamera:
         acquisition = Mock()
         acquisition.snapshot.return_value = None
         self.geo_tick = PeerGeoTick(
-            NavigationTaskState(peer_navigation=True), geo_hold,
+            geo_hold,
             DetectPointingPorts(
                 is_detection_armed=lambda: any(c.is_detection_armed for c in cameras),
                 prepare_geo_acquisition=self.fleet.prepare_geo_acquisition,

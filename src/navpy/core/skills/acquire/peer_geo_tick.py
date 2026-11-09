@@ -1,4 +1,5 @@
-"""Non-final-approach peer geo pre-acquisition tick."""
+"""Non-final-approach geo pre-acquisition tick: a peer task's dock, or a dock the mission module knows (its return
+dock, navpy_recovery.md step 10, item 3)."""
 
 from __future__ import annotations
 
@@ -7,7 +8,7 @@ from dataclasses import dataclass
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
-from navpy.core.flow.nav_state import NavigationTaskState, GeoHoldState
+from navpy.core.flow.nav_state import GeoHoldState
 from navpy.core.skills.acquire.peer_geo import PeerGeoAcquisition
 
 
@@ -19,11 +20,11 @@ class DetectPointingPorts:
 
 
 class PeerGeoTick:
-    """Update peer geo pointing only while visual detection is unarmed."""
+    """Update geo pointing at an armed known dock (GeoHoldState.poi_location) only while visual detection is
+    unarmed."""
 
     def __init__(
         self,
-        navigation_task: NavigationTaskState,
         geo_hold: GeoHoldState,
         pointing: DetectPointingPorts,
         acquisition: PeerGeoAcquisition,
@@ -31,7 +32,6 @@ class PeerGeoTick:
         current_location: Callable[[], Location | None],
         current_attitude: Callable[[], Attitude | None],
     ) -> None:
-        self._navigation_task = navigation_task
         self._geo_hold = geo_hold
         self._pointing = pointing
         self._acquisition = acquisition
@@ -42,7 +42,6 @@ class PeerGeoTick:
     def update(self) -> None:
         if (
             self._final_approach_running()
-            or not self._navigation_task.peer_navigation
             or self._geo_hold.poi_location is None
             or self._pointing.is_detection_armed()
         ):
