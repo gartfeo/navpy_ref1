@@ -43,16 +43,27 @@ class _HangTracker:
     def __init__(self, beacon: ProgressBeacon) -> None:
         self._beacon = beacon
         self._passes = -1
-        self._busy_since: float | None = None
+        self._busy_since: tuple[float, float] | None = None   # (hang clock, wall) at the pass's start
 
-    def hung(self, now: float) -> bool:
+    def hung(self, now: float, wall_s: float) -> bool:
+        """The pass's busy time, less its declared bounded waits, has reached NAV_HANG_S on the hang clock.
+
+        The waits are wall-time bounds (a parameter reply), so they are taken as their share of the pass's wall time,
+        converted at the hang clock's rate over the pass (step 10, item 10): at a sim speed-up k a declared wait of
+        W s covers k x W s of aircraft time, not W s, and a parameter exchange in fast SITL is not a hang. At speed-up
+        1, or with aircraft time frozen (wall time carries the hang clock), this is the plain NAV_HANG_S + W."""
         reading = self._beacon.reading()
         if not reading.busy:
             self._busy_since = None
             return False
         if reading.passes != self._passes or self._busy_since is None:
-            self._passes, self._busy_since = reading.passes, now
-        return now - self._busy_since >= NAV_HANG_S + reading.allowance_s
+            self._passes, self._busy_since = reading.passes, (now, wall_s)
+        elapsed, wall_elapsed = now - self._busy_since[0], wall_s - self._busy_since[1]
+        if reading.allowance_s <= 0.0:
+            return elapsed >= NAV_HANG_S
+        if wall_elapsed <= reading.allowance_s:
+            return False
+        return elapsed - reading.allowance_s * (elapsed / wall_elapsed) >= NAV_HANG_S
 
 
 @dataclass(frozen=True)
@@ -83,9 +94,10 @@ class NavWatchdog:
         self._thread: rt.Thread | None = None
 
     def check(self) -> None:
-        now = self._clock.advance(self._ports.sample())
-        nav_hung = self._nav.hung(now)
-        worker_hung = self._worker.hung(now)
+        sample = self._ports.sample()
+        now = self._clock.advance(sample)
+        nav_hung = self._nav.hung(now, sample.wall_s)
+        worker_hung = self._worker.hung(now, sample.wall_s)
         stuck = "NAV loop" if nav_hung else "command worker" if worker_hung else None
         # The veto first: from here no reopen opens the fence, even one recovery decided before this check.
         self._ports.hold_fence(stuck is not None)

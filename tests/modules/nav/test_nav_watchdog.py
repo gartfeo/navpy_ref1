@@ -595,3 +595,20 @@ def test_hang_clock_without_aircraft_time_runs_on_wall_time():
     clock.advance(TimeSample(None, 0.0))
     assert clock.advance(TimeSample(None, AIRCRAFT_TIME_STALE_S / 2)) == 0.0
     assert clock.advance(TimeSample(None, 2.0)) == 2.0
+
+
+def test_step10_item10_a_declared_wait_covers_its_aircraft_time_at_a_sim_speedup():
+    """A parameter exchange (a 6 s wall bound) in SITL at speed-up 10: 6 s of wall time is 60 s of aircraft time, all
+    of it the declared wait, so not a hang; the pass's own time beyond the wait still is, at NAV_HANG_S of aircraft
+    time (step 10, item 10)."""
+    rig = WatchdogRig()
+    rig.speedup = 10.0
+    with rig.nav_beacon.busy():
+        with bounded_wait(6.0):
+            rig.run(5.0, nav_runs=False)                       # 50 s of aircraft time, inside the wall bound
+            assert rig.fence.is_open and not rig.signal.hung
+        # Timed from the first check that saw it busy: 6.125 s of wall is 1.25 s of aircraft time past the bound.
+        rig.run(1.0 + 2 * PERIOD_S, nav_runs=False)
+        assert not rig.signal.hung
+        rig.run(PERIOD_S, nav_runs=False)                      # 2.5 s past it: NAV_HANG_S of aircraft time reached
+        assert rig.signal.hung

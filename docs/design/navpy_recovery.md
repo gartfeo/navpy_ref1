@@ -383,8 +383,9 @@ merges before step 4, which builds on its deadline fix.
      time is frozen, no new ATTITUDE time for `AIRCRAFT_TIME_STALE_S` (0.5 s),
      counted from the last sample, so a stalled link or a frozen SITL still
      trips (`HangClock`, `nav_recovery_clock.py`). The declared waits are
-     wall-time bounds and count on the same clock, so at speed-up k a wait of
-     W s allows only W/k s of wall time.
+     wall-time bounds: they are taken as their share of the pass's wall time,
+     converted at the hang clock's rate over the pass, so at speed-up k a
+     wait of W s covers k x W s of aircraft time (step 10, item 10).
    - While stuck: the watchdog holds the fence closed
      (`MavCommandFence.hold_closed`, one lock with reopening), so no reopen
      opens it, even one recovery decided before the hang was seen; recovery
