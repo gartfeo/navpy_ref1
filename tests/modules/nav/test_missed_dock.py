@@ -512,3 +512,21 @@ def test_a_contact_before_the_nav_fail_is_docked_end_to_end():
     assert result.effective_state is NavState.DOCKED
     assert events == ["reset"]  # no DOCK_FAILED row
     assert logger.info.call_args.args[0].startswith("STATE DOCKED (sim):")
+
+
+def test_real_build_one_shot_nav_fail_keeps_todays_reset_and_asks_for_no_rtl():
+    """Codex round 1 on step 10, finding 1 (rebutted): the real build arms no episode (no contact sensor), so its
+    NAV_FAIL is no dock outcome (rule 1 above, owner-approved 2026-10-18): the one-shot goes back to search as today,
+    no sortie finish, so neither RTL nor disarm. Step 10 item 3's RTL is for DOCK_FAILED; on hardware it applies once
+    a real capture signal arms episodes, and OneShotCompletion asks for it there without a simulation gate."""
+    latch = FinalApproachEpisodeLatch()                      # never begun: the real build
+    assert latch.latch_failure("no_detection")
+    terminal = FinalApproachDockOutcome(rt.RLock(), latch, Mock()).terminal()
+    assert terminal is None
+
+    outcome, logger, record, completion = _exit(terminal, oneshot=True)
+
+    assert outcome == NavExitOutcome()                       # the decision's RESET: back to search
+    completion.run.assert_not_called()
+    record.assert_not_called()
+    logger.info.assert_not_called()

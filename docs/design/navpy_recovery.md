@@ -629,7 +629,13 @@ merges before step 4, which builds on its deadline fix.
     `NAV_WATCHDOG_LATE_S` late gives no new hang verdict; the next on-time
     check decides), item 3 (a failed one-shot dock is never disarmed: RTL
     through recovery's ownership, in sim and on hardware,
-    `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm). Item 8:
+    `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm; the
+    waiting RTL outlives a hold, which reopens instead of handing it to the
+    mission's AUTO, and an escalation hands over to RTL and never sends AUTO
+    over an RTL shown: Codex round 1, findings 2 and 3. The real build arms
+    no episode, so its one-shot NAV_FAIL keeps today's RESET to search, as
+    `missed_dock.md` rule 1 says; the RTL reaches hardware once a real capture
+    signal arms episodes: finding 1, rebutted with a test). Item 8:
     no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
     Item 9 (owner ruling, "Yes, guard it"): the autopilot's watchdog guards
     NavPy's own recovery LOITER too, claimed in its heartbeat (step 7 above).
