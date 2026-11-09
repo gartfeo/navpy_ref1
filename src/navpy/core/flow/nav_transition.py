@@ -49,6 +49,7 @@ class NavTransition:
         logger: Optional[ILogger] = None,
         outcome: Optional[NavOutcomeLatch] = None,
         held: Optional[HeldApproach] = None,
+        holding: Callable[[], bool] = lambda: False,
     ) -> None:
         self._entry = entry
         self._cleanup = cleanup
@@ -59,6 +60,8 @@ class NavTransition:
         self._logger = logger
         self._outcome = outcome
         self._held = held
+        #: Recovery's hold (RecoveryHold.holding): a NAV exit in it ends the episode as held.
+        self._holding = holding
         if held is not None:
             held.bind(self._end_held_episode, self.enter)
 
@@ -75,10 +78,18 @@ class NavTransition:
             self._logger.info("NAV approach held: episode ended, a fresh one follows the resume", key="nav")
 
     def exit(self, requested: NavState | None = None) -> NavExitOutcome:
+        held_errors: list[Exception] = []
+        if self._held is not None and self._holding():
+            # NAV leaves in recovery's hold (the operator's mode, a disarm): the episode ends as held, never by what
+            # it latched while fenced (step 10, item 1). Idempotent if the decision ended it already.
+            try:
+                self._held.end_episode()
+            except Exception as error:  # noqa: BLE001 - teardown transaction
+                held_errors.append(error)
         navigation_active = self._navigation_task.final_approach_navigation_active
         completed = self._navigation_task.final_approach_nav_completed
         cleanup = self._cleanup.run()
-        errors = list(cleanup.errors)
+        errors = held_errors + list(cleanup.errors)
 
         if navigation_active and cleanup.snap is not None:
             try:

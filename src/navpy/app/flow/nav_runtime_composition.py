@@ -162,6 +162,7 @@ def compose_nav_application(
         logger=logger,
         outcome=outcome,
         held=state.held_approach,
+        holding=lambda: state.recovery_hold.holding,
     )
     display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(
