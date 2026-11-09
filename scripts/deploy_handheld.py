@@ -198,9 +198,9 @@ def deploy(handheld: Handheld, bundle: Path, token: str | None = None, replace_a
         f"    echo 'another deploy is running on the handheld; nothing was changed' >&2\n"
         f"    exit 1\n"
         f"fi\n"
-        # Bundles and tokens left by interrupted deploys. A deploy that has
-        # uploaded but not yet taken the lock then fails at tar or at its
-        # token, before it changes anything.
+        # Bundles left by interrupted deploys. A deploy that has uploaded but
+        # not yet taken the lock then fails at tar, before it changes anything.
+        # Staged tokens are left alone: each deploy handles only its own.
         f"for f in '{HOME}'/navpy-update-*.tgz; do [ \"$f\" = '{on_device}' ] || rm -f \"$f\"; done\n"
         + token_step(staged, TOKEN_ON_DEVICE) +
         f"rm -rf '{NEW_COPY}'\nmkdir '{NEW_COPY}'\n"

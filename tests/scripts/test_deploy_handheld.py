@@ -364,11 +364,14 @@ class TestTokenStep(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_step(self, staged):
+    def run_step(self, staged, expect_ok=True, env=None):
+        # As the deploy runs it: set -e, then the update after the token step.
         script = handheld_token.token_step(staged and staged.as_posix(), self.active.as_posix())
-        proc = subprocess.run([_bash(), "-e", "-c", script], capture_output=True, text=True)
-        self.assertEqual(proc.returncode, 0, proc.stderr)
-        return proc.stdout
+        proc = subprocess.run([_bash(), "-e", "-c", script + "echo UPDATE\n"],
+                              capture_output=True, text=True, env=env)
+        if expect_ok:
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc
 
     def stage(self, text, name="cesium_ion_token.ab12.new"):
         staged = self.dir / name
@@ -377,7 +380,7 @@ class TestTokenStep(unittest.TestCase):
 
     def test_a_new_token_replaces_the_active_one(self):
         self.active.write_text("old", encoding="utf-8")
-        out = self.run_step(self.stage("new"))
+        out = self.run_step(self.stage("new")).stdout
         self.assertEqual(self.active.read_text(encoding="utf-8"), "new")
         self.assertIn("copied", out)
         self.assertNotIn("new", out.replace("copied", ""))
@@ -390,18 +393,52 @@ class TestTokenStep(unittest.TestCase):
         self.active.write_text("tok", encoding="utf-8")
         os.utime(self.active, (1_000_000, 1_000_000))
         staged = self.stage("tok")
-        out = self.run_step(staged)
+        out = self.run_step(staged).stdout
         self.assertEqual(self.active.stat().st_mtime, 1_000_000)
         self.assertFalse(staged.exists())
         self.assertNotIn("copied", out)
 
-    def test_tokens_staged_by_interrupted_deploys_are_removed(self):
-        left = self.stage("old", "cesium_ion_token.dead.new")
+    def test_another_deploys_staged_token_is_left_alone(self):
+        """Codex P2 (round 2): a deploy removed another deploy's staged token,
+        which was still waiting for the lock."""
+        waiting = self.stage("theirs", "cesium_ion_token.b0b0.new")
         self.run_step(self.stage("tok"))
-        self.assertFalse(left.exists())
-        left = self.stage("old", "cesium_ion_token.dead.new")
         self.run_step(None)
-        self.assertFalse(left.exists())
+        self.assertEqual(waiting.read_text(encoding="utf-8"), "theirs")
+
+    def test_a_missing_staged_token_stops_the_update(self):
+        """Codex P2 (round 2): the staged file gone, the old step still echoed
+        success and went on to the update."""
+        self.active.write_text("old", encoding="utf-8")
+        proc = self.run_step(self.dir / "cesium_ion_token.gone.new", expect_ok=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertNotIn("UPDATE", proc.stdout)
+        self.assertNotIn("copied", proc.stdout)
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "old")
+
+    def test_a_failed_install_stops_the_update(self):
+        """Codex P2 (round 2): set -e ignores a failure left of &&, so a failed
+        chmod still reported the copy and went on to the update."""
+        fake_bin = self.dir / "bin"
+        fake_bin.mkdir()
+        chmod = fake_bin / "chmod"
+        chmod.write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+        chmod.chmod(0o755)
+        env = {**os.environ, "PATH": f"{fake_bin.as_posix()}{os.pathsep}{os.environ.get('PATH', '')}"}
+        bash_path = subprocess.run([_bash(), "-c", f"PATH='{fake_bin.as_posix()}':$PATH; command -v chmod"],
+                                   capture_output=True, text=True).stdout.strip()
+        self.assertTrue(bash_path.endswith("bin/chmod"), bash_path)  # the fake shadows the real one
+        self.active.write_text("old", encoding="utf-8")
+        script = handheld_token.token_step(self.stage("new").as_posix(), self.active.as_posix())
+        proc = subprocess.run([_bash(), "-e", "-c", f"PATH='{fake_bin.as_posix()}':$PATH\n" + script + "echo UPDATE\n"],
+                              capture_output=True, text=True, env=env)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertNotIn("UPDATE", proc.stdout)
+        self.assertNotIn("copied", proc.stdout)
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "old")
+
+    def test_no_token_means_no_step(self):
+        self.assertEqual(handheld_token.token_step(None, self.active.as_posix()), "")
 
 
 @unittest.skipUnless(_bash(), "bash is not installed")
