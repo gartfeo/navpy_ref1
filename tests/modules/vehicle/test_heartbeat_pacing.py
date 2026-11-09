@@ -8,7 +8,7 @@ from __future__ import annotations
 import threading
 import time
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 import pytest
 from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS, MAV_TYPE_ONBOARD_CONTROLLER
@@ -169,3 +169,53 @@ def test_the_heartbeat_timeout_warning_stays_once_a_second_at_any_rate():
         runtime.close()
     warnings = [c.args[0] for c in logger.warning.call_args_list if "heartbeat timeout" in c.args[0]]
     assert len(warnings) == 1, warnings
+
+
+# ---------- step 10, item 12: SIM_SPEEDUP read before the heartbeat starts ----------
+
+
+def _activate(mav_type, probe=None):
+    from navpy.plugins.vehicle.ardupilot.vehicle_build_transaction import VehicleBuildTransaction
+
+    order: list[str] = []
+    transaction = VehicleBuildTransaction.__new__(VehicleBuildTransaction)
+    transaction._request = SimpleNamespace(
+        startup=SimpleNamespace(wait_heartbeat=False, send_heartbeat=True, skip_mission_download=True),
+        link=SimpleNamespace(target_system=1, mav_type=mav_type),
+    )
+    simulation = Mock(speedup=Mock(side_effect=probe or (lambda: order.append("probe") or 1.0)))
+    lifecycle = Mock(start_heartbeat=Mock(side_effect=lambda: order.append("heartbeat")))
+    transaction._activate(SimpleNamespace(lifecycle=lifecycle, router=Mock(), mission=Mock()),
+                          SimpleNamespace(simulation=simulation))
+    return order, simulation
+
+
+def test_item12_a_companion_asks_for_sim_speedup_before_its_heartbeat_starts():
+    """A NavPy restarted mid-flight in SITL: SIM_SPEEDUP is asked for (not waited for) before the first heartbeat,
+    so the reply wakes the pacing within milliseconds instead of after the cadence's probe a second later."""
+    order, simulation = _activate(MAV_TYPE_ONBOARD_CONTROLLER)
+    assert order == ["probe", "heartbeat"]
+
+
+def test_item12_the_gcs_does_not_ask_and_a_failed_ask_still_starts_the_heartbeat():
+    order, simulation = _activate(MAV_TYPE_GCS)
+    assert order == ["heartbeat"] and not simulation.speedup.called
+
+    def fail():
+        raise OSError("link down")
+
+    order, _simulation = _activate(MAV_TYPE_ONBOARD_CONTROLLER, probe=fail)
+    assert order == ["heartbeat"]
+
+
+def test_item12_the_reply_to_the_ask_wakes_the_pacing():
+    """The probe's PARAM_VALUE reaches the cache and wakes a heartbeat already waiting at speed-up 1."""
+    repository = ParameterRepository()
+    pacing = HeartbeatPacing(lambda: repository.get(SIM_SPEEDUP_PARAM))
+    repository.watch(SIM_SPEEDUP_PARAM, pacing.wake)
+    woke = threading.Event()
+    waiter = threading.Thread(target=lambda: (pacing.wait(threading.Event(), 30.0), woke.set()))
+    waiter.start()
+    repository.update(SIM_SPEEDUP_PARAM, 10.0)              # the reply
+    assert woke.wait(1.0)
+    waiter.join(1.0)
