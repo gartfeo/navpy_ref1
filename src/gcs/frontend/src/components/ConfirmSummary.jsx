@@ -4,6 +4,7 @@ import { colors } from '../styles';
 import UavBadge from './UavBadge';
 import { timerColorFor } from './TaskConfirmCard';
 import { URGENT_LEFT_SEC } from '../hooks/useConfirmAlert';
+import { CONFIRM_PHASE } from '../hooks/taskConfirmationState';
 
 /** One line, 30 px plus a 4 px gap: todo 69's 34 px budget for this summary. */
 const CHIP_HEIGHT_PX = 30;
@@ -30,7 +31,8 @@ const GAP_PX = 5;
 export default function ConfirmSummary({ summary, label, vehicle, names, soundState, onActivate }) {
   const { t } = useTranslation();
   const more = summary.count - 1;
-  const urgent = summary.secondsLeft <= URGENT_LEFT_SEC;
+  // A standing round has no deadline, so it is never urgent.
+  const urgent = summary.phase !== CONFIRM_PHASE.STANDING && summary.secondsLeft <= URGENT_LEFT_SEC;
   const soundOff = soundState === 'suspended' ? t('task.soundOff')
     : soundState === 'unavailable' ? t('task.noSound') : null;
   const words = soundOff ?? t(label.chipKey);

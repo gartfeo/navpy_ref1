@@ -9,6 +9,7 @@ import {
   resetAll,
   confirmRoundId,
   roundIdFromKey,
+  isStandingConfirm,
 } from './taskConfirmationState';
 import useConfirmAlert from './useConfirmAlert';
 import { confirmNow } from '../utils/confirmClock';
@@ -16,6 +17,10 @@ import { confirmNow } from '../utils/confirmClock';
 // Decided (denied/canceled) cards stay reviewable for this long, then auto-
 // dismiss. Approved cards persist until disarm_after_guided / cancel / reset.
 const DECIDED_TTL_MS = 8000;
+
+// Actions a standing (home dock) round accepts: approve is its only answer
+// (owner ruling 2026-11-09), so deny, cancel and any timeout send nothing.
+const STANDING_ACTIONS = new Set(['approve']);
 
 // Operator action -> the is_confirmed value the vehicle acts on. Mirrors the
 // backend table so deny/cancel/timeout_deny all reject and approve confirms.
@@ -72,7 +77,7 @@ export default function useTaskConfirmation({ waitSecFor = NO_WAIT } = {}) {
   // ---- WS-driven transitions (apply to all clients) ----
   const handleConfirmRequest = useCallback((data) => {
     setPendingConfirms((prev) => confirmRequest(prev, { ...data, receivedAt: confirmNow() }));
-    onArrivalRef.current(data.sys_id);
+    onArrivalRef.current(data.sys_id, { standing: isStandingConfirm({ taskType: data.task_type }) });
   }, []);
 
   const handleConfirmImage = useCallback((data) => {
@@ -150,7 +155,9 @@ export default function useTaskConfirmation({ waitSecFor = NO_WAIT } = {}) {
     const entry = pendingConfirms[sysId];
     if (!entry) return;
     // Defend the lifecycle even though the UI hides buttons: approve/deny only
-    // from pending; cancel only from an approved card.
+    // from pending; cancel only from an approved card; a standing round only
+    // takes approve.
+    if (isStandingConfirm(entry) && !STANDING_ACTIONS.has(action)) return;
     if (action === 'cancel') {
       if (entry.status !== 'approved') return;
     } else if (entry.status !== 'pending') {

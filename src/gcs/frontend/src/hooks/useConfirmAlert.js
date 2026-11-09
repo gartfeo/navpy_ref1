@@ -11,7 +11,8 @@ import { confirmNow } from '../utils/confirmClock';
  *   beep every URGENT_REPEAT_MS instead. Periods count from the last sound,
  *   so state updates never restart them. At most one pattern per tick or
  *   arrival burst; an urgent pattern wins.
- * - Silent with no live round (decided, fired, due, reset, disarm). A
+ * - Silent with no live round (decided, fired, due, standing, reset,
+ *   disarm): a standing round (isStandingConfirm) beeps on arrival only. A
  *   pattern already playing finishes; unmount stops it and closes the
  *   context.
  * - Browsers keep audio suspended until a user gesture: the first
@@ -124,13 +125,14 @@ export default function useConfirmAlert(pendingConfirms, waitSecFor, fired) {
   /**
    * Call from the request handler: UAV `sysId`'s new round arrived. The
    * state update is not applied yet, so the new round's full wait joins the
-   * other UAVs' live rounds here (its old round, if any, is replaced).
+   * other UAVs' live rounds here (its old round, if any, is replaced). A
+   * `standing` round has no wait, so it adds no live time.
    */
-  const onArrival = useCallback((sysId) => {
+  const onArrival = useCallback((sysId, { standing = false } = {}) => {
     const ctx = ensureContext();
     if (ctx && ctx.state !== 'running') unlockSound(); // works with sticky activation
     const others = soonestLiveSec(sysId);
-    const incoming = confirmWaitSec(inputsRef.current.waitSecFor(sysId)).sec;
+    const incoming = standing ? 0 : confirmWaitSec(inputsRef.current.waitSecFor(sysId)).sec;
     const live = [others, incoming > 0 ? incoming : null].filter((s) => s != null);
     const due = alertPatternDue({
       soonestLiveSec: live.length ? Math.min(...live) : null,

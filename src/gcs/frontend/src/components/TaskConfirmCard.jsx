@@ -4,7 +4,7 @@ import { colors } from '../styles';
 import UavBadge from './UavBadge';
 import {
   isPending, canCancel, confirmRoundKey, confirmWaitSec, confirmDeadlineMs, msLeft, secondsLeft,
-  confirmZeroLabel, confirmAgeSec, formatClock, CONFIRM_PHASE,
+  confirmZeroLabel, confirmAgeSec, formatClock, CONFIRM_PHASE, isStandingConfirm,
 } from '../hooks/taskConfirmationState';
 import { confirmNow, onConfirmTime } from '../utils/confirmClock';
 import { LONG_PRESS_MS } from '../utils/armAction';
@@ -44,6 +44,10 @@ const OPEN_STILL_TICK_MS = 1000;
  * Cancel task never scrolls away): APPROVED shows "Approval sent", a Still
  * button and Cancel task; DENIED/CANCELED show the outcome and auto-dismiss
  * (handled by the owning hook). The auto-timeout never runs once decided.
+ *
+ * A standing round (isStandingConfirm: parking at the home dock, owner ruling
+ * 2026-11-09) asks "Park at home dock?" and waits for the operator: Approve
+ * only, no countdown, no auto-fire, and no Cancel task once approved.
  *
  * timeoutSec and autoApprove come from the per-vehicle AAS confirmed values
  * (AAS_NAV_CWT and AAS_NAV_CM_FL) and drive the auto-fire. The defensive
@@ -86,6 +90,7 @@ export default function TaskConfirmCard({
 }) {
   const { t } = useTranslation();
   const pending = isPending(entry);
+  const standing = isStandingConfirm(entry);
   // Identity of the confirm round on screen (a re-ask of the same POI is a
   // new round with the same task id).
   const roundKey = confirmRoundKey(entry);
@@ -131,6 +136,8 @@ export default function TaskConfirmCard({
   useEffect(() => {
     // Decided cards never count down or auto-fire.
     if (!pending) return undefined;
+    // A standing round has no deadline: it never counts down or fires.
+    if (standing) return undefined;
     let interval = null;
     let unsubscribe = null;
     const fire = () => {
@@ -155,7 +162,7 @@ export default function TaskConfirmCard({
       interval = setInterval(tick, 1000);
     }
     return () => { if (interval) clearInterval(interval); unsubscribe?.(); };
-  }, [pending, sysId, deadlineMs, autoApprove, onApprove, onDeny]);
+  }, [pending, standing, sysId, deadlineMs, autoApprove, onApprove, onDeny]);
 
   if (!pending) {
     return (
@@ -172,7 +179,7 @@ export default function TaskConfirmCard({
   const clockNow = now ?? confirmNow();
   const shownSeconds = fired ? 0 : secondsLeft(deadlineMs, clockNow);
   const barFraction = fired || effectiveTimeout <= 0 ? 0 : msLeft(deadlineMs, clockNow) / 1000 / effectiveTimeout;
-  const phase = fired ? CONFIRM_PHASE.FIRED : shownSeconds > 0 ? CONFIRM_PHASE.LIVE : CONFIRM_PHASE.DUE;
+  const phase = standing ? CONFIRM_PHASE.STANDING : fired ? CONFIRM_PHASE.FIRED : shownSeconds > 0 ? CONFIRM_PHASE.LIVE : CONFIRM_PHASE.DUE;
   const policy = labelPolicy ?? { cmFl: autoApprove, cwt: timeoutSec };
   const label = confirmZeroLabel({ phase, cmFl: policy.cmFl, cwt: policy.cwt, seconds: shownSeconds });
   const timerColor = timerColorFor(shownSeconds);
@@ -199,14 +206,23 @@ export default function TaskConfirmCard({
         <span style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 13, fontWeight: 700, color: colors.warning }}>
           <UavBadge name={vehicleName} index={vehicleIndex} /> {t('task.title', { id: entry.taskId })}
         </span>
-        <span
-          data-testid={`confirm-countdown-${sysId}`}
-          data-time={label.time}
-          data-label={label.cardKey}
-          style={{ marginLeft: 'auto', color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
-        >
-          {t(label.cardKey, { time: label.time })}
-        </span>
+        {standing ? (
+          <span
+            data-testid={`confirm-standing-${sysId}`}
+            style={{ marginLeft: 'auto', color: colors.warning, fontSize: 13, fontWeight: 700 }}
+          >
+            {t(label.cardKey)}
+          </span>
+        ) : (
+          <span
+            data-testid={`confirm-countdown-${sysId}`}
+            data-time={label.time}
+            data-label={label.cardKey}
+            style={{ marginLeft: 'auto', color: timerColor, fontSize: 13, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}
+          >
+            {t(label.cardKey, { time: label.time })}
+          </span>
+        )}
       </div>
 
       {/* CONF-03 gate-overridden mark (D-20): shown only for the locally
@@ -262,7 +278,7 @@ export default function TaskConfirmCard({
             color: colors.textDim,
             fontSize: 11,
           }}>
-            {t(phase === CONFIRM_PHASE.LIVE ? 'task.waitingForImage' : 'task.noImage')}
+            {t(phase === CONFIRM_PHASE.LIVE || standing ? 'task.waitingForImage' : 'task.noImage')}
           </div>
         )}
         <StillCaption entry={entry} now={clockNow} noteShown={!!entry.imageB64} />
@@ -300,21 +316,27 @@ export default function TaskConfirmCard({
         </div>
       )}
 
-      {/* Timer bar */}
-      <div style={{
-        height: 3,
-        background: colors.bgLight,
-        borderRadius: 2,
-        marginBottom: 8,
-        overflow: 'hidden',
-      }}>
+      {/* Timer bar; a standing round says it waits instead. */}
+      {standing ? (
+        <div data-testid={`confirm-standing-note-${sysId}`} style={{ fontSize: 11, color: colors.textDim, marginBottom: 8 }}>
+          {t('task.standing.note')}
+        </div>
+      ) : (
         <div style={{
-          height: '100%',
-          width: `${barFraction * 100}%`,
-          background: timerColor,
-          transition: 'width 1s linear, background-color 0.5s',
-        }} />
-      </div>
+          height: 3,
+          background: colors.bgLight,
+          borderRadius: 2,
+          marginBottom: 8,
+          overflow: 'hidden',
+        }}>
+          <div style={{
+            height: '100%',
+            width: `${barFraction * 100}%`,
+            background: timerColor,
+            transition: 'width 1s linear, background-color 0.5s',
+          }} />
+        </div>
+      )}
 
       {/* Actions */}
       <div
@@ -353,16 +375,18 @@ export default function TaskConfirmCard({
             {t(guard.refused === 'approve' ? 'task.pressAgain' : 'task.approve')}
           </button>
         )}
-        <button
-          onClickCapture={guard.clickCapture('deny')}
-          onClick={() => onDeny(sysId)}
-          style={{
-            flex: 1, padding: '8px 0', background: colors.error, color: '#fff',
-            border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
-          }}
-        >
-          {t(guard.refused === 'deny' ? 'task.pressAgain' : 'task.deny')}
-        </button>
+        {!standing && (
+          <button
+            onClickCapture={guard.clickCapture('deny')}
+            onClick={() => onDeny(sysId)}
+            style={{
+              flex: 1, padding: '8px 0', background: colors.error, color: '#fff',
+              border: 'none', borderRadius: 4, fontWeight: 700, fontSize: 13, cursor: 'pointer',
+            }}
+          >
+            {t(guard.refused === 'deny' ? 'task.pressAgain' : 'task.deny')}
+          </button>
+        )}
       </div>
     </div>
   );
@@ -418,7 +442,8 @@ const DECIDED_ROW = {
 
 /**
  * A decided round as one 32 px row: UAV badge and outcome, then for an
- * approved round the Still toggle and Cancel task. The row never grows (the
+ * approved round the Still toggle and Cancel task (not for a standing round,
+ * which cannot be cancelled). The row never grows (the
  * still opens elsewhere), so pinned rows keep their places. A long label
  * shortens; Cancel task wraps onto two lines inside its 32 px rather than
  * leave the row (the Armenian label is wider than the row's free width); a
@@ -468,7 +493,7 @@ function DecidedRow({ sysId, entry, vehicleName, vehicleIndex, onCancel, stillOp
           </svg>
         </button>
       )}
-      {approved && (
+      {approved && !isStandingConfirm(entry) && (
         <button
           type="button"
           onClick={() => onCancel(sysId)}

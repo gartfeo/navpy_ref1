@@ -348,6 +348,6 @@ describe('TaskConfirmCard labels', () => {
   });
 
   it('exposes the phase values the list uses', () => {
-    expect(CONFIRM_PHASE).toEqual({ LIVE: 'live', DUE: 'due', FIRED: 'fired' });
+    expect(CONFIRM_PHASE).toEqual({ LIVE: 'live', DUE: 'due', FIRED: 'fired', STANDING: 'standing' });
   });
 });

@@ -176,6 +176,19 @@ export function isDecided(entry) {
   return !!entry && entry.status !== CONFIRM_STATUS.PENDING;
 }
 
+/** The task_type NavPy sends when it asks to park at the mission's home dock (DDH). */
+export const HOME_DOCK_TASK_TYPE = 'HOME_DOCK';
+
+/**
+ * True for a standing confirm round (owner ruling 2026-11-09): parking at the
+ * home dock waits for the operator's approval with no timeout. Approve is the
+ * only answer: no Deny, no countdown or auto-fire, no Cancel task afterwards.
+ * The one place the card, the list, the chip, the sound and the hook ask.
+ */
+export function isStandingConfirm(entry) {
+  return !!entry && entry.taskType === HOME_DOCK_TASK_TYPE;
+}
+
 export function canCancel(entry) {
   return !!entry && entry.status === CONFIRM_STATUS.APPROVED;
 }
@@ -219,8 +232,12 @@ export function confirmWaitSec(waitSec) {
   return known ? { sec: waitSec, estimated: false } : { sec: DEFAULT_CONFIRM_WAIT_SEC, estimated: true };
 }
 
-/** Epoch ms (confirmNow's clock) at which the GCS's countdown for `entry` ends. */
+/**
+ * Epoch ms (confirmNow's clock) at which the GCS's countdown for `entry` ends;
+ * Infinity for a standing round, which has no deadline.
+ */
 export function confirmDeadlineMs(entry, waitSec) {
+  if (isStandingConfirm(entry)) return Infinity;
   return entry.receivedAt + confirmWaitSec(waitSec).sec * 1000;
 }
 
@@ -261,9 +278,11 @@ export const CONFIRM_PHASE = Object.freeze({
   LIVE: 'live', // time left, not fired: the operator can still answer in time
   DUE: 'due', // at 0, the card has not fired yet (between ticks)
   FIRED: 'fired', // the card's auto-fire ran for this round (latched)
+  STANDING: 'standing', // no deadline: waits for the operator's approval
 });
 
 function pendingPhase(sysId, entry, waitSecFor, now, fired) {
+  if (isStandingConfirm(entry)) return CONFIRM_PHASE.STANDING;
   if (fired && fired[confirmRoundId(sysId, entry)] != null) return CONFIRM_PHASE.FIRED;
   return msLeft(confirmDeadlineMs(entry, waitSecFor(sysId)), now) > 0
     ? CONFIRM_PHASE.LIVE : CONFIRM_PHASE.DUE;
@@ -298,7 +317,8 @@ export function orderedConfirmEntries(state, waitSecFor, fired = {}) {
 /**
  * What the summary chip shows, or null when no round is pending. The shown
  * round is the soonest LIVE one; with none, the earliest DUE one; else the
- * first FIRED one. `sysIds` are all pending UAVs in display order, the shown
+ * first FIRED one; else a STANDING one (it has no deadline, so it sorts after
+ * every timed round). `sysIds` are all pending UAVs in display order, the shown
  * one first.
  */
 export function pendingSummary(state, waitSecFor, now, fired = {}) {
@@ -308,6 +328,7 @@ export function pendingSummary(state, waitSecFor, now, fired = {}) {
   if (pending.length === 0) return null;
   const shown = pending.find((p) => p.phase === CONFIRM_PHASE.LIVE)
     ?? pending.find((p) => p.phase === CONFIRM_PHASE.DUE)
+    ?? pending.find((p) => p.phase === CONFIRM_PHASE.FIRED)
     ?? pending[0];
   const deadlineMs = confirmDeadlineMs(shown.entry, waitSecFor(shown.sysId));
   return {
@@ -338,6 +359,8 @@ export function confirmZeroLabel({ phase, cmFl, cwt, seconds }) {
   const { estimated } = confirmWaitSec(cwt);
   const time = `${estimated ? '~' : ''}${formatClock(seconds)}`;
   const same = (k) => ({ cardKey: `task.zero.${k}`, chipKey: `task.zero.${k}`, time });
+  // A standing round has no time to show and sends nothing by itself.
+  if (phase === CONFIRM_PHASE.STANDING) return { cardKey: 'task.standing.title', chipKey: 'task.standing.title', time: '' };
   if (phase === CONFIRM_PHASE.FIRED) return same('fired');
   const approves = cmFl == null ? null : Boolean(cmFl);
   // A zero wait is due from the start; say why (decision 7) instead of "due".
