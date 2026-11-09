@@ -35,6 +35,12 @@ dependencies = [
 # pytest-testmon runs only the tests a change affects (`--testmon`); pytest-xdist
 # runs the whole default suite on 8 workers (`-n 8`). See AGENTS.md.
 test = ["httpx2>=2.0.0", "pytest-xdist>=3.6.1", "pytest-testmon>=2.3; python_version >= '3.11'"]
+# HITL only: the whole-dock detector (`--detector-backend rfdetr`, HITL step 23b).
+# Install it only in a HITL venv, never the shared `.venv`; CI does not install it
+# and the tests that need it skip. Install a CUDA torch/torchvision from the
+# PyTorch index first, or pip pulls a CPU-only torch. See hitl_guidance.md
+# step 23b.
+hitl-rfdetr = ["rfdetr==1.12.0"]
 
 [project.urls]
 Homepage = "https://armaerosystems.com"

@@ -19,10 +19,11 @@ import signal
 import time
 from collections import Counter
 from pathlib import Path
-from typing import Optional
+from typing import Callable, Optional
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
+from navpy.app.flow.confirm_record import parse_confirm_record
 from navpy.app.router_barrier import RouterBarrier
 from navpy.app.result_handoff import TRIGGER_RESULT, parse_result_record
 from tools.tuning import approach_chain as chain
@@ -138,9 +139,11 @@ class Quiesce:
                 "handoff": self.record}
 
 
-def observe(board: Vehicle, group: ProcessGroup, navpy_out: Path, seconds: float) -> str:
+def observe(board: Vehicle, group: ProcessGroup, navpy_out: Path, seconds: float,
+            on_confirm: Optional[Callable[[dict], None]] = None) -> str:
     """Drain the link (the floor's hook sees every position) until the deadline, or until navpy's complete result
-    record is read before it: a record read after the deadline, or a line not yet ended, never ends the observation."""
+    record is read before it: a record read after the deadline, or a line not yet ended, never ends the observation.
+    Each complete confirm record (navpy's confirm releasing NAV, step 23b) goes to on_confirm (the floor's release)."""
     deadline, partial = time.monotonic() + seconds, ""
     with open(navpy_out, encoding="utf-8", errors="replace") as out:
         while time.monotonic() < deadline:
@@ -148,6 +151,9 @@ def observe(board: Vehicle, group: ProcessGroup, navpy_out: Path, seconds: float
             group.check()
             lines = (partial + out.read()).split("\n")
             partial = lines.pop()
+            for confirm in filter(None, map(parse_confirm_record, lines)):
+                if on_confirm is not None:
+                    on_confirm(confirm)
             if any(parse_result_record(line) for line in lines) and time.monotonic() < deadline:
                 return ENDED_BY_RESULT
     return ENDED_BY_DEADLINE

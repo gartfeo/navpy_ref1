@@ -28,6 +28,7 @@ from navpy.core.perception.pipeline.real_detector_inference_state import Inferen
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.detection.poi_priority import prioritize_pois
 from navpy.core.perception.zoom.poi_zoom_types import ZoomTrackResult
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
 
@@ -39,9 +40,12 @@ class DetectorTrackingControl:
         self,
         navigation: GimbalTrackingCommandPort | None,
         poi_lock: PoiLock,
+        acquisition: DockAcquisitionGate | None = None,
     ) -> None:
         self._navigation = navigation
         self._poi_lock = poi_lock
+        # HITL step 23b: the acquired identity is released with the POI lock.
+        self._acquisition = acquisition
 
     @property
     def rate_result(self) -> GimbalTrackResult | None:
@@ -78,16 +82,22 @@ class DetectorTrackingControl:
                 f"Detector.start_tracking requires obj_id >= 0, got {obj_id}"
             )
         self._poi_lock.force_lock(obj_id)
+        if self._acquisition is not None:
+            self._acquisition.own(obj_id)
         if self._navigation is None:
             return
         try:
             self._navigation.start_tracking(obj_id)
         except Exception:
             self._poi_lock.reset()
+            if self._acquisition is not None:
+                self._acquisition.reset()
             raise
 
     def stop_tracking(self, to_neutral: bool = True) -> None:
         self._poi_lock.reset()
+        if self._acquisition is not None:
+            self._acquisition.reset()
         if self._navigation is not None:
             self._navigation.stop_tracking(to_neutral=to_neutral)
 
@@ -194,8 +204,10 @@ class DetectorResetController:
         poi_lock: PoiLock,
         bridge: LostPoiBridge,
         mutation_gate: PipelineMutationGate,
+        acquisition: DockAcquisitionGate | None = None,
     ) -> None:
         self._run_state = run_state
+        self._acquisition = acquisition
         self._results = results
         self._inference_generation = inference_generation
         self._confirmation_frames = confirmation_frames
@@ -217,6 +229,8 @@ class DetectorResetController:
             self._identity.reset()
             self._poi_lock.reset()
             self._bridge.reset()
+            if self._acquisition is not None:
+                self._acquisition.reset()  # HITL step 23b: the restarted ids must be acquired again
             self._inference_generation.invalidate()
 
 

@@ -1,93 +1,99 @@
-"""Where the HITL orbit is centred, for the pre-series orbit check (scenario_checks.py, step 23).
+"""Where the HITL orbit is centred, for the pre-series orbit check (scenario_checks.py, steps 23 and 23b).
 
-The circle's centre is navpy's own geolocation of the board from the first frame that finds it (only ``prepare``
-places the orbit). Step 22's pose fit places it within POSE_CENTRE_LIMIT_M when the fit is accepted; a refused fit
-leaves the height-zero ground ray, D * board_height / h beyond the board, D the first detection's horizontal
-distance (the reading slant's reach, never less than r). The prediction runs the product's solver on seeded noisy
-corners (POSE_DRAWS draws per yaw, CORNER_NOISE_FLOOR_PX) at the farthest slant the board can be read from; only if
-every draw is accepted is the centre the board pose.
+The circle's centre is navpy's own geolocation of the dock from its first eligible detection: with the whole-dock
+detector there is never a board pose, so it is always the height-zero ground ray (hitl_dock_detector.md section 4.1).
+Its worst horizontal error e is the plain sum of the declared bounds (orbit_plan.GroundRayBounds) at the farthest
+first detection D_max, slant S, h the lane over the POI (the dock's mid-height):
+
+    D hd / h (the POI's height above home) + D dh / h (lane height) + S^2 / h * depression + S * azimuth
+    + (S^2 / (h fy) + S / fx) * box-centre px (at the search step) + airspeed * capture skew
+
+D_max is where the dock's box, at its most favourable yaw and plus the declared box-size error, shrinks to the
+acquisition gate's floor at the search step (the widest: nothing is acquired before the gate passes, so nothing
+zooms in before it); never less than r.
+
+The dock's box: a box L x W x H on the ground, seen from depression d with its long axis at yaw psi to the line of
+sight, spans L|sin psi| + W|cos psi| across and (L|cos psi| + W|sin psi|) sin d + H cos d down (orthographic, the
+picture at these ranges).
 """
 from __future__ import annotations
 
 import math
-from typing import Optional
-
-import cv2
-import numpy as np
 
 from navpy.core.perception.zoom.fixed_zoom_steps import ZoomStep
-from navpy.core.ports.board_pose import BoardPoseFit
-from navpy.core.ports.detection import BoardCorners
 from navpy.core.skills.geo_approach.self_detected_approach import WAITING_CIRCLE_REFERENCE_HEIGHT_M
-from navpy.plugins.detection.charuco.board_pose import CORNER_NOISE_FLOOR_PX, CharucoBoardPoseSolver
-from tools.hitl.orbit_plan import OrbitPlan, height_above_board, planned_step, reading_slant_m
+from tools.hitl.orbit_plan import Dock, OrbitPlan, height_above_poi, search_step
 
-# Step 22's done limit on the own-detected centre when its pose fit is accepted.
-POSE_CENTRE_LIMIT_M = 0.5
-# My value: seeded draws of the pose prediction (deterministic; every one must be accepted).
-POSE_DRAWS = 40
-POSE_SEED = 23
-# Board yaws the prediction tries, relative to the line of sight (the scene's yaw is drawn per seed).
-POSE_YAWS_DEG = (0.0, 45.0, 90.0)
+# Dock yaws to the line of sight the checks try (my value: every 15 deg over a half turn; the box is symmetric).
+DOCK_YAWS_DEG = tuple(range(0, 180, 15))
+# The bisection's horizontal search span and tolerance for D_max (my values).
+FARTHEST_SEARCH_M = 20_000.0
+DISTANCE_TOLERANCE_M = 0.1
 
 
-def _board_in_camera(points_m: np.ndarray, slant_m: float, h: float, yaw_deg: float) -> np.ndarray:
-    """The flat board's corners in the camera frame (x right, y down, z forward), centred on the optical axis and
-    seen from depression asin(h / slant), turned yaw_deg about its own normal."""
+def dock_box_px(step: ZoomStep, dock: Dock, slant_m: float, h: float, yaw_deg: float) -> tuple[float, float]:
+    """The dock's box (width, height) in full-frame pixels at this step, slant and yaw."""
     sin_d = h / slant_m
     cos_d = math.sqrt(max(0.0, 1.0 - sin_d * sin_d))
-    normal = np.array([0.0, cos_d, sin_d])          # into the printed face: down, away from the camera
-    along = np.array([0.0, sin_d, -cos_d])
-    yaw = math.radians(yaw_deg)
-    x_axis = math.cos(yaw) * np.array([1.0, 0.0, 0.0]) + math.sin(yaw) * along
-    y_axis = np.cross(normal, x_axis)
-    return (np.array([0.0, 0.0, slant_m]) + points_m[:, :1] * x_axis + points_m[:, 1:2] * y_axis
-            + points_m[:, 2:3] * normal)
+    s, c = abs(math.sin(math.radians(yaw_deg))), abs(math.cos(math.radians(yaw_deg)))
+    across = dock.length_m * s + dock.width_m * c
+    down = (dock.length_m * c + dock.width_m * s) * sin_d + dock.height_m * cos_d
+    return step.optics.fx * across / slant_m, step.optics.fy * down / slant_m
 
 
-def pose_accepted_at(plan: OrbitPlan, step: ZoomStep, slant_m: float) -> bool:
-    """Whether the product's solver accepts every seeded noisy fit of the board at this slant and step."""
-    solver = CharucoBoardPoseSolver(plan.board.spec)
-    points = solver.board_points_m
-    k, dist = step.optics.k(), step.optics.dist_coeffs()
-    rng = np.random.default_rng(POSE_SEED)
-    for yaw in POSE_YAWS_DEG:
-        image, _ = cv2.projectPoints(_board_in_camera(points, slant_m, height_above_board(plan), yaw),
-                                     np.zeros(3), np.zeros(3), k, dist)
-        image = image.reshape(-1, 2)
-        for _ in range(POSE_DRAWS):
-            noisy = image + rng.normal(0.0, CORNER_NOISE_FLOOR_PX, image.shape)
-            corners = BoardCorners(tuple(range(len(noisy))), tuple((float(u), float(v)) for u, v in noisy))
-            if not isinstance(solver.solve(corners, k, dist), BoardPoseFit):
-                return False
-    return True
+def smaller_side_input_px(plan: OrbitPlan, step: ZoomStep, slant_m: float, yaw_deg: float) -> float:
+    """The box's smaller side in the detector's input pixels."""
+    width, height = dock_box_px(step, plan.dock, slant_m, height_above_poi(plan), yaw_deg)
+    scale_x, scale_y = plan.detector.input_scale(plan.steps.stream.image_width, plan.steps.stream.image_height)
+    return min(width * scale_x, height * scale_y)
 
 
-def pose_accepted(plan: OrbitPlan) -> bool:
-    """Whether the orbit centre is the board pose (accepted at the reading slant), else the ground ray."""
-    step = planned_step(plan)
-    return step is not None and pose_accepted_at(plan, step, reading_slant_m(plan, step))
+def _largest_side(plan: OrbitPlan, step: ZoomStep, horizontal_m: float) -> float:
+    slant = math.hypot(horizontal_m, height_above_poi(plan))
+    return max(smaller_side_input_px(plan, step, slant, yaw) for yaw in DOCK_YAWS_DEG)
 
 
-def detection_distance_m(plan: OrbitPlan, step: Optional[ZoomStep]) -> float:
-    """The worst horizontal distance of the first detection: the board is first found as soon as it can be read,
-    at the reading slant's horizontal reach, which may lie beyond the orbit radius."""
-    h = height_above_board(plan)
-    if step is None:
+def acquirable_beyond_radius(plan: OrbitPlan) -> bool:
+    """Whether the gate's floor can be met at the search step at the circle's radius or farther (D_max is not just
+    the radius it is clamped to): a floor the dock's box never reaches would never acquire."""
+    floor = plan.detector.acq_min_box_px - plan.bounds.box_size_error_px
+    return _largest_side(plan, search_step(plan), plan.radius_m) >= floor
+
+
+def first_detection_distance_m(plan: OrbitPlan) -> float:
+    """D_max: the farthest horizontal distance where the gate can acquire (never less than the radius)."""
+    step, floor = search_step(plan), plan.detector.acq_min_box_px - plan.bounds.box_size_error_px
+    if _largest_side(plan, step, plan.radius_m) < floor:
         return plan.radius_m
-    reach = math.sqrt(max(0.0, reading_slant_m(plan, step) ** 2 - h * h))
-    return max(plan.radius_m, reach)
+    near, far = plan.radius_m, FARTHEST_SEARCH_M
+    if _largest_side(plan, step, far) >= floor:
+        return far
+    while far - near > DISTANCE_TOLERANCE_M:
+        middle = (near + far) / 2.0
+        near, far = (middle, far) if _largest_side(plan, step, middle) >= floor else (near, middle)
+    return far
+
+
+def centre_error_terms(plan: OrbitPlan) -> dict[str, float]:
+    """Each declared term of the ground ray's horizontal error at D_max (m)."""
+    d, h, b = first_detection_distance_m(plan), height_above_poi(plan), plan.bounds
+    slant, optics = math.hypot(d, h), search_step(plan).optics
+    return {
+        "poi_height": d * plan.dock.poi_height_m / h,
+        "lane_height": d * b.lane_height_error_m / h,
+        "depression": slant * slant / h * math.radians(b.depression_bias_deg),
+        "azimuth": slant * math.radians(b.azimuth_bias_deg),
+        "box_centre": (slant * slant / (h * optics.fy) + slant / optics.fx) * b.box_centre_bias_px,
+        "capture_skew": plan.airspeed_m_s * b.capture_skew_s,
+    }
 
 
 def centre_error_m(plan: OrbitPlan) -> float:
-    """The worst horizontal error of the orbit centre: the accepted pose limit, or the height-zero ground ray."""
-    if pose_accepted(plan):
-        return POSE_CENTRE_LIMIT_M
-    return abs(detection_distance_m(plan, planned_step(plan)) * plan.board_height_m / height_above_board(plan))
+    """The bound e: the plain sum of the declared terms."""
+    return sum(centre_error_terms(plan).values())
 
 
 def descent_height_m(plan: OrbitPlan) -> float:
-    """The height the planner sizes the descent from: the lane over the orbit centre's height, the board's for an
-    accepted pose, the ground ray's (self_detected_approach.WAITING_CIRCLE_REFERENCE_HEIGHT_M) otherwise."""
-    centre = plan.board_height_m if pose_accepted(plan) else WAITING_CIRCLE_REFERENCE_HEIGHT_M
-    return plan.lane_height_m - centre
+    """The height the planner sizes the descent from: the lane over the ground ray's height
+    (self_detected_approach.WAITING_CIRCLE_REFERENCE_HEIGHT_M)."""
+    return plan.lane_height_m - WAITING_CIRCLE_REFERENCE_HEIGHT_M

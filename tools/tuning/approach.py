@@ -4,7 +4,7 @@ Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
 
     python -s -m tools.tuning.sitl_driver approach --mode pc-sitl --model-dir M --model-input MI.json
         --media-runtime MR.json --publisher-profile P.json --aas-hitl A --uproject U.uproject
-        --params-file F.parm --scenario-series SERIES.json --seed-index N --board-height-m H
+        --params-file F.parm --scenario-series SERIES.json --seed-index N --detector-model RF-DETR-L.pth
         [--timing-constants FIT.json [--command]]
 
 The scenario service (tools/hitl/scenario_service.py, its own process: approach_scenario.py) prepares the seed's
@@ -144,13 +144,16 @@ def _fly(board: Board, group: ProcessGroup, run: dict, quiesce: stop.Quiesce) ->
     run["airspeed_pins"] = airspeed.pin_board(board, run["mode"], run["sitl_binary"])
     takeoff(board)
     flight = run["flight"] = {}
-    with HeightFloor(board, limits["min_height_m"], flight, before_recovery=lambda: quiesce.run(stop.FLOOR)):
+    with HeightFloor(board, limits["min_height_m"], flight, before_recovery=lambda: quiesce.run(stop.FLOOR)) as floor:
         lat, lon, _ = home_position(board)
         lane = build_lane(Point(lat, lon), LaneSpec.of(run["scenario"]["lane"]))
         flight["lane"] = lane.describe()
         fly_lane(board, lane)
         flight["lane_reached_utc"] = datetime.now(timezone.utc).isoformat()
-        flight["ended_by"] = stop.observe(board, group, group.output_path("navpy"), limits["observe_s"])
+        # Step 23b: the floor guards the lane, search and orbit; navpy's confirm record (the confirm releasing NAV)
+        # releases it, as the dock stands on the ground.
+        flight["ended_by"] = stop.observe(board, group, group.output_path("navpy"), limits["observe_s"],
+                                          lambda record: floor.release(f"navpy confirm, task {record['task']}"))
     # quiesce first: navpy stopped, its endpoint closed
     record = quiesce.run(stop.RESULT if flight["ended_by"] == stop.ENDED_BY_RESULT else stop.DEADLINE)
     if record.get("rtl") != "direct":
@@ -187,6 +190,7 @@ def approach(args: argparse.Namespace) -> int:
                  "addresses": [wsl_ip, windows_ip], "commissioning": record["commissioning"],
                  "admission_problems": media_fault_spec.admission_problems(record),
                  "sitl_binary": _binary(args.sitl_binary), "orbit_check": orbit_check_result,
+                 "detector_model": _binary(args.detector_model),
                  "authority": "command" if args.command else "observation"}
     hitl = HitlProcesses(chain.bridge_template(Path(args.model_dir), SERVO_SPEED_S, windows_ip, contact.pose_copy()),
                          None, 0,
@@ -204,7 +208,7 @@ def approach(args: argparse.Namespace) -> int:
                  chain.unreal(paths, lens, scenario_run.unreal_file(run_dir), run["scenario"]["scene_hash"]),
                  contact.service(args.python, repo, run_dir, link_file, scenario_dir),
                  chain.navpy(paths, record_path, FIRST_LANE_SEQ, args.commission_fault.active,
-                             contact.navpy_args(link_file))]
+                             (*contact.navpy_args(link_file), *chain.detector_args(args.detector_model)))]
         problems = group.refusals(specs)
         if problems:
             raise RunnerError("; ".join(problems))
@@ -276,8 +280,8 @@ def add_parser(sub: argparse._SubParsersAction) -> None:
     a.add_argument("--python", default=sys.executable, help="the Python navpy and the tools run with")
     a.add_argument("--windows-python", required=True, help="WSL path of the Windows Python the emulator runs with")
     a.add_argument("--params-file", action="append", help="starting parameters, as dock-pass")
-    a.add_argument("--board-height-m", type=float, required=True,
-                   help="the board's design height above home (m), for the orbit check")
+    a.add_argument("--detector-model", required=True,
+                   help="the RF-DETR-L weights navpy's rfdetr backend runs (step 23b; WSL path, private, not in git)")
     a.add_argument("--hitl-data", type=Path, help="the aircraft's private HITL files (default: the private folder)")
     a.add_argument("--scenario-series", required=True,
                    help="the private series file (tools/hitl/scenario_service.py new-series); read only by the service")

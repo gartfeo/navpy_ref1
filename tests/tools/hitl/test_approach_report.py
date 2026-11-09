@@ -51,8 +51,8 @@ def _write_csv(path: Path, rows: list[dict]) -> None:
 
 def _navpy_argv(run_dir: Path) -> list[str]:
     return ["nice", "-n", "10", "python", "-s", "-m", "navpy.main", "--detector-type", "real", "--detector-backend",
-            "charuco", "--vision-profile", chain.VISION_PROFILE, "--integration-timing", str(run_dir / "r.json"),
-            "--hitl-contact", str(run_dir / contact.LINK_FILE)]
+            "rfdetr", "--vision-profile", chain.VISION_PROFILE, "--integration-timing", str(run_dir / "r.json"),
+            "--hitl-contact", str(run_dir / contact.LINK_FILE), "--detector-model-path", "/mnt/c/m/rf-detr-l.pth"]
 
 
 IDENTITY = {"task_id": "t-1", "dock_uid": 7, "episode": 3}

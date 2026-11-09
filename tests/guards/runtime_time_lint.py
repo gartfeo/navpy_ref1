@@ -97,7 +97,7 @@ EXTERNAL_IMPORTS = frozenset({
     "pathlib", "pydantic", "pymap3d", "pymavlink", "pymavlink.dialects.v20.all",
     "pymavlink.dialects.v20.ardupilotmega",
     "pymavlink.generator.mavcrc", "pymavlink.mavextra", "pymavlink.mavutil",
-    "pymavlink.mavwp", "re", "requests", "serial", "shutil", "socket",
+    "pymavlink.mavwp", "re", "requests", "rfdetr", "serial", "shutil", "socket",
     "starlette.background", "starlette.types", "struct", "subprocess", "sys",
     "tempfile", "tkinter", "torch", "traceback", "types", "typing", "ultralytics",
     "urllib.parse", "weakref", "zipfile", "zmq",

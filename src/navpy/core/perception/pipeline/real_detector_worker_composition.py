@@ -65,6 +65,7 @@ def build_workers(
             state.metrics,
             state.inference_generation,
             pipeline.use_poi_lock,
+            acquisition=models.acquisition,
         ),
         TrackingResultPublisher(
             runtime.mapper,
@@ -192,6 +193,7 @@ def build_reset(
         models.poi_lock,
         models.bridge,
         state.mutation_gate,
+        models.acquisition,
     )
 
 

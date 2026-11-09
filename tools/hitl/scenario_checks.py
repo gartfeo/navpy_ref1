@@ -1,15 +1,17 @@
-"""The pre-series orbit check (hitl_guidance.md section 9, stage 1 step 23; section 4 "Feasibility contract").
+"""The pre-series orbit check (hitl_guidance.md section 9, stage 1 steps 23 and 23b; section 4 "Feasibility
+contract"; hitl_dock_detector.md section 5).
 
 Before a ten-run series, pure arithmetic on the HITL profile, the series' public half and the aircraft's inputs
 decides whether the explicit HITL orbit (``guidance_orbit.radius_m``, core/skills/acquire/
-orbit_radius_setting.py) can be flown and read. Any failed check refuses the series (exit 1); so does any input it
-cannot read. The approach runner (tools/tuning/approach.py) runs it before each run's folder exists and refuses
-the run on any failure. Nothing here reaches navpy: navpy gets only the profile radius, and this check reads no dock
-pose and no seed (only the scenario's public lane and limits, scenario_public.py).
+orbit_radius_setting.py) can be flown and the dock seen by the whole-dock detector. Any failed check refuses the
+series (exit 1); so does any input it cannot read. The approach runner (tools/tuning/approach.py) runs it before each
+run's folder exists and refuses the run on any failure. Nothing here reaches navpy: navpy gets only the profile
+radius, and this check reads no dock pose and no seed (only the scenario's public lane, limits and dock size,
+scenario_public.py).
 
-Geometry: the aircraft circles at radius r, h = lane height - board height above home, round a centre that may be
-off by e (orbit_centre.py); the board is then between r - e and r + e away horizontally. The inputs are in
-orbit_plan.py.
+Geometry: the aircraft circles at radius r, h = lane height - the POI's height (the dock's mid-height; the dock stands
+on the ground), round a centre that may be off by e (the ground ray's bound, orbit_centre.py); the dock is then
+between r - e and r + e away horizontally. The inputs are in orbit_plan.py.
 
 Checks, each using the model speed (the run's commanded airspeed, inside the model's declared airspeed band) and
 the profile's measured optics at the planned zoom step:
@@ -18,18 +20,21 @@ the profile's measured optics at the planned zoom step:
 - turn_radius: r >= kappa v^2 / (g tan phi), the planner's turn term (orbit_geometry.py, kappa 2), phi the NAV
   law's bank cap (command_anchor.ROLL_LIMIT_CAP_DEG, 35 deg) or the aircraft's ROLL_LIMIT_DEG when smaller;
 - descent: r >= H / tan(eta |PTCH_LIM_MIN_DEG|), the planner's descent term (eta 0.65), H the lane over the
-  orbit centre (the board for an accepted pose; the ground ray's height zero otherwise, so H is the lane height);
-- reader: at the farthest slant R the board's squares along the line of sight are fy * square * sin(d) / R pixels,
-  sin(d) = h / R, at least the reader limit;
-- containment: the board's box (its ChArUco grid at any yaw: the diagonal across, the diagonal times sin(d) along),
-  centred, keeps the fixed-zoom policy's zoom-in margin on both axes at the nearest slant, so the policy reaches the
-  planned step and holds it round the circle; and the next narrower step, if any, fails that margin at the farthest
-  slant, so the policy does not zoom past it;
-- recovery_floor: the lane flies above the run's floor, and the board sits at least the pull-out allowance above it,
-  so the floor's recovery cannot trip before contact.
+  ground ray's height zero;
+- detector: the dock's smaller box side in the detector's input pixels (full-frame pixels times its input scale),
+  over dock yaws, at the farthest slant on the orbit (r + e) is at least the measured ``recall_min_box_px``; and the
+  acquisition gate's floor ``min_box_px`` is not below it, so the first detection (at D_max, which sets e) is one
+  the detector finds at its measured recall; and that floor is met at the search step at the radius or beyond, so
+  the gate can acquire at all;
+- containment: the dock's box at its largest yaw, centred, keeps the fixed-zoom policy's zoom-in margin on both axes
+  at the nearest slant, so the policy reaches the planned step and holds it round the circle; and the next narrower
+  step, if any, fails that margin at the farthest slant, so the policy does not zoom past it;
+- recovery_floor: the lane (and so the search and the orbit, flown at it) is above the run's floor. The floor is
+  released at the operator's confirm (option A, owner 2026-11-08: the dock stands on the ground), so the dock is no
+  longer required above it; in the sim a miss after the confirm ends on the ground. Stage 1 only.
 
     python -s -m tools.hitl.scenario_checks --scenario DIR --params-file F.parm --model-input MI.json
-        --board-height-m H [--profile siyi_zr10_hitl_encoded] [--zoom 10.0] [--reader-min-square-px 11.5]
+        [--profile siyi_zr10_hitl_encoded] [--zoom 10.0]
 """
 from __future__ import annotations
 
@@ -44,21 +49,19 @@ from typing import Any
 from navpy.core.perception.zoom.fixed_zoom_steps import ZoomStep
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits
 from navpy.plugins.laws.vision_pn.command_anchor import ROLL_LIMIT_CAP_DEG
-from tools.hitl.orbit_centre import centre_error_m, descent_height_m
-from tools.hitl.orbit_plan import (
-    HITL_PROFILE,
-    READER_MIN_SQUARE_PX,
-    Board,
-    OrbitPlan,
-    finite,
-    height_above_board,
-    load_plan,
-    planned_step,
+from tools.hitl.orbit_centre import (
+    DOCK_YAWS_DEG,
+    acquirable_beyond_radius,
+    centre_error_m,
+    centre_error_terms,
+    descent_height_m,
+    dock_box_px,
+    first_detection_distance_m,
+    smaller_side_input_px,
 )
+from tools.hitl.orbit_plan import HITL_PROFILE, OrbitPlan, finite, height_above_poi, load_plan, planned_step
 
 GRAVITY = 9.81
-# Plan value (section 6, from the pickup plan): a 20-30 deg dive loses 4-9 m in its pull-out; unmeasured (H2).
-PULL_OUT_ALLOWANCE_M = 9.0
 
 
 @dataclass(frozen=True)
@@ -72,11 +75,11 @@ def _slant(horizontal_m: float, h: float) -> float:
     return math.hypot(horizontal_m, h)
 
 
-def _gaps(step: ZoomStep, board: Board, slant_m: float, h: float, width: int, height: int) -> tuple[float, float]:
-    """Centred box gaps to the frame edges, as fractions of each axis (negative: the box overflows)."""
-    sin_d = h / slant_m
-    box_w = board.diagonal_m * step.optics.fx / slant_m
-    box_h = board.diagonal_m * sin_d * step.optics.fy / slant_m
+def _gaps(plan: OrbitPlan, step: ZoomStep, slant_m: float) -> tuple[float, float]:
+    """Centred box gaps to the frame edges at the dock's worst yaw, as fractions of each axis (negative: overflow)."""
+    width, height = plan.steps.stream.image_width, plan.steps.stream.image_height
+    boxes = [dock_box_px(step, plan.dock, slant_m, height_above_poi(plan), yaw) for yaw in DOCK_YAWS_DEG]
+    box_w, box_h = max(box[0] for box in boxes), max(box[1] for box in boxes)
     return (1.0 - box_w / width) / 2.0, (1.0 - box_h / height) / 2.0
 
 
@@ -114,29 +117,35 @@ def check_descent(plan: OrbitPlan) -> CheckResult:
                                            "eta": eta, "required_m": None if need is None else round(need, 2)})
 
 
-def check_reader(plan: OrbitPlan) -> CheckResult:
-    step, h, error = planned_step(plan), height_above_board(plan), centre_error_m(plan)
-    far = _slant(plan.radius_m + error, h)
+def check_detector(plan: OrbitPlan) -> CheckResult:
+    step, h, error = planned_step(plan), height_above_poi(plan), centre_error_m(plan)
     if step is None:
-        return CheckResult("reader", False, {"zoom_step": "not a measured step"})
-    px = step.optics.fy * plan.board.square_m * (h / far) / far
-    return CheckResult("reader", px >= plan.reader_min_square_px,
-                       {"zoom_step": step.command, "fy_px": step.optics.fy, "centre_error_m": round(error, 2),
-                        "farthest_slant_m": round(far, 2), "square_px_along_los": round(px, 2),
-                        "reader_min_square_px": plan.reader_min_square_px})
+        return CheckResult("detector", False, {"zoom_step": "not a measured step"})
+    far = _slant(plan.radius_m + error, h)
+    side = min(smaller_side_input_px(plan, step, far, yaw) for yaw in DOCK_YAWS_DEG)
+    limits = plan.detector
+    gate_ok = limits.acq_min_box_px >= limits.recall_min_box_px
+    acquirable = acquirable_beyond_radius(plan)
+    return CheckResult("detector", side >= limits.recall_min_box_px and gate_ok and acquirable,
+                       {"zoom_step": step.command, "centre_error_m": round(error, 2),
+                        "centre_error_terms_m": {k: round(v, 2) for k, v in centre_error_terms(plan).items()},
+                        "first_detection_m": round(first_detection_distance_m(plan), 1),
+                        "acquirable_beyond_radius": acquirable,
+                        "farthest_slant_m": round(far, 2), "smaller_side_input_px": round(side, 2),
+                        "recall_min_box_px": limits.recall_min_box_px, "acq_min_box_px": limits.acq_min_box_px,
+                        "evidence": limits.evidence})
 
 
 def check_containment(plan: OrbitPlan) -> CheckResult:
-    step, h, error = planned_step(plan), height_above_board(plan), centre_error_m(plan)
+    step, h, error = planned_step(plan), height_above_poi(plan), centre_error_m(plan)
     if step is None:
         return CheckResult("containment", False, {"zoom_step": "not a measured step"})
-    width, height = plan.steps.stream.image_width, plan.steps.stream.image_height
     near = _slant(max(plan.radius_m - error, 0.0), h)
     far = _slant(plan.radius_m + error, h)
-    gaps = _gaps(step, plan.board, near, h, width, height)
+    gaps = _gaps(plan, step, near)
     reaches = min(gaps) >= plan.margins.zoom_in
     narrower = plan.steps.narrower(step)
-    past = None if narrower is None else _gaps(narrower, plan.board, far, h, width, height)
+    past = None if narrower is None else _gaps(plan, narrower, far)
     stays = past is None or min(past) < plan.margins.zoom_in
     return CheckResult("containment", reaches and stays,
                        {"zoom_step": step.command, "nearest_slant_m": round(near, 2),
@@ -146,25 +155,34 @@ def check_containment(plan: OrbitPlan) -> CheckResult:
 
 
 def check_recovery_floor(plan: OrbitPlan) -> CheckResult:
-    board_clearance = plan.board_height_m - plan.floor_m
-    passed = (height_above_board(plan) > 0.0 and plan.lane_height_m > plan.floor_m
-              and board_clearance >= PULL_OUT_ALLOWANCE_M)
+    passed = height_above_poi(plan) > 0.0 and plan.lane_height_m > plan.floor_m
     return CheckResult("recovery_floor", passed,
                        {"floor_m": plan.floor_m, "lane_height_m": plan.lane_height_m,
-                        "board_height_m": plan.board_height_m, "board_above_floor_m": board_clearance,
-                        "pull_out_allowance_m": PULL_OUT_ALLOWANCE_M})
+                        "lane_above_floor_m": round(plan.lane_height_m - plan.floor_m, 2),
+                        "dock_placement": "ground", "floor_released_at": "operator confirm"})
 
 
-CHECKS = (check_model_speed, check_turn_radius, check_descent, check_reader, check_containment,
+CHECKS = (check_model_speed, check_turn_radius, check_descent, check_detector, check_containment,
           check_recovery_floor)
+
+
+def _usable(plan: OrbitPlan) -> bool:
+    dock, limits = plan.dock, plan.detector
+    numbers = (plan.radius_m, plan.lane_height_m, dock.length_m, dock.width_m, dock.height_m, plan.floor_m,
+               plan.airspeed_m_s, plan.min_pitch_deg, plan.roll_limit_deg, limits.recall_min_box_px,
+               limits.acq_min_box_px)
+    if not finite(*numbers):
+        return False
+    positive = (plan.radius_m, plan.airspeed_m_s, dock.length_m, dock.width_m, dock.height_m,
+                limits.recall_min_box_px, limits.acq_min_box_px, height_above_poi(plan))
+    return min(positive) > 0.0
 
 
 def run_checks(plan: OrbitPlan) -> list[CheckResult]:
     """Every check's result; a plan with a non-finite or non-positive value fails them all."""
-    numbers = (plan.radius_m, plan.lane_height_m, plan.board_height_m, plan.floor_m, plan.airspeed_m_s,
-               plan.min_pitch_deg, plan.roll_limit_deg, plan.reader_min_square_px)
-    if not finite(*numbers) or plan.radius_m <= 0.0 or plan.airspeed_m_s <= 0.0 or height_above_board(plan) <= 0.0:
-        reason = {"input": "non-finite value, non-positive radius or airspeed, or the lane not above the board"}
+    if not _usable(plan):
+        reason = {"input": "non-finite value, non-positive radius, airspeed, dock size or detector limit, "
+                           "or the lane not above the dock"}
         return [CheckResult(check.__name__.removeprefix("check_"), False, reason) for check in CHECKS]
     return [check(plan) for check in CHECKS]
 
@@ -180,15 +198,12 @@ def report(results: Sequence[CheckResult]) -> dict[str, Any]:
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="python -m tools.hitl.scenario_checks",
-                                     description="Refuse a series whose HITL orbit cannot be flown or read.")
+                                     description="Refuse a series whose HITL orbit cannot be flown or its dock seen.")
     parser.add_argument("--scenario", required=True, help="a prepared scenario folder (its public half only)")
     parser.add_argument("--params-file", required=True, help="the run's aircraft parameter file")
     parser.add_argument("--model-input", required=True, help="the model input declaration (its envelope)")
-    parser.add_argument("--board-height-m", required=True, type=float,
-                        help="the board's design height above home (m)")
     parser.add_argument("--profile", default=HITL_PROFILE)
     parser.add_argument("--zoom", default=10.0, type=float, help="the planned zoom step (absolute zoom command)")
-    parser.add_argument("--reader-min-square-px", default=READER_MIN_SQUARE_PX, type=float)
     return parser
 
 

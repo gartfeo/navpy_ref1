@@ -1,5 +1,5 @@
-"""The approach runner's orbit gate (hitl_guidance.md step 23): refuse a run whose HITL orbit cannot be flown
-or read, before the record or the run folder exists (tools/hitl/scenario_checks.py)."""
+"""The approach runner's orbit gate (hitl_guidance.md steps 23 and 23b): refuse a run whose HITL orbit cannot be
+flown or its dock seen, before the record or the run folder exists (tools/hitl/scenario_checks.py)."""
 from __future__ import annotations
 
 import argparse
@@ -14,11 +14,11 @@ from tools.tuning.hitl_params import merge_param_files
 
 def orbit_check(args: argparse.Namespace, scenario: dict) -> dict:
     """The check's report on the scenario's public half, the board's merged parameter files, the model input's
-    envelope and the board's design height; SystemExit on a failed check or an unreadable input."""
+    envelope (the dock's size is in the public half); SystemExit on a failed check or an unreadable input."""
     try:
         params, _ = merge_param_files(board_param_files([], [Path(p) for p in args.params_file or []], True, False,
                                                         args.hitl_data))
-        plan = orbit_plan.plan_for(scenario, params, read_json(Path(args.model_input)), args.board_height_m,
+        plan = orbit_plan.plan_for(scenario, params, read_json(Path(args.model_input)),
                                    profile_name=VISION_PROFILE)
     except (OSError, ValueError, KeyError, TypeError) as error:
         raise SystemExit(f"error: the orbit check cannot run: {error}") from error

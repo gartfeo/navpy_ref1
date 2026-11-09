@@ -196,7 +196,8 @@ def test_the_floor_records_the_lowest_height_and_lets_a_good_flight_pass():
     plane, record = FakePlane(height=100, mode="LOITER"), {}
     with HeightFloor(plane, MIN_HEIGHT_M, record):
         plane.fly_for(5)
-    assert record["height"] == {"floor_m": MIN_HEIGHT_M, "lowest_m": 100.0, "breach": None}
+    assert record["height"] == {"floor_m": MIN_HEIGHT_M, "lowest_m": 100.0, "breach": None,
+                                "released": None}
     assert "recovery" not in record and plane.mode == "LOITER"
     assert plane.mav.message_hooks == []
 

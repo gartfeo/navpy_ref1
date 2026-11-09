@@ -361,7 +361,8 @@ def _run(tmp_path, monkeypatch, series: Path, root: str) -> dict:
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas",
                               "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe",
-                              "--scenario-series", str(series), "--seed-index", "0", "--board-height-m", "16"])
+                              "--scenario-series", str(series), "--seed-index", "0",
+                              "--detector-model", "/mnt/c/m/rf-detr-large.pth"])
     seen["exit"] = approach.approach(args)
     run_dir = next((tmp_path / root).iterdir())
     seen["run_dir"], seen["run"] = run_dir, json.loads((run_dir / "approach_run.json").read_text(encoding="utf-8"))
