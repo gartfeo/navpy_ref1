@@ -4,7 +4,7 @@ The rfdetr backend runs only with this block; nothing is implied::
 
     "rfdetr": {
         "variant": "large",          # RF-DETR-L: its 704 px square input
-        "classes": {"truck": "dock"},  # phase A: COCO truck only (the pickup), mapped to the dock class
+        "classes": {"truck": "dock"},  # phase A: COCO truck only, mapped to the dock class
         "input": "tiles"             # "squash" (the whole frame to one square) or "tiles" (native 704 px tiles)
     }
 

@@ -276,9 +276,10 @@ def test_squash_matches_rfdetr_own_boxes_on_a_real_zr10_frame():
     ref = np.load(CLIP / "dets_rfdetr_l.npz")
     rows = ref["dets"][:ref["n"][0]]
     rows = rows[(rows[:, 5] == 2) & (rows[:, 4] >= 0.45)]
+    cars = rfdetr_settings({"rfdetr": {**BLOCK, "classes": {"car": "dock"}}})    # the clip's reference is cars
     runtime = TorchRfDetrRuntime(str(WEIGHTS), "large", "auto")
     try:
-        found = RfDetrDetector(runtime, _settings(), 0.45).detect(
+        found = RfDetrDetector(runtime, cars, 0.45).detect(
             cv2.imread(str(CLIP / "frames" / f"{int(ref['index'][0])}.jpg")))
     finally:
         runtime.close()

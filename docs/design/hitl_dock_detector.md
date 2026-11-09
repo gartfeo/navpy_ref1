@@ -75,9 +75,9 @@ The NAV approach accuracy goal (< 0.5 m) is a separate task and is not changed h
   (thresholds, input size) and a final held-out set. Weights, confidence threshold and preprocessing are frozen
   before the held-out set and before any series; the series' private seeds are in none of the sets. Include
   terrain, light and haze variation and dock-free frames.
-- **Input size and crop:** at 300 m radius and 80 m above the dock (about 7.4 px/m at 10x), the phase A pickup is
-  about 44 x 18 px on the full frame, but RF-DETR-L squashes the whole 1920 x 1080 frame to 704 x 704, so about
-  16 x 12 px:
+- **Input size and crop:** at 300 m radius and 80 m above the dock (slant 310 m), the search's widest step (2x, fx
+  about 3273 px, so about 10.6 px/m) shows the phase A pickup side-on at about 62 x 26 px on the full frame, but
+  RF-DETR-L squashes the whole 1920 x 1080 frame to 704 x 704, so about 23 x 17 px:
   likely too small for search on the full frame. A fixed tiling of the frame into 704 px squares for search is the
   expected answer; section 6 item 1 decides. Search and reacquisition cover the whole frame. Once locked, an optional
   crop around the track box is resized to 704 with a recorded transform, and box pixels are mapped back to the full
