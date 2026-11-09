@@ -38,6 +38,10 @@ export default function MonitoringSidebar({
   corridorPoints,
   searchPattern,
   onEditPlan,
+  // The plan on the map is the one on the UAVs (last uploaded or downloaded).
+  planOnVehicles = false,
+  // Opens plan mode with Upload highlighted: the fix for a plan not on the UAVs.
+  onUploadPlan,
   onLaunch,
   onOpenConnect,
   onRestart,
@@ -77,6 +81,8 @@ export default function MonitoringSidebar({
         corridorPoints={corridorPoints}
         searchPattern={searchPattern}
         onEditPlan={onEditPlan}
+        planOnVehicles={planOnVehicles}
+        onUploadPlan={onUploadPlan}
         onLaunch={onLaunch}
         onOpenConnect={onOpenConnect}
         onRestart={onRestart}
@@ -103,7 +109,7 @@ export default function MonitoringSidebar({
   );
 }
 
-function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenMessages, onOpenReadiness, footerEl, startPinned, hidden }) {
+function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, planOnVehicles, onUploadPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenMessages, onOpenReadiness, footerEl, startPinned, hidden }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   // Per-launch operator ack that pitots are covered / air is calm, allowing
@@ -191,8 +197,10 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
 
   const phase = computeMonitorPhase({ vehicleList, containerLaunching: launcher.containerLaunching });
 
-  // Plan awareness for PRE_LAUNCH
+  // Plan awareness for PRE_LAUNCH. The start control is for the mission on
+  // the UAVs: a plan only drawn or loaded here is not one.
   const hasGcsPlan = (plan?.zones?.length || 0) > 0;
+  const missionReady = hasGcsPlan && planOnVehicles;
   const vehiclesHaveMission = vehicleList.some(v => (v.mission_total || 0) > 0);
 
   const hasPendingStatusVehicles = statusVehicleList.some((v) => v.pending);
@@ -377,7 +385,30 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
   // Pre-launch action button based on plan awareness
   const isBusyConnecting = downloadingSysIds?.size > 0;
   function preLaunchActionButton() {
-    if (hasGcsPlan) return null; // caller renders START or START MISSION
+    if (missionReady) return null; // caller renders START or START MISSION
+    if (hasGcsPlan) {
+      // The plan on the map is not on the UAVs: say so, and offer the upload.
+      return (
+        <>
+          <div
+            role="status"
+            data-testid="plan-not-uploaded"
+            style={{
+              marginTop: 8,
+              padding: '6px 8px',
+              fontSize: 12,
+              color: colors.warning,
+              background: `${colors.warning}1a`,
+              border: `1px solid ${colors.warning}66`,
+              borderRadius: 4,
+            }}
+          >
+            {t('monitor.planNotUploaded')}
+          </div>
+          <EditButton label={t('monitor.uploadPlan')} onClick={onUploadPlan ?? onEditPlan} />
+        </>
+      );
+    }
     if (vehiclesHaveMission || isBusyConnecting) {
       const label = isBusyConnecting
         ? (vehiclesHaveMission ? t('monitor.downloadingPlan') : t('monitor.connectingPlan'))
@@ -533,7 +564,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
 
       {/* PRE_LAUNCH + container */}
       {phase === MONITOR_PHASES.PRE_LAUNCH && isContainer && (
-        hasGcsPlan ? (
+        missionReady ? (
           <>
             <LaunchPanel
               vehicleList={launchVehicles}
@@ -589,7 +620,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
       {/* PRE_LAUNCH + bungee */}
       {phase === MONITOR_PHASES.PRE_LAUNCH && !isContainer && (
         <SidebarFooter slot={footerEl} pinned={startPinned}>
-          {hasGcsPlan ? (
+          {missionReady ? (
             <>
               {pitotAckEl}
               {/* Like container: ready = hold, then the modal below; onStart is

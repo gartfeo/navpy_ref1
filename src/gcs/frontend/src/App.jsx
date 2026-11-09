@@ -224,7 +224,7 @@ export default function App() {
     }
     return paths;
   }, [setLaunchPoints, setCorridorPointsArr]);
-  // Default delivery hubs — the fence must also clear their confirmation
+  // Home hubs — the fence must also clear their confirmation
   // orbit; conflict analysis checks the orbit against exclusion keep-outs.
   const deliveryHubs = React.useMemo(
     () => (settings?.default_delivery_hubs || []).filter((o) => o && o.lat != null && o.lon != null),
@@ -473,6 +473,25 @@ export default function App() {
     setAvailableVehicles((prev) => prunePendingVehicles(prev, vehicleList));
   }, [vehicleList]);
 
+  // ---- Plan mode fixes ----
+  // A connect that finds no mission on any UAV opens the plan editor: there is
+  // nothing to fly until a plan is made and uploaded.
+  const goToPlanningRef = useRef(planning.handleGoToPlanning);
+  goToPlanningRef.current = planning.handleGoToPlanning;
+  const handleFleetWithoutMission = useCallback(() => {
+    if (phaseRef.current === PHASES.MONITOR) goToPlanningRef.current();
+  }, []);
+  // Plan mode opened to upload the plan the monitor says is not on the UAVs:
+  // Upload is ringed until plan mode is left.
+  const [uploadFixShown, setUploadFixShown] = useState(false);
+  useEffect(() => {
+    if (phase !== PHASES.PLANNING) setUploadFixShown(false);
+  }, [phase]);
+  const handleUploadPlanFix = useCallback(() => {
+    setUploadFixShown(true);
+    goToPlanningRef.current();
+  }, []);
+
   // ---- Vehicle connection ----
   const {
     handleConnect,
@@ -487,6 +506,9 @@ export default function App() {
     vehicleList, removeVehicle, api, telemetryStoreRef: storeRef,
     derivePlanPolygon: planning.derivePlanPolygon,
     onPlanSynced: planning.onPlanSynced,
+    isPlanSynced: planning.isPlanSynced,
+    forgetPlanSync: planning.forgetPlanSync,
+    onFleetWithoutMission: handleFleetWithoutMission,
     settings,
     setVehicleTargWps, setVehicleNavLastWp, setNotification,
   });
@@ -781,7 +803,7 @@ export default function App() {
             simMode={settings?.simulation?.sim_mode ?? false}
             simDockWps={simDockWps}
             onToggleSimDock={planning.handleToggleSimDock}
-            vehicleTargWps={vehicleTargWps}
+            planOnVehicles={planning.planSynced}
             vehicleNavLastWp={vehicleNavLastWp}
             detectAfterWps={detectAfterWps}
             deliveryHubs={settings?.default_delivery_hubs}
@@ -833,6 +855,7 @@ export default function App() {
               setActiveSetIndex={setActiveSetIndex}
               placingDeliveryHub={planning.placingDeliveryHub}
               onToggleDeliveryHub={planning.toggleDeliveryHubPlacement}
+              highlightDeliveryHub={deliveryHubs.length === 0}
               placingDeliveryHubType={planning.placingDeliveryHubType}
               setPlacingDeliveryHubType={planning.setPlacingDeliveryHubType}
               fenceEnabled={vehicleFenceState.switchOn}
@@ -1116,6 +1139,8 @@ export default function App() {
               corridorPoints={corridorPoints}
               searchPattern={searchPattern}
               onEditPlan={planning.handleGoToPlanning}
+              planOnVehicles={planning.planSynced}
+              onUploadPlan={handleUploadPlanFix}
               onLaunch={commands.handleLaunch}
               onOpenConnect={() => { connFromSidebarRef.current = true; setShowConnPanel(true); }}
               onRestart={commands.handleRestart}
@@ -1158,6 +1183,7 @@ export default function App() {
         uploading={uploading}
         uploadProgress={uploadProgress}
         effectiveUavCount={planning.effectiveUavCount}
+        highlightUpload={uploadFixShown && !planning.planSynced}
       />
 
       <LoadingScreen visible={!mapReady} />

@@ -53,7 +53,8 @@ export default function useMissionUpload({
   const handleUpload = useCallback(async () => {
     const deliveryHubs = settings?.default_delivery_hubs || [];
     if (deliveryHubs.length === 0) {
-      window.alert('Please add at least one default delivery hub before uploading.');
+      // The hub button on the map toolbar is ringed while no hub exists.
+      window.alert('Place a home hub before uploading: use the highlighted hub button on the map toolbar.');
       return;
     }
     // An enabled fence without an enforceable boundary is rejected here, before
@@ -96,7 +97,7 @@ export default function useMissionUpload({
       activePlan.zones, deliveryHubs, deliveryHubAssignmentsRef.current, manualDeliveryHubEdit, generated != null,
     );
     if (missingLabels.length > 0) {
-      window.alert(`All zones must have a default delivery hub assigned. Missing: ${missingLabels.join(', ')}`);
+      window.alert(`All zones must have a home hub assigned. Missing: ${missingLabels.join(', ')}. Assign them in the Home hubs list of the plan panel, or press Auto-assign there.`);
       return;
     }
 

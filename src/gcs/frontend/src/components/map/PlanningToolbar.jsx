@@ -1,6 +1,7 @@
 import React from 'react';
 import { useTranslation } from 'react-i18next';
 import MapIconBtn from '../MapIconBtn';
+import FixHighlight from '../FixHighlight';
 import { colors, setColors } from '../../styles';
 import { DELIVERY_HUB_TYPES, getDeliveryHubIcon } from './constants/deliveryHubIcons.js';
 
@@ -69,6 +70,8 @@ export default function PlanningToolbar({
   setActiveSetIndex,
   placingDeliveryHub,
   onToggleDeliveryHub,
+  // No home hub exists yet: this button is how to place one (FixHighlight).
+  highlightDeliveryHub = false,
   placingDeliveryHubType,
   setPlacingDeliveryHubType,
   fenceEnabled,
@@ -268,13 +271,15 @@ export default function PlanningToolbar({
 
       {/* delivery hub placement — location icon + type selector (opens left) */}
       <div style={{ position: 'relative' }}>
-        <MapIconBtn
-          title={placingDeliveryHub ? t('planningToolbar.stopDeliveryHub') : t('planningToolbar.placeDeliveryHub')}
-          onClick={onToggleDeliveryHub}
-          active={placingDeliveryHub}
-        >
-          <img src={getDeliveryHubIcon('other')} width={14} height={14} alt="" />
-        </MapIconBtn>
+        <FixHighlight active={highlightDeliveryHub && !placingDeliveryHub}>
+          <MapIconBtn
+            title={placingDeliveryHub ? t('planningToolbar.stopDeliveryHub') : t('planningToolbar.placeDeliveryHub')}
+            onClick={onToggleDeliveryHub}
+            active={placingDeliveryHub}
+          >
+            <img src={getDeliveryHubIcon('other')} width={14} height={14} alt="" />
+          </MapIconBtn>
+        </FixHighlight>
         {placingDeliveryHub && (
           <div style={{
             position: 'absolute',

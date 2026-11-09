@@ -15,7 +15,6 @@ MISSION_STATUS_BADGE_KEYS = re.findall(
 )
 
 IDENTICAL_VALUE_ALLOWLIST = {
-    "settings.tabs.defaultDeliveryHubs",  # Owner-selected DDH tab acronym.
     "mapMarkers.dock",  # D is the owner-selected international dock marker.
     # Short technical label rather than untranslated prose.
     "connectionTab.id",

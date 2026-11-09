@@ -4,6 +4,7 @@ import { colors, bottomBarHeight, zoneColorsSolid } from '../styles';
 import { PHASES } from '../hooks/useMissionState';
 import { missionWpOffset, flatDist } from '../utils/geo';
 import { useTelemetryStore } from '../hooks/useTelemetryStore';
+import FixHighlight from './FixHighlight';
 
 const STAGE_LABELS = {
   clearing: 'uploadStages.clearing',
@@ -29,6 +30,8 @@ export default function BottomBar({
   uploading,
   uploadProgress,
   effectiveUavCount,
+  // Plan mode was opened to upload this plan (the monitor's fix): ring Upload.
+  highlightUpload = false,
 }) {
   const { t } = useTranslation();
   // Subscribe for live telemetry (link_ok, mission_progress, position)
@@ -106,13 +109,15 @@ export default function BottomBar({
                 {t('bottomBar.connect')}
               </BarButton>
             ) : (
-              <BarButton
-                primary
-                onClick={onUpload}
-                disabled={!canUpload || uploading}
-              >
-                {uploading ? t('bottomBar.uploading') : t('bottomBar.upload')}
-              </BarButton>
+              <FixHighlight active={highlightUpload && canUpload && !uploading} style={{ flexShrink: 0 }}>
+                <BarButton
+                  primary
+                  onClick={onUpload}
+                  disabled={!canUpload || uploading}
+                >
+                  {uploading ? t('bottomBar.uploading') : t('bottomBar.upload')}
+                </BarButton>
+              </FixHighlight>
             )}
           </div>
         </>

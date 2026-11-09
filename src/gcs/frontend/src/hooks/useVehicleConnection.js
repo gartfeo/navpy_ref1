@@ -31,6 +31,23 @@ import { requestDeadline } from '../utils/simDeadline';
 
 // The best-effort AAS read after a plan download; its sim-time deadline on lockstep.
 const PARAMS_TIMEOUT_MS = 10000;
+// Tags a plan a single UAV's download published (a connect, not a run).
+const SINGLE_DOWNLOAD = Object.freeze({ single: true });
+
+/**
+ * True when one download pass found no mission on any connected UAV: every
+ * vehicle connected now was asked in this pass and answered with an empty
+ * mission (a failed answer is not "no mission").
+ */
+export function fleetHasNoMission(answerKinds, connectedIds) {
+  const ids = new Set(connectedIds);
+  for (const id of answerKinds.keys()) ids.add(id);
+  if (ids.size === 0) return false;
+  for (const id of ids) {
+    if (answerKinds.get(id) !== 'empty') return false;
+  }
+  return true;
+}
 
 /**
  * Vehicle connect, disconnect, scan, and download plan handlers.
@@ -39,6 +56,11 @@ export default function useVehicleConnection({
   mission,
   vehicleList, removeVehicle, api, telemetryStoreRef,
   derivePlanPolygon, onPlanSynced,
+  // Whether the editor holds exactly the plan on the UAVs, and forgetting
+  // that plan once no UAV is left to carry it (usePlanSnapshot).
+  isPlanSynced, forgetPlanSync,
+  // Called when a connect finds no mission on any connected UAV.
+  onFleetWithoutMission,
   settings,
   setVehicleTargWps, setVehicleNavLastWp, setNotification,
 }) {
@@ -110,6 +132,11 @@ export default function useVehicleConnection({
   // Ref tracks latest plan to avoid stale closures after awaited API calls
   const planRef = useRef(plan);
   planRef.current = plan;
+  const connectedIdsRef = useRef([]);
+  connectedIdsRef.current = vehicleList.map((v) => v.sys_id);
+  const reportIfFleetHasNoMission = useCallback((answerKinds) => {
+    if (fleetHasNoMission(answerKinds, connectedIdsRef.current)) onFleetWithoutMission?.();
+  }, [onFleetWithoutMission]);
   // Track which sys_ids have an active mission download
   const [downloadingSysIds, setDownloadingSysIds] = useState(() => new Set());
   const [pendingVehicles, setPendingVehicles] = useState(() => []);
@@ -281,6 +308,7 @@ export default function useVehicleConnection({
     if (vehicles.length === 0) return;
     const run = beginMissionDownloadRun(vehicles.map((v) => v.sys_id));
     let applyQueue = Promise.resolve();
+    const answerKinds = new Map();
 
     await reconcileMissionDownloads({
       vehicles,
@@ -333,17 +361,21 @@ export default function useVehicleConnection({
           await observeFleetFence(vehicles, () => (
             missionDownloadRunRef.current === run && !run.cancelled
           ));
-          onPlanSynced?.();
           setNotification?.(`Missions downloaded from ${assembled.zones.length} vehicle${assembled.zones.length > 1 ? 's' : ''}`);
-          await applySimParams(assembled.zones, () => (
+          const stillThisRun = () => (
             missionDownloadRunRef.current === run
             && !run.cancelled
             && planBelongsToRun(planRef.current, run)
-          ));
+          );
+          await applySimParams(assembled.zones, stillThisRun);
+          // The synced baseline includes the dock and detection waypoints the
+          // vehicles' parameters just restored, or it would read as edited.
+          if (stillThisRun()) onPlanSynced?.();
         });
       },
       onVehicleSettled: (sysId, result) => {
         removeDownloading([sysId], run.downloadOwner);
+        answerKinds.set(sysId, missionAnswerKind(result));
         emitDiagnostic(result.error ? 'mission_result_rejected' : 'mission_result_accepted', {
           request_id: result._diagnostic_request_id, sys_id: sysId,
           outcome: result.error === 'timeout' ? 'timeout' : result.error ? 'failure' : 'accepted',
@@ -361,8 +393,9 @@ export default function useVehicleConnection({
     if (missionDownloadRunRef.current === run) {
       run.sysIds = [];
       missionDownloadRunRef.current = null;
+      if (!run.cancelled) reportIfFleetHasNoMission(answerKinds);
     }
-  }, [api.downloadMission, applySimParams, beginMissionDownloadRun, cancelMissionDownloadRun, derivePlanPolygon, observeFleetFence, onPlanSynced, removeDownloading, reserveFenceObservations, setAnalysis, setNotification, setPlan, waitForBackendSettlement]);
+  }, [api.downloadMission, applySimParams, beginMissionDownloadRun, cancelMissionDownloadRun, derivePlanPolygon, observeFleetFence, onPlanSynced, removeDownloading, reportIfFleetHasNoMission, reserveFenceObservations, setAnalysis, setNotification, setPlan, waitForBackendSettlement]);
 
   // Download missions from all connected vehicles -> assemble into plan.
   const handleDownloadPlan = useCallback(async () => {
@@ -372,6 +405,9 @@ export default function useVehicleConnection({
 
   // Disconnect + remove from telemetry state + remove zone from plan
   const handleDisconnect = useCallback(async (sysId) => {
+    // The remaining UAVs keep their missions: a plan that was on the fleet
+    // stays on it once the leaving UAV's zone is dropped.
+    const wasSynced = !!isPlanSynced?.();
     if (missionDownloadRunRef.current?.sysIds.includes(sysId)) cancelMissionDownloadRun();
     // A page-refresh request can outlive the disconnect HTTP call. Exclude the
     // vehicle before awaiting so a late mission response cannot resurrect its
@@ -381,12 +417,14 @@ export default function useVehicleConnection({
     startupRun?.excludedIds.add(sysId);
     startupRun?.missionDeliveryHubsBySysId.delete(sysId);
     startupRun?.missionsBySysId.delete(sysId);
+    startupRun?.answerKinds?.delete(sysId);
     const result = await api.disconnectVehicle(sysId);
     const removedIds = result?.removed || [sysId];
     for (const id of removedIds) {
       startupRun?.excludedIds.add(id);
       startupRun?.missionDeliveryHubsBySysId.delete(id);
       startupRun?.missionsBySysId.delete(id);
+      startupRun?.answerKinds?.delete(id);
     }
     const removedSet = new Set(removedIds);
     for (const id of removedIds) removeVehicle(id);
@@ -439,6 +477,8 @@ export default function useVehicleConnection({
       setFenceTouched(false);
       clearFenceIntent?.();
       resetFenceObservations?.();
+      // No UAV is left to carry the synced plan.
+      forgetPlanSync?.();
     } else {
       const startupMetadata = startupPlanMetadataForOwnedPlan(
         startupRun, currentPlan, currentPlan?.altitude_m || 100,
@@ -456,7 +496,9 @@ export default function useVehicleConnection({
         setDetectAfterWps((prev) => reindexZoneMap(prev, keptOldIndices, 'scalar'));
       }
       derivePlanPolygon(remaining);
-      if (startupRun && planBelongsToRun(nextPlan, startupRun)) {
+      const startupOwnsPlan = !!startupRun && planBelongsToRun(nextPlan, startupRun);
+      if (wasSynced && !startupOwnsPlan) onPlanSynced?.();
+      if (startupOwnsPlan) {
         void enqueueStartupPostProcess(startupRun, async () => {
           const applied = await applyStartupPlanEffects(startupRun, () => (
             !startupRun.cancelled && planBelongsToRun(planRef.current, startupRun)
@@ -465,7 +507,7 @@ export default function useVehicleConnection({
         }).catch((e) => console.warn('Startup plan refresh after disconnect failed:', e));
       }
     }
-  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
+  }, [api.disconnectVehicle, applyStartupPlanEffects, cancelMissionDownloadRun, clearDownloading, removeVehicle, setPlan, setPolygon, setAnalysis, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, derivePlanPolygon, onPlanSynced, isPlanSynced, forgetPlanSync, setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, setFenceEnabled, setFenceTouched, clearFenceIntent, resetFenceObservations]);
 
   // Download mission for a single vehicle (background, tracked by downloadingSysIds)
   const downloadSingleMission = useCallback(async (sysId, name, startupRun = null) => {
@@ -494,6 +536,12 @@ export default function useVehicleConnection({
       const diagnostic = startupMissionResultDiagnostic(sysId, m);
       emitDiagnostic(diagnostic.event, diagnostic.fields);
     }
+    // A page-load restore asks the UAVs one by one, so its answers gather in
+    // the run; a single connect is a pass of its own.
+    if (startupRun && !startupRun.answerKinds) startupRun.answerKinds = new Map();
+    const answerKinds = startupRun ? startupRun.answerKinds : new Map();
+    answerKinds.set(sysId, missionAnswerKind(m));
+    if (missionAnswerKind(m) === 'empty') reportIfFleetHasNoMission(answerKinds);
     if (m?.error) {
       // Bounded failure (incl. the 45 s timeout) — surface it instead of leaving
       // the operator guessing.
@@ -543,6 +591,12 @@ export default function useVehicleConnection({
       if (startupRun) {
         nextPlan = tagPlanForRun(nextPlan, startupRun);
         startupRun.hasPublished = true;
+      } else if (!currentPlan?.zones?.length) {
+        // The UAV's own mission, and nothing else: the plan on the UAVs
+        // (planFromDownload). Merged into a plan that already came from a
+        // download, the spread above keeps that plan's tag; merged into the
+        // operator's own zones, it is not the UAVs' plan and stays untagged.
+        nextPlan = tagPlanForRun(nextPlan, SINGLE_DOWNLOAD);
       }
       // Publish the ref before React's next render so a concurrent single-vehicle
       // download merges on top of this zone instead of racing on a stale read.
@@ -596,7 +650,7 @@ export default function useVehicleConnection({
     } catch (e) {
       console.warn('Mission post-processing failed (vehicle connected ok):', e);
     }
-  }, [api.downloadMission, setPlan, derivePlanPolygon, observeFenceFromVehicle, onPlanSynced, deliveryHubAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement]);
+  }, [api.downloadMission, setPlan, derivePlanPolygon, observeFenceFromVehicle, onPlanSynced, deliveryHubAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement, reportIfFleetHasNoMission]);
 
   // Connect a single vehicle + auto-download its mission (only if no active plan)
   const handleConnect = useCallback(async (device, sysId, name) => {
@@ -702,6 +756,7 @@ export default function useVehicleConnection({
         excludedIds: new Set(),
         missionDeliveryHubsBySysId: new Map(),
         missionsBySysId: new Map(),
+        answerKinds: new Map(),
         postProcessQueue: Promise.resolve(),
         rosterRevision: 0,
         hasPublished: false,

@@ -442,7 +442,7 @@ export default function PlanningSidebar({
 
       <Divider />
 
-      {/* Default delivery hub assignments */}
+      {/* Home hub assignments */}
       <DeliveryHubAssignmentSection
         plan={plan}
         settings={settings}

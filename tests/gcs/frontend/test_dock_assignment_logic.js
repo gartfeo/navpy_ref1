@@ -33,8 +33,8 @@ async function loadModule() {
     const { deliveryHubs, assignments } = buildDeliveryHubsFromDownload(pois);
     assert.strictEqual(deliveryHubs.length, 2, 'Should create 2 Docks');
     assert.strictEqual(deliveryHubs[0].type, 'other', 'Default type should be other');
-    assert.strictEqual(deliveryHubs[0].name, 'Default delivery hub 1');
-    assert.strictEqual(deliveryHubs[1].name, 'Default delivery hub 2');
+    assert.strictEqual(deliveryHubs[0].name, 'Home hub 1');
+    assert.strictEqual(deliveryHubs[1].name, 'Home hub 2');
     assert.deepStrictEqual(assignments, [0, 1]);
   })();
 
@@ -61,7 +61,7 @@ async function loadModule() {
     assert.strictEqual(deliveryHubs.length, 2, 'Should add one new DOCK');
     assert.strictEqual(deliveryHubs[0].name, 'HQ', 'Existing preserved');
     assert.strictEqual(deliveryHubs[1].type, 'other', 'New DOCK should be type other');
-    assert.strictEqual(deliveryHubs[1].name, 'Default delivery hub 2', 'Name based on total count');
+    assert.strictEqual(deliveryHubs[1].name, 'Home hub 2', 'Name based on total count');
     assert.deepStrictEqual(assignments, [1]);
   })();
 

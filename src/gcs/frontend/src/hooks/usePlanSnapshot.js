@@ -1,17 +1,28 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { buildPlanSnapshot, isPlanDirty } from '../utils/planSnapshot';
+import { buildPlanSnapshot, planEditKey, planHasContent, planSyncKey } from '../utils/planSnapshot';
+import { planFromDownload } from '../utils/planDownloadRun';
 import useConfirm from './useConfirm';
 
 /**
- * Manages the plan snapshot lifecycle: capture baseline on sync,
- * detect dirty state, and restore on discard + exit planning.
+ * The plan's two baselines and leaving plan mode.
+ *
+ * - Synced: the plan on the UAVs, captured on upload and download
+ *   (onPlanSynced). `planSynced` says the editor still holds exactly that
+ *   plan, or a plan a download published (planFromDownload); the monitor
+ *   offers the start control only then.
+ * - Saved: the plan in the file last loaded or saved (markPlanSaved).
+ *
+ * Leaving plan mode with a plan that is in neither baseline asks whether to
+ * save it first. Leaving with a plan that is not the one on the UAVs returns
+ * the map to the UAVs' plan, so the monitor always shows what they fly.
  */
 export default function usePlanSnapshot({
   // Captured values
-  plan, polygon, searchPattern, analysis, uavCount,
+  plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
   partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-  deliveryHubAssignments, simDockWps, detectAfterWps,
+  deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
+  fenceTouched, fenceEnabled, fenceOffsetM,
   fenceCustomVertices, exclusionPolygons,
   // Restore setters
   setPlan, setPolygon, setSearchPattern, setAnalysis,
@@ -20,57 +31,114 @@ export default function usePlanSnapshot({
   setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
   // Side-effect deps (drawingRef avoids hook-ordering issues with useDrawing)
   drawingRef, suppressRegenRef, goToMonitor, undoRef,
+  // Writes the plan file (usePlanPersistence, created after this hook).
+  savePlanRef,
 }) {
   const { t } = useTranslation();
   const confirm = useConfirm();
   const vehicleSnapshotRef = useRef(null);
   const stateForSnapshotRef = useRef({});
   const [snapshotTrigger, setSnapshotTrigger] = useState(0);
+  const [syncKey, setSyncKey] = useState(null);
+  const [savedTrigger, setSavedTrigger] = useState(0);
+  const savedKeyRef = useRef(null);
 
-  stateForSnapshotRef.current = {
-    plan, polygon, searchPattern, analysis, uavCount,
+  const current = {
+    plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-    deliveryHubAssignments, simDockWps, detectAfterWps,
+    deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
+    fenceTouched, fenceEnabled, fenceOffsetM,
     fenceCustomVertices, exclusionPolygons,
   };
+  stateForSnapshotRef.current = current;
 
   const onPlanSynced = useCallback(() => setSnapshotTrigger(t => t + 1), []);
+  // Called in the same update that loads or saves the plan file: the baseline
+  // is taken once that update has committed.
+  const markPlanSaved = useCallback(() => setSavedTrigger(t => t + 1), []);
+  // No UAV is left to carry the synced plan: nothing to compare with or restore.
+  const forgetPlanSync = useCallback(() => {
+    vehicleSnapshotRef.current = null;
+    setSyncKey(null);
+  }, []);
 
   useEffect(() => {
     if (snapshotTrigger === 0) return;
     vehicleSnapshotRef.current = buildPlanSnapshot(stateForSnapshotRef.current);
+    setSyncKey(planSyncKey(stateForSnapshotRef.current));
   }, [snapshotTrigger]);
 
+  useEffect(() => {
+    if (savedTrigger === 0) return;
+    savedKeyRef.current = planEditKey(stateForSnapshotRef.current);
+  }, [savedTrigger]);
+
+  const currentSyncKey = useMemo(
+    () => planSyncKey(current),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [plan, polygon, searchPattern, effectiveUavCount, partitionAngleDeg, routeOffsetM,
+      setLaunchPoints, setCorridorPointsArr, deliveryHubAssignments, manualDeliveryHubEdit,
+      simDockWps, detectAfterWps, fenceTouched, fenceEnabled, fenceOffsetM,
+      fenceCustomVertices, exclusionPolygons],
+  );
+  // A plan a download just published is the UAVs' plan before its baseline
+  // lands (the download's post-processing derives the area and dock picks
+  // first), or the monitor would call it "not on the UAVs" meanwhile.
+  const planSynced = (syncKey != null && currentSyncKey === syncKey) || planFromDownload(plan);
+  const planSyncedRef = useRef(planSynced);
+  planSyncedRef.current = planSynced;
+  const isPlanSynced = useCallback(() => planSyncedRef.current, []);
+
+  const restoreVehiclePlan = useCallback((snap) => {
+    suppressRegenRef.current = true;
+    setPlan(snap.plan);
+    setPolygon(snap.polygon);
+    setSearchPattern(snap.searchPattern);
+    setAnalysis(snap.analysis);
+    setUavCount(snap.uavCount);
+    setPartitionAngleDeg(snap.partitionAngleDeg);
+    setRouteOffsetM(snap.routeOffsetM);
+    setSetLaunchPoints(snap.setLaunchPoints);
+    setSetCorridorPoints(snap.setCorridorPointsArr);
+    setDeliveryHubAssignments(snap.deliveryHubAssignments);
+    setSimDockWps(snap.simDockWps);
+    setDetectAfterWps(snap.detectAfterWps);
+    setFenceCustomVertices?.(snap.fenceCustomVertices ?? null);
+    setExclusionPolygons?.(snap.exclusionPolygons ?? []);
+    drawingRef.current.loadVertices(snap.polygon);
+    // loadVertices resets useDrawing's undo stack; keep the orchestrator's
+    // undo stack in sync so a later re-enter + Undo can't pop a stale entry.
+    if (undoRef) undoRef.current = [];
+  }, [setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
+    setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setDeliveryHubAssignments,
+    setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons]);
+
   const handleExitPlanning = useCallback(async () => {
+    const state = stateForSnapshotRef.current;
     const snap = vehicleSnapshotRef.current;
-    if (snap) {
-      if (isPlanDirty(stateForSnapshotRef.current, snap)) {
-        if (!(await confirm(t('planning.exitDirtyConfirm')))) return;
-        suppressRegenRef.current = true;
-        setPlan(snap.plan);
-        setPolygon(snap.polygon);
-        setSearchPattern(snap.searchPattern);
-        setAnalysis(snap.analysis);
-        setUavCount(snap.uavCount);
-        setPartitionAngleDeg(snap.partitionAngleDeg);
-        setRouteOffsetM(snap.routeOffsetM);
-        setSetLaunchPoints(snap.setLaunchPoints);
-        setSetCorridorPoints(snap.setCorridorPointsArr);
-        setDeliveryHubAssignments(snap.deliveryHubAssignments);
-        setSimDockWps(snap.simDockWps);
-        setDetectAfterWps(snap.detectAfterWps);
-        setFenceCustomVertices?.(snap.fenceCustomVertices ?? null);
-        setExclusionPolygons?.(snap.exclusionPolygons ?? []);
-        drawingRef.current.loadVertices(snap.polygon);
-        // loadVertices resets useDrawing's undo stack; keep the orchestrator's
-        // undo stack in sync so a later re-enter + Undo can't pop a stale entry.
-        if (undoRef) undoRef.current = [];
+    const onVehicles = snap != null && planSyncKey(state) === planSyncKey(snap);
+    const inFile = savedKeyRef.current != null && planEditKey(state) === savedKeyRef.current;
+    if (!onVehicles && !inFile && planHasContent(state)) {
+      const answer = await confirm(
+        snap ? t('planning.savePrompt.messageRestore') : t('planning.savePrompt.message'),
+        {
+          dialog: {
+            title: t('planning.savePrompt.title'),
+            confirmLabel: t('planning.savePrompt.save'),
+            altLabel: t('planning.savePrompt.dontSave'),
+            cancelLabel: t('planning.savePrompt.keepEditing'),
+          },
+        },
+      );
+      if (answer === false) return;
+      if (answer === true) {
+        savePlanRef?.current?.();
+        markPlanSaved();
       }
     }
+    if (snap && !onVehicles) restoreVehiclePlan(snap);
     goToMonitor();
-  }, [goToMonitor, setPlan, setPolygon, setSearchPattern, setAnalysis, setUavCount, setPartitionAngleDeg,
-      setRouteOffsetM, setSetLaunchPoints, setSetCorridorPoints, setDeliveryHubAssignments,
-      setSimDockWps, setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons, confirm]);
+  }, [goToMonitor, confirm, t, restoreVehiclePlan, markPlanSaved, savePlanRef]);
 
-  return { onPlanSynced, handleExitPlanning };
+  return { onPlanSynced, markPlanSaved, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
 }

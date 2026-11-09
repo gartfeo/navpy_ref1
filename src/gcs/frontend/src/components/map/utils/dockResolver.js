@@ -1,12 +1,28 @@
-import { decodeBitmaskArray } from '../../../utils/bitmask';
+/**
+ * The static sim docks to draw: while planning only, and only the docks this
+ * plan picks (simDockWps). A UAV's stored dock parameter belongs to the mission
+ * on that UAV, not to the plan in the editor: drawn onto a new plan it shows
+ * docks that do not exist. A downloaded plan already carries the UAVs' docks
+ * (the download turns their parameters into simDockWps). In monitoring the map
+ * shows only what the swarm knows (dock location rule), so no dock shows from
+ * waypoint data before a detection or peer message.
+ */
+export function plannedDocksToShow(phase, plan, simDockWps) {
+  return phase === 'PLANNING' ? resolveSimDocksFromPlan(plan, simDockWps) : [];
+}
 
 /**
- * The static sim docks to draw: while planning only. In monitoring the map shows
- * only what the swarm knows (dock location rule), so no dock shows from waypoint
- * data before a detection or peer message.
+ * The detection start markers to draw. The UAVs' own nav_last_wp parameters
+ * describe the plan on the UAVs, so they are drawn only while the map shows
+ * that plan (monitoring a synced plan). Otherwise the plan's own selection
+ * (detectAfterWps) is drawn.
  */
-export function plannedDocksToShow(phase, simDocks) {
-  return phase === 'PLANNING' ? simDocks || [] : [];
+export function detectionStartsToShow({
+  phase, planOnVehicles, plan, detectAfterWps,
+  corridorPointsArr, searchPattern, vehicleNavLastWp, vehicleList,
+}) {
+  if (phase === 'PLANNING' || !planOnVehicles) return resolveDetectionStartFromPlan(plan, detectAfterWps);
+  return resolveDetectionStart(plan, corridorPointsArr, searchPattern, vehicleNavLastWp, vehicleList);
 }
 
 /**
@@ -34,63 +50,6 @@ export function zoneMissionWaypoints(zone, corridorPointsArr, searchPattern) {
   if (searchPattern === 'corridor' || isRawTrack(zone)) return zoneTrack;
   const corridorPts = (corridorPointsArr || [])[zone?.set_index ?? 0] || [];
   return [...corridorPts, ...zoneTrack];
-}
-
-/**
- * Resolve simulation POI positions from plan data and per-vehicle targ_wps.
- *
- * Waypoint ordering per vehicle mission:
- *   - Non-corridor: [...corridorPts, ...zoneTrack]
- *   - Corridor:     zoneTrack
- *   - Raw (untrimmed) zone track: zoneTrack, which already starts with the
- *     corridor — see isRawTrack.
- *
- * targ_wps bit (i-1) = WP i = wps[i-1] in the above array.
- *
- * @param {object|null} plan - Plan with zones[].track, zones[].set_index, zones[].sys_id
- * @param {Array<Array<{lat,lon}>>} corridorPointsArr - Corridor points per set
- * @param {string} searchPattern - "corridor" | "distributed"
- * @param {Object<number,number>} vehicleTargWps - { sys_id: bitmask } per-vehicle POI WPs
- * @param {Array<{sys_id}>} vehicleList - Ordered vehicle list (zone i → vehicleList[i])
- * @returns {Array<{lat, lon, zoneIndex, wpNumber}>}
- */
-export function resolveSimDocks(plan, corridorPointsArr, searchPattern, vehicleTargWps, vehicleList) {
-  if (!plan?.zones?.length) return [];
-  if (!vehicleTargWps || Object.keys(vehicleTargWps).length === 0) return [];
-
-  const pois = [];
-
-  for (let zi = 0; zi < plan.zones.length; zi++) {
-    const zone = plan.zones[zi];
-
-    // Determine which vehicle owns this zone
-    const sysId = zone.sys_id ?? (vehicleList || [])[zi]?.sys_id;
-    if (sysId == null) continue;
-
-    const bitmask = vehicleTargWps[sysId];
-    if (!bitmask) continue;
-
-    const wpNumbers = decodeBitmaskArray(bitmask);
-    if (wpNumbers.length === 0) continue;
-
-    const wps = zoneMissionWaypoints(zone, corridorPointsArr, searchPattern);
-
-    for (const wpNum of wpNumbers) {
-      const idx = wpNum - 1;
-      if (idx >= 0 && idx < wps.length) {
-        const pt = wps[idx];
-        pois.push({
-          lat: pt.lat,
-          lon: pt.lon ?? pt.lng,
-          zoneIndex: zone.zone_index ?? 0,
-          wpNumber: wpNum,
-          sys_id: sysId,
-        });
-      }
-    }
-  }
-
-  return pois;
 }
 
 /**

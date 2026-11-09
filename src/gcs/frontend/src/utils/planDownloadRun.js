@@ -47,6 +47,17 @@ export function tagPlanForRun(plan, run) {
   return { ...plan, [PLAN_DOWNLOAD_RUN]: run };
 }
 
+/**
+ * True when `plan` was published by a mission download (any run, a single
+ * UAV's included), so it is the UAVs' own plan. It is, from the publish on,
+ * while the download's post-processing still derives the area and dock picks
+ * that the synced baseline is taken from. A plan the operator generates,
+ * loads or restores carries no tag.
+ */
+export function planFromDownload(plan) {
+  return !!plan && plan[PLAN_DOWNLOAD_RUN] != null;
+}
+
 /** True when `plan` descends from a publish by `run` (survives the trim). */
 export function planBelongsToRun(plan, run) {
   return !!plan && !!run && !run.cancelled && plan[PLAN_DOWNLOAD_RUN] === run;
