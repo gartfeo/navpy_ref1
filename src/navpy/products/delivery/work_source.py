@@ -61,7 +61,10 @@ class DeliveryWorkSource:
     def _return_to_hub(self, poi: Optional[DetectedObject]) -> None:
         if poi is not None and self._return.is_home_dock(poi):
             self._tasks.try_start(poi)
-        elif self._fallback_navigation.can_return() or self._return.rearmed():
+            return
+        if poi is not None:
+            self._return.skipped(poi)
+        if self._fallback_navigation.can_return() or self._return.rearmed():
             self._fallback_navigation.setup()
 
 
@@ -71,6 +74,8 @@ class HubReturnPorts:
     is_home_dock: Callable[[DetectedObject], bool] = lambda _poi: False
     #: Once after a hold reopened in NavPy's LOITER (RecoveryHold.take_return_rearm): fly the return again.
     rearmed: Callable[[], bool] = lambda: False
+    #: A dock seen on the return that is not the home dock, so not taken (reported once per dock).
+    skipped: Callable[[DetectedObject], None] = lambda _poi: None
 
 
 __all__ = ["DeliveryWorkSource", "HubReturnPorts"]

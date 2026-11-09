@@ -59,10 +59,13 @@ class HomeDockRules:
         )
 
     def is_home_dock(self, poi: DetectedObject) -> bool:
+        """Any known position of the detection at the mission's DDH. Not only the first: a tracked detection can
+        keep a ground estimate an earlier task start wrote, and the hub must still be the hub after a failed park
+        there (step 10, item 3, SITL 2026-11-09)."""
         home = self._home_dock()
         if home is None:
             return False
-        return same_dock(self._focus.dock_location(poi), home)
+        return any(same_dock(location, home) for location in self._focus.dock_locations(poi))
 
 
 __all__ = ["HomeDockRules"]

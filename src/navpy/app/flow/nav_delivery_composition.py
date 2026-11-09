@@ -13,6 +13,8 @@ from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.flow.navigation_decision import NavStateDecision
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.core.perception.detection.poi_identity import get_poi_task_id
+from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
 from navpy.core.skills.search.navigation_task_action import NavigationTaskAction
@@ -97,6 +99,7 @@ def compose_work_source(
     fallback_navigation: FallbackMissionNavigation,
     tasks: NavigationTaskAction,
     home_dock: HomeDockRules,
+    logger: ILogger,
 ) -> DeliveryWorkSource:
     hold = state.recovery_hold
     return DeliveryWorkSource(
@@ -109,8 +112,24 @@ def compose_work_source(
             returning=lambda: hold.sortie_returning,
             is_home_dock=home_dock.is_home_dock,
             rearmed=hold.take_return_rearm,
+            skipped=_skip_reporter(logger),
         ),
     )
+
+
+def _skip_reporter(logger: ILogger) -> Callable[[DetectedObject], None]:
+    """Once per dock: a dock seen on the return to the DDH that is not the home dock is not taken."""
+    reported: set[int] = set()
+
+    def report(poi: DetectedObject) -> None:
+        poi_id = get_poi_task_id(poi)
+        key = poi.identity.obj_id if poi_id is None else poi_id
+        if key in reported:
+            return
+        reported.add(key)
+        logger.info(f"DDH return: P{key} is not the home dock; not taken", key="nav")
+
+    return report
 
 
 __all__ = [

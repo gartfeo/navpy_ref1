@@ -236,7 +236,7 @@ def compose_navigation_task_workflows(
         ),
         work_source=compose_work_source(
             state, peer_task_priority, peer_navigation,
-            mission_navigation.fallback_navigation, navigation_task_action, home_dock,
+            mission_navigation.fallback_navigation, navigation_task_action, home_dock, logger,
         ),
         acquisition=acquisition.gate,
     )

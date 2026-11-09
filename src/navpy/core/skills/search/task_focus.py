@@ -45,6 +45,20 @@ class TaskFocus:
             return True
         return same_dock(self.dock_location(poi), assigned_dock)
 
+    def dock_locations(self, poi: DetectedObject) -> tuple[Location, ...]:
+        """Every position known for the detection: the projected one, the simulation's truth, the ground position
+        (no fallback). A projected position written by an earlier task start (a ground estimate, fallback allowed)
+        can stay on a tracked detection; a known dock is matched against all of them, not that one alone."""
+        candidates = (
+            poi.geo.projected_poi_location,
+            poi.geo.truth_poi_location if self._ports.detector_is_simulation() else None,
+        )
+        known = tuple(location for location in candidates if location is not None)
+        if known:
+            return known
+        ground = self._ports.ground_location(poi, allow_fallback=False)
+        return () if ground is None else (ground,)
+
     def dock_location(self, poi: DetectedObject) -> Optional[Location]:
         """The position an offer would carry (PeerPoiNotifier's order)."""
         if poi.geo.projected_poi_location is not None:

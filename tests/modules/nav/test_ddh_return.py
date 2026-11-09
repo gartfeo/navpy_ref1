@@ -20,6 +20,8 @@ from navpy.products.delivery.fallback_mission_navigation import FallbackMissionN
 from navpy.products.delivery.home_dock import HomeDockRules
 from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.products.delivery.work_source import DeliveryWorkSource, HubReturnPorts
+from navpy.core.skills.search.task_focus import TaskFocus, TaskFocusPorts
+from tests.detection_factory import make_detected_poi
 
 HUB = Location(47.0, 8.0, 0.0)
 FAR = Location(47.01, 8.0, 0.0)
@@ -30,7 +32,7 @@ def _poi(location: Location) -> SimpleNamespace:
 
 
 def _rules(*, homing: bool = False, returning: bool = False) -> HomeDockRules:
-    focus = SimpleNamespace(dock_location=lambda poi: poi.location, assigned=lambda: False)
+    focus = SimpleNamespace(dock_locations=lambda poi: (poi.location,), assigned=lambda: False)
     return HomeDockRules(focus, lambda: HUB, lambda: homing, lambda: returning)
 
 
@@ -126,3 +128,49 @@ def test_the_swarm_slot_stays_busy_while_returning():
     assert _participating(NavState.DETECT, hold)
     hold.end_sortie_return()
     assert not _participating(NavState.DETECT, hold)
+
+
+# SITL 2026-11-09 (live-tester, run A): after a failed park at the hub the return never asked again. The tracked hub
+# detection kept the ground estimate the first round's task start wrote as its projected position, so it no longer
+# matched the DDH and the return skipped it. Every known position is matched now.
+
+
+def _focus(*, simulation: bool, ground=None) -> TaskFocus:
+    return TaskFocus(TaskFocusPorts(
+        assigned=lambda: False, assigned_dock=lambda: None, detector_is_simulation=lambda: simulation,
+        ground_location=lambda _poi, allow_fallback=True: ground,
+    ))
+
+
+def _detection(*, projected=None, truth=None):
+    poi = make_detected_poi(obj_id=1, task_id=1, class_id=0, t_g_loc_debug=truth)
+    poi.set_p_t_g_loc(projected)
+    return poi
+
+
+@pytest.mark.parametrize("projected, truth, simulation, ground, home", [
+    (FAR, HUB, True, None, True),       # a stale estimate on the tracked hub: the truth still finds it
+    (HUB, None, False, None, True),     # real build: the projected position
+    (FAR, HUB, False, None, False),     # real build: no truth to fall back on
+    (None, None, False, HUB, True),     # nothing projected: the ground position, no fallback
+    (None, None, False, None, False),
+])
+def test_the_home_dock_is_matched_on_every_known_position(projected, truth, simulation, ground, home):
+    rules = HomeDockRules(_focus(simulation=simulation, ground=ground), lambda: HUB, lambda: False, lambda: True)
+    assert rules.is_home_dock(_detection(projected=projected, truth=truth)) is home
+
+
+def test_a_dock_skipped_on_the_return_is_reported_and_the_return_still_flies():
+    skipped = Mock()
+    fallback = Mock()
+    fallback.can_return.return_value = True
+    tasks = Mock()
+    source = DeliveryWorkSource(
+        SimpleNamespace(peer_navigation=False), Mock(), Mock(), fallback, tasks,
+        HubReturnPorts(returning=lambda: True, is_home_dock=lambda _poi: False, skipped=skipped),
+    )
+    delivery = _poi(FAR)
+    source.handle_new_poi(delivery)
+    skipped.assert_called_once_with(delivery)
+    tasks.try_start.assert_not_called()
+    fallback.setup.assert_called_once_with()
