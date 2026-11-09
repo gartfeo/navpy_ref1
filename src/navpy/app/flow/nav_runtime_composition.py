@@ -42,7 +42,7 @@ from navpy.core.flow.navigation_loop import (
 )
 from navpy.app.flow.nav_watchdog_composition import nav_recovery, nav_watchdog, recovery_period
 from navpy.core.flow.nav_recovery_clock import TimeSample, attitude_boot_s
-from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
+from navpy.core.flow.nav_recovery_ports import NavRecoveryLink, RecoveryHold
 from navpy.core.flow.nav_transition import NavTransition
 from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
@@ -157,7 +157,7 @@ def compose_nav_application(
         NavSnapReporter(navigation.algorithm_info, logger),
         compose_sortie_finish(
             vehicle, confirmation.reset.reset, logger,
-            lambda: loop is not None and loop.is_stopping(), state.recovery_hold.request_sortie_rtl,
+            lambda: loop is not None and loop.is_stopping(), state.recovery_hold, poi.mission,
         ).run,
         state.navigation_task,
         lambda: args.is_oneshot,
@@ -165,6 +165,7 @@ def compose_nav_application(
         outcome=outcome,
         held=state.held_approach,
         holding=lambda: state.recovery_hold.holding,
+        sortie_returning=lambda: state.recovery_hold.sortie_returning,
     )
     display = _display_builder(outcome, state, poi)
     transitions = NavigationTransitionHandler(
@@ -195,7 +196,7 @@ def compose_nav_application(
             NavState.DOCKED: navigation.pause,
         },
         lambda committed: observation.network.publish_participation(
-            is_approaching(committed),
+            _participating(committed, state.recovery_hold),
             committed is NavState.DOCKED,
             display.build(committed),
         ),
@@ -260,10 +261,19 @@ def _detect_action(
     )
 
 
+def _participating(committed: NavState, hold: RecoveryHold) -> bool:
+    """Busy for the swarm: approaching, or a failed one-shot sortie returning to the DDH, which takes no swarm task
+    until it parks (navpy_recovery.md step 10, item 3)."""
+    return is_approaching(committed) or hold.sortie_returning
+
+
 def _return_to_search(vehicle: IVehicle, state: NavStateOwnership) -> None:
-    """Restart the search, except in recovery's hold: its LOITER and AUTO
-    stand, and the mission goes on from its current item on resume."""
-    if not state.recovery_hold.holding:
+    """Restart the search, except in recovery's hold (its LOITER and AUTO
+    stand, and the mission goes on from its current item on resume) and on a
+    failed one-shot sortie's return to the DDH, which NavPy flies in GUIDED
+    from where it is (products/delivery/work_source.py)."""
+    hold = state.recovery_hold
+    if not hold.holding and not hold.sortie_returning:
         restart_search(vehicle)
 
 

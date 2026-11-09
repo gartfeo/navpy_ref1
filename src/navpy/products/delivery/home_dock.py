@@ -7,6 +7,8 @@
 - On the way home, a delivery dock comes before the home dock: it is
   taken like a dock found in the UAV's own zone, and it gets its own
   circle (owner ruling 4, 2026-10-16).
+- A failed one-shot sortie returning to the DDH takes the home dock only,
+  so it comes first (navpy_recovery.md step 10, item 3; work_source.py).
 
 See docs/design/delivery_eval_scenario.md, "Remaining plan", step e5.
 """
@@ -29,16 +31,21 @@ class HomeDockRules:
         focus: TaskFocus,
         home_dock: Callable[[], Optional[Location]],
         homing: Callable[[], bool],
+        returning: Callable[[], bool] = lambda: False,
     ) -> None:
         self._focus = focus
         self._home_dock = home_dock
         self._homing = homing
+        self._returning = returning
 
     def offer_allowed(self, poi: DetectedObject) -> bool:
         return not self.is_home_dock(poi)
 
     def order(self, pois: list[DetectedObject]) -> list[DetectedObject]:
-        """On the way home, delivery docks first; otherwise unchanged."""
+        """A failed sortie's return: the home dock first. On the way home, delivery docks first. Otherwise
+        unchanged."""
+        if self._returning():
+            return sorted(pois, key=lambda poi: not self.is_home_dock(poi))
         if not self._homing():
             return pois
         return sorted(pois, key=self.is_home_dock)

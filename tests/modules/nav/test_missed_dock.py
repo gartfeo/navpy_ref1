@@ -431,7 +431,8 @@ def _chain(*, oneshot: bool, contact_first: bool = False, reset=None):
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
-            request_rtl=lambda: events.append("rtl"),
+            return_to_hub=lambda: events.append("hub") is None,
+            end_return=lambda: events.append("end"),
         ),
         reset,
         Mock(),
@@ -465,8 +466,8 @@ def test_a_failed_dock_enters_docked_after_the_drain_and_never_restarts_auto(one
     assert result.effective_state is NavState.DOCKED
     ports.return_to_search.assert_not_called()
     row = ("row", IDENTITY, "no_detection")
-    # One-shot: RTL through recovery, no disarm (owner ruling 2026-11-09, step 10 item 3).
-    expected = ["reset", "rtl", row] if oneshot else ["reset", row]
+    # One-shot: the return to the DDH, no disarm and no RTL (owner rulings 2026-11-09, step 10 item 3).
+    expected = ["reset", "hub", row] if oneshot else ["reset", row]
     assert events == expected  # the row follows the reset that drained commands
     assert [call.args[0] for call in logger.info.call_args_list] == [
         "STATE DOCK_FAILED (sim): reason=no_detection dock=0 task=11",

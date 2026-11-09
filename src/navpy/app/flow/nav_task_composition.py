@@ -195,7 +195,7 @@ def compose_navigation_task_workflows(
         logger,
     )
     focus = _task_focus(detection, state, navigation, peer_task_priority)
-    home_dock = compose_home_dock_rules(focus, poi)
+    home_dock = compose_home_dock_rules(focus, poi, state.recovery_hold)
     acquisition = compose_acquisition(
         vehicle, detection, profile, state, approach, observation, navigation, home_dock,
         approach_kind, logger, poi.confirmation_manager,
@@ -234,7 +234,7 @@ def compose_navigation_task_workflows(
         ),
         work_source=compose_work_source(
             state, peer_task_priority, peer_navigation,
-            mission_navigation.fallback_navigation, navigation_task_action,
+            mission_navigation.fallback_navigation, navigation_task_action, home_dock,
         ),
         acquisition=acquisition.gate,
     )

@@ -32,7 +32,7 @@ class NavExitOutcome:
 class NavTransition:
     """Coordinate NAV entry, fenced cleanup, diagnostics, and completion.
 
-    ``finish_sortie(failed=...)`` ends with the task teardown (a failed dock: RTL, no disarm);
+    ``finish_sortie(failed=...)`` ends with the task teardown (a failed dock: no disarm, the return to park);
     ``NavigationTransitionHandler._enter_docked`` relies on it for a one-shot
     DOCKED entry, contact or dock failed.
     """
@@ -50,6 +50,7 @@ class NavTransition:
         outcome: Optional[NavOutcomeLatch] = None,
         held: Optional[HeldApproach] = None,
         holding: Callable[[], bool] = lambda: False,
+        sortie_returning: Callable[[], bool] = lambda: False,
     ) -> None:
         self._entry = entry
         self._cleanup = cleanup
@@ -62,6 +63,8 @@ class NavTransition:
         self._held = held
         #: Recovery's hold (RecoveryHold.holding): a NAV exit in it ends the episode as held.
         self._holding = holding
+        #: A failed one-shot sortie returns to park (RecoveryHold.sortie_returning): not complete, not final.
+        self._sortie_returning = sortie_returning
         if held is not None:
             held.bind(self._end_held_episode, self.enter)
 
@@ -118,7 +121,8 @@ class NavTransition:
                 errors.extend(self._finish_sortie(failed=failed))
             outcome = NavExitOutcome(
                 redirect=NavState.DOCKED,
-                oneshot_completed=oneshot,
+                # A failed dock with a return dock to fly to is not the end of the sortie (step 10, item 3).
+                oneshot_completed=oneshot and not (failed and self._sortie_returning()),
             )
         elif self._is_oneshot() and completed:
             errors.extend(self._finish_sortie())

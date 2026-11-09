@@ -323,8 +323,9 @@ def test_any_other_recovery_keeps_todays_final_approach_behavior():
 # One-shot DOCKED is final
 
 
-def _decision(*, oneshot: bool):
-    phase = NavPhaseState(NavState.DOCKED, NavState.DOCKED)
+def _decision(*, oneshot: bool, completed: bool | None = None):
+    # A one-shot DOCKED is complete unless the failed sortie returns to the DDH (step 10, item 3).
+    phase = NavPhaseState(NavState.DOCKED, NavState.DOCKED, oneshot if completed is None else completed)
     inactive, recovery, flow = Mock(), Mock(), Mock()
     for owner in (inactive, recovery):
         owner.apply.return_value = False
@@ -451,7 +452,8 @@ def _flow(*, oneshot: bool):
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
-            request_rtl=lambda: events.append("rtl"),
+            return_to_hub=lambda: events.append("hub") is None,
+            end_return=lambda: events.append("end"),
         ),
         reset,
         Mock(),
@@ -503,7 +505,7 @@ def test_contact_dock_fences_cleans_once_then_commits_and_publishes_busy(oneshot
 
     flow.act()
 
-    disarm = ["disarm"] if oneshot else []
+    disarm = ["end", "disarm"] if oneshot else []   # a dock ends any return to the DDH (step 10, item 3)
     assert flow.events == [
         "contact off",
         ("offer", "flying a final approach"),  # still busy during cleanup
@@ -533,3 +535,13 @@ def test_cyclic_dock_climb_is_interruptible_and_the_slot_frees():
     flow.act()
     assert not flow.climb.active
     assert "auto" not in flow.events
+
+
+def test_item3_a_one_shot_failed_dock_returning_to_the_ddh_is_not_final():
+    """Step 10, item 3 (owner rulings 2026-11-09): not complete, so it leaves DOCKED as in cyclic mode."""
+    decision, (inactive, recovery, _) = _decision(oneshot=True, completed=False)
+
+    decision.decide()
+
+    inactive.apply.assert_called_once()
+    recovery.advance.assert_called_once_with()

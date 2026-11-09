@@ -11,13 +11,14 @@ The loop reports each period whether its cycle ran without an error. Then:
   normal flow approaches the kept dock again (the resume grant ``hold.resumed``, consumed once by the decision).
   The RTL budget is hold time summed across one incident's holds (nav_recovery_incident.py). Without ownership
   (the operator took the mode in the hold) the fence just reopens, no mode is changed and the approach is not
-  resumed: the operator's mode stands. With a failed sortie's RTL waiting (nav_sortie_return.py) there is no AUTO:
-  the fence reopens in the LOITER and the RTL is sent from NORMAL (Codex round 1 on step 10, finding 2).
+  resumed: the operator's mode stands. While a failed one-shot sortie returns to park (RecoveryHold.sortie_returning)
+  there is no AUTO: the fence reopens in the LOITER with the resume grant, and the mission module flies the return
+  again.
 - Critical (NAV_HOLD_RECOVERY_S in the hold, or LOITER/AUTO not confirmed in MODE_CONFIRM_S): RTL if owned. Not
   undone; the fence stays closed until NavPy is restarted (the operator's stop/start).
 - Escalated (a failure NavPy cannot recover in place, told by the main thread through NavEscalation, step 5):
-  close the fence and, if owned, hand the UAV to the mission's AUTO (a failed sortie's waiting RTL instead; an RTL
-  shown is never changed, finding 3); not confirmed gives RTL. Released once
+  close the fence and, if owned, hand the UAV to the mission's AUTO (RTL instead for a sortie returning to park:
+  NavPy sick, ArduPilot's RTL; an RTL shown is never changed); not confirmed gives RTL. Released once
   a fresh heartbeat shows the mode is no longer NavPy's (and no GUIDED request of NavPy's may still take effect) or
   shows RTL; only then may a supervised NavPy exit for a fresh start.
 Pilot, GCS and failsafe modes are never touched: every mode request needs ownership and a fresh heartbeat.
@@ -37,7 +38,6 @@ from navpy.core.flow.nav_ownership import ModeObservation, NavOwnership, Ownersh
 from navpy.core.flow.nav_recovery_incident import RecoveryIncident
 from navpy.core.flow.nav_recovery_clock import RecoveryClock, TimeSample
 from navpy.core.flow.nav_recovery_ports import HoldClaim, NavRecoveryPorts, RecoveryHold
-from navpy.core.flow.nav_sortie_return import return_after_failed_dock
 from navpy.core.ports.flight_mode import FlightMode
 
 #: Bad, then good, time that starts the hold and the resume: ArduPlane's FS_SHORT_TIMEOUT default.
@@ -112,11 +112,10 @@ class NavRecovery:
             self._enter_escalated()
         self._step_stage(observation, now, hung)
         normal = self.stage is RecoveryStage.NORMAL
-        self.hold.stepped(normal, observation)
+        self.hold.stepped(normal, observation, self.ownership.ended)
         self._ports.claim_hold(_hold_claim(normal, observation, self.ownership, self._mode, self._incident))
         if normal:
             self._incident.healthy(self._good_since, now)
-            return_after_failed_dock(self.hold, self._mode, self.ownership, observation, now, self._ports.logger)
 
     def _take_signals(self, observation: ModeObservation, now: float) -> None:
         """What the mode sender and the cycle told recovery since its last step, then the heartbeat."""
@@ -184,13 +183,14 @@ class NavRecovery:
             return
         if self._mode.pending is not None and self.ownership.may_request_mode():
             return   # the hold's LOITER must show, or its deadline gives RTL, before NavPy resumes
-        if self.ownership.may_request_mode() and observation.mode is FlightMode.LOITER and not self.hold.sortie_rtl:
+        if (self.ownership.may_request_mode() and observation.mode is FlightMode.LOITER
+                and not self.hold.sortie_returning):   # a sortie returning to park never resumes the mission
             self.stage = RecoveryStage.RESUMING
             self._mode.send(FlightMode.AUTO, observation, now)
             self._report("NavPy healthy again: AUTO")
-        elif self.ownership.state is not Ownership.UNKNOWN:
-            # The AUTO handed over in an unhealthy resume was NavPy's: the approach resumes now.
-            self._resume_normal("NavPy healthy again: commands reopened", self._handed_over_unhealthy)
+        elif self.ownership.state is not Ownership.UNKNOWN:   # resume after NavPy's AUTO, or fly the return again
+            self._resume_normal("NavPy healthy again: commands reopened",
+                                self._handed_over_unhealthy or self.hold.sortie_returning)
 
     def _resuming(self, observation: ModeObservation, now: float) -> None:
         if self.ownership.ended is not None:
@@ -215,8 +215,8 @@ class NavRecovery:
         guided_unresolved = (self.ownership.guided_pending and self._guided_at is not None
                              and now - self._guided_at < MODE_CONFIRM_S)
         if self.ownership.may_request_mode() and observation.mode is not FlightMode.RTL:
-            if self._mode.pending is None:   # a failed sortie's return, else the mission (step 10, Codex 1 #3)
-                self._mode.send(FlightMode.RTL if self.hold.sortie_rtl else FlightMode.AUTO, observation, now)
+            if self._mode.pending is None:   # ArduPilot's RTL for a sortie returning to park, else the mission
+                self._mode.send(FlightMode.RTL if self.hold.sortie_returning else FlightMode.AUTO, observation, now)
             elif self._mode.not_confirmed(observation, now):
                 self._enter_critical(observation, now, f"{self._mode.pending.name} not confirmed")
         elif ((self.ownership.state is Ownership.NOT_OWNED or observation.mode is FlightMode.RTL)

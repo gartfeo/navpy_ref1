@@ -14,7 +14,9 @@ from navpy.products.delivery.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
-from navpy.core.flow.nav_transition import NavTransition
+from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeTerminal, FinalApproachTerminal
+from navpy.core.flow.nav_transition import NavExitOutcome, NavTransition
+from navpy.core.ports.dock_contact import DockContactIdentity
 from navpy.core.flow.nav_state import NavigationTaskState, NavState
 
 
@@ -157,7 +159,8 @@ def test_real_autopilot_one_shot_never_disarms():
             is_simulated_autopilot=lambda: False,
             is_stopping=lambda: False,
             disarm=disarm,
-            request_rtl=Mock(),
+            return_to_hub=Mock(return_value=True),
+            end_return=Mock(),
         ),
         reset,
         logger,
@@ -178,28 +181,31 @@ def test_simulated_one_shot_disarms_before_reset():
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
-            request_rtl=lambda: events.append("rtl"),
+            return_to_hub=lambda: events.append("hub") is None,
+            end_return=lambda: events.append("end"),
         ),
         SimpleNamespace(clear=lambda: events.append("reset")),
         Mock(),
     )
 
     assert completion.run() == ()
-    assert events == ["disarm", "reset"]
+    assert events == ["end", "disarm", "reset"]
 
 
-# Step 10, item 3 (owner ruling 2026-11-09): a failed one-shot dock is never disarmed; it asks for RTL through
-# recovery's ownership, in simulation and on real hardware. A dock keeps the simulation disarm.
+# Step 10, item 3 (owner rulings 2026-11-09): a failed one-shot dock is never disarmed; NavPy flies to the DDH and
+# parks there on the operator's confirmation, in simulation and on real hardware. ArduPilot's RTL would take the UAV
+# from NavPy. A dock keeps the simulation disarm and ends any return.
 
 
-def _completion(simulated: bool):
+def _completion(simulated: bool, hub: bool = True):
     events = []
     completion = OneShotCompletion(
         OneShotCompletionPorts(
             is_simulated_autopilot=lambda: simulated,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
-            request_rtl=lambda: events.append("rtl"),
+            return_to_hub=lambda: events.append("hub") is None and hub,
+            end_return=lambda: events.append("end"),
         ),
         SimpleNamespace(clear=lambda: events.append("reset")),
         Mock(),
@@ -207,32 +213,56 @@ def _completion(simulated: bool):
     return completion, events
 
 
-def test_item3_a_failed_one_shot_dock_in_simulation_asks_for_rtl_and_never_disarms():
-    completion, events = _completion(simulated=True)
+@pytest.mark.parametrize("simulated", [True, False])
+def test_item3_a_failed_one_shot_dock_returns_to_the_ddh_and_never_disarms(simulated):
+    completion, events = _completion(simulated)
     assert completion.run(failed=True) == ()
-    assert events == ["rtl", "reset"]
+    assert events == ["hub", "reset"]
 
 
-def test_item3_a_failed_one_shot_dock_on_real_hardware_asks_for_rtl_too():
-    completion, events = _completion(simulated=False)
+def test_item3_without_a_ddh_a_failed_one_shot_dock_is_reported_and_held():
+    completion, events = _completion(simulated=True, hub=False)
     assert completion.run(failed=True) == ()
-    assert events == ["rtl", "reset"]
+    assert events == ["hub", "reset"]
+    assert "no DDH" in completion._logger.warning.call_args.args[0]
 
 
-def test_item3_a_dock_keeps_the_simulation_disarm_and_asks_for_no_rtl():
+def test_item3_a_dock_ends_the_return_and_keeps_the_simulation_disarm():
     completion, events = _completion(simulated=True)
     assert completion.run() == ()
-    assert events == ["disarm", "reset"]
+    assert events == ["end", "disarm", "reset"]
     completion, events = _completion(simulated=False)
     assert completion.run() == ()
-    assert events == ["reset"]
+    assert events == ["end", "reset"]
 
 
-def test_item3_a_failed_rtl_request_is_reported_and_the_task_still_clears():
+def test_item3_a_failed_return_start_is_reported_and_the_task_still_clears():
     reset = Mock()
     completion = OneShotCompletion(
-        OneShotCompletionPorts(lambda: True, lambda: False, Mock(), Mock(side_effect=RuntimeError("rtl"))),
+        OneShotCompletionPorts(lambda: True, lambda: False, Mock(), Mock(side_effect=RuntimeError("hub")), Mock()),
         reset, Mock(),
     )
-    assert [str(error) for error in completion.run(failed=True)] == ["rtl"]
+    assert [str(error) for error in completion.run(failed=True)] == ["hub"]
     reset.clear.assert_called_once_with()
+
+
+def _failed_terminal() -> FinalApproachEpisodeTerminal:
+    identity = DockContactIdentity(vehicle=2, task_id=11, dock_uid=0, episode=3)
+    return FinalApproachEpisodeTerminal(identity, FinalApproachTerminal.FAILED, "no_detection")
+
+
+@pytest.mark.parametrize("returning, completed", [(True, False), (False, True)])
+def test_item3_a_failed_one_shot_dock_with_a_ddh_is_not_the_end_of_the_sortie(returning, completed):
+    """NavTransition's outcome: a failed dock returning to the DDH is not complete, so DOCKED is not final."""
+    task = NavigationTaskState(final_approach_navigation_active=True)
+    cleanup = Mock()
+    cleanup.run.return_value = NavCleanupResult(
+        snap=None, errors=(), own_dock_contact=None, dock_terminal=_failed_terminal(),
+    )
+    finish = Mock(return_value=())
+    transition = NavTransition(
+        Mock(), cleanup, Mock(), finish, task, lambda: True, logger=Mock(), sortie_returning=lambda: returning,
+    )
+    outcome = transition.exit(NavState.RESET)
+    finish.assert_called_once_with(failed=True)
+    assert outcome == NavExitOutcome(redirect=NavState.DOCKED, oneshot_completed=completed)

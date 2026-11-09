@@ -1,5 +1,8 @@
-"""Simulation-safe one-shot completion: a dock disarms in simulation only; a failed dock never disarms and asks
-for RTL instead, in simulation and on real hardware (owner ruling 2026-11-09, navpy_recovery.md step 10, item 3)."""
+"""Simulation-safe one-shot completion: a dock disarms in simulation only; a failed dock never disarms and NavPy
+flies to the DDH instead, circles it and parks there on the operator's confirmation, in simulation and on real
+hardware (owner rulings 2026-11-09, navpy_recovery.md step 10, item 3). ArduPilot's RTL would take the UAV away from
+NavPy, which then could not park it; RTL stays for a NavPy that is sick or dead (recovery's escalation, the
+autopilot's watchdog)."""
 
 from __future__ import annotations
 
@@ -15,8 +18,10 @@ class OneShotCompletionPorts:
     is_simulated_autopilot: Callable[[], bool]
     is_stopping: Callable[[], bool]
     disarm: Callable[[], None]
-    #: RecoveryHold.request_sortie_rtl: RTL through recovery's ownership (nav_sortie_return.py).
-    request_rtl: Callable[[], None]
+    #: Start the return to the DDH (RecoveryHold.start_sortie_return); False when the mission has no DDH.
+    return_to_hub: Callable[[], bool]
+    #: The sortie parked (RecoveryHold.end_sortie_return): a return to the DDH, if any, is over.
+    end_return: Callable[[], None]
 
 
 class OneShotCompletion:
@@ -47,12 +52,21 @@ class OneShotCompletion:
 
     def _return(self, errors: list[Exception]) -> None:
         try:
-            self._ports.request_rtl()
-            self._logger.info("One-shot dock failed: no disarm, RTL requested through recovery", key="nav")
+            if self._ports.return_to_hub():
+                self._logger.info("One-shot dock failed: no disarm, returning to the DDH to park", key="nav")
+            else:
+                self._logger.warning(
+                    "One-shot dock failed: no disarm and no DDH in the mission; NavPy holds, the operator decides",
+                    key="nav",
+                )
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
 
     def _complete_dock(self, errors: list[Exception]) -> None:
+        try:
+            self._ports.end_return()
+        except Exception as error:  # noqa: BLE001 - teardown transaction
+            errors.append(error)
         simulated: bool | None = None
         try:
             simulated = self._ports.is_simulated_autopilot()

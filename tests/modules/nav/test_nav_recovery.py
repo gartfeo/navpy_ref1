@@ -582,6 +582,7 @@ def test_search_is_not_restarted_in_the_hold(holding, restarted):
     vehicle = Mock()
     state = Mock()
     state.recovery_hold.holding = holding
+    state.recovery_hold.sortie_returning = False
     _return_to_search(vehicle, state)
     assert vehicle.restart_mission.called is restarted
 
@@ -628,56 +629,6 @@ def test_recovery_reports_reach_the_operator_as_status_texts():
     assert rig.stage is RecoveryStage.HOLD
     assert logger.warnings and all(w["status"] == w["msg"] for w in logger.warnings)
     assert logger.journal.records == [("nav", w["msg"]) for w in logger.warnings]
-
-
-# Step 10, item 3 (owner ruling 2026-11-09): after a failed one-shot dock recovery asks for RTL, only while NavPy owns
-# the mode (nav_sortie_return.py).
-
-
-def test_item3_a_failed_dock_gives_rtl_through_ownership_and_it_is_kept():
-    rig = Rig(FakeAutopilot())
-    rig.hold.request_sortie_rtl()
-    rig.run(True, 2.0)
-    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
-    assert not rig.hold.sortie_rtl and rig.stage is RecoveryStage.NORMAL
-    rig.run(False, NAV_HOLD_TRIGGER_S + 1.0)                   # a later NavPy hold never undoes the RTL
-    assert rig.stage is RecoveryStage.HOLD
-    assert rig.ap.requests == [FlightMode.RTL] and rig.ap.mode is FlightMode.RTL
-
-
-def test_item3_the_rtl_is_repeated_until_a_heartbeat_shows_it():
-    ap = FakeAutopilot(takes=False)
-    rig = Rig(ap)
-    rig.hold.request_sortie_rtl()
-    rig.run(True, 3.5)
-    assert len(ap.requests) >= 3 and set(ap.requests) == {FlightMode.RTL}   # every MODE_RETRY_S, never given up
-    assert rig.hold.sortie_rtl
-    ap.takes = True
-    rig.run(True, 3.0)
-    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
-
-
-def test_item3_an_operators_mode_stands_no_rtl():
-    ap = FakeAutopilot()
-    rig = Rig(ap)
-    ap.mode = FlightMode.FBWA                                  # the operator took the mode
-    rig.run(True, 2.0)
-    rig.hold.request_sortie_rtl()
-    rig.run(True, 2.0)
-    assert FlightMode.RTL not in ap.requests and ap.mode is FlightMode.FBWA
-    assert not rig.hold.sortie_rtl
-
-
-def test_item3_a_stale_link_waits_for_a_fresh_heartbeat():
-    ap = FakeAutopilot()
-    rig = Rig(ap)
-    ap.fresh = False
-    rig.hold.request_sortie_rtl()
-    rig.run(True, 2.0)
-    assert ap.requests == [] and rig.hold.sortie_rtl
-    ap.fresh = True
-    rig.run(True, 2.0)
-    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL
 
 
 # Step 10, item 9 (owner ruling 2026-11-09, "Yes, guard it"; Codex round 2): from the hold's LOITER request on, and
@@ -749,45 +700,63 @@ def test_item9_a_stale_link_keeps_the_claim():
     assert rig.recovery.ownership.state is Ownership.UNKNOWN and rig.claims[-1] is not None
 
 
-# Codex round 1 on step 10: a failed sortie's RTL survives a hold (finding 2) and a component escalation (finding 3).
+# Step 10, item 3 (owner rulings 2026-11-09): a failed one-shot sortie returns to the DDH, a latch in the task state
+# (RecoveryHold.sortie_returning), not a mode request. A hold never resumes it into the mission's AUTO; an escalation
+# (NavPy sick) hands over to ArduPilot's RTL; a mode NavPy did not ask for, or a disarm, ends it.
 
 
-def test_codex1_2_a_hold_before_the_sortie_rtl_was_sent_still_ends_in_rtl_not_the_mission():
-    """The failed dock queues RTL, then a hang holds (LOITER) before recovery sends it. Healthy again, the hold must
-    not hand the UAV back to the mission's AUTO (which ended ownership and dropped the RTL as not NavPy's)."""
+def test_item3_a_hold_while_returning_never_resumes_the_mission_and_rearms_the_return_once():
     ap = FakeAutopilot()
     rig = Rig(ap)
-    rig.hold.request_sortie_rtl()
-    rig.recovery._ports.watchdog.set_hung(True)              # the step that would send it holds first
-    rig.run(False, PERIOD_S)
-    assert rig.stage is RecoveryStage.HOLD and ap.requests == [FlightMode.LOITER]
-    rig.recovery._ports.watchdog.set_hung(False)
-    rig.run(False, 1.0)
-    assert ap.mode is FlightMode.LOITER
-    rig.run(True, NAV_HOLD_TRIGGER_S + 3.0)
-    assert FlightMode.AUTO not in ap.requests
-    assert ap.requests[-1] is FlightMode.RTL and ap.mode is FlightMode.RTL
-    assert rig.stage is RecoveryStage.NORMAL and not rig.hold.sortie_rtl
+    rig.hold.start_sortie_return()
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    assert rig.stage is RecoveryStage.HOLD and ap.mode is FlightMode.LOITER
+    rig.run(True, NAV_HOLD_TRIGGER_S + 1.0)
+    assert FlightMode.AUTO not in ap.requests and ap.mode is FlightMode.LOITER
+    assert rig.stage is RecoveryStage.NORMAL and rig.hold.sortie_returning
+    assert rig.hold.take_return_rearm() and not rig.hold.take_return_rearm()
 
 
-def test_codex1_3_an_escalation_after_the_sortie_rtl_showed_keeps_it_and_releases():
+def test_item3_without_a_return_the_hold_still_resumes_in_auto_and_rearms_nothing():
     ap = FakeAutopilot()
     rig = Rig(ap)
-    rig.hold.request_sortie_rtl()
-    rig.run(True, 2.0)
-    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
+    rig.run(False, NAV_HOLD_TRIGGER_S + 1.1)
+    rig.run(True, NAV_HOLD_TRIGGER_S + 2.2)
+    assert ap.requests == [FlightMode.LOITER, FlightMode.AUTO] and not rig.hold.take_return_rearm()
+
+
+def test_item3_an_escalation_while_returning_hands_over_to_rtl_and_releases():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.start_sortie_return()
     rig.escalation.request()
     rig.run(True, 3.0)
-    assert rig.stage is RecoveryStage.ESCALATED
-    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL   # no AUTO over the return
+    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL
     assert rig.escalation.released
 
 
-def test_codex1_3_an_escalation_with_the_sortie_rtl_still_pending_hands_over_to_rtl():
+def test_item3_an_escalation_never_sends_auto_over_an_rtl_shown():
     ap = FakeAutopilot()
     rig = Rig(ap)
-    rig.hold.request_sortie_rtl()
-    rig.escalation.request()                                 # in the same step, before recovery sends the RTL
+    ap.mode = FlightMode.RTL                                   # the autopilot's watchdog, or the operator
+    rig.run(True, 1.0)
+    rig.escalation.request()
     rig.run(True, 3.0)
-    assert FlightMode.AUTO not in ap.requests and ap.mode is FlightMode.RTL
-    assert rig.escalation.released
+    assert FlightMode.AUTO not in ap.requests and ap.mode is FlightMode.RTL and rig.escalation.released
+
+
+@pytest.mark.parametrize("change", ["mode", "disarm"])
+def test_item3_a_mode_navpy_did_not_ask_for_or_a_disarm_ends_the_return(change):
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.start_sortie_return()
+    rig.run(True, 1.0)
+    assert rig.hold.sortie_returning
+    if change == "mode":
+        ap.mode = FlightMode.RTL                               # NavPy never undoes it
+    else:
+        ap.armed = False
+    rig.run(True, 1.0)
+    assert not rig.hold.sortie_returning and not rig.hold.take_return_rearm()
+
+

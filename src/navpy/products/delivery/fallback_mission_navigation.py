@@ -53,6 +53,13 @@ class FallbackMissionNavigation:
             return False
         return self._ports.next_waypoint() >= self._ports.mission_item_count() - 1
 
+    def can_return(self) -> bool:
+        """A failed one-shot sortie's return (step 10, item 3): the DDH, not yet flown to, wherever the mission is."""
+        return (
+            self._catalog.default_delivery_hub is not None
+            and not self._catalog.default_delivery_hub_active
+        )
+
     def setup(self) -> None:
         poi = self._catalog.default_delivery_hub
         self._catalog.mark_fallback_active()

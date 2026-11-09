@@ -8,7 +8,7 @@ from contextlib import AbstractContextManager, nullcontext
 from dataclasses import dataclass, field
 
 from navpy.core.flow.nav_mode_sender import ModeSender
-from navpy.core.flow.nav_ownership import ModeObservation
+from navpy.core.flow.nav_ownership import ModeObservation, OwnershipEnd
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.progress_beacon import ProgressBeacon
@@ -124,8 +124,9 @@ class RecoveryHold:
         self._resumed = False
         # NavPy's last GUIDED event since the last step: asked (the heartbeat read just before sending), or withdrawn
         self._guided: ModeObservation | bool | None = None
-        # A failed one-shot dock's RTL, until a heartbeat shows it or a mode not NavPy's stands (nav_sortie_return.py)
-        self._sortie_rtl = False
+        # A failed one-shot dock's return to park, until NavPy parks, a disarm or a mode NavPy does not fly
+        self._sortie_returning = False
+        self._return_rearmed = False      # a hold reopened in NavPy's LOITER: fly the return again, once
 
     def guided_requested(self) -> None:
         """NavPy is about to send GUIDED: the heartbeat count and mode are read now, at the request boundary, so
@@ -145,10 +146,13 @@ class RecoveryHold:
         with self._guided_lock:
             return self._resumed
 
-    def stepped(self, normal: bool, observation: ModeObservation) -> None:
+    def stepped(self, normal: bool, observation: ModeObservation, ended: OwnershipEnd | None = None) -> None:
         """After each recovery step. Not NORMAL: the fence is closed by recovery, so the approach must not end for
         the hold's LOITER, nor search restart (``holding``). The resume grant is void in a new hold, or when a fresh
-        heartbeat shows the operator's mode (no fresh approach over it)."""
+        heartbeat shows the operator's mode (no fresh approach over it). ``ended``: NavPy's ownership was revoked (a
+        mode NavPy did not ask for, or a disarm), which ends a sortie's return to park: NavPy never undoes it."""
+        if ended in (OwnershipEnd.REVOKED_MODE, OwnershipEnd.REVOKED_DISARM):
+            self.end_sortie_return()
         self.holding = not normal
         if not normal or (observation.fresh and observation.mode not in (FlightMode.AUTO, FlightMode.GUIDED)):
             self.void_resume()
@@ -156,6 +160,13 @@ class RecoveryHold:
     def grant_resume(self) -> None:
         with self._guided_lock:
             self._resumed = True
+            self._return_rearmed = self._sortie_returning
+
+    def take_return_rearm(self) -> bool:
+        """Once after a hold that reopened in NavPy's LOITER while returning to park: the transit is flown again."""
+        with self._guided_lock:
+            rearmed, self._return_rearmed = self._return_rearmed, False
+            return rearmed
 
     def void_resume(self) -> None:
         with self._guided_lock:
@@ -167,19 +178,24 @@ class RecoveryHold:
             resumed, self._resumed = self._resumed, False
             return resumed
 
-    def request_sortie_rtl(self) -> None:
-        """The one-shot sortie ended in a failed dock: RTL, through recovery's ownership (step 10, item 3)."""
+    def start_sortie_return(self) -> None:
+        """The one-shot sortie ended in a failed dock: NavPy flies to the mission's return dock and parks there on
+        the operator's confirmation (owner ruling 2026-11-09, navpy_recovery.md step 10, item 3). A latch in the task
+        state, not a mode request: a hold or an escalation cannot drop it. While it is set a hold never resumes into
+        the mission's AUTO and an escalation hands over to RTL, not AUTO (nav_recovery.py)."""
         with self._guided_lock:
-            self._sortie_rtl = True
+            self._sortie_returning = True
 
     @property
-    def sortie_rtl(self) -> bool:
+    def sortie_returning(self) -> bool:
         with self._guided_lock:
-            return self._sortie_rtl
+            return self._sortie_returning
 
-    def end_sortie_rtl(self) -> None:
+    def end_sortie_return(self) -> None:
+        """Parked, disarmed, or a mode NavPy does not fly (the operator's, a failsafe's)."""
         with self._guided_lock:
-            self._sortie_rtl = False
+            self._sortie_returning = False
+            self._return_rearmed = False
 
     def take_guided_request(self) -> ModeObservation | bool | None:
         with self._guided_lock:

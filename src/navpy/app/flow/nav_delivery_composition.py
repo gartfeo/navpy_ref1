@@ -9,6 +9,7 @@ from navpy.app.flow.nav_composition_types import (
     NavStateOwnership,
     PoiMissionOwnership,
 )
+from navpy.core.flow.nav_recovery_ports import RecoveryHold
 from navpy.core.flow.navigation_decision import NavStateDecision
 from navpy.core.flow.navigation_task_reset import NavigationTaskResetTransaction
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -22,12 +23,13 @@ from navpy.products.delivery.fallback_mission_navigation import (
 )
 from navpy.products.delivery.flow import DeliveryFlow
 from navpy.products.delivery.home_dock import HomeDockRules
+from navpy.products.delivery.mission_catalog import MissionCatalog
 from navpy.products.delivery.nav_oneshot_completion import (
     OneShotCompletion,
     OneShotCompletionPorts,
 )
 from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
-from navpy.products.delivery.work_source import DeliveryWorkSource
+from navpy.products.delivery.work_source import DeliveryWorkSource, HubReturnPorts
 
 
 def compose_delivery_flow(
@@ -51,28 +53,40 @@ def compose_sortie_finish(
     reset: NavigationTaskResetTransaction,
     logger: ILogger,
     is_stopping: Callable[[], bool],
-    request_rtl: Callable[[], None],
+    hold: RecoveryHold,
+    catalog: MissionCatalog,
 ) -> OneShotCompletion:
     return OneShotCompletion(
         OneShotCompletionPorts(
             is_simulated_autopilot=vehicle.is_simulated_autopilot,
             disarm=vehicle.disarm,
             is_stopping=is_stopping,
-            request_rtl=request_rtl,
+            return_to_hub=lambda: _start_hub_return(hold, catalog),
+            end_return=hold.end_sortie_return,
         ),
         reset,
         logger,
     )
 
 
+def _start_hub_return(hold: RecoveryHold, catalog: MissionCatalog) -> bool:
+    """A failed one-shot dock flies to the mission's DDH; without one there is nowhere to park."""
+    if catalog.default_delivery_hub is None:
+        return False
+    hold.start_sortie_return()
+    return True
+
+
 def compose_home_dock_rules(
     focus: TaskFocus,
     poi: PoiMissionOwnership,
+    hold: RecoveryHold,
 ) -> HomeDockRules:
     return HomeDockRules(
         focus,
         lambda: poi.mission.default_delivery_hub,
         lambda: poi.mission.default_delivery_hub_active,
+        lambda: hold.sortie_returning,
     )
 
 
@@ -82,13 +96,20 @@ def compose_work_source(
     peer_navigation: PeerNavigationCoordinator,
     fallback_navigation: FallbackMissionNavigation,
     tasks: NavigationTaskAction,
+    home_dock: HomeDockRules,
 ) -> DeliveryWorkSource:
+    hold = state.recovery_hold
     return DeliveryWorkSource(
         state.navigation_task,
         peer_task,
         peer_navigation,
         fallback_navigation,
         tasks,
+        HubReturnPorts(
+            returning=lambda: hold.sortie_returning,
+            is_home_dock=home_dock.is_home_dock,
+            rearmed=hold.take_return_rearm,
+        ),
     )
 
 
