@@ -258,7 +258,9 @@ class SwarmPresenceHeartbeatRestartTest(unittest.TestCase):
                 raise OSError("radio down")
 
         sender.send_heartbeat.side_effect = send_once_failing
-        logger = Mock(spec=ILogger)
+        from tests.logger.recording_logger import RecordingLogger
+
+        logger = RecordingLogger()
         presence = _presence(sender, logger=logger)
         self.assertIsInstance(presence._heartbeat._budget._clock, AircraftTimeClock)
         with patch("navpy.core.swarm.swarm_heartbeat_runtime.HEARTBEAT_INTERVAL_S", 0.0):
@@ -269,9 +271,10 @@ class SwarmPresenceHeartbeatRestartTest(unittest.TestCase):
                 presence.raise_if_failed()
             finally:
                 presence.stop()
-        statuses = [c.kwargs.get("status") for c in logger.warning.call_args_list]
+        statuses = logger.statuses
         self.assertTrue(any(isinstance(status, str) and "Swarm heartbeat restarted" in status
                             for status in statuses), statuses)
+        self.assertEqual(logger.journal.records, [("swarm", status) for status in statuses])   # step 8
 
 
 if __name__ == "__main__":

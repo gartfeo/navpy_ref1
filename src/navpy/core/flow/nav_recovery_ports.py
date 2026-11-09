@@ -101,9 +101,12 @@ class RecoveryHold:
         self._observe_mode = observe_mode
         self._guided_lock = rt.Lock()   # the cycle tells, recovery's step takes: on the watchdog thread too
         self.holding = False
-        #: Set when the hold ended in NavPy's own AUTO; kept until the decision takes it (``take_resumed``), so a
-        #: cycle that fails before deciding does not lose it. Cleared by a new hold.
-        self.resumed = False
+        # The resume grant: recovery's authorization for one fresh approach to the kept dock, issued when the hold
+        # ended in NavPy's own AUTO. The decision consumes it once that approach's NAV entry succeeded, so an entry
+        # that raises is retried under the same grant; recovery voids it in any new hold or when a fresh heartbeat
+        # shows a mode other than AUTO or GUIDED (the operator's). Recovery's step and the decision may run on
+        # different threads (the watchdog's), so under the lock.
+        self._resumed = False
         # NavPy's last GUIDED event since the last step: asked (the heartbeat read just before sending), or withdrawn
         self._guided: ModeObservation | bool | None = None
 
@@ -120,9 +123,32 @@ class RecoveryHold:
         with self._guided_lock:
             self._guided = False
 
-    def take_resumed(self) -> bool:
-        resumed, self.resumed = self.resumed, False
-        return resumed
+    @property
+    def resumed(self) -> bool:
+        with self._guided_lock:
+            return self._resumed
+
+    def stepped(self, normal: bool, observation: ModeObservation) -> None:
+        """After each recovery step. Not NORMAL: the fence is closed by recovery, so the approach must not end for
+        the hold's LOITER, nor search restart (``holding``). The resume grant is void in a new hold, or when a fresh
+        heartbeat shows the operator's mode (no fresh approach over it)."""
+        self.holding = not normal
+        if not normal or (observation.fresh and observation.mode not in (FlightMode.AUTO, FlightMode.GUIDED)):
+            self.void_resume()
+
+    def grant_resume(self) -> None:
+        with self._guided_lock:
+            self._resumed = True
+
+    def void_resume(self) -> None:
+        with self._guided_lock:
+            self._resumed = False
+
+    def consume_resume(self) -> bool:
+        """The decision used the grant (its fresh entry succeeded): True if it was still granted."""
+        with self._guided_lock:
+            resumed, self._resumed = self._resumed, False
+            return resumed
 
     def take_guided_request(self) -> ModeObservation | bool | None:
         with self._guided_lock:

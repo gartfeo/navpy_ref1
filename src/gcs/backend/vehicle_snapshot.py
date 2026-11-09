@@ -84,6 +84,10 @@ def snapshot(entry: VehicleEntry) -> dict:
         "swarm": entry._swarm_state.snapshot(),
         "video_streams": entry._video_streams.snapshot(),
         "cameras": entry._video_streams.cameras(),
+        # Latest value and arrival time of each named value (Messages window).
+        "named_values": entry.message_log.named_values(),
+        # The Messages log's generation: a backlog of another epoch is stale.
+        "message_epoch": entry.message_log.epoch,
     }
     rc_channels = entry._rc_channels_snapshot()
     if rc_channels is not None:

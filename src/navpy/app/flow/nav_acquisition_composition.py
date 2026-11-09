@@ -27,6 +27,7 @@ from navpy.core.skills.geo_approach.self_detected_approach import (
     SelfDetectedApproach,
     SelfDetectedApproachPorts,
 )
+from navpy.app.flow.nav_decision_composition import request_guided_owned
 from navpy.app.flow.nav_composition_types import (
     DetectionReviewOwnership,
     NavCapabilities,
@@ -119,7 +120,7 @@ def _self_detected_approach(
             ),
             absolute_location=approach.commands.absolute_location,
             save_loiter_radius=lambda: approach.commands.save_loiter_radius(),
-            request_guided=lambda: approach.commands.request_guided(),
+            request_guided=lambda: request_guided_owned(state, approach),
             loiter_poi=navigation.vehicle_commands.peer_poi_loiter,
             needs_own_orbit=needs_own_orbit,
             board_centre=lambda poi: board_orbit_centre(

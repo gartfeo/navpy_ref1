@@ -7,6 +7,7 @@ from navpy.core.kernel.config.logger_args import LoggerArgs
 from navpy.core.kernel.logging.cache_logger import CacheLogger, IStatusLogger
 from navpy.core.kernel.logging.log_output_latch import LatchingRotatingFileHandler, OutputLatch
 from navpy.core.kernel.logging.log_rotation import rotation_max_bytes
+from navpy.core.kernel.logging.recovery_journal import RecoveryJournal, recovery_journal_path
 
 
 LOG_DIR_ENV = "NAVPY_LOG_DIR"
@@ -77,5 +78,8 @@ def initialize_logger(args: LoggerArgs, sys_id, status_logger: IStatusLogger = N
 
     cache_logger = CacheLogger(args, logger, status_logger, output_latch=output_latch)
     cache_logger.log_path = log_path
+    cache_logger.recovery_journal = RecoveryJournal(
+        recovery_journal_path(log_path, sys_id), lambda line: cache_logger.error(line),
+    )
 
     return cache_logger
