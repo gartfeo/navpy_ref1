@@ -40,7 +40,12 @@ class HeightFloor:
     before_recovery (a HITL approach: navpy_handoff.NavpyHandoff.before_rtl) runs first after a breach and its record
     is kept in record["navpy_handoff"]: navpy is stopped and its router endpoint closed before the RTL. When it has
     sent the RTL itself on the board's own port (its "rtl" is "direct": the router is gone), recover_above is not run;
-    nor when it raised, as navpy's endpoint is then not known closed (NavpyHandoff records its errors instead)."""
+    nor when it raised, as navpy's endpoint is then not known closed (NavpyHandoff records its errors instead).
+
+    release(reason) (a HITL approach, step 23b: navpy's confirm record, the operator's confirm releasing NAV; docks
+    stand on the ground, option A) ends the guard for the rest of the block: the floor guards the lane, the search
+    and the orbit, and a miss after the confirm ends on the ground and is scored as a miss. record["height"] then also
+    holds the release reason. Stage 1 only: flight (stage 5) needs its own answer."""
 
     def __init__(self, vehicle: Vehicle, floor_m: float, record: dict,
                  before_recovery: Optional[Callable[[], dict]] = None) -> None:
@@ -51,6 +56,7 @@ class HeightFloor:
         self.floor_m = floor_m
         self.lowest_m: float | None = None
         self.breach: str | None = None
+        self.released: str | None = None
 
     def __enter__(self) -> HeightFloor:
         self._conn = self._vehicle.mav
@@ -61,7 +67,8 @@ class HeightFloor:
                  trace: TracebackType | None) -> None:
         if self._check in self._conn.message_hooks:
             self._conn.message_hooks.remove(self._check)
-        self._record["height"] = {"floor_m": self.floor_m, "lowest_m": self.lowest_m, "breach": self.breach}
+        self._record["height"] = {"floor_m": self.floor_m, "lowest_m": self.lowest_m, "breach": self.breach,
+                                  "released": self.released}
         if self.breach is not None:
             if self._before_recovery is not None:
                 try:
@@ -78,8 +85,13 @@ class HeightFloor:
             except Exception as exc:     # noqa: BLE001 - the breach stays the run's failure; the record keeps this
                 self._record["recovery"] = {"mode": RECOVERY_MODE, "error": f"{type(exc).__name__}: {exc}"}
 
+    def release(self, reason: str) -> None:
+        """End the guard for the rest of the block (the first reason is kept); a breach before it still stands."""
+        if self.released is None and self.breach is None:
+            self.released = reason
+
     def _check(self, conn: object, msg: object) -> None:
-        if self.breach is not None or msg.get_type() != "GLOBAL_POSITION_INT":
+        if self.breach is not None or self.released is not None or msg.get_type() != "GLOBAL_POSITION_INT":
             return
         height = msg.relative_alt / 1000.0
         self.lowest_m = height if self.lowest_m is None else min(self.lowest_m, height)

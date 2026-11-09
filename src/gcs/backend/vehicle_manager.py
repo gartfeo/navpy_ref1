@@ -24,6 +24,7 @@ from gcs.backend.vehicle_entry import VehicleEntry
 from gcs.backend.camera_preflight import CameraPreflight
 from gcs.backend import companion_liveness, vehicle_connections, vehicle_mission_probe
 from gcs.backend.ekf_status_gate import request_ekf_status_stream
+from gcs.backend.vehicle_link import VEHICLE_LINK_TIMEOUT_S
 from gcs.backend.vehicle_status import (
     GIMBAL_TELEMETRY_STALE_S, CAMERA_OPTICS_STALE_S,
     COMPANION_OK_WINDOW_S, COMPANION_DOWN_WINDOW_S, RC_CHANNELS_MAX,
@@ -146,7 +147,7 @@ class VehicleManager:
                         skip_mission_download=True,
                         wait_heartbeat=False,
                         send_heartbeat=True,
-                        heartbeat_timeout=5.0,
+                        heartbeat_timeout=VEHICLE_LINK_TIMEOUT_S,
                         mav_type=MAV_TYPE_GCS,
                         mav_comp_id=MAV_COMP_ID_MISSIONPLANNER,
                         bus=bus,

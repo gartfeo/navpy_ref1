@@ -20,8 +20,10 @@ from navpy.plugins.detection.charuco.board_pose import CharucoBoardPoseSolver
 from navpy.plugins.detection.charuco.charuco_detector import CharucoBoardDetector
 from navpy.core.kernel.config.detector_backend import (
     CHARUCO_BACKEND,
+    RFDETR_BACKEND,
     YOLO_BACKEND,
 )
+from navpy.plugins.detection.rfdetr.rfdetr_detector import RfDetrDetector
 from navpy.core.perception.pipeline.real_detector_config import (
     DetectorModelConfig,
     RealDetectorConfig,
@@ -29,6 +31,7 @@ from navpy.core.perception.pipeline.real_detector_config import (
 from navpy.core.ports.detection import FrameDetector
 from navpy.core.perception.pipeline.real_detector_ports import ModelResourceCloser
 from navpy.core.perception.pipeline.real_detector_runtime_state import RuntimeMetrics
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
@@ -60,12 +63,26 @@ def _build_charuco(
     )
 
 
+def _build_rfdetr(model: DetectorModelConfig, logger: ILogger) -> FrameDetector:
+    from navpy.plugins.detection.rfdetr.rfdetr_runtime import TorchRfDetrRuntime
+
+    settings = model.rfdetr
+    assert settings is not None  # DetectorModelConfig pairs the backend with its settings
+    runtime = TorchRfDetrRuntime(model.model_path, settings.variant, model.device)
+    try:
+        return RfDetrDetector(runtime, settings, model.conf, logger=logger)
+    except Exception:
+        runtime.close()
+        raise
+
+
 _FRAME_DETECTOR_BUILDERS: dict[
     str,
     Callable[[DetectorModelConfig, ILogger], FrameDetector],
 ] = {
     CHARUCO_BACKEND: _build_charuco,
     YOLO_BACKEND: _build_yolo,
+    RFDETR_BACKEND: _build_rfdetr,
 }
 
 # Deep search reruns a (higher-resolution) YOLO model; a fiducial board
@@ -147,6 +164,10 @@ def build_models(
                 CharucoBoardPoseSolver(model.charuco_board)
                 if model.backend == CHARUCO_BACKEND
                 else None
+            ),
+            acquisition=(
+                None if config.acquisition is None
+                else DockAcquisitionGate(config.acquisition, logger.info)
             ),
         )
     except Exception as creation_error:

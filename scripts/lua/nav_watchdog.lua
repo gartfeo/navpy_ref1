@@ -9,22 +9,41 @@
       HOLD  --a NavPy heartbeat received after the hold began, mode still its LOITER--> AUTO, WATCH
       HOLD  --AAS_NWD_RTL s without one--> RTL (not undone; the operator decides)
 
+    NavPy's own recovery LOITER is guarded too (step 10, item 9, owner ruling 2026-11-09; Codex round 2): from its
+    LOITER request on, NavPy's heartbeat claims the hold (custom_mode: bit 0 HOLD_CLAIM, bits 1-7 the request's
+    token, bits 8-23 the incident's hold budget left in tenths of a second; companion_hold_claim.py). A claim is
+    taken only at a switch into an armed LOITER, received within CLAIM_WINDOW_MS of it, and each token once:
+
+      WATCH --switch into LOITER with a claim--> GUARD (no mode write: the mode is LOITER already)
+      GUARD --claim's receipt + min(budget, AAS_NWD_RTL) s, whatever the heartbeat does--> RTL
+      GUARD --any mode change or a disarm--> WATCH (the token stays spent)
+
+    The deadline is this script's: NavPy dead, restarted (not knowing it held) or alive, its hold ends by NavPy
+    changing the mode (AUTO, RTL) or by RTL here, at the summed-hold bound NavPy itself keeps. A pilot's LOITER is
+    never taken: NavPy claims only a LOITER it requested or owns, a claim received later than the window around a
+    switch is ignored, and one already taken never counts again, so a pilot who leaves NavPy's LOITER and comes
+    back to LOITER while NavPy still claims it is not guarded.
+
     Times are the autopilot's own clock (aircraft time); heartbeats are timed when the autopilot received them,
     not when this script got to them. NavPy spaces its heartbeat evenly in aircraft time at any sim speed-up
     (heartbeat_pacing.py), so a fixed timeout holds there too.
 
-    It does nothing in any other mode or disarmed, and stands down when the mode leaves its LOITER or RTL, so
-    pilot and failsafe modes win. Each mode write is guarded by a mode read just before it: bindings lock one call
-    at a time, so this is as close as a script gets. The loop runs under pcall, and its state is sent once a
-    second as NAMED_VALUE_FLOAT "NAVWD" (STATE_* below), so NavPy and the GCS can tell when it is not running.
+    It does nothing in any other mode (but NavPy's claimed LOITER) or disarmed, and stands down when the mode
+    leaves its LOITER or RTL, so pilot and failsafe modes win. Each mode write is guarded by a mode read just
+    before it: bindings lock one call at a time, so this is as close as a script gets. The loop runs under pcall,
+    and its state is sent once a second as NAMED_VALUE_FLOAT "NAVWD" (STATE_* below), so NavPy and the GCS can
+    tell when it is not running.
 --]]
 
-local PARAM_TABLE_KEY = 88   -- the AAS_ table (aas_params.lua); this script owns indices 20-23
-assert(param:add_table(PARAM_TABLE_KEY, "AAS_", 30), "nav_watchdog: failed to add AAS_ parameter table (key 88)")
-assert(param:add_param(PARAM_TABLE_KEY, 20, "NWD_ENABLE", 1), "nav_watchdog: add_param NWD_ENABLE")
-assert(param:add_param(PARAM_TABLE_KEY, 21, "NWD_TMO", 1.5), "nav_watchdog: add_param NWD_TMO")   -- s, NAV_HOLD_TRIGGER_S
-assert(param:add_param(PARAM_TABLE_KEY, 22, "NWD_RTL", 30), "nav_watchdog: add_param NWD_RTL")    -- s, NAV_HOLD_RECOVERY_S
-assert(param:add_param(PARAM_TABLE_KEY, 23, "NWD_COMP", 191), "nav_watchdog: add_param NWD_COMP") -- MAV_COMP_ID_ONBOARD_COMPUTER
+-- A table of its own, as every script here: ArduPilot's add_table on a key another script already added re-blanks
+-- every entry of that table (AP_Param.cpp, "fill in footer for all entries"), so sharing aas_params.lua's key 88
+-- wiped one script's params. The prefix keeps the names AAS_NWD_*; AP_Param::find looks on past the AAS_ table.
+local PARAM_TABLE_KEY = 89
+assert(param:add_table(PARAM_TABLE_KEY, "AAS_NWD_", 8), "nav_watchdog: failed to add AAS_NWD_ parameter table (key 89)")
+assert(param:add_param(PARAM_TABLE_KEY, 1, "ENABLE", 1), "nav_watchdog: add_param ENABLE")
+assert(param:add_param(PARAM_TABLE_KEY, 2, "TMO", 1.5), "nav_watchdog: add_param TMO")    -- s, NAV_HOLD_TRIGGER_S
+assert(param:add_param(PARAM_TABLE_KEY, 3, "RTL", 30), "nav_watchdog: add_param RTL")     -- s, NAV_HOLD_RECOVERY_S
+assert(param:add_param(PARAM_TABLE_KEY, 4, "COMP", 191), "nav_watchdog: add_param COMP")  -- MAV_COMP_ID_ONBOARD_COMPUTER
 
 local TICK_MS = 100
 local REPORT_MS = 1000
@@ -34,13 +53,22 @@ local MSG_HEARTBEAT = 0
 local HEARTBEAT_CRC_EXTRA = 50
 local HEARTBEAT_LEN = 9             -- its payload length; MAVLink 2 may trim trailing zeros, never lengthen it
 local MAV_TYPE_ONBOARD_CONTROLLER = 18
+local HOLD_CLAIM = 1                -- NavPy's heartbeat custom_mode bit 0: its recovery holds in its own LOITER
+-- A claim counts only if received this close to the switch into LOITER, either side: NavPy claims from its request
+-- on and its 4 Hz heartbeat repeats the claim, so two of its periods hold one heartbeat lost or sent late.
+local CLAIM_WINDOW_MS = 500
 local MODE_AUTO, MODE_RTL, MODE_LOITER, MODE_GUIDED = 10, 11, 12, 15   -- ArduPlane mode numbers
-local STATE_OFF, STATE_WATCH, STATE_HOLD, STATE_RTL = -1, 0, 1, 2
+local STATE_OFF, STATE_WATCH, STATE_HOLD, STATE_RTL, STATE_GUARD = -1, 0, 1, 2, 3
 local STANDING_DOWN = "NavPy watchdog: mode changed, standing down"
 
 local state = STATE_WATCH
 local last_hb_ms = nil              -- receive time (autopilot millis) of the latest NavPy heartbeat
 local navpy_guided = false          -- in an armed GUIDED, and NavPy was alive during it
+local claim = nil                   -- the latest claimed NavPy heartbeat: { ms, token, budget_ms }
+local spent_token = nil             -- the token taken last: a claim is taken once
+local was_in_loiter = false         -- armed in LOITER at the previous tick
+local loiter_since_ms = nil         -- when this armed LOITER began (nil: not in one)
+local guard_deadline_ms = nil
 local hold_since_ms = 0
 local last_report_ms = nil
 local last_text = nil
@@ -80,9 +108,12 @@ local function crc_ok(msg)
     return crc == string.unpack("<H", msg, 1)
 end
 
-local function heard(received_ms)
+local function heard(received_ms, custom_mode)
     if last_hb_ms == nil or received_ms > last_hb_ms then
         last_hb_ms = received_ms
+    end
+    if custom_mode & HOLD_CLAIM ~= 0 and (claim == nil or received_ms >= claim.ms) then
+        claim = { ms = received_ms, token = (custom_mode >> 1) & 0x7F, budget_ms = ((custom_mode >> 8) & 0xFFFF) * 100 }
     end
 end
 
@@ -96,7 +127,7 @@ local function receive_heartbeats()
         local _, src_sys, src_comp, msgid = string.unpack("<BBBI3", msg, 7)
         if msgid == MSG_HEARTBEAT and src_sys == sysid and src_comp == comp
             and string.unpack("<B", msg, 17) == MAV_TYPE_ONBOARD_CONTROLLER and crc_ok(msg) then
-            heard(received:toint())
+            heard(received:toint(), (string.unpack("<I4", msg, 13)))
         end
     end
 end
@@ -117,11 +148,39 @@ end
 
 local function stand_down(msg)
     navpy_guided = false
+    guard_deadline_ms = nil
     enter(STATE_WATCH, 4, msg)
 end
 
-local function watch(now, mode, fresh)
-    if mode ~= MODE_GUIDED or not arming:is_armed() then
+-- In WATCH, armed in LOITER: take NavPy's claim if it was received within CLAIM_WINDOW_MS of the switch into this
+-- LOITER (before it: sent with NavPy's request; after it: a heartbeat later) and its token was not taken before.
+local function take_claim()
+    if loiter_since_ms == nil or claim == nil or claim.token == spent_token
+        or math.abs(claim.ms - loiter_since_ms) > CLAIM_WINDOW_MS then
+        return
+    end
+    spent_token = claim.token
+    guard_deadline_ms = claim.ms + math.min(claim.budget_ms, param:get("AAS_NWD_RTL") * 1000)
+    enter(STATE_GUARD, 6, "NavPy watchdog: guarding NavPy's LOITER")
+end
+
+local function guard(now, armed, in_loiter)
+    if not in_loiter then
+        stand_down(armed and STANDING_DOWN or "NavPy watchdog: disarmed, standing down")
+    elseif now >= guard_deadline_ms then
+        local switched = switch(MODE_LOITER, MODE_RTL)
+        if switched then
+            enter(STATE_RTL, 2, "NavPy watchdog: NavPy's hold over, RTL")
+        elseif switched == nil then
+            stand_down(STANDING_DOWN)
+        else
+            text(3, "NavPy watchdog: RTL refused, retrying")
+        end
+    end
+end
+
+local function watch(now, mode, armed, fresh)
+    if mode ~= MODE_GUIDED or not armed then
         navpy_guided = false
     elseif fresh then
         navpy_guided = true
@@ -171,6 +230,7 @@ local function step(now)
     if param:get("AAS_NWD_ENABLE") ~= 1 then
         if state ~= STATE_OFF then
             navpy_guided = false
+            guard_deadline_ms = nil
             enter(STATE_OFF, 4, "NavPy watchdog disabled")
         end
         return
@@ -179,10 +239,23 @@ local function step(now)
         enter(STATE_WATCH, 6, "NavPy watchdog enabled")
     end
     local mode = vehicle:get_mode()
+    local armed = arming:is_armed()
+    local in_loiter = armed and mode == MODE_LOITER
+    if not in_loiter then
+        loiter_since_ms = nil
+    elseif not was_in_loiter then
+        loiter_since_ms = now
+    end
+    was_in_loiter = in_loiter
     local fresh = last_hb_ms ~= nil and now - last_hb_ms < param:get("AAS_NWD_TMO") * 1000
     if state == STATE_WATCH then
-        watch(now, mode, fresh)
-    elseif not arming:is_armed() then
+        watch(now, mode, armed, fresh)
+        if state == STATE_WATCH and in_loiter then
+            take_claim()
+        end
+    elseif state == STATE_GUARD then
+        guard(now, armed, in_loiter)
+    elseif not armed then
         stand_down("NavPy watchdog: disarmed, standing down")
     elseif state == STATE_HOLD then
         hold(now, mode, fresh)

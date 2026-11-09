@@ -77,6 +77,7 @@ def build_real_detector(
                 if runtime.navigation is None
                 else GimbalTrackingAdapter(runtime.navigation),
                 models.poi_lock,
+                models.acquisition,
             ),
             geo=DetectorGeoControl(
                 None

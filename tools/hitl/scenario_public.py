@@ -1,8 +1,9 @@
 """The public half of one seed's scenario (hitl_final_approach.md section 9, stage 1 step 14).
 
 The scenario service (scenario_service.py) writes it into the run's scenario folder as SCENARIO_FILE: the scenario's
-identity (series, seed index, scene hash), the dock-independent search lane and the run's limits. It holds no dock
-pose and no seed: the runner and navpy (through the run record, approach_records.py) receive only this. The dock
+identity (series, seed index, scene hash), the dock-independent search lane, the run's limits and the dock's design
+size (step 23b: phase A's placeholder dock is a car standing on the ground; only the pre-series check reads it, never
+navpy). It holds no dock pose and no seed: the runner and navpy (through the run record, approach_records.py) receive only this. The dock
 pose goes only to the consumers in ALLOWED_CONSUMERS, each in its own file under PRIVATE_DIR, which the command side
 never opens; the runner hands Unreal its file's path without reading it.
 """
@@ -15,7 +16,7 @@ from typing import Any
 from tools.hitl import json_checks as jc
 from tools.hitl.json_checks import RecordError
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2              # 2: the dock's design size (step 23b)
 SCENARIO_FILE = "scenario.json"
 LEDGER_FILE = "deliveries.jsonl"
 PRIVATE_DIR = "private"
@@ -34,7 +35,18 @@ LANE_SPEC: Mapping[str, jc.Check] = {
 }
 LIMITS_SPEC: Mapping[str, jc.Check] = {
     "observe_s": jc.positive,        # the deadline on the lane after acquisition starts
-    "min_height_m": jc.positive,     # the recovery floor (flight_floor.HeightFloor)
+    "min_height_m": jc.positive,     # the recovery floor (flight_floor.HeightFloor), released at the confirm (23b)
+}
+# Step 23b, phase A: a car on the ground at the dock POI (hitl_dock_detector.md section 5). A scene design fact, the
+# same in every seed; its pose stays private.
+DOCK_KINDS = ("car",)
+DOCK_PLACEMENTS = ("ground",)
+DOCK_SPEC: Mapping[str, jc.Check] = {
+    "kind": jc.choice(DOCK_KINDS),
+    "length_m": jc.positive,
+    "width_m": jc.positive,
+    "height_m": jc.positive,
+    "placement": jc.choice(DOCK_PLACEMENTS),
 }
 
 
@@ -61,6 +73,7 @@ PUBLIC_SPEC: Mapping[str, jc.Check] = {
     "consumers": consumers_check,
     "lane": jc.obj(LANE_SPEC),
     "limits": jc.obj(LIMITS_SPEC),
+    "dock_size": jc.obj(DOCK_SPEC),
 }
 
 
@@ -82,6 +95,6 @@ def consumer_file(scenario_dir: Path, consumer: str) -> Path:
     return Path(scenario_dir) / PRIVATE_DIR / f"{consumer}.json"
 
 
-__all__ = ["ALLOWED_CONSUMERS", "LANE_SPEC", "LEDGER_FILE", "LIMITS_SPEC", "PRIVATE_DIR", "PUBLIC_SPEC",
+__all__ = ["ALLOWED_CONSUMERS", "DOCK_KINDS", "DOCK_PLACEMENTS", "DOCK_SPEC", "LANE_SPEC", "LEDGER_FILE", "LIMITS_SPEC", "PRIVATE_DIR", "PUBLIC_SPEC",
            "REQUIRED_CONSUMERS", "SCENARIO_FILE", "SCHEMA_VERSION", "consumer_file", "consumer_problems",
            "consumers_check", "read_public", "validate_public"]

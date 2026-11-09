@@ -16,7 +16,7 @@ from tools.tuning.approach_lane import FIRST_LANE_SEQ, LANE_REPEATS, build_lane,
 from tools.tuning.approach_procs import STOP_EOF, STOP_SIGINT, ProcessGroup, ProcSpec, RunnerError
 from tools.tuning.dock_pass import M, Point
 from tools.tuning.hitl_params import ParamFile
-from tools.hitl import orbit_plan, scenario_checks
+from tools.hitl import scenario_checks
 from tools.tuning import approach_orbit
 
 
@@ -323,13 +323,15 @@ def approach_args(tmp_path):
                               "--model-dir", str(tmp_path), "--model-input", "mi.json", "--media-runtime", "mr.json",
                               "--publisher-profile", "p.json", "--aas-hitl", "/aas",
                               "--uproject", "/mnt/c/u/A.uproject", "--windows-python", "/mnt/c/py/python.exe",
-                              "--scenario-series", "series.json", "--seed-index", "0", "--board-height-m", "10"])
+                              "--scenario-series", "series.json", "--seed-index", "0",
+                              "--detector-model", "/mnt/c/m/rf-detr-large.pth"])
 
 
-PUBLIC = {"schema_version": 1, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
+PUBLIC = {"schema_version": 2, "series_id": "s1", "series_sha256": "d" * 64, "seed_index": 0,
           "scene_hash": "e" * 64, "consumers": ["unreal", "contact", "scoring"],
           "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
-          "limits": {"observe_s": 660.0, "min_height_m": 30.0}}
+          "limits": {"observe_s": 660.0, "min_height_m": 30.0},
+          "dock_size": {"kind": "car", "length_m": 4.5, "width_m": 1.8, "height_m": 1.5, "placement": "ground"}}
 
 
 def fake_service(command, *options):
@@ -662,22 +664,21 @@ def _orbit_inputs(tmp_path, monkeypatch, pitch_line="PTCH_LIM_MIN_DEG -45\n"):
 
 
 def test_the_runner_refuses_an_infeasible_orbit_before_its_run_folder_exists(tmp_path, monkeypatch):
-    """The owner's 300 m radius over the series default (80 m lane, 30 m floor, a 10 m board) fails the check:
+    """A floor above the 80 m lane fails the check (step 23b: the floor still guards the lane, search and orbit):
     the run is refused before the scenario folder, the record or any process."""
     args = _orbit_inputs(tmp_path, monkeypatch)
-    monkeypatch.setattr(approach.scenario_run, "service", fake_service)
+    high_floor = {**PUBLIC, "limits": {**PUBLIC["limits"], "min_height_m": 90.0}}
+    monkeypatch.setattr(approach.scenario_run, "public", lambda *a: high_floor)
     monkeypatch.setattr(approach, "_record", lambda *a: pytest.fail("the record was built"))
-    with pytest.raises(SystemExit, match=r"HITL orbit is infeasible \(.*reader.*\)"):
+    with pytest.raises(SystemExit, match=r"HITL orbit is infeasible \(recovery_floor\)"):
         approach.approach(args)
     assert not (tmp_path / "runs").exists()
 
 
 def test_a_feasible_orbit_passes_and_is_kept_for_the_run(tmp_path, monkeypatch):
+    """The owner's 300 m series with the whole-dock detector (step 23b)."""
     args = _orbit_inputs(tmp_path, monkeypatch)
-    monkeypatch.setattr(orbit_plan, "final_approach_orbit_setting", lambda profile: 180.0)
-    scenario = {**PUBLIC, "lane": {**PUBLIC["lane"], "height_m": 100.0}, "limits": {**PUBLIC["limits"],
-                                                                                    "min_height_m": 1.0}}
-    result = approach_orbit.orbit_check(args, scenario)
+    result = approach_orbit.orbit_check(args, PUBLIC)
     assert result["feasible"] is True and len(result["checks"]) == len(scenario_checks.CHECKS)
 
 

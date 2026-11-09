@@ -39,6 +39,7 @@ from navpy.plugins.vehicle.ardupilot import vehicle_build_transaction
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
 from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import RESPONSE_HISTORY_DEPTH
 from navpy.sim.lockstep.baton import BatonRuntime, audit
+from navpy.plugins.vehicle.ardupilot.companion_hold_claim import CompanionHoldClaim
 from navpy.sim.lockstep.lockstep_bus import LockstepConnection
 from navpy.sim.lockstep.lockstep_link import LockstepLink
 from navpy.sim.lockstep.lockstep_runtime import LockstepRuntime
@@ -375,6 +376,8 @@ def test_the_link_owns_its_device_and_loses_bytes_with_no_reader():
         baton.spawn(opener, name="opener")
         baton.run_until_quiescent()
         assert opened[0] is opened[1] and link.state == "open"  # shared, as MavBus.get_or_create
+        # Its own claim on NavPy's recovery LOITER, as MavBus.companion_hold (step 10, item 9).
+        assert isinstance(opened[0].companion_hold, CompanionHoldClaim)
         baton.spawn(opened[0].close, name="closer")
         baton.run_until_quiescent()
         assert link.state == "closed" and [t.name for t in baton.threads.alive()] == []

@@ -2,12 +2,34 @@
 from __future__ import annotations
 
 import logging
+import math
 from typing import TYPE_CHECKING
+
+from gcs.backend.vehicle_link import VEHICLE_LINK_TIMEOUT_S
+from navpy.core.kernel import runtime_time as rt
 
 if TYPE_CHECKING:
     from gcs.backend.vehicle_entry import VehicleEntry
 
 log = logging.getLogger("gcs.backend.vehicle_manager")
+
+
+def _velocity_ned(v: object) -> list[float] | None:
+    """The measured ground velocity (GLOBAL_POSITION_INT, north/east/down m/s),
+    or None once that message is older than the link rule
+    (VEHICLE_LINK_TIMEOUT_S): a stopped position stream must not leave the last
+    direction on screen while heartbeats go on. Age from the sample's receipt
+    time, as the EKF report's (preflight_health)."""
+    sample = getattr(v, "position_sample", None)
+    receipt = getattr(sample, "receipt_time_s", None)
+    if not isinstance(receipt, (int, float)) or not rt.time() - receipt <= VEHICLE_LINK_TIMEOUT_S:
+        return None
+    try:
+        out = [float(sample.vn), float(sample.ve), float(sample.vd)]
+    except (AttributeError, TypeError, ValueError):
+        return None
+    return out if all(math.isfinite(x) for x in out) else None
+
 
 def snapshot(entry: VehicleEntry) -> dict:
     """Build a telemetry snapshot dict for WebSocket broadcast."""
@@ -58,6 +80,10 @@ def snapshot(entry: VehicleEntry) -> dict:
         "air_speed": v.air_speed,
         "ground_speed": v.ground_speed,
         "climb": getattr(v, "climb_rate", None),
+        # Measured ground velocity (GLOBAL_POSITION_INT), north/east/down m/s:
+        # operator display only (the Synthetic view's flight path marker),
+        # never a navigation input.
+        "velocity_ned": _velocity_ned(v),
         "throttle": getattr(v, "throttle_pct", None),
         "gps_fix": v.gps_fix_type,
         "gps_sats": v.gps_satellites,

@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { buildTargWpsUpdates, buildNavLastWpUpdates } from '../utils/simDockReindex';
 import { resolveUploadAssignments } from '../utils/uploadAssignments';
 import { activateUploadedSimPlan } from '../utils/missionUploadActivation';
+import { withoutSeqs } from '../utils/missionProgress';
 import { fenceSignature, fenceUploadFailures } from '../utils/fenceIntent';
 import { cameraCheckZone, confirmCameraCheck, zoneUploadAltitude } from '../utils/planCameraCheck';
 import { zoneLabel } from '../components/sidebar/DeliveryHubAssignmentSection';
@@ -197,6 +198,15 @@ export default function useMissionUpload({
         );
       }
       const missionFailures = (result.results || []).filter((r) => r.error);
+      // A vehicle that took the upload flies the GCS's own item layout now:
+      // the item numbers kept from its downloaded mission no longer apply.
+      const uploaded = new Set((result.results || []).filter((r) => !r.error).map((r) => r.sys_id));
+      if (uploaded.size) {
+        setPlan((prev) => prev ? {
+          ...prev,
+          zones: prev.zones.map((z) => (uploaded.has(z.sys_id) ? { ...z, track: withoutSeqs(z.track) } : z)),
+        } : prev);
+      }
       if (result.status === 'complete' && fenceOk) {
         // Write sim POI params to vehicles
         if (simMode) {

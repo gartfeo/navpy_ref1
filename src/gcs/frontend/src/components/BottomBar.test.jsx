@@ -1,7 +1,12 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { render } from '@testing-library/react';
 import BottomBar from './BottomBar';
 import { PHASES } from '../hooks/useMissionState';
+
+// The shared stub prints keys only; the progress test needs the percentage.
+vi.mock('react-i18next', () => ({
+  useTranslation: () => ({ t: (key, p) => (p?.percentage != null ? `${key}=${p.percentage}` : key) }),
+}));
 
 // On a 375 px pane the stats wrapped and clipped, and Upload lay on top of them
 // (docs/design/gcs_handheld_layout.md). jsdom has no layout: this checks the rules
@@ -72,5 +77,27 @@ describe('BottomBar Upload as the fix', () => {
       <BottomBar phase={PHASES.PLANNING} analysis={null} polygon={[]} vehicleList={[{ sys_id: 7 }]} highlightUpload />,
     );
     expect(ringOf(view)).toBeNull();
+  });
+});
+
+// Seen on the UniRC (2026-11-08): a mission made outside the GCS, downloaded,
+// UAV in AUTO at item 3 of 5, read 0% complete (utils/missionProgress.test.js).
+describe('BottomBar in monitoring', () => {
+  it('counts progress on a downloaded mission by the vehicle\'s own item numbers', () => {
+    const track = [
+      { lat: 40.300, lon: 44.450, seq: 2 }, { lat: 40.310, lon: 44.450, seq: 3 }, { lat: 40.310, lon: 44.460, seq: 4 },
+    ];
+    const hull = [{ lat: 40.300, lon: 44.450 }, { lat: 40.310, lon: 44.450 }, { lat: 40.310, lon: 44.460 }];
+    const view = render(
+      <BottomBar
+        phase={PHASES.MONITOR}
+        polygon={hull}
+        plan={{ zones: [{ zone_index: 0, track }] }}
+        vehicleList={[{ sys_id: 1, link_ok: true, mode: 'AUTO', mission_progress: 4, lat: 40.310, lon: 44.455 }]}
+      />,
+    );
+    // At item 4, the last track point, half way along the second leg: 78 %
+    // of the track's length (the old offset rule gave 0 %).
+    expect(view.getByText(/^bottomBar\.percentComplete=/).textContent).toBe('bottomBar.percentComplete=78');
   });
 });
