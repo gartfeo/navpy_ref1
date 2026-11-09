@@ -32,7 +32,8 @@ fixed-wing fleet. Design: `gcs_video_streams.md`, section 5 "Synthetic view".
    The tag says gimbal or nose, and only live gimbal telemetry turns the
    camera. **Already so.**
 3. Highlight the POI, the anchor of the approach (AC 23-26 i(b); Garmin's
-   active runway): the UAV's dock with its distance. **Done.**
+   active runway): the UAV's dock with its distance, also while it loiters for the operator's
+   confirmation (fixed 2026-11-09). **Done.**
 4. A damped flight path marker, where the aircraft is going rather than where
    the nose points (AC 23-26 2d, o(1)): large wind crab on a fixed-wing.
    Measured ground velocity, display only (it never reaches navigation; the

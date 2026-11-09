@@ -546,8 +546,9 @@ large vehicle view.
   already shows (all UAVs' tracks stay there as on the map); with tracks
   hidden on the map the overlay draws the RC UAV's line itself.
 - Marks (owner 2026-11-09, from the research in `synthetic_view_marks.md`):
-  Synthetic also marks the UAV's dock (as its card shows it, highlighted, with
-  the distance), its zone's default delivery hub, and every other fleet UAV
+  Synthetic also marks the dock the UAV works on (`vehicleDock`: given to it,
+  or its own detected dock it loiters over while the operator confirms;
+  highlighted, with the distance), its zone's default delivery hub, and every other fleet UAV
   with live telemetry (a dot in its zone colour and its name;
   `map/utils/sceneMarks.js`, `utils/syntheticScene.js`). A flight path marker
   (ring with wings) shows where the UAV is going: its measured ground velocity

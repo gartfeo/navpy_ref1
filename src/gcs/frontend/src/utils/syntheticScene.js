@@ -5,18 +5,18 @@
  * default delivery hub (DDH), the rest of the fleet, and where it is going
  * (the flight path marker). Display only: never a navigation input.
  */
-import { ASSIGNMENT_STATUS, vehicleAssignment } from './taskAssignmentState';
+import { vehicleDock } from './taskAssignmentState';
 import { MIN_ETE_SPEED_MPS } from './fpvRoute';
 
 /**
- * The dock the UAV is assigned to or approaching, as its card shows it
- * (vehicleAssignment), or null. A handled dock is no longer the UAV's POI.
+ * The dock the UAV works on (vehicleDock): given to it, or its own detected
+ * dock it loiters over while the operator confirms; null once handled.
  *
  * @returns {{lat: number, lon: number}|null}
  */
 export function syntheticDock(assignments, sysId) {
-  const entry = vehicleAssignment(assignments || {}, sysId);
-  if (!entry || entry.status === ASSIGNMENT_STATUS.HANDLED) return null;
+  const entry = vehicleDock(assignments, sysId);
+  if (!entry) return null;
   if (!Number.isFinite(entry.lat) || !Number.isFinite(entry.lon)) return null;
   return { lat: entry.lat, lon: entry.lon };
 }

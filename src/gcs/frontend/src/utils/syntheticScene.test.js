@@ -1,13 +1,36 @@
-// What the Synthetic view marks (syntheticScene.js): the UAV's dock as its card
-// shows it, its zone's delivery hub, and the flight path marker's velocity.
+// What the Synthetic view marks (syntheticScene.js): the dock the UAV works on
+// (given to it, or its own while it asks to confirm), its zone's delivery hub, and the flight path marker's velocity.
 import { describe, expect, it } from 'vitest';
 import { FPM_SMOOTHING_S, smoothVector, syntheticDock, syntheticHub, velocityEnu } from './syntheticScene';
+import { INITIAL_ASSIGNMENT_STATE, reduceTaskAssignment } from './taskAssignmentState';
 
 const entry = (over) => ({ receiverId: 4, status: 'assigned', lat: 40.3, lon: 44.4, ...over });
 
 describe('syntheticDock', () => {
   it('the dock the UAV is assigned to', () => {
     expect(syntheticDock({ a: entry() }, 4)).toEqual({ lat: 40.3, lon: 44.4 });
+  });
+  // Owner 2026-11-09: "in synthetic view I don't see the dock mark when loitering for
+  // confirmation". The UAV's own request (withOwnRound) has askedBy, receiverId null.
+  it('the dock the UAV loiters over while it asks the operator to confirm', () => {
+    const asking = { a: entry({ receiverId: null, askedBy: 4, status: 'confirming', lat: 40.31, lon: 44.41 }) };
+    expect(syntheticDock(asking, 4)).toEqual({ lat: 40.31, lon: 44.41 });
+    expect(syntheticDock(asking, 5)).toBeNull();
+  });
+  it('through the reducer: a UAV asking to confirm its own detected dock has that dock', () => {
+    const state = reduceTaskAssignment(INITIAL_ASSIGNMENT_STATE, {
+      type: 'task_confirming',
+      data: { sys_id: 2, task_id: 7, task_type: 'dock', round_uid: '1:5', lat: 40.315, lon: 44.47, alt: 0 },
+    });
+    expect(syntheticDock(state.assignments, 2)).toEqual({ lat: 40.315, lon: 44.47 });
+  });
+  it('the furthest round of the UAV wins; an offer it has not taken is not its dock', () => {
+    const both = {
+      a: entry({ status: 'assigned', lat: 1, lon: 1 }),
+      b: entry({ receiverId: null, askedBy: 4, status: 'confirming', lat: 2, lon: 2 }),
+    };
+    expect(syntheticDock(both, 4)).toEqual({ lat: 2, lon: 2 });
+    expect(syntheticDock({ a: entry({ status: 'waiting' }) }, 4)).toBeNull();
   });
   it('none for another UAV, a handled dock, or no position', () => {
     expect(syntheticDock({ a: entry() }, 5)).toBeNull();
