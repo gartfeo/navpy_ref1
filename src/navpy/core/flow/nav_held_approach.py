@@ -14,6 +14,8 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
+from navpy.core.kernel.exception_groups import ExceptionGroup
+
 
 class HeldApproach:
     """The NAV thread's only: the decision and NAV entry run there."""
@@ -21,10 +23,9 @@ class HeldApproach:
     def __init__(self) -> None:
         self._end: Callable[[], None] | None = None
         self._start: Callable[[], None] | None = None
-        #: The held episode was ended, and no fresh one started yet.
+        #: The held episode was ended; until a NAV entry succeeds or NAV exits, the approach may not go on except by
+        #: recovery's resume grant (``RecoveryHold.resumed``).
         self.ended = False
-        #: Recovery resumed and the fresh episode's NAV entry has not succeeded yet: the decision retries it.
-        self.resume_pending = False
 
     def bind(self, end: Callable[[], None], start: Callable[[], None]) -> None:
         self._end, self._start = end, start
@@ -37,21 +38,24 @@ class HeldApproach:
         self.ended = True
 
     def start_fresh_episode(self) -> None:
-        """NAV entry again, for the kept dock. Pending until it succeeds (``entered``): an entry that raises is
-        retried at the next decision, as a NAV phase entry would be."""
-        self.resume_pending = True
-        if self._start is not None:
+        """NAV entry again, for the kept dock. If it raises, what it completed is rolled back first (the partial
+        episode ends as held, as the held one did), so a retry under the same grant starts clean."""
+        if self._start is None:
+            return
+        try:
             self._start()
+        except BaseException as failure:
+            try:
+                if self._end is not None:
+                    self._end()
+            except Exception as rollback:  # noqa: BLE001 - both are reported
+                raise ExceptionGroup("fresh final-approach entry and its rollback failed", [failure, rollback]) \
+                    from None
+            raise
 
-    def entered(self) -> None:
-        """A NAV entry succeeded: a fresh episode, nothing held is left."""
+    def clear(self) -> None:
+        """A NAV entry succeeded, or NAV exited: nothing held is left."""
         self.ended = False
-        self.resume_pending = False
-
-    def abandon(self) -> None:
-        """The approach ends after the hold (the operator's mode stands): nothing to restart."""
-        self.ended = False
-        self.resume_pending = False
 
 
 __all__ = ["HeldApproach"]

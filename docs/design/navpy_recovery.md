@@ -631,3 +631,25 @@ merges before step 4, which builds on its deadline fix.
       (`HELD_REASON`, `FinalApproachDockContact.disarm_held`), never from
       the terminal latched while fenced, so the sim record never shows it
       as missed.
+
+   Codex round 2 on the step 9 fixes, fixed with one resume grant instead of
+   more flags (`RecoveryHold.resumed`):
+   1. Recovery issues the grant when the hold ends in NavPy's own AUTO and
+      voids it in any new hold or when a fresh heartbeat shows a mode other
+      than AUTO or GUIDED. The decision uses it only when a held episode
+      exists, and consumes it only once the fresh episode's NAV entry
+      succeeded; a stale grant with nothing held is discarded.
+   2. Abandonment keeps the held marker until NAV exits
+      (`NavTransition.exit` clears it), so a failed cleanup abandons again
+      next cycle instead of acquiring GUIDED over the operator's mode.
+   3. One RTL deadline per incident (`nav_recovery_incident.py`): an
+      incident starts at its first hold and keeps that hold's deadline across
+      re-holds until NavPy has run healthy in NORMAL for
+      `NAV_INCIDENT_CLEAR_S` (30 s, the hold budget). A failed fresh entry
+      fails its cycle, which recovery counts. Bound: an entry that always
+      raises reaches RTL `NAV_HOLD_RECOVERY_S` after the first hold, plus at
+      most one resume (`MODE_CONFIRM_S`) and one hold trigger
+      (`NAV_HOLD_TRIGGER_S`); the test allows 30 + 3 x 1.5 + 3 s.
+   4. A fresh entry that raises rolls back what it completed first: the
+      partial episode ends as held (`HeldApproach.start_fresh_episode`), so
+      the retry arms again only after a matching end.

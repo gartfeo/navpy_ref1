@@ -65,7 +65,7 @@ class NavTransition:
     def enter(self) -> None:
         self._entry.run()
         if self._held is not None:
-            self._held.entered()     # only once the entry succeeded: a raising one is retried (nav_held_approach.py)
+            self._held.clear()       # only once the entry succeeded (nav_held_approach.py)
 
     def _end_held_episode(self) -> None:
         """Recovery's hold: the in-flight episode ends without failure (owner ruling 2026-11-09)."""
@@ -117,6 +117,8 @@ class NavTransition:
 
         if errors:
             raise ExceptionGroup("NAV exit failed", errors)
+        if self._held is not None:
+            self._held.clear()       # NAV left: an abandoned held approach is over only now
         if docked:
             self._report_docked(cleanup)
         elif failed:

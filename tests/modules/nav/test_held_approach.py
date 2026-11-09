@@ -54,7 +54,9 @@ class Approach:
         return None
 
 
-def _rig():
+def _rig(recovery=None):
+    """``recovery``: a real NAV recovery rig (test_nav_recovery.Rig) for the hold, the resume grant and NavPy's
+    GUIDED requests (told to recovery, then sent to its fake autopilot); else plain values a test sets."""
     approach = Approach()
     task = NavigationTaskState()
     failures = NavigationFailureLatch(approach.episode.latch_failure)
@@ -68,7 +70,7 @@ def _rig():
     transition = NavTransition(
         NavEntry(
             NavEntryPorts(
-                request_guided=lambda: guided_requests.append("GUIDED"),
+                request_guided=lambda: _request_guided(recovery, guided_requests),
                 navigation_init=approach.init,
                 final_approach_active=lambda: False,
                 arm_dock_contact=contact.arm,
@@ -90,28 +92,31 @@ def _rig():
         Mock(), Mock(return_value=()), task, lambda: True, logger=Mock(), held=held,
     )
 
-    def take_resumed() -> bool:
-        value, resumed[0] = resumed[0], False
-        return value
-
     decision = NavStateDecision(
         NavDecisionPorts(
             clock_s=lambda: 0.0,
             clear_navigation_task=Mock(),
             request_guided=lambda: guided_requests.append("GUIDED retry"),
             final_approach_active=lambda: True,
-            holding=lambda: holding[0],
-            take_resumed=take_resumed,
+            holding=(lambda: holding[0]) if recovery is None else (lambda: recovery.hold.holding),
+            # Recovery's resume grant (RecoveryHold.resumed): set by a test, or by real recovery; used up once.
+            resume_granted=(lambda: resumed[0]) if recovery is None else (lambda: recovery.hold.resumed),
+            consume_resume=(lambda: resumed.__setitem__(0, False)) if recovery is None else recovery.hold.consume_resume,
             end_held_episode=held.end_episode,
             held_episode_ended=lambda: held.ended,
             start_fresh_episode=held.start_fresh_episode,
-            fresh_episode_pending=lambda: held.resume_pending,
-            abandon_held_episode=held.abandon,
         ),
         NavPhaseState(current=NavState.NAV, previous=NavState.CONFIRM),
         task, failures, Mock(passed_poi=Mock(return_value=False)), Mock(),
     )
     return approach, task, failures, held, holding, resumed, guided_requests, contact, outcome, transition, decision
+
+
+def _request_guided(recovery, requests: list[str]) -> None:
+    requests.append("GUIDED")
+    if recovery is not None:     # request_guided_owned: recovery first, then the vehicle
+        recovery.hold.guided_requested()
+        recovery.ap.request(FlightMode.GUIDED)
 
 
 def test_hold_mid_approach_fence_resume_then_a_fresh_episode_without_source_command_stale():
