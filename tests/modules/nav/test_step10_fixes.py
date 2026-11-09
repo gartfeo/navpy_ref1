@@ -86,3 +86,15 @@ def test_item1_outside_a_hold_the_nav_exit_reports_as_before(monkeypatch):
     latch.latch_failure("source_command_stale")
     transition.exit(NavState.ONHOLD)
     assert received == [(OUTCOME_MISSED, None)]                # NAV's own failure after passing the dock
+
+
+def test_item11_the_held_episode_end_is_a_recovery_report(monkeypatch):
+    """Step 9 SITL: "NAV approach held" reached the NavPy log only; it is journaled like every recovery report."""
+    from tests.logger.recording_logger import RecordingLogger
+
+    transition, latch, received, outcome, task = _held_exit_rig(monkeypatch, holding=True)
+    logger = RecordingLogger()
+    transition._logger = logger
+    transition.enter()
+    transition._held.end_episode()
+    assert logger.journal.records == [("nav", "NAV approach held: episode ended, a fresh one follows the resume")]

@@ -75,7 +75,8 @@ class NavTransition:
         self._cleanup.end_episode()
         self._navigation_task.final_approach_navigation_active = False
         if self._logger is not None:
-            self._logger.info("NAV approach held: episode ended, a fresh one follows the resume", key="nav")
+            # A recovery report (journaled, step 8): the eval sees the held episode end, not only the NavPy log.
+            self._logger.recovery("NAV approach held: episode ended, a fresh one follows the resume", "nav")
 
     def exit(self, requested: NavState | None = None) -> NavExitOutcome:
         held_errors: list[Exception] = []
