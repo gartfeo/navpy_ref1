@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react';
 import { zoneColorsSolid } from '../../../styles';
 import { missionWpOffset } from '../../../utils/geo';
+import { missionTrackIndex } from '../../../utils/missionProgress';
 
 /**
  * Track polylines + vehicle position sync.
@@ -53,7 +54,7 @@ export default function useTrackLayer(
       );
       vehicleList.forEach((v, i) => {
         const mp = v?.mission_progress || 0;
-        const trackIdx = mp - wpOffset;
+        const trackIdx = missionTrackIndex(mp, plan.zones[i]?.track, wpOffset);
         const trackLen = plan.zones[i]?.track?.length || 0;
         const inAuto = v?.mode === 'AUTO';
         const onTrack = inAuto && trackIdx >= 0;

@@ -64,6 +64,7 @@ import { DEFAULT_TOP_CONTROLS_BOTTOM_PX, PANEL_MARGIN_PX, vehicleWindowLayout } 
 import { vehicleWindowVisible } from './utils/videoStreams';
 import { fleetEntryHoldReason } from './utils/fpvView';
 import { prunePendingVehicles, upsertPendingVehicles } from './utils/pendingVehicles';
+import { syntheticDock, syntheticHub } from './utils/syntheticScene';
 
 // RC FPV: the SYNTHETIC tag sits below the HUD heading tape (top 12, 36 px tall).
 const RC_FPV_TAG_TOP_PX = 12 + 36 + 6;
@@ -571,6 +572,11 @@ export default function App() {
   const videoFleet = useVideoFleet(storeRef);
   const monitor = phase === PHASES.MONITOR;
   const win = useVehicleWindow({ fleet: videoFleet, active: monitor && !mc.manualControlEnabled });
+  // The Synthetic view's dock and delivery hub for the window's UAV (utils/syntheticScene.js).
+  const syntheticMarks = React.useMemo(() => (win.sysId == null ? null : {
+    dock: syntheticDock(taskAssign.assignments, win.sysId),
+    hub: syntheticHub(vehicleList, settings?.default_delivery_hubs, deliveryHubAssignments, win.sysId),
+  }), [win.sysId, taskAssign.assignments, vehicleList, settings, deliveryHubAssignments]);
   const fpv = useFpvView({
     rcEnabled: mc.manualControlEnabled, rcTarget: mc.manualControlTarget, mapCameraRef,
   });
@@ -891,6 +897,7 @@ export default function App() {
               onBaseLayerFailed={baseLayerChoice.onFailed}
               routeSourceRef={routeSourceRef}
               panelShown={sidePanel.open}
+              syntheticMarks={syntheticMarks}
               onSyntheticCreditsHeight={setWindowCreditsPx}
               onChromeHeight={setWindowChromePx}
             />
