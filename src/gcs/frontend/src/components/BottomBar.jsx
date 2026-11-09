@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import { colors, bottomBarHeight, zoneColorsSolid } from '../styles';
 import { PHASES } from '../hooks/useMissionState';
 import { missionWpOffset, flatDist } from '../utils/geo';
+import { missionTrackIndex } from '../utils/missionProgress';
 import { useTelemetryStore } from '../hooks/useTelemetryStore';
 
 const STAGE_LABELS = {
@@ -226,7 +227,7 @@ function _overallProgress(vehicleList, zones, polygon, launchPoint, corridorPoin
     const zoneTotal = cum[cum.length - 1];
     totalDist += zoneTotal;
     if (!v) return;
-    const trackIdx = (v.mission_progress || 0) - wpOffset;
+    const trackIdx = missionTrackIndex(v.mission_progress, zone.track, wpOffset);
     if (v.mode !== 'AUTO') {
       if (trackIdx >= zone.track.length - 1) passedDist += zoneTotal;
       return;
