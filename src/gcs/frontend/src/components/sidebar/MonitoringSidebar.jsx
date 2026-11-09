@@ -53,6 +53,7 @@ export default function MonitoringSidebar({
   onTriggerVehicle,
   navpyStatus,
   onFlyToLocation,
+  onOpenMessages,
   onOpenReadiness,
   footerEl,
   startPinned = true,
@@ -92,6 +93,7 @@ export default function MonitoringSidebar({
         pendingConfirms={pendingConfirms}
         onForceConfirm={onForceConfirm}
         onFlyToLocation={onFlyToLocation}
+        onOpenMessages={onOpenMessages}
         onOpenReadiness={onOpenReadiness}
         footerEl={footerEl}
         startPinned={startPinned}
@@ -101,7 +103,7 @@ export default function MonitoringSidebar({
   );
 }
 
-function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenReadiness, footerEl, startPinned, hidden }) {
+function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, corridorPoints, searchPattern, onEditPlan, onLaunch, onOpenConnect, onRestart, onDownloadPlan, downloadingSysIds, pendingVehicles, launchType, launchStates, onAbortLaunch, onTriggerVehicle, settings, navpyStatus, assignments, pendingConfirms, onForceConfirm, onFlyToLocation, onOpenMessages, onOpenReadiness, footerEl, startPinned, hidden }) {
   const { t } = useTranslation();
   const [busy, setBusy] = useState(false);
   // Per-launch operator ack that pitots are covered / air is calm, allowing
@@ -300,6 +302,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
               navpyConn={navpyStatus[v.sys_id]?.connection}
               onToggleNavpy={() => toggleNavpy(v.sys_id, navpyStatus[v.sys_id]?.running)}
               onFlyToLocation={onFlyToLocation}
+              onOpenMessages={onOpenMessages}
               loadStage={loadStages.get(v.sys_id)}
             />
           ))}
@@ -463,6 +466,7 @@ function ActiveMonitoring({ vehicleList, plan, analysis, polygon, launchPoint, c
                 navpyConn={navpyStatus[v.sys_id]?.connection}
                 onToggleNavpy={() => toggleNavpy(v.sys_id, navpyStatus[v.sys_id]?.running)}
                 onFlyToLocation={onFlyToLocation}
+                onOpenMessages={onOpenMessages}
                 loadStage={loadStages.get(v.sys_id)}
               />
             ))}

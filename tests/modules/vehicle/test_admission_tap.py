@@ -279,9 +279,9 @@ def test_no_ruling_for_a_message_the_router_does_not_rule_on(
     mav_type: int,
 ) -> None:
     """Another system's telemetry, and a type that is not autopilot
-    telemetry. A GCS router publishes the other system's ATTITUDE unruled; a
-    subscription to a type never ruled on would be owed nothing, so it is
-    refused."""
+    telemetry. Neither identity publishes the other system's ATTITUDE (a GCS
+    router observes only its own system on a shared link); a subscription to
+    a type never ruled on would be owed nothing, so it is refused."""
     router, store, _ = _router(mav_type)
     heard: list[AdmissionRuling] = []
     router.on_admission("ATTITUDE", heard.append)
@@ -290,7 +290,7 @@ def test_no_ruling_for_a_message_the_router_does_not_rule_on(
     router.ingest(_message("SYS_STATUS", boot_ms=1_000))
 
     assert heard == []
-    assert (store.latest("ATTITUDE") is not None) == (mav_type == MAV_TYPE_GCS)
+    assert store.latest("ATTITUDE") is None
     assert store.latest("SYS_STATUS") is not None
     with pytest.raises(ValueError):
         router.on_admission("SYS_STATUS", heard.append)

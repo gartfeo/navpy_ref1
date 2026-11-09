@@ -114,6 +114,7 @@ def _classify_accel_cal_statustext(text: str) -> Optional[dict]:
 
 
 def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
+    entry.message_log.on_statustext(msg)
     sev = getattr(msg, "severity", 6)
     text = getattr(msg, "text", "").rstrip("\x00")
     label = entry._SEVERITY_LABELS.get(sev, "INFO")
@@ -126,10 +127,9 @@ def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
         else:
             entry._prearm_other = True
     # CONF-03 recognition-gate blocked state (D-15/D-16/D-17). CRITICAL:
-    # gated behind _from_own_companion — every companion's STATUSTEXT
-    # cross-delivers onto every vehicle's connection over the shared
-    # link (Pitfall 2); without this filter one UAV's blocked reason
-    # would flicker onto another UAV's card.
+    # gated behind _from_own_companion — only this UAV's companion may
+    # set its blocked reason, not its autopilot or another component
+    # (Pitfall 2: a peer's reason flickering onto another UAV's card).
     if text.startswith(CONFIRM_BLOCKED_PREFIX) and entry._from_own_companion(msg):
         entry._handle_confirm_blocked_statustext(text[len(CONFIRM_BLOCKED_PREFIX):])
     # Surface accelerometer-calibration prompts/results to the GCS wizard.

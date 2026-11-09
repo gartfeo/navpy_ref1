@@ -5,6 +5,7 @@
  */
 
 import { noteBackendTs } from '../utils/backendClock';
+import messageLogStore from './messageLogStore';
 
 let _vehicles = {};
 let _connected = false;
@@ -122,6 +123,11 @@ function connect() {
         const next = { ..._vehicles };
         for (const v of data.vehicles) {
           const existing = next[v.sys_id];
+          // New Messages-window entries go to their own history, not the snapshot.
+          if (v.messages) {
+            messageLogStore.ingest(v.sys_id, v.messages);
+            delete v.messages;
+          }
           if (v.status_texts && existing?.status_texts) {
             v.status_texts = [...existing.status_texts, ...v.status_texts].slice(-10);
           }
