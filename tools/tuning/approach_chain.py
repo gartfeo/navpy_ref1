@@ -171,7 +171,7 @@ def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: b
              if commissioning else ("navpy.main",))
     return ProcSpec("navpy", CONSUMER_NICE + tool(paths, *entry, "-c", f"udpin:127.0.0.1:{NAVPY_PORT}",
                                   "-ss", str(SITL_SYSTEM_ID), "--detector-type", "real", "--detector-backend",
-                                  "charuco", "--vision-profile", VISION_PROFILE, "--pitch-controller", "vision-nav-pn",
+                                  "rfdetr", "--vision-profile", VISION_PROFILE, "--pitch-controller", "vision-nav-pn",
                                   "-mwp", str(lane_first_seq), "-tac", "--router-control",
                                   f"127.0.0.1:{CONTROL_PORT}", "--router-client", "navpy", "--stop-on-stdin",
                                   "--integration-timing", str(record),
@@ -180,6 +180,11 @@ def navpy(paths: ChainPaths, record: Path, lane_first_seq: int, commissioning: b
                     "^" + NAVPY_RUNTIME_READY_MARKER, READY_TIMEOUT_S["navpy"], NAVPY_STOP_REQUEST, stop_wait_s=30.0,
                     cwd=str(paths.repo),
                     env={"PYTHONPATH": f"{paths.repo / 'src'}:{paths.repo}", "PYTHONUNBUFFERED": "1"})
+
+
+def detector_args(weights: str) -> tuple[str, ...]:
+    """The rfdetr backend's weights (step 23b): private, outside git; navpy loads them by path."""
+    return ("--detector-model-path", str(weights))
 
 
 def navpy_link_id() -> str:

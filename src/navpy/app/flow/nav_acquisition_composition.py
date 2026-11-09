@@ -6,6 +6,8 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from navpy.core.kernel.logging.cache_logger import ILogger
+from navpy.app.flow.confirm_record import print_confirm_record
+from navpy.app.perception.rfdetr_profile import orbit_centre_frame
 from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.confirm.acquisition_gate_settings import (
     FINAL_APPROACH_GATES_KEY,
@@ -71,6 +73,8 @@ def compose_acquisition(
     )
     if settings is None:
         return AcquisitionComposition(self_approach, OPEN_ACQUISITION)
+    # HITL step 23b: with the whole-dock detector, only a frame the acquisition floor still bounds places the orbit.
+    centre_frame = orbit_centre_frame(profile)
     sequence = AcquisitionSequence(
         FreshVisualLock(
             settings,
@@ -88,6 +92,9 @@ def compose_acquisition(
         self_approach,
         logger,
         confirmation_manager.hold_acquisition,
+        # HITL step 23b: the runner releases its recovery floor on this record.
+        print_confirm_record,
+        (lambda _poi: True) if centre_frame is None else centre_frame,
     )
     return AcquisitionComposition(GatedOrbitStart(sequence), sequence)
 
