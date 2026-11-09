@@ -16,7 +16,10 @@ from pymavlink.dialects.v20.ardupilotmega import (
     MAV_MISSION_TYPE_RALLY,
 )
 
-from navpy.core.ports.parameter_exchange import ExchangePolicy
+from navpy.core.kernel import runtime_time as rt
+from navpy.core.ports.parameter_exchange import (
+    ExchangeOutcome, ExchangePolicy, ExchangeReason, ParameterExchange,
+)
 from gcs.backend.planner.rally_builder import (
     RALLY_PARAM_WRITES, build_rally_items, rally_altitude_m,
 )
@@ -25,18 +28,28 @@ from gcs.backend.routes.mission_rally import RALLY_UPLOAD_ATTEMPTS, apply_rally
 HUB = {"lat": 40.123456789, "lon": 44.987654321, "type": "dock"}
 
 
-def _vehicle(*, upload_ok=True, set_ok=True, rally_total=0.0):
+CONFIRMED = ParameterExchange(ExchangeOutcome.CONFIRMED, None, 1)
+PAST_DEADLINE = ParameterExchange(ExchangeOutcome.UNATTEMPTED, ExchangeReason.DEADLINE, 0)
+
+
+def _read(value):
+    if value is None:
+        return ParameterExchange(ExchangeOutcome.UNCONFIRMED, ExchangeReason.NO_ECHO, 3)
+    return ParameterExchange(ExchangeOutcome.CONFIRMED, None, 1, value)
+
+
+def _vehicle(*, upload_ok=True, write_ok=True, rally_total=0.0):
     vehicle = MagicMock()
     vehicle.target_system = 7
     vehicle.mission_lock = threading.RLock()
     vehicle.upload_rally = MagicMock(return_value=upload_ok)
-    vehicle.set_parameter = MagicMock(return_value=set_ok)
-    vehicle.get_parameter_fresh = MagicMock(return_value=rally_total)
+    vehicle.write_parameter = MagicMock(return_value=CONFIRMED if write_ok else PAST_DEADLINE)
+    vehicle.read_parameter = MagicMock(return_value=_read(rally_total))
     return vehicle
 
 
 def _params(vehicle) -> dict:
-    return {c.args[0]: c.args[1] for c in vehicle.set_parameter.call_args_list}
+    return {c.args[0]: c.args[1] for c in vehicle.write_parameter.call_args_list}
 
 
 class TestRallyItems:
@@ -89,11 +102,13 @@ class TestSetHubRally:
         assert status["applied"] is False and status["action"] == "set"
         assert "not acknowledged" in status["error"]
         assert vehicle.upload_rally.call_count == RALLY_UPLOAD_ATTEMPTS
-        vehicle.set_parameter.assert_not_called()
+        vehicle.write_parameter.assert_not_called()
 
     def test_rejected_param_write_is_named(self):
         vehicle = _vehicle()
-        vehicle.set_parameter.side_effect = lambda name, value: name != "RALLY_LIMIT_KM"
+        vehicle.write_parameter.side_effect = lambda name, value, policy: (
+            CONFIRMED if name != "RALLY_LIMIT_KM"
+            else ParameterExchange(ExchangeOutcome.UNCONFIRMED, ExchangeReason.NO_ECHO, 3))
 
         status = apply_rally(vehicle, 7, HUB, 150.0, cache=MagicMock())
 
@@ -121,9 +136,9 @@ class TestClearRally:
         assert status == {"applied": True, "action": "clear", "total": 0,
                           "error": None, "failed_params": []}
         vehicle.clear_rally.assert_called_once_with()
-        vehicle.get_parameter_fresh.assert_called_once_with("RALLY_TOTAL")
+        assert vehicle.read_parameter.call_args.args[0] == "RALLY_TOTAL"
         vehicle.upload_rally.assert_not_called()
-        vehicle.set_parameter.assert_not_called()
+        vehicle.write_parameter.assert_not_called()
 
     def test_points_left_on_the_vehicle_are_a_failure(self):
         vehicle = _vehicle(rally_total=2.0)
@@ -133,7 +148,7 @@ class TestClearRally:
         assert status["applied"] is False and status["total"] == 2
         assert "2 rally point" in status["error"]
 
-    @pytest.mark.parametrize("raw", [None, float("nan"), "x"])
+    @pytest.mark.parametrize("raw", [None, float("nan")])
     def test_unreadable_rally_total_is_unknown_not_cleared(self, raw):
         vehicle = _vehicle(rally_total=raw)
 
@@ -154,4 +169,44 @@ class TestDeadline:
         assert status["applied"] is False and "deadline" in status["error"]
         vehicle.upload_rally.assert_not_called()
         vehicle.clear_rally.assert_not_called()
-        vehicle.set_parameter.assert_not_called()
+        vehicle.write_parameter.assert_not_called()
+
+
+class TestParamExchangesKeepTheRequestDeadline:
+    """Codex round 1, finding 3: every rally parameter exchange is bounded by
+    the request's own policy, so one that starts just before the deadline
+    cannot retry past it, and a write after it is not sent."""
+
+    def test_deadline_passing_during_the_first_write_stops_the_second(self, monkeypatch):
+        now = [100.0]
+        monkeypatch.setattr(rt, "monotonic", lambda: now[0])
+        policy = ExchangePolicy(3, 105.0, stop_on_silence=True)
+        seen = []
+
+        def write_parameter(name, value, exchange_policy):
+            # The vehicle's exchange loop stops at exchange_policy's deadline.
+            seen.append((name, exchange_policy))
+            if now[0] >= exchange_policy.deadline_s:
+                return PAST_DEADLINE
+            now[0] = 106.0  # this exchange used up the request's time
+            return CONFIRMED
+
+        vehicle = _vehicle()
+        vehicle.write_parameter = MagicMock(side_effect=write_parameter)
+
+        status = apply_rally(vehicle, 7, HUB, 150.0, cache=MagicMock(), policy=policy)
+
+        assert [name for name, _ in seen] == ["RALLY_INCL_HOME", "RALLY_LIMIT_KM"]
+        assert all(p is policy for _, p in seen)
+        assert status["applied"] is False
+        assert status["failed_params"] == ["RALLY_LIMIT_KM"]
+
+    def test_rally_total_read_is_bounded_by_the_request_policy(self):
+        policy = ExchangePolicy(3, rt.monotonic() + 60.0, stop_on_silence=True)
+        vehicle = _vehicle()
+        vehicle.read_parameter = MagicMock(return_value=PAST_DEADLINE)
+
+        status = apply_rally(vehicle, 7, None, 150.0, cache=MagicMock(), policy=policy)
+
+        assert vehicle.read_parameter.call_args.args == ("RALLY_TOTAL", policy)
+        assert status["applied"] is False and "deadline" in status["error"]

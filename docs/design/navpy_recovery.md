@@ -95,10 +95,20 @@ the GCS also sets each vehicle's rally table (`src/gcs/backend/routes/mission_ra
   hub from an older mission; it goes to HOME. The clear is confirmed by
   reading `RALLY_TOTAL` back as 0.
 - Per vehicle, after its mission is accepted, within the request's deadline,
-  like the geofence. A failure (no ACK after 3 tries, a rejected parameter,
-  a clear not confirmed, the deadline) is reported per vehicle as the
-  upload's `rally` outcome and `rally_ok`, separately from the mission. The
-  planner shows it and stays in planning.
+  like the geofence. The rally parameter writes and the `RALLY_TOTAL` read
+  are deadline-bounded exchanges. A failure (no ACK after 3 tries, a rejected
+  parameter, a clear not confirmed, the deadline) is reported per vehicle as
+  the upload's `rally` outcome and `rally_ok`, separately from the mission.
+  The planner shows it and stays in planning.
+- One upload at a time per vehicle (`vehicle_upload_lock.py`): mission,
+  `RTL_ALTITUDE`, rally table and geofence are one update, so a second
+  upload never pairs its mission with the first one's hub. A request that
+  cannot start before its deadline because another is still updating that
+  vehicle sends nothing to it and reports an error.
+- An assignment with no waypoints uploads no mission, so the rally table is
+  left matching the mission still installed (its `rally` outcome is empty).
+- A rally update that failed is not repeated on its own after a reconnect;
+  the operator uploads again (todo 306).
 
 So every RTL circles the DDH: NavPy's recovery escalation, the Lua
 `nav_watchdog.lua` RTL, and ArduPilot's own failsafes (radio, GCS, battery,

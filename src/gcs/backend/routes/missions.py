@@ -12,9 +12,9 @@ from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.mission_validator import parse_mission_items
 from gcs.backend.exchange_budget import DEFAULT_MISSION_REQUEST_S, MISSION_UPLOAD_REQUEST_S
 from gcs.backend.exchange_budget import expired, gcs_policy, held_within, requested_policy
-from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, RallyOutcome
+from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, RallyOutcome, VehicleAssignment
 from gcs.backend.settings_store import settings_store
-from gcs.backend.vehicle_manager import vehicle_mgr
+from gcs.backend.vehicle_manager import VehicleEntry, vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.producer_inventory import producers
 from gcs.backend.full_params import full_param_cache
@@ -22,7 +22,9 @@ from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
 from gcs.backend.routes.mission_upload_helpers import (
     assignment_geometry, apply_fence, fence_outcome_model, finish_uploaded_vehicle, reconnect_within,
+    upload_summary,
 )
+from gcs.backend.routes.vehicle_upload_lock import UPLOAD_BUSY_ERROR, vehicle_upload_locks
 
 log = logging.getLogger(__name__)
 router = APIRouter()
@@ -150,6 +152,100 @@ async def download_fence(sys_id: int):
     return await download_fence_snapshot(entry.vehicle, sys_id)
 
 
+async def _upload_assignment(
+    assignment: VehicleAssignment, entry: VehicleEntry, fence: FencePlan | None,
+    policy: ExchangePolicy, takeoff_altitude_m: float | None,
+) -> tuple[UploadProgress, dict | None, dict | None]:
+    """One vehicle's whole update: mission, RTL_ALTITUDE, rally table, geofence."""
+    fence_status = None
+    rally_status = None
+    try:
+        track, poly, corr, lp, dt = assignment_geometry(assignment)
+
+        loop = asyncio.get_event_loop()
+
+        async def _broadcast_stage(stage: str, attempt: int) -> None:
+            await ws_manager.broadcast({
+                "type": "upload_progress",
+                "sys_id": assignment.sys_id,
+                "stage": stage,
+                "attempt": attempt,
+            })
+
+        async def _broadcast_wp(wp_sent: int, wp_total: int) -> None:
+            await ws_manager.broadcast({
+                "type": "upload_progress",
+                "sys_id": assignment.sys_id,
+                "stage": "uploading",
+                "wp_sent": wp_sent,
+                "wp_total": wp_total,
+                "progress": wp_sent / wp_total if wp_total else 0,
+            })
+
+        def on_progress(stage: str, attempt: int) -> None:
+            producers.broadcast("route_broadcasts", _broadcast_stage(stage, attempt), loop)
+
+        def on_wp_progress(wp_sent: int, wp_total: int) -> None:
+            producers.broadcast("route_broadcasts", _broadcast_wp(wp_sent, wp_total), loop)
+
+        def upload(**retries: int) -> asyncio.Future[UploadResult]:
+            return loop.run_in_executor(None, lambda: upload_mission_with_retry(
+                entry.vehicle, track, assignment.altitude_m,
+                corridor_count=assignment.corridor_count,
+                search_pattern=assignment.search_pattern,
+                polygon=poly,
+                corridor_backbone=corr,
+                launch_point=lp,
+                corridor_altitude_m=assignment.corridor_altitude_m,
+                default_delivery_hub=dt,
+                takeoff_altitude_m=takeoff_altitude_m,
+                on_progress=on_progress,
+                on_wp_progress=on_wp_progress,
+                policy=policy,
+                **retries,
+            ))
+
+        result = await upload()
+
+        # If link lost, try reconnecting and retrying once
+        if result.link_lost and not expired(policy):
+            await ws_manager.broadcast({
+                "type": "upload_progress",
+                "sys_id": assignment.sys_id,
+                "stage": "reconnecting",
+                "attempt": result.attempts,
+            })
+            new_entry = await loop.run_in_executor(
+                None, reconnect_within, vehicle_mgr, assignment.sys_id, policy,
+            )
+            if new_entry:
+                entry = new_entry
+                result = await upload(max_retries=2)
+
+        if result.success:
+            entry.mission_uploaded = True
+            entry.probed_search_pattern = assignment.search_pattern
+            entry.cached_mission = None  # invalidate probe cache
+            fence_status, rally_status = await finish_uploaded_vehicle(
+                loop, entry, assignment.sys_id, assignment.altitude_m, dt,
+                lambda: _apply_fence(loop, entry, assignment.sys_id, fence, policy),
+                mission_replaced=bool(track), cache=full_param_cache, policy=policy,
+            )
+
+        progress = UploadProgress(
+            sys_id=assignment.sys_id,
+            progress=1.0 if result.success else 0.0,
+            done=True,
+            error=result.error,
+            fence=fence_outcome_model(fence_status),
+            rally=RallyOutcome(**rally_status) if rally_status is not None else None,
+        )
+    except Exception as e:
+        log.error("Upload to vehicle %d failed: %s", assignment.sys_id, e)
+        progress = UploadProgress(sys_id=assignment.sys_id, progress=0.0, done=True, error=str(e))
+    return progress, fence_status, rally_status
+
+
 @router.post("/upload")
 async def upload_missions(req: UploadRequest):
     """Upload mission waypoints to assigned vehicles."""
@@ -163,12 +259,8 @@ async def upload_missions(req: UploadRequest):
     for assignment in req.assignments:
         entry = vehicle_mgr.get_vehicle(assignment.sys_id)
         if not entry:
-            results.append(UploadProgress(
-                sys_id=assignment.sys_id,
-                progress=0.0,
-                done=True,
-                error=f"Vehicle {assignment.sys_id} not connected",
-            ))
+            results.append(UploadProgress(sys_id=assignment.sys_id, progress=0.0, done=True,
+                                          error=f"Vehicle {assignment.sys_id} not connected"))
             continue
 
         # Broadcast upload start
@@ -179,97 +271,16 @@ async def upload_missions(req: UploadRequest):
             "done": False,
         })
 
-        fence_status = None
-        rally_status = None
-        try:
-            track, poly, corr, lp, dt = assignment_geometry(assignment)
-
-            loop = asyncio.get_event_loop()
-
-            async def _broadcast_stage(stage: str, attempt: int):
-                await ws_manager.broadcast({
-                    "type": "upload_progress",
-                    "sys_id": assignment.sys_id,
-                    "stage": stage,
-                    "attempt": attempt,
-                })
-
-            async def _broadcast_wp(wp_sent: int, wp_total: int):
-                await ws_manager.broadcast({
-                    "type": "upload_progress",
-                    "sys_id": assignment.sys_id,
-                    "stage": "uploading",
-                    "wp_sent": wp_sent,
-                    "wp_total": wp_total,
-                    "progress": wp_sent / wp_total if wp_total else 0,
-                })
-
-            def on_progress(stage: str, attempt: int):
-                producers.broadcast("route_broadcasts", _broadcast_stage(stage, attempt), loop)
-
-            def on_wp_progress(wp_sent: int, wp_total: int):
-                producers.broadcast("route_broadcasts", _broadcast_wp(wp_sent, wp_total), loop)
-
-            def upload(**retries: int) -> asyncio.Future[UploadResult]:
-                return loop.run_in_executor(None, lambda: upload_mission_with_retry(
-                    entry.vehicle, track, assignment.altitude_m,
-                    corridor_count=assignment.corridor_count,
-                    search_pattern=assignment.search_pattern,
-                    polygon=poly,
-                    corridor_backbone=corr,
-                    launch_point=lp,
-                    corridor_altitude_m=assignment.corridor_altitude_m,
-                    default_delivery_hub=dt,
-                    takeoff_altitude_m=takeoff_altitude_m,
-                    on_progress=on_progress,
-                    on_wp_progress=on_wp_progress,
-                    policy=policy,
-                    **retries,
-                ))
-
-            result = await upload()
-
-            # If link lost, try reconnecting and retrying once
-            if result.link_lost and not expired(policy):
-                await ws_manager.broadcast({
-                    "type": "upload_progress",
-                    "sys_id": assignment.sys_id,
-                    "stage": "reconnecting",
-                    "attempt": result.attempts,
-                })
-                new_entry = await loop.run_in_executor(
-                    None, reconnect_within, vehicle_mgr, assignment.sys_id, policy,
+        # The whole per-vehicle update is one transaction (vehicle_upload_lock.py).
+        async with vehicle_upload_locks.held(assignment.sys_id, policy) as held:
+            if held:
+                progress, fence_status, rally_status = await _upload_assignment(
+                    assignment, entry, req.fence, policy, takeoff_altitude_m,
                 )
-                if new_entry:
-                    entry = new_entry
-                    result = await upload(max_retries=2)
-
-            if result.success:
-                entry.mission_uploaded = True
-                entry.probed_search_pattern = assignment.search_pattern
-                entry.cached_mission = None  # invalidate probe cache
-                fence_status, rally_status = await finish_uploaded_vehicle(
-                    loop, entry, assignment.sys_id, assignment.altitude_m, dt,
-                    lambda: _apply_fence(loop, entry, assignment.sys_id, req.fence, policy),
-                    cache=full_param_cache, policy=policy,
-                )
-
-            progress = UploadProgress(
-                sys_id=assignment.sys_id,
-                progress=1.0 if result.success else 0.0,
-                done=True,
-                error=result.error,
-                fence=fence_outcome_model(fence_status),
-                rally=RallyOutcome(**rally_status) if rally_status is not None else None,
-            )
-        except Exception as e:
-            log.error("Upload to vehicle %d failed: %s", assignment.sys_id, e)
-            progress = UploadProgress(
-                sys_id=assignment.sys_id,
-                progress=0.0,
-                done=True,
-                error=str(e),
-            )
+            else:
+                progress, fence_status, rally_status = UploadProgress(
+                    sys_id=assignment.sys_id, progress=0.0, done=True, error=UPLOAD_BUSY_ERROR,
+                ), None, None
 
         results.append(progress)
 
@@ -285,16 +296,4 @@ async def upload_missions(req: UploadRequest):
             **({"rally": rally_status} if rally_status is not None else {}),
         })
 
-    all_ok = all(r.error is None for r in results)
-    # Fence truth is reported separately from mission truth: a vehicle with no
-    # fence attempt (none requested, or its mission failed) cannot make this
-    # false, and a failed fence cannot make the mission look failed.
-    fence_ok = all(r.fence is None or r.fence.applied for r in results)
-    # Same for the rally table: false only when a vehicle's RTL may not reach its DDH.
-    rally_ok = all(r.rally is None or r.rally.applied for r in results)
-    return {
-        "status": "complete" if all_ok else "partial_failure",
-        "results": results,
-        "fence_ok": fence_ok,
-        "rally_ok": rally_ok,
-    }
+    return upload_summary(results)

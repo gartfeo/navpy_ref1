@@ -30,7 +30,9 @@ describe('rallyFailureLines', () => {
       { sysId: 4, action: 'clear', error: null, failedParams: [] },
     ]);
     expect(lines[0]).toContain('Vehicle 2: rally point not acknowledged');
+    // Replacing hub A with hub B can fail with hub A still on the vehicle.
     expect(lines[0]).toContain('launch point');
+    expect(lines[0]).toContain("previous mission's hub");
     expect(lines[1]).toContain('Vehicle 4: clear failed');
     expect(lines[1]).toContain('older hub');
   });

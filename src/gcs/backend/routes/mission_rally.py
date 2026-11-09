@@ -13,15 +13,13 @@ the operator must see that an RTL would not go to the hub.
 from __future__ import annotations
 
 import logging
-import math
 from typing import Protocol
 
 from navpy.core.kernel.runtime_time import LockPort
-from navpy.core.ports.parameter_exchange import ExchangePolicy
+from navpy.core.ports.parameter_exchange import ExchangePolicy, ParameterExchange
 from gcs.backend.exchange_budget import expired, held_within
 from gcs.backend.full_params import FullParamCache
 from gcs.backend.planner.rally_builder import RALLY_PARAM_WRITES, build_rally_items
-from gcs.backend.routes.checked_param_writes import write_checked_params
 
 log = logging.getLogger("gcs.backend.routes.missions")
 
@@ -37,9 +35,9 @@ class RallyVehicle(Protocol):
     target_system: int
     mission_lock: LockPort
 
-    def set_parameter(self, name: str, value: float) -> bool: ...
+    def write_parameter(self, name: str, value: float, policy: ExchangePolicy) -> ParameterExchange: ...
 
-    def get_parameter_fresh(self, name: str) -> float | None: ...
+    def read_parameter(self, name: str, policy: ExchangePolicy) -> ParameterExchange: ...
 
     def upload_rally(self, items: list, policy: ExchangePolicy | None = None) -> bool: ...
 
@@ -55,6 +53,31 @@ def _outcome(action: str, *, applied: bool, total: int | None = None,
         "error": error,
         "failed_params": failed_params or [],
     }
+
+
+def _bounded(policy: ExchangePolicy | None) -> ExchangePolicy:
+    """The request's policy for one parameter exchange; without one, the default."""
+    return policy if policy is not None else ExchangePolicy()
+
+
+def _write_rally_params(vehicle: RallyVehicle, policy: ExchangePolicy | None) -> list[str]:
+    """Write the rally params; the names not confirmed by the vehicle.
+
+    Each write is a policy-bounded exchange (``write_parameter``): its lock wait,
+    its sends and its answer waits all end at the request's deadline, so a
+    write that starts just before the deadline cannot retry past it (Codex
+    round 1 on the rally change, finding 3).
+    """
+    failed: list[str] = []
+    for name, value in RALLY_PARAM_WRITES:
+        try:
+            ok = vehicle.write_parameter(name, value, _bounded(policy)).confirmed
+        except Exception as exc:  # noqa: BLE001 - reported, never raised on
+            log.warning("Rally param %s write errored: %s", name, exc)
+            ok = False
+        if not ok:
+            failed.append(name)
+    return failed
 
 
 def _set_hub_rally(vehicle: RallyVehicle, hub: dict, altitude_m: float,
@@ -75,7 +98,7 @@ def _set_hub_rally(vehicle: RallyVehicle, hub: dict, altitude_m: float,
         return _outcome("set", applied=False,
                         error=f"rally point not acknowledged after {RALLY_UPLOAD_ATTEMPTS} attempts")
 
-    failed = write_checked_params(vehicle, list(RALLY_PARAM_WRITES), policy)
+    failed = _write_rally_params(vehicle, policy)
     return _outcome(
         "set", applied=not failed, total=len(items),
         error=f"parameter write failed: {', '.join(failed)}" if failed else None,
@@ -93,13 +116,11 @@ def _clear_rally(vehicle: RallyVehicle, policy: ExchangePolicy | None) -> dict:
     # RALLY_TOTAL, read after it on the same link, is the proof it was done.
     if expired(policy):
         return _outcome("clear", applied=False, error="request deadline passed")
-    raw = vehicle.get_parameter_fresh("RALLY_TOTAL")
-    try:
-        total = float(raw)
-    except (TypeError, ValueError):
-        total = math.nan
-    if not math.isfinite(total):
-        return _outcome("clear", applied=False, error="RALLY_TOTAL could not be read back")
+    read = vehicle.read_parameter("RALLY_TOTAL", _bounded(policy))
+    total = read.value if read.confirmed else None
+    if total is None or total != total:  # unconfirmed, or NaN
+        why = f" ({read.reason.value})" if read.reason is not None else ""
+        return _outcome("clear", applied=False, error=f"RALLY_TOTAL could not be read back{why}")
     if total != 0:
         return _outcome("clear", applied=False, total=int(total),
                         error=f"vehicle still holds {int(total)} rally point(s)")

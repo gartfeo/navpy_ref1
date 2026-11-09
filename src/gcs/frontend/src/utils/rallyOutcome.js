@@ -22,12 +22,16 @@ export function rallyUploadFailures(result) {
     }));
 }
 
-/** One alert line per failure, saying where an RTL would go instead. */
+/**
+ * One alert line per failure, saying where an RTL would go instead. A failed
+ * set leaves whatever the vehicle held before: no rally point (RTL goes to the
+ * launch point) or a previous mission's hub, so the line names both.
+ */
 export function rallyFailureLines(failures) {
   return failures.map((f) => {
     const what = f.action === 'clear'
       ? 'old rally point not cleared, RTL may fly to an older hub'
-      : 'RTL may go to the launch point, not the hub';
+      : "RTL may go to the launch point or to a previous mission's hub, not this hub";
     const params = f.failedParams.length ? ` (${f.failedParams.join(', ')})` : '';
     return `  Vehicle ${f.sysId}: ${f.error || `${f.action} failed`}${params}; ${what}`;
   });
