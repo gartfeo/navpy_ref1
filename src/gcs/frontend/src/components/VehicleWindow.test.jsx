@@ -40,8 +40,10 @@ vi.mock('../vendor/mediamtx/reader', () => ({ default: FakeReader }));
 vi.mock('./SyntheticView', async () => {
   const { useEffect } = await import('react');
   return {
-    default: function SyntheticStub({ sysId, onFail, smallMap }) {
+    default: function SyntheticStub({ sysId, onFail, smallMap, held, marks }) {
       synthetic.onFail = onFail;
+      synthetic.held = held;
+      synthetic.marks = marks;
       useEffect(() => {
         synthetic.mounts += 1;
         return () => { synthetic.unmounts += 1; };
@@ -727,10 +729,17 @@ describe('source switch', () => {
     expect(document.activeElement).toBe(button(utils, 'source.synthetic'));
   });
 
-  it('held pose on Synthetic: the held row names the reason', () => {
+  it('held pose on Synthetic: the held row names the reason, and the picture is told it is held', () => {
     const fleet = [entry(1, [], { linkOk: false, holdReason: 'linkLost' })];
     const { getByText } = renderPicked(fleet, 1);
     expect(getByText('fpvView.held.linkLost 0')).toBeInTheDocument();
+    expect(synthetic.held).toBe(true);
+  });
+
+  it('a live Synthetic picture is not held', () => {
+    const utils = renderPicked([entry(1)], 1);
+    expect(utils.getByTestId('synthetic-widget')).toBeInTheDocument();
+    expect(synthetic.held).toBe(false);
   });
 
   it('the held time restarts for a newly picked UAV held for the same reason', () => {

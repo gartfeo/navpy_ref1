@@ -35,6 +35,7 @@ from pymavlink import mavutil
 from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.companion_hold_claim import CompanionHoldClaim
 from navpy.plugins.vehicle.ardupilot.mav_command_fence import MavCommandFence
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBusLease
 from navpy.plugins.vehicle.ardupilot.mav_bus_heartbeats import MavBusHeartbeats
@@ -192,6 +193,7 @@ class LockstepBus:
         self._conn = connection
         self._send_lock = rt.RLock()
         self.command_fence = MavCommandFence()   # as MavBus.command_fence
+        self.companion_hold = CompanionHoldClaim()   # as MavBus.companion_hold
         self._heartbeats = MavBusHeartbeats()
         self._membership = MavBusMembership()
         self._inbound = BatonQueue(baton)

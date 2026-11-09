@@ -38,6 +38,7 @@ def nav_recovery(
             escalation=link.escalation,
             watchdog=link.watchdog,
             mode_sender=sender,
+            claim_hold=link.claim_hold,
         ),
         hold,
     ), sender)

@@ -410,7 +410,10 @@ def test_after_a_stop_the_vehicle_ends_reads_and_transfers_at_once_but_still_wri
                 vehicle.load_mission_items(_loader(2))
                 assert vehicle.upload_mission() is False
             assert waits == []  # each ended before its first wait
-            connection.mav.param_request_read_send.assert_not_called()
+            # The only request is the SIM_SPEEDUP ask a companion sends as its heartbeat starts, before the stop
+            # (navpy_recovery.md step 10, item 12); the stopped read of WP_LOITER_RAD sends nothing.
+            sent = [c.args[2] for c in connection.mav.param_request_read_send.call_args_list]
+            assert sent in ([], [b"SIM_SPEEDUP"])
             connection.mav.mission_request_list_send.assert_not_called()
             connection.mav.mission_count_send.assert_not_called()
 
