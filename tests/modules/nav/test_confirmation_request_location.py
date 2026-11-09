@@ -17,7 +17,7 @@ from navpy.core.review.confirmation_round_runner import ConfirmationRoundRunner
 def _request(location, truth=None, is_simulation=False):
     geo = SimpleNamespace(projected_poi_location=location, truth_poi_location=truth)
     poi = SimpleNamespace(geo=geo, classification=SimpleNamespace(class_id=0))
-    runner = SimpleNamespace(_sys_id=5, _is_simulation=is_simulation)
+    runner = SimpleNamespace(_sys_id=5, _is_simulation=is_simulation, _standing=lambda _poi: False)
     request = ConfirmationRoundRunner._request_message(runner, poi, 1)
     # The POI is read, never changed: the command path sees nothing new.
     assert geo.projected_poi_location is location
