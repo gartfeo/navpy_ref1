@@ -730,3 +730,47 @@ def test_item9_a_stale_link_keeps_the_claim():
     ap.fresh = False
     rig.run(False, 1.0)
     assert rig.recovery.ownership.state is Ownership.UNKNOWN and rig.claims[-1] is True
+
+
+# Codex round 1 on step 10: a failed sortie's RTL survives a hold (finding 2) and a component escalation (finding 3).
+
+
+def test_codex1_2_a_hold_before_the_sortie_rtl_was_sent_still_ends_in_rtl_not_the_mission():
+    """The failed dock queues RTL, then a hang holds (LOITER) before recovery sends it. Healthy again, the hold must
+    not hand the UAV back to the mission's AUTO (which ended ownership and dropped the RTL as not NavPy's)."""
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.recovery._ports.watchdog.set_hung(True)              # the step that would send it holds first
+    rig.run(False, PERIOD_S)
+    assert rig.stage is RecoveryStage.HOLD and ap.requests == [FlightMode.LOITER]
+    rig.recovery._ports.watchdog.set_hung(False)
+    rig.run(False, 1.0)
+    assert ap.mode is FlightMode.LOITER
+    rig.run(True, NAV_HOLD_TRIGGER_S + 3.0)
+    assert FlightMode.AUTO not in ap.requests
+    assert ap.requests[-1] is FlightMode.RTL and ap.mode is FlightMode.RTL
+    assert rig.stage is RecoveryStage.NORMAL and not rig.hold.sortie_rtl
+
+
+def test_codex1_3_an_escalation_after_the_sortie_rtl_showed_keeps_it_and_releases():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.run(True, 2.0)
+    assert ap.mode is FlightMode.RTL and not rig.hold.sortie_rtl
+    rig.escalation.request()
+    rig.run(True, 3.0)
+    assert rig.stage is RecoveryStage.ESCALATED
+    assert ap.requests == [FlightMode.RTL] and ap.mode is FlightMode.RTL   # no AUTO over the return
+    assert rig.escalation.released
+
+
+def test_codex1_3_an_escalation_with_the_sortie_rtl_still_pending_hands_over_to_rtl():
+    ap = FakeAutopilot()
+    rig = Rig(ap)
+    rig.hold.request_sortie_rtl()
+    rig.escalation.request()                                 # in the same step, before recovery sends the RTL
+    rig.run(True, 3.0)
+    assert FlightMode.AUTO not in ap.requests and ap.mode is FlightMode.RTL
+    assert rig.escalation.released

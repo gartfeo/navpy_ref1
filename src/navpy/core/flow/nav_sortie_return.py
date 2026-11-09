@@ -6,7 +6,9 @@ recovery's ownership like every automatic mode request (nav_ownership.py): sent 
 the heartbeat is fresh, and repeated every MODE_RETRY_S until a heartbeat shows RTL. A mode NavPy does not own (the
 operator's, a failsafe's) stands and ends the request; a stale link, or a GUIDED request of NavPy's still unsettled,
 waits for a fresh heartbeat. It runs in recovery's step while recovery is NORMAL; in a hold recovery's stages own the
-mode, and an RTL already shown is never turned into the hold's LOITER (nav_recovery.py).
+mode, and an RTL already shown is never turned into the hold's LOITER (nav_recovery.py). The request outlives a
+hold: the hold never hands a waiting return to the mission's AUTO, it reopens and the RTL follows here; an escalation
+hands over to RTL instead of AUTO and releases on an RTL shown (Codex round 1 on step 10, findings 2 and 3).
 """
 
 from __future__ import annotations
