@@ -157,6 +157,7 @@ def test_real_autopilot_one_shot_never_disarms():
             is_simulated_autopilot=lambda: False,
             is_stopping=lambda: False,
             disarm=disarm,
+            request_rtl=Mock(),
         ),
         reset,
         logger,
@@ -177,6 +178,7 @@ def test_simulated_one_shot_disarms_before_reset():
             is_simulated_autopilot=lambda: True,
             is_stopping=lambda: False,
             disarm=lambda: events.append("disarm"),
+            request_rtl=lambda: events.append("rtl"),
         ),
         SimpleNamespace(clear=lambda: events.append("reset")),
         Mock(),
@@ -184,3 +186,53 @@ def test_simulated_one_shot_disarms_before_reset():
 
     assert completion.run() == ()
     assert events == ["disarm", "reset"]
+
+
+# Step 10, item 3 (owner ruling 2026-11-09): a failed one-shot dock is never disarmed; it asks for RTL through
+# recovery's ownership, in simulation and on real hardware. A dock keeps the simulation disarm.
+
+
+def _completion(simulated: bool):
+    events = []
+    completion = OneShotCompletion(
+        OneShotCompletionPorts(
+            is_simulated_autopilot=lambda: simulated,
+            is_stopping=lambda: False,
+            disarm=lambda: events.append("disarm"),
+            request_rtl=lambda: events.append("rtl"),
+        ),
+        SimpleNamespace(clear=lambda: events.append("reset")),
+        Mock(),
+    )
+    return completion, events
+
+
+def test_item3_a_failed_one_shot_dock_in_simulation_asks_for_rtl_and_never_disarms():
+    completion, events = _completion(simulated=True)
+    assert completion.run(failed=True) == ()
+    assert events == ["rtl", "reset"]
+
+
+def test_item3_a_failed_one_shot_dock_on_real_hardware_asks_for_rtl_too():
+    completion, events = _completion(simulated=False)
+    assert completion.run(failed=True) == ()
+    assert events == ["rtl", "reset"]
+
+
+def test_item3_a_dock_keeps_the_simulation_disarm_and_asks_for_no_rtl():
+    completion, events = _completion(simulated=True)
+    assert completion.run() == ()
+    assert events == ["disarm", "reset"]
+    completion, events = _completion(simulated=False)
+    assert completion.run() == ()
+    assert events == ["reset"]
+
+
+def test_item3_a_failed_rtl_request_is_reported_and_the_task_still_clears():
+    reset = Mock()
+    completion = OneShotCompletion(
+        OneShotCompletionPorts(lambda: True, lambda: False, Mock(), Mock(side_effect=RuntimeError("rtl"))),
+        reset, Mock(),
+    )
+    assert [str(error) for error in completion.run(failed=True)] == ["rtl"]
+    reset.clear.assert_called_once_with()
