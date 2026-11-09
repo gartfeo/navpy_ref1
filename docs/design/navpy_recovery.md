@@ -102,9 +102,11 @@ the GCS also sets each vehicle's rally table (`src/gcs/backend/routes/mission_ra
   The planner shows it and stays in planning.
 - One upload at a time per vehicle (`vehicle_upload_lock.py`): mission,
   `RTL_ALTITUDE`, rally table and geofence are one update, so a second
-  upload never pairs its mission with the first one's hub. A request that
-  cannot start before its deadline because another is still updating that
-  vehicle sends nothing to it and reports an error.
+  upload never pairs its mission with the first one's hub. The vehicle's
+  entry is looked up once the lock is held, so a reconnect by the earlier
+  request is seen. A request that cannot start before its deadline because
+  another is still updating that vehicle sends nothing to it and reports an
+  error; the wait is bounded even at a handoff between two requests.
 - An assignment with no waypoints uploads no mission, so the rally table is
   left matching the mission still installed (its `rally` outcome is empty).
 - A rally update that failed is not repeated on its own after a reconnect;

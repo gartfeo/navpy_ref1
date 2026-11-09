@@ -255,6 +255,15 @@ async def apply_fence(
                         applied=False, error=str(e))
 
 
+def not_started(sys_id: int, error: str) -> UploadProgress:
+    """The result for a vehicle whose update never started: nothing was sent."""
+    return UploadProgress(sys_id=sys_id, progress=0.0, done=True, error=error)
+
+
+def not_connected(sys_id: int) -> UploadProgress:
+    return not_started(sys_id, f"Vehicle {sys_id} not connected")
+
+
 def upload_summary(results: list[UploadProgress]) -> dict:
     """The /upload response from the per-vehicle results.
 

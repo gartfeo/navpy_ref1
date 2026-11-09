@@ -14,7 +14,7 @@ from gcs.backend.exchange_budget import DEFAULT_MISSION_REQUEST_S, MISSION_UPLOA
 from gcs.backend.exchange_budget import expired, gcs_policy, held_within, requested_policy
 from gcs.backend.models import UploadRequest, UploadProgress, FencePlan, RallyOutcome, VehicleAssignment
 from gcs.backend.settings_store import settings_store
-from gcs.backend.vehicle_manager import VehicleEntry, vehicle_mgr
+from gcs.backend.vehicle_manager import vehicle_mgr
 from gcs.backend.broadcast import manager as ws_manager
 from gcs.backend.producer_inventory import producers
 from gcs.backend.full_params import full_param_cache
@@ -22,7 +22,7 @@ from gcs.backend.diagnostics import emit
 from gcs.backend.routes.mission_fence_download import download_fence_snapshot
 from gcs.backend.routes.mission_upload_helpers import (
     assignment_geometry, apply_fence, fence_outcome_model, finish_uploaded_vehicle, reconnect_within,
-    upload_summary,
+    not_connected, not_started, upload_summary,
 )
 from gcs.backend.routes.vehicle_upload_lock import UPLOAD_BUSY_ERROR, vehicle_upload_locks
 
@@ -153,12 +153,18 @@ async def download_fence(sys_id: int):
 
 
 async def _upload_assignment(
-    assignment: VehicleAssignment, entry: VehicleEntry, fence: FencePlan | None,
+    assignment: VehicleAssignment, fence: FencePlan | None,
     policy: ExchangePolicy, takeoff_altitude_m: float | None,
 ) -> tuple[UploadProgress, dict | None, dict | None]:
-    """One vehicle's whole update: mission, RTL_ALTITUDE, rally table, geofence."""
-    fence_status = None
-    rally_status = None
+    """One vehicle's whole update: mission, RTL_ALTITUDE, rally table, geofence.
+
+    Runs under the vehicle's upload lock and fetches the entry only then: a request
+    that held the lock may have reconnected the vehicle and closed the old entry.
+    """
+    entry = vehicle_mgr.get_vehicle(assignment.sys_id)
+    if not entry:
+        return not_connected(assignment.sys_id), None, None
+    fence_status = rally_status = None
     try:
         track, poly, corr, lp, dt = assignment_geometry(assignment)
 
@@ -257,14 +263,11 @@ async def upload_missions(req: UploadRequest):
     takeoff_altitude_m = settings_store.get().flight.takeoff_altitude_m
 
     for assignment in req.assignments:
-        entry = vehicle_mgr.get_vehicle(assignment.sys_id)
-        if not entry:
-            results.append(UploadProgress(sys_id=assignment.sys_id, progress=0.0, done=True,
-                                          error=f"Vehicle {assignment.sys_id} not connected"))
+        if not vehicle_mgr.get_vehicle(assignment.sys_id):
+            results.append(not_connected(assignment.sys_id))
             continue
 
-        # Broadcast upload start
-        await ws_manager.broadcast({
+        await ws_manager.broadcast({  # the upload starts
             "type": "upload_progress",
             "sys_id": assignment.sys_id,
             "progress": 0.1,
@@ -275,17 +278,15 @@ async def upload_missions(req: UploadRequest):
         async with vehicle_upload_locks.held(assignment.sys_id, policy) as held:
             if held:
                 progress, fence_status, rally_status = await _upload_assignment(
-                    assignment, entry, req.fence, policy, takeoff_altitude_m,
+                    assignment, req.fence, policy, takeoff_altitude_m,
                 )
             else:
-                progress, fence_status, rally_status = UploadProgress(
-                    sys_id=assignment.sys_id, progress=0.0, done=True, error=UPLOAD_BUSY_ERROR,
-                ), None, None
+                progress, fence_status, rally_status = (
+                    not_started(assignment.sys_id, UPLOAD_BUSY_ERROR), None, None)
 
         results.append(progress)
 
-        # Broadcast upload completion
-        await ws_manager.broadcast({
+        await ws_manager.broadcast({  # the upload ended
             "type": "upload_progress",
             "sys_id": assignment.sys_id,
             "stage": "complete" if progress.error is None else "failed",

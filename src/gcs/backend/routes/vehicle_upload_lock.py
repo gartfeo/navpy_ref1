@@ -12,13 +12,12 @@ hub from the same request.
 from __future__ import annotations
 
 import asyncio
-import math
 import weakref
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Callable
 from contextlib import asynccontextmanager
 
 from navpy.core.ports.parameter_exchange import ExchangePolicy
-from gcs.backend.exchange_budget import expired, remaining_s
+from gcs.backend.exchange_budget import remaining_s
 
 
 #: A request that could not start its update before its deadline: the vehicle
@@ -30,7 +29,8 @@ class VehicleUploadLocks:
     """Per-vehicle asyncio locks, one set per event loop (an asyncio lock
     belongs to the loop it first waits on)."""
 
-    def __init__(self) -> None:
+    def __init__(self, lock_factory: Callable[[], asyncio.Lock] = asyncio.Lock) -> None:
+        self._lock_factory = lock_factory
         self._by_loop: weakref.WeakKeyDictionary[
             asyncio.AbstractEventLoop, dict[int, asyncio.Lock]] = weakref.WeakKeyDictionary()
 
@@ -38,30 +38,33 @@ class VehicleUploadLocks:
         locks = self._by_loop.setdefault(asyncio.get_running_loop(), {})
         lock = locks.get(sys_id)
         if lock is None:
-            lock = locks[sys_id] = asyncio.Lock()
+            lock = locks[sys_id] = self._lock_factory()
         return lock
 
     @asynccontextmanager
     async def held(self, sys_id: int, policy: ExchangePolicy | None) -> AsyncIterator[bool]:
         """Hold ``sys_id``'s upload lock; yields whether it is held.
 
-        A free lock is taken at once, whatever the deadline: the update's own
-        transfers then apply the deadline and report each step that could not
-        start. Only the wait for another request's update is bounded: it ends
-        at the request's deadline, and then nothing is held.
+        A lock that can be taken without waiting is taken at once, whatever the
+        deadline: the update's own transfers then apply the deadline and report
+        each step that could not start. Any wait ends at the request's deadline,
+        and then nothing is held. That includes a handoff: a lock just released
+        to a woken waiter that has not run yet reads as unlocked, but taking it
+        means queueing behind that waiter (Codex round 2, finding 1), so the
+        timeout bounds the acquire itself rather than a ``locked()`` check.
         """
         lock = self._lock(sys_id)
-        acquired = False
-        if not lock.locked():
-            acquired = await lock.acquire()
-        elif not expired(policy):
-            wait_s = remaining_s(policy)
+        if policy is None or policy.deadline_s is None:
+            await lock.acquire()
+            acquired = True
+        else:
             try:
-                if math.isinf(wait_s):
-                    acquired = await lock.acquire()
-                else:
-                    acquired = await asyncio.wait_for(lock.acquire(), timeout=wait_s)
-            except asyncio.TimeoutError:
+                # A zero or past timeout still lets an uncontended acquire through:
+                # it completes without yielding, before the timeout can cancel it.
+                async with asyncio.timeout(max(0.0, remaining_s(policy))):
+                    await lock.acquire()
+                acquired = True
+            except TimeoutError:
                 acquired = False
         try:
             yield acquired

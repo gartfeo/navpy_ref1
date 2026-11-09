@@ -32,6 +32,30 @@ class MavTransport:
         with self._send_lock:
             return action(self._connection)
 
+    def call_by(
+        self,
+        deadline_s: float | None,
+        action: Callable[[mavutil.mavfile], object],
+    ) -> bool:
+        """Run ``action`` under the send lock unless ``deadline_s`` passes first.
+
+        ``deadline_s`` is a ``runtime_time.monotonic()`` instant: the lock wait
+        ends there, and a lock won at or after it is given back unused. Without
+        a deadline it is :meth:`call`. True when ``action`` ran.
+        """
+        if deadline_s is None:
+            self.call(action)
+            return True
+        if not self._send_lock.acquire(timeout=max(0.0, deadline_s - rt.monotonic())):
+            return False
+        try:
+            if rt.monotonic() >= deadline_s:
+                return False
+            action(self._connection)
+            return True
+        finally:
+            self._send_lock.release()
+
     def try_call(
         self,
         action: Callable[[mavutil.mavfile], ResultT],
