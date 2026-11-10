@@ -86,7 +86,9 @@ export function planEditKey(current) {
     hubAssignments: s.manualDeliveryHubEdit ? s.deliveryHubAssignments : null,
     simDockWps: selectionMap(s.simDockWps),
     detectAfterWps: selectionMap(s.detectAfterWps),
-    fence: s.fenceTouched ? [s.fenceEnabled, s.fenceOffsetM] : null,
+    fence: s.fenceTouched ? s.fenceEnabled : null,
+    // Only the operator (or a loaded file) sets the margin.
+    fenceOffsetM: s.fenceOffsetM,
     fenceCustomVertices: s.fenceCustomVertices ? s.fenceCustomVertices.map(latLon) : null,
     exclusions: s.exclusionPolygons.filter((r) => Array.isArray(r) && r.length >= 3).map((r) => r.map(latLon)),
   });
@@ -100,6 +102,8 @@ export function planSyncKey(current) {
   const s = buildPlanSnapshot(current || {});
   return JSON.stringify({
     edit: planEditKey(s),
+    // Sent to the UAVs, the demo default included.
+    fenceEnabled: s.fenceEnabled,
     altitude: s.plan?.altitude_m ?? null,
     zones: (s.plan?.zones || []).map((z) => [z.sys_id ?? null, z.set_index ?? 0, z.altitude_m ?? null, z.track || []]),
   });

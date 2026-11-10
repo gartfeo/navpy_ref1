@@ -13,7 +13,7 @@ const NO_SYNC = { key: null, run: null };
  *   (onPlanSynced). `planSynced` says the editor still holds exactly that
  *   plan, or a plan a download published whose baseline has not landed yet
  *   (downloadRunOf); the monitor offers the start control only then. An
- *   upload drops the baseline when it starts writing (forgetPlanSync): until
+ *   upload drops the baseline when it starts writing (beginPlanUpload): until
  *   it completes, what the UAVs carry is not known.
  * - Saved: the plan in the file last saved (markPlanSaved, taken at once) or
  *   loaded (markPlanLoaded, taken once the load has committed).
@@ -44,7 +44,9 @@ export default function usePlanSnapshot({
   const confirm = useConfirm();
   const vehicleSnapshotRef = useRef(null);
   const stateForSnapshotRef = useRef({});
-  const [snapshotTrigger, setSnapshotTrigger] = useState(0);
+  // Each request for a synced baseline; an upload's carries the edit key it
+  // sent (beginPlanUpload).
+  const [snapshotTrigger, setSnapshotTrigger] = useState({ n: 0, sentEditKey: null });
   // The synced baseline's key, and the download run of the plan it was taken
   // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
@@ -60,7 +62,9 @@ export default function usePlanSnapshot({
   };
   stateForSnapshotRef.current = current;
 
-  const onPlanSynced = useCallback(() => setSnapshotTrigger(t => t + 1), []);
+  const onPlanSynced = useCallback((sentEditKey = null) => setSnapshotTrigger((prev) => ({
+    n: prev.n + 1, sentEditKey: typeof sentEditKey === 'string' ? sentEditKey : null,
+  })), []);
   // Saved: the file holds the plan as it is now (leaving plan mode may restore
   // the UAVs' plan right after). Loaded: called in the same update that
   // applies the file, so the key is taken once that update has committed.
@@ -75,10 +79,19 @@ export default function usePlanSnapshot({
     vehicleSnapshotRef.current = null;
     setSync({ key: null, run: downloadRunOf(stateForSnapshotRef.current.plan) });
   }, []);
+  // An upload starts writing: forget the baseline and return the edit key it
+  // sends, for onPlanSynced on success. An edit made while the request was
+  // out is not on the UAVs, so the baseline is then not taken.
+  const beginPlanUpload = useCallback(() => {
+    forgetPlanSync();
+    return planEditKey(stateForSnapshotRef.current);
+  }, [forgetPlanSync]);
 
   useEffect(() => {
-    if (snapshotTrigger === 0) return;
+    if (snapshotTrigger.n === 0) return;
     const state = stateForSnapshotRef.current;
+    const sent = snapshotTrigger.sentEditKey;
+    if (sent != null && planEditKey(state) !== sent) return;
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
     setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
   }, [snapshotTrigger]);
@@ -168,5 +181,5 @@ export default function usePlanSnapshot({
     goToMonitor();
   }, [goToMonitor, confirm, t, restoreVehiclePlan, savePlanRef]);
 
-  return { onPlanSynced, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
+  return { onPlanSynced, beginPlanUpload, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
 }

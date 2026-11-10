@@ -537,7 +537,7 @@ export default function App() {
     corridorPath: planning.corridorPath,
     vehicleList, api,
     onPlanSynced: planning.onPlanSynced,
-    onPlanUnsynced: planning.forgetPlanSync,
+    onUploadStart: planning.beginPlanUpload,
     onOperatorAction: cancelStartupMissionReconciliation,
     setVehicleTargWps, setVehicleNavLastWp,
     settings,

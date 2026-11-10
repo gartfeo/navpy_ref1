@@ -19,16 +19,17 @@ import useConfirm from './useConfirm';
  * `fenceIntentGeneration` identifies the pending operator request so
  * `onFenceIntentResolved` can consume exactly the one this upload answered.
  *
- * `onPlanUnsynced` drops the plan-on-the-UAVs baseline as the upload starts
- * writing: a partial or failed upload leaves the UAVs' plans unknown, so the
- * old baseline must neither enable the start control nor be restored.
- * `onPlanSynced` captures the new one once the upload completed.
+ * `onUploadStart` drops the plan-on-the-UAVs baseline as the upload starts
+ * writing (a partial or failed upload leaves the UAVs' plans unknown, so the
+ * old baseline must neither enable the start control nor be restored) and
+ * returns a token for what was sent. `onPlanSynced(token)` takes the new
+ * baseline once the upload completed, unless the plan was edited meanwhile.
  */
 export default function useMissionUpload({
   mission,
   effectiveUavCount,
   localGenerate, approachPoint, corridorPath,
-  vehicleList, api, onPlanSynced, onPlanUnsynced,
+  vehicleList, api, onPlanSynced, onUploadStart,
   onOperatorAction,
   setVehicleTargWps, setVehicleNavLastWp,
   settings,
@@ -187,7 +188,7 @@ export default function useMissionUpload({
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
-    onPlanUnsynced?.();
+    const sentPlan = onUploadStart?.() ?? null;
     try {
       const result = await api.uploadMissions(assignments, fence);
       // Fence truth is separate from mission truth. A mission can upload
@@ -234,7 +235,7 @@ export default function useMissionUpload({
             setVehicleNavLastWp((prev) => ({ ...prev, ...activated.navLastWpUpdates }));
           }
         }
-        onPlanSynced?.();
+        onPlanSynced?.(sentPlan);
         goToMonitor();
       } else if (missionFailures.length || fenceFailures.length || rallyFailures.length) {
         // Mission and fence are independent outcomes on the same vehicle.
@@ -269,7 +270,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onPlanUnsynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
 
   return { uploading, handleUpload };
 }

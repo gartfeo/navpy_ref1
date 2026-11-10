@@ -497,6 +497,9 @@ export default function useVehicleConnection({
         setDetectAfterWps((prev) => reindexZoneMap(prev, keptOldIndices, 'scalar'));
       }
       derivePlanPolygon(remaining);
+      // Not on the fleet: the stored baseline still holds the leaving UAV's
+      // zone, so it can be neither compared with nor restored.
+      if (!keepSynced) forgetPlanSync?.();
       const startupOwnsPlan = !!startupRun && planBelongsToRun(nextPlan, startupRun);
       if (keepSynced && !startupOwnsPlan) onPlanSynced?.();
       if (startupOwnsPlan) {
@@ -504,7 +507,7 @@ export default function useVehicleConnection({
           const applied = await applyStartupPlanEffects(startupRun, () => (
             !startupRun.cancelled && planBelongsToRun(planRef.current, startupRun)
           ));
-          if (applied) onPlanSynced?.();
+          if (applied && keepSynced) onPlanSynced?.();
         }).catch((e) => console.warn('Startup plan refresh after disconnect failed:', e));
       }
     }

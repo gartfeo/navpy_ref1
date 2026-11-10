@@ -86,7 +86,7 @@ it('drops the plan-on-the-UAVs baseline as it starts writing, and takes a new on
     simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(),
   };
   const order = [];
-  const onPlanUnsynced = vi.fn(() => order.push('unsynced'));
+  const onUploadStart = vi.fn(() => { order.push('unsynced'); return 'sent-key'; });
   const onPlanSynced = vi.fn(() => order.push('synced'));
   const partial = { status: 'partial', results: [
     { sys_id: 5, progress: 1, done: true }, { sys_id: 6, progress: 0, done: true, error: 'timeout' },
@@ -96,7 +96,7 @@ it('drops the plan-on-the-UAVs baseline as it starts writing, and takes a new on
   const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
   const { result } = renderHook(() => useMissionUpload({ mission, effectiveUavCount: 2,
     localGenerate: vi.fn().mockResolvedValue(null), vehicleList: [{ sys_id: 5 }, { sys_id: 6 }], api,
-    onPlanSynced, onPlanUnsynced,
+    onPlanSynced, onUploadStart,
     settings: { default_delivery_hubs: [dock], simulation: { sim_mode: false } }, fence: null }));
   await act(() => result.current.handleUpload());
   expect(order).toEqual(['unsynced', 'write']);
@@ -105,6 +105,8 @@ it('drops the plan-on-the-UAVs baseline as it starts writing, and takes a new on
   order.length = 0;
   await act(() => result.current.handleUpload());
   expect(order).toEqual(['unsynced', 'write', 'synced']);
+  // The baseline is taken for what was sent (usePlanSnapshot checks no edit came since).
+  expect(onPlanSynced).toHaveBeenCalledWith('sent-key');
   alert.mockRestore();
 });
 

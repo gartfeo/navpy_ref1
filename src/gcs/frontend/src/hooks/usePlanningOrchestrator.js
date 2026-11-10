@@ -109,7 +109,7 @@ export default function usePlanningOrchestrator({
   // The plan file writer is created by usePlanPersistence below.
   const savePlanRef = useRef(null);
   const {
-    onPlanSynced, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
+    onPlanSynced, beginPlanUpload, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
   } = usePlanSnapshot({
     plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
@@ -459,6 +459,7 @@ export default function usePlanningOrchestrator({
     // For useMissionUpload / useVehicleConnection (stay in App)
     derivePlanPolygon,
     onPlanSynced,
+    beginPlanUpload,
     // The editor holds exactly the plan last uploaded or downloaded.
     planSynced,
     isPlanSynced,

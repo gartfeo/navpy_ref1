@@ -196,6 +196,34 @@ describe('the plan on the UAVs', () => {
     expect(h.hook.result.current.planSynced).toBe(false);
   });
 
+  // Codex review, round 3: an edit made while the upload was out (the fence
+  // switched on) was taken into the baseline although it was not sent.
+  it('an upload takes the baseline only for the plan it sent', () => {
+    const h = harness(false);
+    let sent;
+    act(() => { sent = h.hook.result.current.beginPlanUpload(); });
+    h.hook.rerender({ ...STATE, fenceEnabled: true, fenceTouched: true });
+    act(() => { h.hook.result.current.onPlanSynced(sent); });
+    expect(h.hook.result.current.planSynced).toBe(false);
+
+    act(() => { sent = h.hook.result.current.beginPlanUpload(); });
+    act(() => { h.hook.result.current.onPlanSynced(sent); });
+    expect(h.hook.result.current.planSynced).toBe(true);
+  });
+
+  // Codex review, round 3: the demo fence (on, untouched) had its margin
+  // changed after upload; neither key saw it.
+  it('a new fence margin is a change, the demo fence\'s included', async () => {
+    const demoFence = { ...STATE, fenceEnabled: true, fenceTouched: false };
+    const h = harness(false, demoFence);
+    act(() => { h.hook.result.current.onPlanSynced(); });
+    act(() => { h.hook.result.current.markPlanSaved(); });
+    h.hook.rerender({ ...demoFence, fenceOffsetM: 100 });
+    expect(h.hook.result.current.planSynced).toBe(false);
+    await h.exit();
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+  });
+
   it('a newer download counts as on the UAVs again until its own baseline lands', () => {
     const h = harness(false, { ...STATE, plan: tagPlanForRun(PLAN, { single: true }) });
     act(() => { h.hook.result.current.onPlanSynced(); });

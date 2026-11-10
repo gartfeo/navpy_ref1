@@ -151,20 +151,31 @@ describe('a UAV leaving a fleet that carries the plan', () => {
     const onPlanSynced = vi.fn();
     const isPlanSynced = vi.fn();
     syncedAnswers.forEach((answer) => isPlanSynced.mockReturnValueOnce(answer));
-    const { ref } = harness([], EMPTY, { extra: { onPlanSynced, isPlanSynced, forgetPlanSync: vi.fn() } });
+    const forgetPlanSync = vi.fn();
+    const { ref } = harness([], EMPTY, { extra: { onPlanSynced, isPlanSynced, forgetPlanSync } });
     await settle();
     act(() => { ref.current.mission.setPlan(PLAN); });
     onPlanSynced.mockClear();
     await act(async () => { await ref.current.connection.handleDisconnect(2); });
     expect(ref.current.mission.plan.zones.map((z) => z.sys_id)).toEqual([1]);
-    return onPlanSynced;
+    return { onPlanSynced, forgetPlanSync };
   }
 
   it('takes the baseline again for the remaining UAVs', async () => {
-    expect(await leave([true, true])).toHaveBeenCalledTimes(1);
+    const { onPlanSynced, forgetPlanSync } = await leave([true, true]);
+    expect(onPlanSynced).toHaveBeenCalledTimes(1);
+    expect(forgetPlanSync).not.toHaveBeenCalled();
   });
 
   it('not when the operator edited the plan during the request', async () => {
-    expect(await leave([true, false])).not.toHaveBeenCalled();
+    const { onPlanSynced } = await leave([true, false]);
+    expect(onPlanSynced).not.toHaveBeenCalled();
+  });
+
+  // Codex review, round 3: Don't save then restored the leaving UAV's zone.
+  it('a plan not on the fleet forgets the baseline that still holds the leaving UAV', async () => {
+    const { onPlanSynced, forgetPlanSync } = await leave([false, false]);
+    expect(onPlanSynced).not.toHaveBeenCalled();
+    expect(forgetPlanSync).toHaveBeenCalledTimes(1);
   });
 });
