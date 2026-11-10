@@ -18,12 +18,17 @@ import useConfirm from './useConfirm';
  * enforced: the upload is refused rather than quietly downgraded to a disable.
  * `fenceIntentGeneration` identifies the pending operator request so
  * `onFenceIntentResolved` can consume exactly the one this upload answered.
+ *
+ * `onPlanUnsynced` drops the plan-on-the-UAVs baseline as the upload starts
+ * writing: a partial or failed upload leaves the UAVs' plans unknown, so the
+ * old baseline must neither enable the start control nor be restored.
+ * `onPlanSynced` captures the new one once the upload completed.
  */
 export default function useMissionUpload({
   mission,
   effectiveUavCount,
   localGenerate, approachPoint, corridorPath,
-  vehicleList, api, onPlanSynced,
+  vehicleList, api, onPlanSynced, onPlanUnsynced,
   onOperatorAction,
   setVehicleTargWps, setVehicleNavLastWp,
   settings,
@@ -182,6 +187,7 @@ export default function useMissionUpload({
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
+    onPlanUnsynced?.();
     try {
       const result = await api.uploadMissions(assignments, fence);
       // Fence truth is separate from mission truth. A mission can upload
@@ -263,7 +269,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onPlanUnsynced, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
 
   return { uploading, handleUpload };
 }

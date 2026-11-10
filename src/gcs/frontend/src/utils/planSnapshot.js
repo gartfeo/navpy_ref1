@@ -36,6 +36,8 @@ export function buildPlanSnapshot(current) {
     fenceTouched:         !!current.fenceTouched,
     fenceEnabled:         !!current.fenceEnabled,
     fenceOffsetM:         current.fenceOffsetM ?? null,
+    // A fence request not yet sent, restored with the plan (in no key).
+    fenceIntent:          current.fenceIntent ? { ...current.fenceIntent } : null,
     // Vehicle-observable fence geometry: both ride the upload payload, so
     // editing them must mark the plan dirty like any other plan geometry.
     fenceCustomVertices:  current.fenceCustomVertices ? JSON.parse(JSON.stringify(current.fenceCustomVertices)) : null,

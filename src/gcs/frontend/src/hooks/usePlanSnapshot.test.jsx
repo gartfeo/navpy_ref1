@@ -8,6 +8,7 @@
 import { act, renderHook } from '@testing-library/react';
 import { describe, expect, it, vi } from 'vitest';
 import usePlanSnapshot from './usePlanSnapshot';
+import useMissionState from './useMissionState';
 import { confirmStub } from '../test/confirmStub';
 import { tagPlanForRun } from '../utils/planDownloadRun';
 
@@ -42,6 +43,7 @@ function harness(answer, state = STATE) {
     setPlan: vi.fn(), setPolygon: vi.fn(), setSearchPattern: vi.fn(), setAnalysis: vi.fn(),
     setUavCount: vi.fn(), setPartitionAngleDeg: vi.fn(), setRouteOffsetM: vi.fn(),
     setSetLaunchPoints: vi.fn(), setSetCorridorPoints: vi.fn(), setDeliveryHubAssignments: vi.fn(),
+    setManualDeliveryHubEdit: vi.fn(), restoreFenceState: vi.fn(),
     setSimDockWps: vi.fn(), setDetectAfterWps: vi.fn(), setFenceCustomVertices: vi.fn(),
     setExclusionPolygons: vi.fn(),
   };
@@ -176,5 +178,98 @@ describe('the plan on the UAVs', () => {
     act(() => { h.hook.result.current.onPlanSynced(); });
     act(() => { h.hook.result.current.forgetPlanSync(); });
     expect(h.hook.result.current.planSynced).toBe(false);
+  });
+
+  // Codex review: the download tag outlived edits that keep the plan object
+  // (dock picks, hub assignments, the fence), so Start stayed on.
+  it('a downloaded plan edited after its baseline landed is no longer on the UAVs', () => {
+    const downloaded = tagPlanForRun(PLAN, { single: true });
+    const h = harness(false, { ...STATE, plan: downloaded });
+    act(() => { h.hook.result.current.onPlanSynced(); });
+    expect(h.hook.result.current.planSynced).toBe(true);
+    h.hook.rerender({ ...STATE, plan: downloaded, simDockWps: { 0: [0] } });
+    expect(h.hook.result.current.planSynced).toBe(false);
+    h.hook.rerender({ ...STATE, plan: downloaded, deliveryHubAssignments: [1], manualDeliveryHubEdit: true });
+    expect(h.hook.result.current.planSynced).toBe(false);
+  });
+
+  it('an upload that starts writing ends a downloaded plan\'s claim', () => {
+    const downloaded = tagPlanForRun(PLAN, { single: true });
+    const h = harness(false, { ...STATE, plan: downloaded });
+    expect(h.hook.result.current.planSynced).toBe(true);
+    act(() => { h.hook.result.current.forgetPlanSync(); });
+    expect(h.hook.result.current.planSynced).toBe(false);
+  });
+
+  // Codex review: Save on leaving recorded the restored UAVs' plan as the
+  // file's, so the saved plan, rebuilt exactly, asked again.
+  it('Save on leaving records the plan written to the file, not the one restored', async () => {
+    const h = harness(true);
+    act(() => { h.hook.result.current.onPlanSynced(); });
+    const edited = { ...STATE, simDockWps: { 0: [0] } };
+    h.hook.rerender(edited);
+    await h.exit();
+    expect(h.savePlan).toHaveBeenCalledTimes(1);
+    expect(h.setters.setSimDockWps).toHaveBeenCalledWith({});
+    // The restore's setters are stubs: the editor still shows the saved plan.
+    h.hook.rerender({ ...edited });
+    await h.exit();
+    expect(h.confirm).toHaveBeenCalledTimes(1);
+  });
+
+  it('the restore returns the hub-edit flag and the fence decision with the plan', async () => {
+    const h = harness('alt', { ...STATE, manualDeliveryHubEdit: true, fenceEnabled: true, fenceTouched: true });
+    act(() => { h.hook.result.current.onPlanSynced(); });
+    h.hook.rerender({ ...STATE, manualDeliveryHubEdit: false, fenceEnabled: false, fenceTouched: true,
+      fenceIntent: { generation: 4, enabled: false } });
+    await h.exit();
+    expect(h.setters.setManualDeliveryHubEdit).toHaveBeenCalledWith(true);
+    expect(h.setters.restoreFenceState).toHaveBeenCalledWith({
+      enabled: true, offsetM: 50, touched: true, intent: null,
+    });
+  });
+});
+
+// Codex review, with the real mission state: upload an enabled fence, switch it
+// off, leave with Don't save. The UAVs keep their fence; so must the editor,
+// and Start must show again.
+describe('Don\'t save with the real mission state', () => {
+  it('returns the fence to what the UAVs hold and the plan reads as theirs', async () => {
+    const { wrapper } = confirmStub('alt');
+    const goToMonitor = vi.fn();
+    const hook = renderHook(() => {
+      const m = useMissionState();
+      const snap = usePlanSnapshot({
+        ...m,
+        effectiveUavCount: 1,
+        drawingRef: { current: { loadVertices: vi.fn() } },
+        suppressRegenRef: { current: false },
+        undoRef: { current: [] },
+        goToMonitor,
+        savePlanRef: { current: vi.fn() },
+      });
+      return { m, snap };
+    }, { wrapper });
+    const mission = () => hook.result.current.m;
+    act(() => {
+      mission().setPolygon(POLYGON);
+      mission().setPlan(PLAN);
+      mission().authorFenceIntent(true);
+    });
+    // The upload acknowledged the fence request, then took the baseline.
+    act(() => { mission().resolveFenceIntent(mission().fenceIntent.generation, true, 'sig'); });
+    act(() => { hook.result.current.snap.onPlanSynced(); });
+    expect(hook.result.current.snap.planSynced).toBe(true);
+
+    act(() => { mission().authorFenceIntent(false); });
+    expect(hook.result.current.snap.planSynced).toBe(false);
+    await act(async () => { await hook.result.current.snap.handleExitPlanning(); });
+
+    expect(goToMonitor).toHaveBeenCalledTimes(1);
+    expect(mission().fenceEnabled).toBe(true);
+    expect(mission().fenceIntent).toBeNull();
+    // The acknowledgement still names the vehicles' fence: nothing is re-sent.
+    expect(mission().fenceAcknowledged).toEqual({ signature: 'sig' });
+    expect(hook.result.current.snap.planSynced).toBe(true);
   });
 });

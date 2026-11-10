@@ -163,6 +163,19 @@ export default function useMissionState() {
     setFenceAcknowledged(null);
   }, []);
 
+  /**
+   * Return the fence decision to what it was when the plan on the UAVs was
+   * captured (usePlanSnapshot's restore). The acknowledgement is kept: it
+   * still says what the vehicles hold, so a request that matches it is not
+   * re-sent.
+   */
+  const restoreFenceState = useCallback(({ enabled, offsetM, touched, intent }) => {
+    setFenceEnabled(!!enabled);
+    if (offsetM != null) setFenceOffsetM(offsetM);
+    setFenceTouched(!!touched);
+    setFenceIntent(intent ? { ...intent } : null);
+  }, []);
+
   const resolveFenceIntent = useCallback((ackGeneration, ok, signature) => {
     setFenceIntent((prev) => consumeFenceIntent(prev, ackGeneration, ok));
     if (ok && signature != null) setFenceAcknowledged({ signature });
@@ -266,6 +279,7 @@ export default function useMissionState() {
     fenceTouched, setFenceTouched,
     toggleFence,
     fenceIntent, authorFenceIntent, clearFenceIntent, resolveFenceIntent,
+    restoreFenceState,
     fenceAcknowledged,
     fenceGeometryRevision, notifyFenceGeometryReplaced, adoptDownloadedFenceGeometry,
     fenceObservations, beginFenceObservation, recordFenceObservation,
