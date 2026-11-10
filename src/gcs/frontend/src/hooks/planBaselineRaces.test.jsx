@@ -5,13 +5,14 @@
  * on the UAVs. The real usePlanSnapshot, wired to the real upload and download
  * hooks as usePlanningOrchestrator and App wire them.
  */
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import usePlanSnapshot from './usePlanSnapshot';
 import useMissionUpload from './useMissionUpload';
 import useMissionState from './useMissionState';
 import useVehicleConnection from './useVehicleConnection';
+import usePlanPersistence from './usePlanPersistence';
 import { confirmStub } from '../test/confirmStub';
 import { buildDeliveryHubsFromDownload } from '../utils/deliveryHubAssignment';
 
@@ -62,7 +63,9 @@ describe('upload', () => {
     deliveryHubs: HUBS,
   };
 
-  function harness({ uploadMissions, checkPlanCamera }) {
+  // `regenerate`: the plan localGenerate produces at upload (as usePlanGeneration
+  // does, it publishes it), or nothing (the plan on the map is uploaded).
+  function harness({ uploadMissions, checkPlanCamera, regenerate = null }) {
     const { wrapper } = confirmStub(true);
     const deps = SNAPSHOT_DEPS();
     const api = {
@@ -72,14 +75,33 @@ describe('upload', () => {
     };
     const hook = renderHook((editor) => {
       const [plan, setPlan] = useState(PLAN);
-      const snap = usePlanSnapshot({ ...deps, ...editor, plan, setPlan });
+      const [simDockWps, setSimDockWps] = useState(editor.simDockWps);
+      const [detectAfterWps, setDetectAfterWps] = useState(editor.detectAfterWps);
+      // usePlanningOrchestrator: a new zone count clears the picks in planning.
+      const zoneCount = useRef(plan?.zones?.length || 0);
+      useEffect(() => {
+        const n = plan?.zones?.length || 0;
+        if (zoneCount.current !== 0 && n !== zoneCount.current) {
+          setSimDockWps({});
+          setDetectAfterWps({});
+        }
+        zoneCount.current = n;
+      }, [plan]);
+      const localGenerate = () => {
+        if (!regenerate) return null;
+        setPlan(regenerate);
+        return regenerate;
+      };
+      const picks = { simDockWps, detectAfterWps };
+      const snap = usePlanSnapshot({ ...deps, ...editor, ...picks, plan, setPlan });
       const upload = useMissionUpload({
         mission: {
-          ...editor, plan, setPlan, launchPoint: null, corridorPoints: [],
+          ...editor, ...picks, plan, setPlan, setSimDockWps, setDetectAfterWps,
+          launchPoint: null, corridorPoints: [],
           goToMonitor: vi.fn(), setUploadProgress: vi.fn(),
         },
         effectiveUavCount: 2,
-        localGenerate: () => null,
+        localGenerate,
         vehicleList: [{ sys_id: 5 }, { sys_id: 6 }],
         api,
         getAas: (_sysId, name) => ({ targ_alt: 0, use_trn: false })[name],
@@ -90,7 +112,7 @@ describe('upload', () => {
         fence: null,
         setVehicleTargWps: vi.fn(), setVehicleNavLastWp: vi.fn(),
       });
-      return { snap, upload, setPlan };
+      return { snap, upload, setPlan, picks };
     }, { wrapper, initialProps: EDITOR });
     return { hook, api };
   }
@@ -149,6 +171,24 @@ describe('upload', () => {
     });
     await act(async () => { write.resolve(COMPLETE); await done; });
     expect(hook.result.current.snap.planSynced).toBe(false);
+  });
+
+  // Codex review, round 3 (and the live check): regenerated at upload with
+  // another zone count, the plan loses its dock picks in the editor. The
+  // request must not carry them either, or Start never shows after a clean
+  // upload (and the UAVs dock at picks made on other zones).
+  it('an upload that regenerates the zones sends and keeps no stale dock picks', async () => {
+    const { hook, api } = harness({
+      uploadMissions: vi.fn().mockResolvedValue({ status: 'complete', results: [{ sys_id: 5 }] }),
+      checkPlanCamera: vi.fn().mockResolvedValue(OK),
+      regenerate: { altitude_m: 120, zones: [{ zone_index: 0, track: TRACK }] },
+    });
+    await act(() => hook.result.current.upload.handleUpload());
+    expect(api.uploadMissions).toHaveBeenCalledOnce();
+    // No dock to check: the picks did not reach the request.
+    expect(api.checkPlanCamera).not.toHaveBeenCalled();
+    expect(hook.result.current.picks.simDockWps).toEqual({});
+    expect(hook.result.current.snap.planSynced).toBe(true);
   });
 
   // Case 4: an assigned home hub moved in Settings after the upload. The UAVs
@@ -448,6 +488,29 @@ describe('a download and edits around it', () => {
     expect(h.ref.current.snap.planSynced).toBe(false);
   });
 
+  // Round 3: two UAVs connect onto an empty map; the second answers after the
+  // first one's plan became the UAVs'.
+  it('two UAVs connecting at once onto an empty map are the plan on the UAVs', async () => {
+    const answers = { 1: deferred(), 2: deferred() };
+    const h = harness({ downloadMission: (sysId) => answers[sysId].promise });
+    await settle();
+    let first;
+    let second;
+    act(() => {
+      first = h.ref.current.connection.handleConnect('udp:x', 1, 'UAV1');
+      second = h.ref.current.connection.handleConnect('udp:x', 2, 'UAV2');
+    });
+    await settle();
+    await act(async () => { answers[1].resolve(MISSION(1)); await first; });
+    await settle();
+    expect(h.ref.current.snap.planSynced).toBe(true);
+    await act(async () => { answers[2].resolve(MISSION(2)); await second; });
+    await settle();
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(true);
+  });
+
   it('a UAV connecting into the UAVs\' plan keeps it the UAVs\'', async () => {
     const h = harness();
     await settle();
@@ -474,5 +537,39 @@ describe('a download and edits around it', () => {
     expect(h.ref.current.mission.plan?.zones?.length).toBe(1);
     expect(h.ref.current.mission.uavCount).toBe(1);
     expect(h.ref.current.snap.planSynced).toBe(true);
+  });
+});
+
+// Codex review, round 3: a mission too short to derive an area from still
+// restores its home hub, or the baseline keeps a hub the operator moved.
+describe('derivePlanPolygon without an area', () => {
+  it('restores the mission\'s hub', () => {
+    const HUB = { lat: 40.01, lon: 44.01, type: 'other' };
+    const handleSaveSettings = vi.fn();
+    const { result } = renderHook(() => {
+      const mission = useMissionState();
+      const persistence = usePlanPersistence({
+        ...mission,
+        drawing: { loadVertices: vi.fn() },
+        undoRef: { current: [] },
+        suppressRegenRef: { current: false },
+        localAnalyze: vi.fn(),
+        handleSaveSettings,
+        settings: { default_delivery_hubs: [{ name: 'Moved', lat: 41.01, lon: 44.01, type: 'other' }] },
+        plannerReady: false,
+        authorFenceIntent: mission.authorFenceIntent,
+        clearFenceIntent: mission.clearFenceIntent,
+        resetFenceObservations: mission.resetFenceObservations,
+      });
+      return { mission, persistence };
+    });
+    const zones = [{ sys_id: 1, track: [{ lat: 40, lon: 44 }, { lat: 40.1, lon: 44.1 }] }];
+    act(() => { result.current.persistence.derivePlanPolygon(zones, 'distributed', null, null, null, [HUB]); });
+    expect(result.current.mission.polygon).toEqual([]);
+    expect(handleSaveSettings).toHaveBeenCalledWith({ default_delivery_hubs: [
+      { name: 'Moved', lat: 41.01, lon: 44.01, type: 'other' },
+      expect.objectContaining({ lat: 40.01, lon: 44.01 }),
+    ] });
+    expect(result.current.mission.deliveryHubAssignments).toEqual([1]);
   });
 });

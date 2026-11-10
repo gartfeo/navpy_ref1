@@ -53,6 +53,7 @@ export default function useMissionUpload({
     simDockWps, detectAfterWps,
     setUploadProgress,
   } = mission;
+  const { setSimDockWps, setDetectAfterWps } = mission;
   const [uploading, setUploading] = useState(false);
 
   // Live mirror of deliveryHubAssignments so handleUpload reads the latest committed
@@ -113,6 +114,20 @@ export default function useMissionUpload({
       return;
     }
 
+    // Dock and detection picks index the zones they were picked on. A
+    // regeneration that changes the zone count drops them, as the plan editor
+    // does (usePlanningOrchestrator): the request carries none, so the UAVs get
+    // what the editor shows.
+    const priorZoneCount = plan?.zones?.length || 0;
+    const zonesReplaced = generated != null && priorZoneCount !== 0
+      && activePlan.zones.length !== priorZoneCount;
+    const dockWps = zonesReplaced ? {} : simDockWps;
+    const detectWps = zonesReplaced ? {} : detectAfterWps;
+    if (zonesReplaced) {
+      setSimDockWps?.({});
+      setDetectAfterWps?.({});
+    }
+
     // Use plan zone order as-is — what the user sees in the plan is what gets uploaded.
     const sortedZones = activePlan.zones;
     const isCorridor = searchPattern === 'corridor';
@@ -163,8 +178,8 @@ export default function useMissionUpload({
       return isCorridor ? 0 : setCp.length;
     });
     // targ_wps / nav_last_wp exactly as the sim activation below writes them.
-    const tw = simMode ? buildTargWpsUpdates(simDockWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
-    const nl = simMode ? buildNavLastWpUpdates(detectAfterWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    const tw = simMode ? buildTargWpsUpdates(dockWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    const nl = simMode ? buildNavLastWpUpdates(detectWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
     if (simMode) {
       // Warn before anything is sent: can the camera ever detect these docks?
       const checkZones = assignments.map((a, i) => cameraCheckZone({
@@ -242,6 +257,8 @@ export default function useMissionUpload({
             ...editorState,
             // The editor holds the same plan once the updates above commit.
             plan: { ...activePlan, zones: zonesWithAlt.map(asUploaded) },
+            simDockWps: dockWps,
+            detectAfterWps: detectWps,
             // What was resolved and sent (a manual list is sent as edited).
             deliveryHubAssignments: manualDeliveryHubEdit
               ? editorState.deliveryHubAssignments : effectiveAssignments,
@@ -284,7 +301,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, capturePlan, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, capturePlan, onOperatorAction, simDockWps, setSimDockWps, setVehicleTargWps, detectAfterWps, setDetectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
 
   return { uploading, handleUpload };
 }

@@ -532,10 +532,10 @@ export default function useVehicleConnection({
       startupMissionRequestIsActive(startupRun, sysId)
     );
     // A page-load restore's token is its run's; a single connect is a download
-    // of its own. Whether the editor held the UAVs' plan as it started: a
-    // mission merged into it is the UAVs' plan only then.
+    // of its own. Whether the editor was empty or held the UAVs' plan as it
+    // started: a mission merged into a plan is the UAVs' plan only then.
     const planToken = startupRun ? null : (beginPlanDownload?.() ?? null);
-    const syncedAtStart = !!isPlanSynced?.();
+    const uavPlanAtStart = !planRef.current?.zones?.length || !!isPlanSynced?.();
     addDownloading([sysId], downloadOwner);
     let m;
     try {
@@ -605,7 +605,7 @@ export default function useVehicleConnection({
       // the operator edited (before or during this download), the result is
       // not the UAVs' plan.
       const mergedIntoUavPlan = !currentPlan?.zones?.length
-        || (syncedAtStart && !!isPlanSynced?.());
+        || (uavPlanAtStart && !!isPlanSynced?.());
       const startupMetadata = startupRun
         ? startupPlanMetadata(startupRun, currentPlan?.altitude_m || 100)
         : null;

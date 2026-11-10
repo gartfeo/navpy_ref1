@@ -114,6 +114,8 @@ it('drops the plan-on-the-UAVs baseline as it starts writing, and takes a new on
       { zone_index: 0, track, sys_id: 5, altitude_m: 140 }, { zone_index: 1, track, sys_id: 6, altitude_m: 120 },
     ] },
     deliveryHubAssignments: undefined,
+    simDockWps: {},
+    detectAfterWps: {},
     fenceIntent: undefined,
   } });
   alert.mockRestore();
