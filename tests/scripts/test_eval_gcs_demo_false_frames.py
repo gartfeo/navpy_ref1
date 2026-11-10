@@ -149,11 +149,14 @@ def _genuine_navlink_unrouted(records, end):
 
 @pytest.mark.parametrize("end", ENDS)
 def test_a_genuine_navlink_packet_the_router_did_not_route_still_fails_beside_a_false_frame(fleet, end):
+    """The genuine packet's NAVLINK error stays (its advert's stop is reported too); the excused
+    false frame adds and removes nothing."""
     dropped, genuine_id, k = _genuine_navlink_unrouted(fleet[0], end)
-    assert _forwarding(dropped) == [_navlink_error(end, k, genuine_id)]
+    before = _forwarding(dropped)
+    assert _navlink_error(end, k, genuine_id) in before
     changed, _emitted = _with_false_frame(dropped, end, FLEET)
     _mark_false(changed, FALSE_ID)
-    assert _forwarding(changed) == [_navlink_error(end, k, genuine_id)]
+    assert _forwarding(changed) == before
 
 
 def test_a_genuine_foreign_source_still_fails_beside_a_false_frame(fleet):
