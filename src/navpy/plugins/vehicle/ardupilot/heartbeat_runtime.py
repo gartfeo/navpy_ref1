@@ -5,6 +5,9 @@ The period is aircraft time (heartbeat_pacing.py), as the autopilot's NavPy watc
 A failed send never ends the sender (docs/design/navpy_recovery.md, step 5c): the next period is the retry, so a
 short outage recovers at once. The first failure is reported, and the recovery after it; the ticks between are
 quiet. If sends keep failing, the autopilot's NavPy watchdog (step 7) sees no NavPy heartbeat and holds the UAV.
+
+Its ``custom_mode`` carries NavPy's claim on its own recovery LOITER (companion_hold_claim.py, step 10 item 9); a
+change of claim is sent at once.
 """
 from __future__ import annotations
 
@@ -16,6 +19,7 @@ from pymavlink.dialects.v20.ardupilotmega import (
 )
 
 from navpy.core.kernel import runtime_time as rt
+from navpy.plugins.vehicle.ardupilot.companion_hold_claim import CompanionHoldClaim
 from navpy.plugins.vehicle.ardupilot.heartbeat_pacing import HeartbeatPacing
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from navpy.plugins.vehicle.ardupilot.logger_ref import LoggerRef
@@ -30,6 +34,20 @@ HEARTBEAT_JOIN_TIMEOUT_S = 2.0
 HEARTBEAT_TIMEOUT_REPORT_S = 1.0
 
 
+def _send_heartbeat(transport: MavTransport, identity: VehicleIdentity, hold_claim: CompanionHoldClaim) -> None:
+    """One companion heartbeat; ``custom_mode`` is NavPy's claim on its own recovery LOITER."""
+    custom_mode = hold_claim.custom_mode
+    transport.call(
+        lambda connection: connection.mav.heartbeat_send(
+            identity.mav_type,
+            MAV_AUTOPILOT_INVALID,
+            0,
+            custom_mode,
+            MAV_STATE_ACTIVE,
+        )
+    )
+
+
 class HeartbeatRuntime:
     def __init__(
         self,
@@ -39,9 +57,12 @@ class HeartbeatRuntime:
         logger_ref: LoggerRef,
         heartbeat_hz: float,
         pacing: HeartbeatPacing | None = None,
+        hold_claim: CompanionHoldClaim | None = None,
     ) -> None:
-        self._transport = transport
         self._pacing = HeartbeatPacing() if pacing is None else pacing
+        hold_claim = CompanionHoldClaim() if hold_claim is None else hold_claim
+        hold_claim.on_change(self._pacing.wake)
+        self._send_heartbeat = lambda: _send_heartbeat(transport, identity, hold_claim)
         self._identity = identity
         self._state = heartbeat_state
         self._logger_ref = logger_ref
@@ -134,15 +155,7 @@ class HeartbeatRuntime:
 
     def _send(self) -> None:
         try:
-            self._transport.call(
-                lambda connection: connection.mav.heartbeat_send(
-                    self._identity.mav_type,
-                    MAV_AUTOPILOT_INVALID,
-                    0,
-                    0,
-                    MAV_STATE_ACTIVE,
-                )
-            )
+            self._send_heartbeat()
         except Exception as error:  # noqa: BLE001 - the next period retries; a BaseException still ends it
             if not self._send_failing:
                 self._send_failing = True

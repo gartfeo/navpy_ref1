@@ -179,6 +179,7 @@ export function startupZonesFromMissions(run) {
         lat: wp.lat,
         lon: wp.lon,
         ...(wp.alt != null && { alt: wp.alt }),
+        ...(Number.isInteger(wp.mission_sequence) && { seq: wp.mission_sequence }),
       })),
       sys_id: sysId,
       corridor_end_index: mission.corridor_end_index ?? 0,

@@ -1,12 +1,12 @@
 """The scenario service: one seed's private dock pose, delivered only to its allowed consumers (hitl_final_approach.md
 section 9, stage 1 step 14, and the hard rule that simulator truth belongs to Unreal, contact and scoring).
 
-A series file, in the private folder, freezes a ten-run series: its seeds, the dock region, the consumers, the search
-lane and the limits. For one seed the service draws the scene, the dock's offset from the level's own dock and its yaw
+A series file, in the private folder, freezes a ten-run series: its seeds, the dock region, the dock's design size
+(step 23b), the consumers, the search lane and the limits. For one seed the service draws the scene, the dock's offset from the level's own dock and its yaw
 added to the level's, as whole millimetres and millidegrees, and hashes it (scene_hash). ``prepare`` writes the run's
 scenario folder:
 
-- scenario.json, the public half (scenario_public.py): identity, lane and limits, no pose and no seed;
+- scenario.json, the public half (scenario_public.py): identity, lane, limits and dock size, no pose and no seed;
 - private/<consumer>.json, one file per consumer the series names (only unreal, contact and scoring are allowed);
 - deliveries.jsonl, a ledger line per delivered file.
 
@@ -37,7 +37,7 @@ from tools.tuning import approach_lane
 from tools.tuning.flight_floor import MIN_HEIGHT_M
 from tools.tuning.private_data import private_dir
 
-SERIES_SCHEMA_VERSION = 1
+SERIES_SCHEMA_VERSION = 2       # 2: the dock's design size (step 23b)
 SCENE_SCHEMA_VERSION = 1
 UNREAL_SCENE_SCHEMA_VERSION = 1
 SERIES_SEEDS = 10                       # a ten-run series (section 9 "Every ten-run series")
@@ -47,6 +47,9 @@ DEFAULT_LEVEL = "/Game/AAS/Levels/Yeghvard_Default"     # approach_chain.UNREAL_
 DEFAULT_MAX_OFFSET_M = 30.0
 MAX_OFFSET_LIMIT_M = 200.0              # a larger region is a wrong series file, not a scenario
 DEFAULT_OBSERVE_S = 660.0               # step 13's run length on the lane
+# Step 23b, phase A: a pickup truck on the ground (hitl_dock_detector.md section 3), measured in Unreal: a 2020
+# Silverado 1500 crew cab, its width with mirrors. A series freezes the value it was made with.
+DEFAULT_DOCK = {"kind": "pickup", "length_m": 5.887, "width_m": 2.490, "height_m": 1.958, "placement": "ground"}
 SERIES_SPEC: Mapping[str, jc.Check] = {
     "schema_version": jc.equals(SERIES_SCHEMA_VERSION),
     "series_id": jc.folder_name,
@@ -57,6 +60,7 @@ SERIES_SPEC: Mapping[str, jc.Check] = {
     "consumers": sp.consumers_check,
     "lane": jc.obj(sp.LANE_SPEC),
     "limits": jc.obj(sp.LIMITS_SPEC),
+    "dock_size": jc.obj(sp.DOCK_SPEC),
 }
 
 
@@ -101,6 +105,7 @@ def new_series(series_id: str, created: datetime, max_offset_m: float = DEFAULT_
                  "length_m": approach_lane.LANE_LENGTH_M, "height_m": approach_lane.LANE_HEIGHT_M,
                  "repeats": approach_lane.LANE_REPEATS},
         "limits": {"observe_s": DEFAULT_OBSERVE_S, "min_height_m": MIN_HEIGHT_M},
+        "dock_size": dict(DEFAULT_DOCK),
     }
     validate_series(series)
     return series
@@ -150,7 +155,7 @@ def public_half(series: Mapping[str, Any], series_sha256: str, scene: Mapping[st
     public = {"schema_version": sp.SCHEMA_VERSION, "series_id": series["series_id"], "series_sha256": series_sha256,
               "seed_index": scene["seed_index"], "scene_hash": scene_hash(scene),
               "consumers": list(series["consumers"]), "lane": dict(series["lane"]),
-              "limits": dict(series["limits"])}
+              "limits": dict(series["limits"]), "dock_size": dict(series["dock_size"])}
     sp.validate_public(public)
     return public
 

@@ -9,7 +9,7 @@ import { vehicleAssignment } from '../../utils/taskAssignmentState';
 import { isInitializing } from '../../utils/loadStage';
 import { hasPendingConfirm } from '../../hooks/taskConfirmationState';
 import { computeLaunchReadiness, visibleAdvisories } from '../../utils/prearmChecks';
-import { interpolatedDistance } from '../../utils/missionProgress';
+import { interpolatedDistance, missionTrackIndex, zoneWpOffset } from '../../utils/missionProgress';
 import MissionStatusRow from './MissionStatusRow';
 import LoadStageRow from './LoadStageRow';
 import { BatteryIcon, SatelliteIcon, SignalIcon } from './StatusIcons';
@@ -173,8 +173,7 @@ export default function VehicleStatusCard({
   const gpsHacc = linkDown ? null : v.gps_hacc;
   const battery = linkDown ? null : v.battery;
 
-  const mp = v.mission_progress || 0;
-  const trackIdx = mp - wpOffset;
+  const trackIdx = missionTrackIndex(v.mission_progress, zd?.track, wpOffset);
   const totalKm = zd ? zd.total / 1000 : 0;
   const inAuto = v.mode === 'AUTO';
 
@@ -192,7 +191,7 @@ export default function VehicleStatusCard({
     ? currentTaskSlot(assignments || {}, v.sys_id, v.swarm)
     : vAssignment;
   const missionStatus = computeMissionStatus(
-    v, statusAssignment, wpOffset, hasPendingConfirm(pendingConfirms || {}, v.sys_id),
+    v, statusAssignment, zoneWpOffset(zd?.track, wpOffset), hasPendingConfirm(pendingConfirms || {}, v.sys_id),
   );
   const readiness = computeLaunchReadiness(v, gates);
   // Non-blocking advisories (e.g. arming checks disabled) are dismissible so they

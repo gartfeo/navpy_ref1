@@ -22,11 +22,12 @@ from tools.tuning.approach_quiesce import ENDED_BY_TERMINAL
 from tools.tuning.approach_verdict import problems as run_problems
 
 DOCKED = "docked"                       # FinalApproachTerminal.DOCKED's value in navpy's terminal record
-# navpy's own acquisition from the encoded stream: the real ChArUco detector on the HITL profile, with integration
-# timing and the contact link. Any other detector or profile (sim, ideal_360, raw frames) cannot substitute.
-NAVPY_REQUIRED = (("--detector-type", "real"), ("--detector-backend", "charuco"),
+# navpy's own acquisition from the encoded stream: the real whole-dock detector (RF-DETR, step 23b) on the HITL
+# profile, with its weights, integration timing and the contact link. Any other detector or profile (sim, ideal_360,
+# raw frames) cannot substitute.
+NAVPY_REQUIRED = (("--detector-type", "real"), ("--detector-backend", "rfdetr"),
                   ("--vision-profile", chain.VISION_PROFILE))
-NAVPY_FLAGS = ("--integration-timing", "--hitl-contact")
+NAVPY_FLAGS = ("--integration-timing", "--hitl-contact", "--detector-model-path")
 SUBSTITUTE_WORDS = ("ideal", "raw-frame", "raw_frame", "truth", "sim-detector")
 
 

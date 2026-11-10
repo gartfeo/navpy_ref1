@@ -84,7 +84,8 @@ class ParameterReader:
             self._messages,
             ExchangeIo(
                 f"PARAM_REQUEST_READ {normalized}",
-                lambda: self._transport.call(
+                lambda: self._transport.call_by(
+                    policy.deadline_s,
                     lambda connection: connection.mav.param_request_read_send(
                         self._identity.target_system,
                         0,

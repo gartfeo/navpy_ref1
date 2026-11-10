@@ -42,6 +42,10 @@ class RecoveryIncident:
         """The incident's hold time has reached the budget."""
         return self._active and self._spent_s >= self._hold_budget_s
 
+    def remaining_s(self) -> float:
+        """The incident's hold time left: the whole budget outside an incident."""
+        return max(self._hold_budget_s - self._spent_s, 0.0) if self._active else self._hold_budget_s
+
     def healthy(self, good_since: float | None, now: float) -> None:
         """In NORMAL: healthy since ``good_since``; long enough ends the incident."""
         if self._active and good_since is not None and now - good_since >= NAV_INCIDENT_CLEAR_S:

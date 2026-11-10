@@ -31,8 +31,11 @@ class ModeRequest:
         self._since: float | None = None
         self._count = -1
         self._last_sent: float | None = None
+        #: Requests made (``send``; retries excluded): names one request, e.g. the hold's LOITER (HoldClaim.token).
+        self.requests = 0
 
     def send(self, mode: FlightMode, observation: ModeObservation, now: float) -> None:
+        self.requests += 1
         self.pending = mode
         self._since = now
         self._count = observation.heartbeat_count

@@ -29,13 +29,14 @@ PEER_CHECKED_OUT_LOG = "Actor {} checked out"
 class PeerStatusPorts:
     """Where presence reports what it hears about peers.
 
-    ``reported`` takes a heartbeat's state, or None for a check-in; ``tick``
-    runs at this node's own heartbeat (the silence check).
+    ``reported`` takes a heartbeat's state, or None for a check-in;
+    ``checked_out`` takes the check-out's UID (its boot); ``tick`` runs at
+    this node's own heartbeat (the silence check).
     """
 
     discovered: Callable[[int], None]
     reported: Callable[[int, Optional[SwarmNodeState], Optional[MsgRef]], None]
-    checked_out: Callable[[int], None]
+    checked_out: Callable[[int, Optional[MsgRef]], None]
     tick: Callable[[], None]
 
 
@@ -119,7 +120,7 @@ class SwarmPresence:
 
     def on_checkout(self, message: CheckOutMsg) -> None:
         if message.sender_id != self._actor_id:
-            self._peers.checked_out(message.sender_id)
+            self._peers.checked_out(message.sender_id, msg_ref(message))
         self._logger.info(
             f"{PEER_CHECKED_OUT_LOG.format(message.sender_id)} at location "
             f"{message.location}."

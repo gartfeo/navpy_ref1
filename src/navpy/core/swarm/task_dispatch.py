@@ -19,7 +19,11 @@ class AssignAttempt:
     response the helper sent after it can confirm the task.
     ``progress_s`` is when the helper last made progress (the first copy,
     the floor, a response from the floor's boot); a long silence after it
-    releases the reservation.
+    releases the reservation. Of the floor's boot (task_lost_helper.py):
+    ``holder_accept`` is its newest accepted step-4 copy and
+    ``holder_free`` its newest FREE report once CONFIRMED;
+    ``holder_heard`` its newest message and ``holder_heard_s`` when it
+    arrived; ``loss_logged``: its loss was logged and the task kept.
     """
 
     number: int = 0
@@ -27,6 +31,24 @@ class AssignAttempt:
     request_refs: RecentRefs = field(default_factory=lambda: RecentRefs(0.0))
     floor: Optional[MsgRef] = None
     progress_s: float = 0.0
+    holder_accept: Optional[MsgRef] = None
+    holder_free: Optional[MsgRef] = None
+    holder_heard: Optional[MsgRef] = None
+    holder_heard_s: float = 0.0
+    loss_logged: bool = False
+
+    def note_holder_accept(self, response: MsgRef) -> None:
+        """An accepted step-4 copy of the floor's boot (fenced)."""
+        if self.holder_accept is None or response.follows(self.holder_accept):
+            self.holder_accept = response
+
+    def helper_freed(self) -> bool:
+        """The helper reported FREE after its newest accepted copy, so it
+        no longer holds the task (flown or dropped). Compared by sequence,
+        not arrival: a late FREE older than an acceptance never counts."""
+        return self.holder_free is not None and self.holder_free.follows(
+            self.holder_accept or self.floor
+        )
 
 
 @dataclass

@@ -18,6 +18,7 @@ from __future__ import annotations
 import json
 
 import pytest
+from pymavlink.dialects.v20 import ardupilotmega as mavlink
 
 from gcs.backend import instance_registry_lockstep as lockstep
 from gcs.backend.aas_params import AAS_PARAM_MAP
@@ -81,6 +82,9 @@ def test_the_setup_calls_repeat_byte_for_byte_under_two_slots_and_host_delays(tm
     written = {AAS_PARAM_MAP[field]: float(value) for field, value in operator.result["aas"]["1"].items()}
     assert {name: autopilot.parameters[name] for name in written} == pytest.approx(written)
     assert len(autopilot.mission) > 6
+    # The scenario's mission has a hub: one rally point there, in the rally table.
+    rally = autopilot.tables[mavlink.MAV_MISSION_TYPE_RALLY]
+    assert len(rally) == 1 and autopilot.parameters["RALLY_TOTAL"] == 1.0
     kinds = {kind for port, kind, source, _c in autopilot.received if port == 1 and source == 255}
     assert {"HEARTBEAT", "PARAM_REQUEST_READ", "PARAM_SET", "MISSION_CLEAR_ALL", "MISSION_COUNT",
             "MISSION_ITEM_INT", "MISSION_REQUEST_LIST"} <= kinds

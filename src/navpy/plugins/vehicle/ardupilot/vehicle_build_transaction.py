@@ -5,6 +5,8 @@ from __future__ import annotations
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.exception_groups import BaseExceptionGroup, ExceptionGroup
 
+from pymavlink.dialects.v20.ardupilotmega import MAV_TYPE_GCS
+
 from navpy.plugins.vehicle.ardupilot.mav_bus import MavBus, MavBusLease
 from navpy.plugins.vehicle.ardupilot.vehicle_build_types import (
     VehicleBuildRequest,
@@ -159,9 +161,24 @@ class VehicleBuildTransaction:
                 "is not broadcasting heartbeats."
             )
         if startup.send_heartbeat:
+            self._read_sim_speedup(parts)
             protocols.lifecycle.start_heartbeat()
         if not startup.skip_mission_download:
             protocols.mission.download()
+
+
+    def _read_sim_speedup(self, parts: VehicleParts) -> None:
+        """A companion's heartbeat is paced by the cached SIM_SPEEDUP (heartbeat_pacing.py): ask for it before the
+        heartbeat starts (step 10, item 12), without waiting. The reply updates the parameter cache, whose watch
+        wakes the pacing, so in SITL the heartbeat runs in aircraft time within milliseconds instead of after the
+        scheduler cadence's probe about a second later. A real autopilot never answers, and nothing waits for it.
+        The GCS's own heartbeat is not watched, so it is not asked for."""
+        if self._request.link.mav_type == MAV_TYPE_GCS:
+            return
+        try:
+            parts.simulation.speedup()   # the cached value, else a PARAM_REQUEST_READ sent now (sim_autopilot.py)
+        except Exception:  # noqa: BLE001 - pacing falls back to speed-up 1; the build goes on
+            pass
 
 
 def build_requested_vehicle(request: VehicleBuildRequest) -> VehicleParts:

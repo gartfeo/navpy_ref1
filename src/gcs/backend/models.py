@@ -92,6 +92,21 @@ class FenceOutcome(BaseModel):
     failed_params: list[str] = []
 
 
+class RallyOutcome(BaseModel):
+    """Whether ONE vehicle's RTL now goes to its mission's default delivery hub.
+
+    ``set``: one rally point at the DDH (RTL flies there and circles it).
+    ``clear``: the mission has no DDH, so stale rally points were removed and
+    RTL goes to HOME. Reported separately from the mission result, like the
+    fence: the mission is on the vehicle either way.
+    """
+    applied: bool
+    action: Literal["set", "clear"]
+    total: Optional[int] = None
+    error: Optional[str] = None
+    failed_params: list[str] = []
+
+
 class UploadProgress(BaseModel):
     sys_id: int
     progress: float  # 0.0 - 1.0
@@ -100,6 +115,8 @@ class UploadProgress(BaseModel):
     # None = no fence work was attempted for this vehicle (no fence in the
     # request, or its mission upload failed and it was left untouched).
     fence: Optional[FenceOutcome] = None
+    # None = no rally work was attempted (the mission upload failed).
+    rally: Optional[RallyOutcome] = None
 
 
 class CommandRequest(BaseModel):

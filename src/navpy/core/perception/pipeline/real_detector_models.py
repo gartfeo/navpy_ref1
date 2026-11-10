@@ -15,6 +15,7 @@ from navpy.core.perception.tracking.lost_poi_bridge import LostPoiBridge
 from navpy.core.ports.board_pose import BoardPoseSolver
 from navpy.core.ports.detection import FrameDetector
 from navpy.core.perception.pipeline.real_detector_ports import ModelResourceCloser
+from navpy.core.perception.tracking.dock_acquisition_gate import DockAcquisitionGate
 from navpy.core.perception.tracking.poi_lock import PoiLock
 from navpy.core.perception.tracking.track_identity import TrackIdentityResolver
 from navpy.core.ports.tracker_backends import TrackerBackend
@@ -32,6 +33,8 @@ class RealDetectorModels:
     deep_search: DeepSearchDetector | None
     # The board backend's metric pose solver (HITL step 22); None for YOLO.
     board_pose: BoardPoseSolver | None = None
+    # The whole-dock detector's acquisition gate (HITL step 23b); None for the other backends.
+    acquisition: DockAcquisitionGate | None = None
 
 
 ModelResource = Union[

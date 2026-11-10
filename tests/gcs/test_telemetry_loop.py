@@ -254,3 +254,10 @@ class TestHasChanged:
                   "time_boot_ms": 100, "updated_at": 1000.0},
         })
         assert _has_changed(prev, curr) is True
+
+    def test_velocity_going_stale_is_broadcast(self):
+        """A stopped position stream clears velocity_ned (vehicle_snapshot); that
+        change alone must reach the browser, or the flight path marker stays."""
+        prev = _make_snap(velocity_ned=[20.0, 0.0, 0.0])
+        assert _has_changed(prev, _make_snap(velocity_ned=None)) is True
+        assert _has_changed(prev, _make_snap(velocity_ned=[20.0, 0.0, 0.0])) is False

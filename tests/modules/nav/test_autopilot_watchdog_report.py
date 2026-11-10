@@ -90,3 +90,12 @@ def test_the_in_process_watchdog_s_reports_reach_the_journal():
     threads = nav_watchdog(nav_recovery_link(MavCommandFence(), Mock()), ProgressBeacon(), None, Mock(), logger)
     threads._watchdog._ports.report("NavPy NAV loop stuck: commands fenced")
     assert logger.journal.records == [("watchdog", "NavPy NAV loop stuck: commands fenced")]
+
+
+def test_guarding_navpys_own_hold_is_no_recovery_until_its_rtl():
+    """Step 10, item 9: GUARD (3) owns the deadline of NavPy's own hold, which NavPy reports itself."""
+    logger = RecordingLogger()
+    report = AutopilotWatchdogReport(logger, 3)
+    for value in (0, 3, 3, 0, 3, 2):
+        report.on_named_value(_named(value))
+    assert logger.journal.records == [("autopilot", "autopilot NavPy watchdog: RTL")]

@@ -170,7 +170,7 @@ def _build_foundation(
         vehicle_close_gate=close_gate,
         terminal_handoff=terminal_handoff,
         camera_frames=ports.camera_frames,
-        recovery_link=nav_recovery_link(bus.command_fence, vehicle),
+        recovery_link=nav_recovery_link(bus.command_fence, vehicle, bus.companion_hold),
     )
 
 
