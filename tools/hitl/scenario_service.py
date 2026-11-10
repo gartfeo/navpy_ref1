@@ -47,9 +47,9 @@ DEFAULT_LEVEL = "/Game/AAS/Levels/Yeghvard_Default"     # approach_chain.UNREAL_
 DEFAULT_MAX_OFFSET_M = 30.0
 MAX_OFFSET_LIMIT_M = 200.0              # a larger region is a wrong series file, not a scenario
 DEFAULT_OBSERVE_S = 660.0               # step 13's run length on the lane
-# Step 23b, phase A: a Ford car on the ground (hitl_dock_detector.md section 3: about 4.5 x 1.8 m from above). My
-# placeholder until the scene's car asset is measured; a series freezes the value it was made with.
-DEFAULT_DOCK = {"kind": "car", "length_m": 4.5, "width_m": 1.8, "height_m": 1.5, "placement": "ground"}
+# Step 23b, phase A: a pickup truck on the ground (hitl_dock_detector.md section 3), measured in Unreal: a 2020
+# Silverado 1500 crew cab, its width with mirrors. A series freezes the value it was made with.
+DEFAULT_DOCK = {"kind": "pickup", "length_m": 5.887, "width_m": 2.490, "height_m": 1.958, "placement": "ground"}
 SERIES_SPEC: Mapping[str, jc.Check] = {
     "schema_version": jc.equals(SERIES_SCHEMA_VERSION),
     "series_id": jc.folder_name,
