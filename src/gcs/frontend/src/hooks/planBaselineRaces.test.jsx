@@ -181,8 +181,10 @@ describe('download', () => {
   });
   afterEach(() => { vi.unstubAllGlobals(); });
 
-  function harness(vehicles) {
-    const fenceRead = deferred();
+  function harness(vehicles, {
+    fenceRead = deferred(),
+    downloadMission = (sysId) => Promise.resolve(MISSION(sysId)),
+  } = {}) {
     const downloadFence = vi.fn(() => fenceRead.promise);
     const { wrapper } = confirmStub(false);
     const ref = {};
@@ -196,7 +198,7 @@ describe('download', () => {
         vehicleList: vehicles,
         removeVehicle: vi.fn(),
         api: {
-          downloadMission: vi.fn((sysId) => Promise.resolve(MISSION(sysId))),
+          downloadMission: vi.fn(downloadMission),
           downloadFence,
           disconnectVehicle: vi.fn(),
           connectVehicle: vi.fn().mockResolvedValue({ status: 'connected' }),
@@ -248,6 +250,92 @@ describe('download', () => {
   });
 
   it.each(Object.keys(PATHS))('%s: the fence switched on during post-processing is not on the UAVs', async (path) => {
+    const { snap, mission } = await download(path, true);
+    expect(mission.fenceEnabled).toBe(true);
+    expect(snap.planSynced).toBe(false);
+  });
+});
+
+// Codex review: a download publishes one UAV's mission at a time. An edit made
+// after the first UAV's baseline landed was taken in when the next UAV's
+// mission published.
+describe('a download that publishes UAV by UAV', () => {
+  const MISSION = (sysId) => ({
+    sys_id: sysId, mission_count: 2, altitude_m: 100,
+    waypoints: [{ lat: 40 + sysId / 10, lon: 44.1, alt: 100 }, { lat: 40.2, lon: 44 + sysId / 10, alt: 100 }],
+    items: [], _diagnostic_request_id: `r${sysId}`,
+  });
+  const FLEET = [{ sys_id: 1, name: 'UAV1' }, { sys_id: 2, name: 'UAV2' }];
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => null }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  const PATHS = {
+    'Download plan': {
+      vehicles: [],
+      // The fleet connects, then the operator downloads (the restore stops).
+      start: (h) => h.ref.current.connection.handleDownloadPlan(),
+      connect: (h) => h.hook.rerender({ vehicles: FLEET }),
+    },
+    'the page-load restore': { vehicles: FLEET, start: () => Promise.resolve() },
+  };
+
+  async function download(path, editBetweenUavs) {
+    const second = deferred();
+    const { wrapper } = confirmStub(false);
+    const ref = {};
+    const hook = renderHook(({ vehicles }) => {
+      const mission = useMissionState();
+      const snap = usePlanSnapshot({ ...SNAPSHOT_DEPS(), ...mission, deliveryHubs: [] });
+      const connection = useVehicleConnection({
+        mission,
+        vehicleList: vehicles,
+        removeVehicle: vi.fn(),
+        api: {
+          downloadMission: vi.fn((sysId) => (sysId === 2 ? second.promise : Promise.resolve(MISSION(sysId)))),
+          downloadFence: vi.fn().mockResolvedValue(null),
+          disconnectVehicle: vi.fn(),
+          connectVehicle: vi.fn(),
+          discoverVehicles: vi.fn(),
+        },
+        telemetryStoreRef: { current: { getVehicles: () => ({}), subscribe: () => () => {} } },
+        derivePlanPolygon: vi.fn(),
+        onPlanSynced: snap.onPlanSynced,
+        isPlanSynced: snap.isPlanSynced,
+        forgetPlanSync: snap.forgetPlanSync,
+        beginPlanDownload: snap.beginPlanDownload,
+        settings: {},
+        setNotification: vi.fn(),
+      });
+      ref.current = { mission, snap, connection };
+    }, { wrapper, initialProps: { vehicles: PATHS[path].vehicles } });
+    await settle();
+    PATHS[path].connect?.({ hook, ref });
+    let done;
+    act(() => { done = PATHS[path].start({ hook, ref }); });
+    await settle();
+    await settle();
+    expect(ref.current.mission.plan?.zones?.length).toBe(1);
+    expect(ref.current.snap.planSynced).toBe(true);
+    if (editBetweenUavs) {
+      act(() => { ref.current.mission.authorFenceIntent(true); });
+      expect(ref.current.snap.planSynced).toBe(false);
+    }
+    await act(async () => { second.resolve(MISSION(2)); await done; });
+    await settle();
+    await settle();
+    expect(ref.current.mission.plan?.zones?.length).toBe(2);
+    return ref.current;
+  }
+
+  it.each(Object.keys(PATHS))('%s, unedited, is the plan on the UAVs', async (path) => {
+    const { snap } = await download(path, false);
+    expect(snap.planSynced).toBe(true);
+  });
+
+  it.each(Object.keys(PATHS))('%s: the fence switched on between two UAVs is not on the UAVs', async (path) => {
     const { snap, mission } = await download(path, true);
     expect(mission.fenceEnabled).toBe(true);
     expect(snap.planSynced).toBe(false);

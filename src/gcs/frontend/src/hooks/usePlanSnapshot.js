@@ -13,9 +13,10 @@ const NO_SYNC = { key: null, run: null };
  *
  * - An upload: the editor as the upload read it (`upload`, taken before
  *   anything was awaited) with the plan and fence request it sent.
- * - A download: the editor right after the download published its plan and
- *   derived the area from it (`download`, a beginPlanDownload token), with the
- *   dock and detection waypoints its parameter read restored, when it did.
+ * - A download: the editor as the download published its plan and derived
+ *   the area from it (`download`, a beginPlanDownload token, see
+ *   publishedState), with the dock and detection waypoints its parameter read
+ *   restored, when it did.
  * - Neither (a UAV left a fleet whose plan the editor still holds): the editor.
  *
  * What the UAVs acknowledged and report about their fences is the latest, as
@@ -37,6 +38,25 @@ function syncedState(editor, source) {
     };
   }
   return editor;
+}
+
+/**
+ * The editor a download's publication leaves, without the edits the operator
+ * made while that download was running. A download publishes progressively
+ * (one UAV's mission at a time), so a later publication starts from the state
+ * recorded for the same download's plan (`chain`), not from the editor, and
+ * takes from the editor only what the publication itself changed (`before` is
+ * the editor just before it). The plan is always the published one: a plan
+ * replaced by anything else ends the download before its baseline is taken.
+ */
+function publishedState(before, after, chain) {
+  const run = downloadRunOf(after.plan);
+  const base = run != null && chain?.run === run ? chain.state : before;
+  const state = { ...base, plan: after.plan };
+  for (const key of Object.keys(after)) {
+    if (!Object.is(after[key], before[key])) state[key] = after[key];
+  }
+  return state;
 }
 
 /**
@@ -87,6 +107,9 @@ export default function usePlanSnapshot({
   // Downloads that published a plan whose editor state is not captured yet.
   const [publishTrigger, setPublishTrigger] = useState(0);
   const pendingDownloadsRef = useRef([]);
+  // The last state recorded for a downloaded plan ({ run, state }): the next
+  // publication of that plan builds on it (publishedState).
+  const downloadChainRef = useRef(null);
   // The synced baseline's key, and the download run of the plan it was taken
   // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
@@ -112,7 +135,9 @@ export default function usePlanSnapshot({
   // derives the area: the returned token holds the editor once that update
   // has committed, for onPlanSynced({ download: token }).
   const beginPlanDownload = useCallback(() => {
-    const token = { state: null };
+    // The updates of this publication are not rendered yet: the ref holds the
+    // editor just before it.
+    const token = { before: { ...stateForSnapshotRef.current }, state: null };
     pendingDownloadsRef.current.push(token);
     setPublishTrigger((n) => n + 1);
     return token;
@@ -129,6 +154,7 @@ export default function usePlanSnapshot({
   // editor loses any download's claim too.
   const forgetPlanSync = useCallback(() => {
     vehicleSnapshotRef.current = null;
+    downloadChainRef.current = null;
     setSync({ key: null, run: downloadRunOf(stateForSnapshotRef.current.plan) });
   }, []);
   // An upload starts writing: what the UAVs carry is unknown until it completes.
@@ -138,8 +164,11 @@ export default function usePlanSnapshot({
   // completes within one update is captured first.
   useEffect(() => {
     if (publishTrigger === 0) return;
-    const state = { ...stateForSnapshotRef.current };
-    for (const token of pendingDownloadsRef.current) token.state = state;
+    const after = stateForSnapshotRef.current;
+    for (const token of pendingDownloadsRef.current) {
+      token.state = publishedState(token.before, after, downloadChainRef.current);
+      downloadChainRef.current = { run: downloadRunOf(after.plan), state: token.state };
+    }
     pendingDownloadsRef.current = [];
   }, [publishTrigger]);
 
@@ -147,7 +176,10 @@ export default function usePlanSnapshot({
     if (snapshotTrigger.n === 0) return;
     const state = syncedState(stateForSnapshotRef.current, snapshotTrigger.source);
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
-    setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
+    const run = downloadRunOf(state.plan);
+    // A later download into this plan builds on the baseline just taken.
+    downloadChainRef.current = run != null ? { run, state } : null;
+    setSync({ key: planSyncKey(state), run });
   }, [snapshotTrigger]);
 
   useEffect(() => {
