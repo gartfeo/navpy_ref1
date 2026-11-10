@@ -17,20 +17,28 @@ const NO_SYNC = { key: null, run: null };
  *   the editor right after its latest publication of the plan and the area
  *   derived from it, with the dock and detection waypoints its parameter read
  *   restored, when it did; the operator's own decisions, which a download
- *   never writes, as they were when it started (DOWNLOAD_NEVER_WRITES).
+ *   never writes, as they were when it started (DOWNLOAD_NEVER_WRITES). A
+ *   newer publication of the same plan (`latestPublished`) supersedes its own.
  * - Neither (a UAV left a fleet whose plan the editor still holds): the editor.
  *
  * What the UAVs acknowledged and report about their fences is the latest, as
  * the editor holds it.
  */
-function syncedState(editor, source) {
+function syncedState(editor, source, latestPublished) {
   const latestFence = {
     fenceAcknowledged: editor.fenceAcknowledged,
     fenceObservations: editor.fenceObservations,
   };
   if (source?.upload) return { ...source.upload, ...latestFence };
   if (source?.download) {
-    const published = { ...(source.download.published ?? editor), ...source.download.operator };
+    // Downloads into one plan can finish out of order (two UAVs connecting):
+    // the newest publication of that plan holds every UAV's zone.
+    const own = source.download.published;
+    const newer = own && latestPublished
+      && latestPublished.seq > source.download.seq
+      && latestPublished.run === downloadRunOf(own.plan)
+      ? latestPublished.state : null;
+    const published = { ...(newer ?? own ?? editor), ...source.download.operator };
     return {
       ...published,
       simDockWps: source.simDockWps ?? published.simDockWps,
@@ -102,6 +110,8 @@ export default function usePlanSnapshot({
   // Downloads that published a plan whose editor state is not captured yet.
   const [publishTrigger, setPublishTrigger] = useState(0);
   const pendingDownloadsRef = useRef([]);
+  // The newest capture of a download's publication: { seq, run, state }.
+  const latestPublishedRef = useRef(null);
   // The synced baseline's key, and the download run of the plan it was taken
   // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
@@ -161,13 +171,20 @@ export default function usePlanSnapshot({
   useEffect(() => {
     if (publishTrigger === 0) return;
     const published = { ...stateForSnapshotRef.current };
-    for (const token of pendingDownloadsRef.current) token.published = published;
+    const seq = (latestPublishedRef.current?.seq ?? 0) + 1;
+    for (const token of pendingDownloadsRef.current) {
+      token.published = published;
+      token.seq = seq;
+    }
     pendingDownloadsRef.current = [];
+    latestPublishedRef.current = { seq, run: downloadRunOf(published.plan), state: published };
   }, [publishTrigger]);
 
   useEffect(() => {
     if (snapshotTrigger.n === 0) return;
-    const state = syncedState(stateForSnapshotRef.current, snapshotTrigger.source);
+    const state = syncedState(
+      stateForSnapshotRef.current, snapshotTrigger.source, latestPublishedRef.current,
+    );
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
     setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
   }, [snapshotTrigger]);

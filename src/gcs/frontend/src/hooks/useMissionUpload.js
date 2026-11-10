@@ -53,7 +53,7 @@ export default function useMissionUpload({
     simDockWps, detectAfterWps,
     setUploadProgress,
   } = mission;
-  const { setSimDockWps, setDetectAfterWps } = mission;
+  const { setSimDockWps, setDetectAfterWps, setDeliveryHubAssignments } = mission;
   const [uploading, setUploading] = useState(false);
 
   // Live mirror of deliveryHubAssignments so handleUpload reads the latest committed
@@ -204,6 +204,9 @@ export default function useMissionUpload({
       sys_id: vehicleList[i]?.sys_id ?? zone.sys_id,
     }));
     setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt } : prev);
+    // Automatic hub assignments are what this upload resolved and sends; the
+    // operator's manual ones are sent as edited.
+    if (!manualDeliveryHubEdit) setDeliveryHubAssignments?.(effectiveAssignments);
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
@@ -301,7 +304,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, capturePlan, onOperatorAction, simDockWps, setSimDockWps, setVehicleTargWps, detectAfterWps, setDetectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, capturePlan, onOperatorAction, simDockWps, setSimDockWps, setDeliveryHubAssignments, setVehicleTargWps, detectAfterWps, setDetectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
 
   return { uploading, handleUpload };
 }

@@ -65,7 +65,7 @@ describe('upload', () => {
 
   // `regenerate`: the plan localGenerate produces at upload (as usePlanGeneration
   // does, it publishes it), or nothing (the plan on the map is uploaded).
-  function harness({ uploadMissions, checkPlanCamera, regenerate = null }) {
+  function harness({ uploadMissions, checkPlanCamera, regenerate = null, editor = EDITOR }) {
     const { wrapper } = confirmStub(true);
     const deps = SNAPSHOT_DEPS();
     const api = {
@@ -77,6 +77,7 @@ describe('upload', () => {
       const [plan, setPlan] = useState(PLAN);
       const [simDockWps, setSimDockWps] = useState(editor.simDockWps);
       const [detectAfterWps, setDetectAfterWps] = useState(editor.detectAfterWps);
+      const [deliveryHubAssignments, setDeliveryHubAssignments] = useState(editor.deliveryHubAssignments);
       // usePlanningOrchestrator: a new zone count clears the picks in planning.
       const zoneCount = useRef(plan?.zones?.length || 0);
       useEffect(() => {
@@ -92,11 +93,11 @@ describe('upload', () => {
         setPlan(regenerate);
         return regenerate;
       };
-      const picks = { simDockWps, detectAfterWps };
+      const picks = { simDockWps, detectAfterWps, deliveryHubAssignments };
       const snap = usePlanSnapshot({ ...deps, ...editor, ...picks, plan, setPlan });
       const upload = useMissionUpload({
         mission: {
-          ...editor, ...picks, plan, setPlan, setSimDockWps, setDetectAfterWps,
+          ...editor, ...picks, plan, setPlan, setSimDockWps, setDetectAfterWps, setDeliveryHubAssignments,
           launchPoint: null, corridorPoints: [],
           goToMonitor: vi.fn(), setUploadProgress: vi.fn(),
         },
@@ -113,7 +114,7 @@ describe('upload', () => {
         setVehicleTargWps: vi.fn(), setVehicleNavLastWp: vi.fn(),
       });
       return { snap, upload, setPlan, picks };
-    }, { wrapper, initialProps: EDITOR });
+    }, { wrapper, initialProps: editor });
     return { hook, api };
   }
 
@@ -188,6 +189,20 @@ describe('upload', () => {
     // No dock to check: the picks did not reach the request.
     expect(api.checkPlanCamera).not.toHaveBeenCalled();
     expect(hook.result.current.picks.simDockWps).toEqual({});
+    expect(hook.result.current.snap.planSynced).toBe(true);
+  });
+
+  // Codex review, round 4: a plan with no hub assigned (a downloaded legacy
+  // mission) gets the hub the upload resolves; the editor must show it.
+  it('an upload that assigns the hubs itself shows them and is on the UAVs', async () => {
+    const { hook, api } = harness({
+      uploadMissions: vi.fn().mockResolvedValue(COMPLETE),
+      checkPlanCamera: vi.fn().mockResolvedValue(OK),
+      editor: { ...EDITOR, deliveryHubAssignments: [] },
+    });
+    await act(() => hook.result.current.upload.handleUpload());
+    expect(api.uploadMissions.mock.calls[0][0][0].default_delivery_hub).toMatchObject({ lat: HUBS[0].lat });
+    expect(hook.result.current.picks.deliveryHubAssignments).toEqual([0, 0]);
     expect(hook.result.current.snap.planSynced).toBe(true);
   });
 
@@ -505,6 +520,25 @@ describe('a download and edits around it', () => {
     await settle();
     expect(h.ref.current.snap.planSynced).toBe(true);
     await act(async () => { answers[2].resolve(MISSION(2)); await second; });
+    await settle();
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(true);
+  });
+
+  // Round 4: the second UAV's download finishes before the first one's.
+  it('two UAVs whose downloads finish out of order are the plan on the UAVs', async () => {
+    const firstFence = deferred();
+    const h = harness({ downloadFence: (sysId) => (sysId === 1 ? firstFence.promise : Promise.resolve(null)) });
+    await settle();
+    let first;
+    act(() => { first = h.ref.current.connection.handleConnect('udp:x', 1, 'UAV1'); });
+    await settle();
+    await act(async () => { await h.ref.current.connection.handleConnect('udp:x', 2, 'UAV2'); });
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(true);
+    await act(async () => { firstFence.resolve(null); await first; });
     await settle();
     await settle();
     expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
