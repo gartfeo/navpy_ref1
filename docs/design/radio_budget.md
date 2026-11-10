@@ -716,17 +716,23 @@ handshake or chunk of that round's image.
 ### Design
 
 - `ExchangePolicy.held_frame_bytes`: a send counts against `attempts` only
-  once the uplink carried that many bytes since the exchange's first send
-  (`SendBudget`, `parameter_exchange_loop.py`). A frame held by a lost byte
+  once the uplink carried that many bytes after the exchange's first send
+  went out (`SendBudget`, `parameter_exchange_loop.py`). A frame held by a lost byte
   at or before a counted send ends before it. `gcs_policy` sets
   `MAVLINK2_MAX_FRAME_BYTES` (10 + 255 + 2 + 13 = 280). Other policies
   (NavPy on serial0, a cable) keep 0: every send counts.
 - The uplink count is the encoder's `total_bytes_sent`
   (`MavTransport.uplink_bytes`). It covers the requests and whatever else
   that encoder writes. A count that misses other traffic only allows more
-  free sends, never fewer, and they stay bounded: at most
-  ceil(280 / request frame) free sends, 19 for an item request and fewer
+  free sends, never fewer, and they stay bounded: the first send and at
+  most ceil(280 / request frame) more, 1 + 19 for an item request and fewer
   for a parameter. The deadline and the link check still end the exchange.
+- The counts are read outside the send lock (Codex review, 2026-11-10):
+  another sender's bytes can fall between a reading and its send. So the
+  allowance starts at the count read after the first send went out, and
+  traffic before it is never inside it; a later send is judged by the
+  count read before it, which is never later than its true start. Both
+  errors only add free sends. A send the deadline refused is not recorded.
 - Every `run_exchange` caller passes the count (download steps, parameter
   reads and writes), and so does the upload's `MISSION_COUNT` loop. A log
   line names the free sends once they take a step past its budget:
@@ -741,7 +747,8 @@ handshake or chunk of that round's image.
   frames into a radio that swallows one held frame. With every send counted
   the item fails, and the held frame is still incomplete when the budget
   runs out. With the GCS policy the download completes. A silent autopilot
-  gets exactly 12 + ceil(280 / frame) sends. A parameter read outlasts a
+  gets exactly 12 + 1 + ceil(280 / frame) sends; 280 bytes another sender
+  writes before the first send do not shorten the allowance. A parameter read outlasts a
   held frame.
 
 ## Not covered

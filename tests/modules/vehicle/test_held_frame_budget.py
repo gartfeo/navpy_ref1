@@ -158,7 +158,7 @@ def test_free_sends_are_bounded_by_one_held_frame():
     sends = radio.arrived.count("MISSION_REQUEST_LIST")
     size = transport.uplink_bytes() // sends
     assert transport.uplink_bytes() == sends * size  # every send one count request
-    assert sends == 12 + math.ceil(MAVLINK2_MAX_FRAME_BYTES / size)
+    assert sends == 12 + 1 + math.ceil(MAVLINK2_MAX_FRAME_BYTES / size)  # the first send, then one held frame
 
 
 def test_a_parameter_read_outlasts_a_held_frame():
@@ -176,35 +176,69 @@ def test_a_parameter_read_outlasts_a_held_frame():
     assert (exchange.outcome, exchange.reason) == (ExchangeOutcome.UNCONFIRMED, ExchangeReason.NO_ECHO)
 
 
-@pytest.mark.parametrize(("written", "counted"), [
-    ([None, None, None], 3),          # no byte count: every send counts
-    ([0, 100, 279, 280, 300], 2),     # sends from 280 bytes after the first count
-    ([50, 330, 331], 2),              # measured from the first send, not from zero
-])
-def test_send_budget_counts_from_one_held_frame_after_the_first_send(written, counted):
-    readings = iter(written)
-    budget = SendBudget(GCS, lambda: next(readings))
-    for _ in written:
-        budget.before_send()
-    assert (budget.sent, budget.counted) == (len(written), counted)
+class Uplink:
+    """A byte counter for :class:`SendBudget`: each send adds its frame, others' traffic adds more."""
+
+    def __init__(self) -> None:
+        self.written = 0
+
+    def __call__(self) -> int:
+        return self.written
+
+    def send(self, budget: SendBudget, size: int, *, others_before: int = 0) -> None:
+        """One send as the loop makes it: the reading, others' bytes in the gap, the frame, the record."""
+        reading = budget.reading()
+        self.written += others_before + size
+        budget.record(reading)
+
+
+def test_sends_count_once_the_uplink_carried_one_held_frame_after_the_first_send():
+    uplink = Uplink()
+    uplink.written = 50  # traffic before the exchange is not inside its allowance
+    budget = SendBudget(GCS, uplink)
+    uplink.send(budget, 15)                  # the first send: free; the allowance starts at 65
+    while uplink.written - 65 < MAVLINK2_MAX_FRAME_BYTES:
+        uplink.send(budget, 15)
+        assert budget.counted == 0
+    uplink.send(budget, 15)                  # starts 285 bytes after the first send ended
+    assert (budget.sent, budget.counted) == (21, 1)
+
+
+def test_other_senders_bytes_before_the_first_send_do_not_use_up_the_allowance():
+    """Codex review: the reading precedes the send lock, so another sender can write in the
+    gap. 280 bytes there must not count as uplink carried after the first send."""
+    uplink = Uplink()
+    budget = SendBudget(GCS, uplink)
+    uplink.send(budget, 15, others_before=MAVLINK2_MAX_FRAME_BYTES)
+    uplink.send(budget, 15)
+    assert (budget.sent, budget.counted) == (2, 0)  # still inside one held frame after the first send
+
+
+def test_without_a_byte_count_every_send_counts():
+    budget = SendBudget(GCS, lambda: None)
+    for _ in range(3):
+        budget.record(budget.reading())
+    assert (budget.sent, budget.counted) == (3, 3)
 
 
 def test_a_policy_without_held_frame_bytes_counts_every_send():
-    budget = SendBudget(EVERY_SEND_COUNTS, lambda: 0)
+    uplink = Uplink()
+    budget = SendBudget(EVERY_SEND_COUNTS, uplink)
     for _ in range(12):
-        budget.before_send()
+        uplink.send(budget, 15)
     assert budget.spent and budget.label() == "12/12"
 
 
 def test_the_log_names_free_sends_only_once_they_extend_the_budget():
-    readings = iter([0, 15, 30, 280, 295])
-    budget = SendBudget(ExchangePolicy(attempts=2, held_frame_bytes=MAVLINK2_MAX_FRAME_BYTES),
-                        lambda: next(readings))
+    uplink = Uplink()
+    budget = SendBudget(ExchangePolicy(attempts=2, held_frame_bytes=MAVLINK2_MAX_FRAME_BYTES), uplink)
     labels = []
-    while not budget.spent:
-        budget.before_send()
+    for size in (15, 15, 265, 15, 15):
+        uplink.send(budget, size)
         labels.append(budget.label())
+    # The allowance starts at 15 (after send 1); readings before sends 2-5: 15, 30, 295, 310.
     assert labels == ["1/2", "2/2", "3/2 (+3 free)", "4/2 (+3 free)", "5/2 (+3 free)"]
+    assert budget.spent
 
 
 def test_a_send_the_deadline_refused_is_not_recorded():

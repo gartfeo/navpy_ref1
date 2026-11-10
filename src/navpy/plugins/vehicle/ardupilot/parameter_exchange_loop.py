@@ -54,11 +54,17 @@ class SendBudget:
 
     Every send counts, unless the policy has ``held_frame_bytes`` and the uplink
     is counted: then a send counts only when the uplink carried at least that many
-    bytes since the exchange's first send. A frame held by a lost byte at or before
-    that send ends within that many bytes, so a send after it reaches the vehicle
-    unless it is lost itself; the sends before it are free, at most
-    ``held_frame_bytes`` / the request's frame size of them. The deadline and the
+    bytes after the exchange's first send went out. A frame held by a lost byte at
+    or before that send ends within that many bytes, so a send after it reaches the
+    vehicle unless it is lost itself; the sends before it are free: the first, and at
+    most ``held_frame_bytes`` / the request's frame size more. The deadline and the
     link check still bound the exchange.
+
+    The readings are taken outside the send lock, so other senders' bytes can fall
+    between a reading and its send. The allowance therefore starts at the count read
+    after the first send (any earlier traffic is not inside it), and a later send is
+    judged by the count read before it (never later than its true start). Both
+    errors only add free sends.
     """
 
     def __init__(self, policy: ExchangePolicy, uplink_bytes: Callable[[], int | None] | None) -> None:
@@ -77,19 +83,16 @@ class SendBudget:
         """The uplink count, taken right before a send (``None``: every send counts)."""
         return None if self._uplink is None else self._uplink()
 
-    def before_send(self) -> None:
-        """Record a send about to go out for certain."""
-        self.record(self.reading())
-
     def record(self, written: int | None) -> None:
-        """Record a send that went out; ``written`` is its :meth:`reading`."""
+        """Record a send that went out, right after it; ``written`` is its :meth:`reading`.
+        A refused send is not recorded."""
         if written is None:
             self.counted += 1
-        else:
-            if self._first is None:
-                self._first = written
-            if written - self._first >= self._held:
-                self.counted += 1
+        elif self._first is None:
+            after = self._uplink() if self._uplink is not None else None
+            self._first = written if after is None else after  # the first send itself is free
+        elif written - self._first >= self._held:
+            self.counted += 1
         self.sent += 1
 
     def label(self) -> str:

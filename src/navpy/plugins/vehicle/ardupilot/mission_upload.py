@@ -134,12 +134,13 @@ class MissionUploader:
         budget = SendBudget(policy, self._transport.uplink_bytes)
         reason = stop_reason(policy, self._link)
         while reason is None and not budget.spent:
-            budget.before_send()
+            written = budget.reading()
             self._transport.call(
                 lambda connection: connection.mav.mission_count_send(
                     self._target, 0, total, mission_type,
                 )
             )
+            budget.record(written)
             envelope = self._inbox.wait_after(
                 cursor,
                 lambda message: (
