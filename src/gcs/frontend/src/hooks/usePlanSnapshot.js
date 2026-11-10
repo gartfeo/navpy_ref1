@@ -7,14 +7,50 @@ import useConfirm from './useConfirm';
 const NO_SYNC = { key: null, run: null };
 
 /**
+ * The plan the UAVs carry once a request completed, from what the request
+ * itself sent or read: never the editor as it is at completion, which may hold
+ * an edit made while the request was out.
+ *
+ * - An upload: the editor as the upload read it (`upload`, taken before
+ *   anything was awaited) with the plan and fence request it sent.
+ * - A download: the editor right after the download published its plan and
+ *   derived the area from it (`download`, a beginPlanDownload token), with the
+ *   dock and detection waypoints its parameter read restored, when it did.
+ * - Neither (a UAV left a fleet whose plan the editor still holds): the editor.
+ *
+ * What the UAVs acknowledged and report about their fences is the latest, as
+ * the editor holds it.
+ */
+function syncedState(editor, source) {
+  const latestFence = {
+    fenceAcknowledged: editor.fenceAcknowledged,
+    fenceObservations: editor.fenceObservations,
+  };
+  if (source?.upload) return { ...source.upload, ...latestFence };
+  if (source?.download) {
+    const published = source.download.state ?? editor;
+    return {
+      ...published,
+      simDockWps: source.simDockWps ?? published.simDockWps,
+      detectAfterWps: source.detectAfterWps ?? published.detectAfterWps,
+      ...latestFence,
+    };
+  }
+  return editor;
+}
+
+/**
  * The plan's two baselines and leaving plan mode.
  *
- * - Synced: the plan on the UAVs, captured on upload and download
- *   (onPlanSynced). `planSynced` says the editor still holds exactly that
- *   plan, or a plan a download published whose baseline has not landed yet
- *   (downloadRunOf); the monitor offers the start control only then. An
- *   upload drops the baseline when it starts writing (beginPlanUpload): until
- *   it completes, what the UAVs carry is not known.
+ * - Synced: the plan on the UAVs, taken when an upload or download completes
+ *   (onPlanSynced) from what that request sent or read (syncedState).
+ *   `planSynced` says the editor still holds exactly that plan, or a plan a
+ *   download published whose baseline has not landed yet (downloadRunOf); the
+ *   monitor offers the start control only then. An upload reads the editor
+ *   before it awaits anything (capturePlanState) and drops the baseline when
+ *   it starts writing (beginPlanUpload): until it completes, what the UAVs
+ *   carry is not known. A download marks the editor it published
+ *   (beginPlanDownload).
  * - Saved: the plan in the file last saved (markPlanSaved, taken at once) or
  *   loaded (markPlanLoaded, taken once the load has committed).
  *
@@ -29,6 +65,8 @@ export default function usePlanSnapshot({
   deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
   fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent, fenceAcknowledged, fenceObservations,
   fenceCustomVertices, exclusionPolygons,
+  // The settings' home hubs (not restored: only the assigned positions count).
+  deliveryHubs,
   // Restore setters
   setPlan, setPolygon, setSearchPattern, setAnalysis,
   setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
@@ -44,9 +82,11 @@ export default function usePlanSnapshot({
   const confirm = useConfirm();
   const vehicleSnapshotRef = useRef(null);
   const stateForSnapshotRef = useRef({});
-  // Each request for a synced baseline; an upload's carries the edit key it
-  // sent (beginPlanUpload).
-  const [snapshotTrigger, setSnapshotTrigger] = useState({ n: 0, sentEditKey: null });
+  // Each request for a synced baseline, with what it sent or read (syncedState).
+  const [snapshotTrigger, setSnapshotTrigger] = useState({ n: 0, source: null });
+  // Downloads that published a plan whose editor state is not captured yet.
+  const [publishTrigger, setPublishTrigger] = useState(0);
+  const pendingDownloadsRef = useRef([]);
   // The synced baseline's key, and the download run of the plan it was taken
   // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
@@ -58,13 +98,25 @@ export default function usePlanSnapshot({
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
     deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
     fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent, fenceAcknowledged, fenceObservations,
-    fenceCustomVertices, exclusionPolygons,
+    fenceCustomVertices, exclusionPolygons, deliveryHubs,
   };
   stateForSnapshotRef.current = current;
 
-  const onPlanSynced = useCallback((sentEditKey = null) => setSnapshotTrigger((prev) => ({
-    n: prev.n + 1, sentEditKey: typeof sentEditKey === 'string' ? sentEditKey : null,
+  // `source` is what the completed request sent or read (syncedState).
+  const onPlanSynced = useCallback((source = null) => setSnapshotTrigger((prev) => ({
+    n: prev.n + 1, source,
   })), []);
+  // The editor as it is now: what an upload builds its request from.
+  const capturePlanState = useCallback(() => ({ ...stateForSnapshotRef.current }), []);
+  // Called by a download in the same update that publishes its plan and
+  // derives the area: the returned token holds the editor once that update
+  // has committed, for onPlanSynced({ download: token }).
+  const beginPlanDownload = useCallback(() => {
+    const token = { state: null };
+    pendingDownloadsRef.current.push(token);
+    setPublishTrigger((n) => n + 1);
+    return token;
+  }, []);
   // Saved: the file holds the plan as it is now (leaving plan mode may restore
   // the UAVs' plan right after). Loaded: called in the same update that
   // applies the file, so the key is taken once that update has committed.
@@ -79,19 +131,21 @@ export default function usePlanSnapshot({
     vehicleSnapshotRef.current = null;
     setSync({ key: null, run: downloadRunOf(stateForSnapshotRef.current.plan) });
   }, []);
-  // An upload starts writing: forget the baseline and return the edit key it
-  // sends, for onPlanSynced on success. An edit made while the request was
-  // out is not on the UAVs, so the baseline is then not taken.
-  const beginPlanUpload = useCallback(() => {
-    forgetPlanSync();
-    return planEditKey(stateForSnapshotRef.current);
-  }, [forgetPlanSync]);
+  // An upload starts writing: what the UAVs carry is unknown until it completes.
+  const beginPlanUpload = forgetPlanSync;
+
+  // Declared before the baseline effect: a download that publishes and
+  // completes within one update is captured first.
+  useEffect(() => {
+    if (publishTrigger === 0) return;
+    const state = { ...stateForSnapshotRef.current };
+    for (const token of pendingDownloadsRef.current) token.state = state;
+    pendingDownloadsRef.current = [];
+  }, [publishTrigger]);
 
   useEffect(() => {
     if (snapshotTrigger.n === 0) return;
-    const state = stateForSnapshotRef.current;
-    const sent = snapshotTrigger.sentEditKey;
-    if (sent != null && planEditKey(state) !== sent) return;
+    const state = syncedState(stateForSnapshotRef.current, snapshotTrigger.source);
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
     setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
   }, [snapshotTrigger]);
@@ -107,7 +161,7 @@ export default function usePlanSnapshot({
     [plan, polygon, searchPattern, effectiveUavCount, partitionAngleDeg, routeOffsetM,
       setLaunchPoints, setCorridorPointsArr, deliveryHubAssignments, manualDeliveryHubEdit,
       simDockWps, detectAfterWps, fenceTouched, fenceEnabled, fenceOffsetM,
-      fenceCustomVertices, exclusionPolygons],
+      fenceCustomVertices, exclusionPolygons, deliveryHubs],
   );
   // A plan a download just published is the UAVs' plan before its baseline
   // lands (the download's post-processing derives the area and dock picks
@@ -181,5 +235,8 @@ export default function usePlanSnapshot({
     goToMonitor();
   }, [goToMonitor, confirm, t, restoreVehiclePlan, savePlanRef]);
 
-  return { onPlanSynced, beginPlanUpload, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
+  return {
+    onPlanSynced, capturePlanState, beginPlanUpload, beginPlanDownload,
+    markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
+  };
 }

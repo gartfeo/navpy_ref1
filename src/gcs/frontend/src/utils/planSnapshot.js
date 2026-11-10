@@ -13,7 +13,8 @@
  * affects monitor display, vehicle upload, or saved plan behavior.
  *
  * Global settings (settings.default_delivery_hubs, altitude, FOV) are excluded —
- * they survive plan discard by design.
+ * they survive plan discard by design. Only the positions of the hubs the plan
+ * assigns are recorded (`current.deliveryHubs` is the settings' hub list).
  */
 export function buildPlanSnapshot(current) {
   return {
@@ -45,7 +46,23 @@ export function buildPlanSnapshot(current) {
     // editing them must mark the plan dirty like any other plan geometry.
     fenceCustomVertices:  current.fenceCustomVertices ? JSON.parse(JSON.stringify(current.fenceCustomVertices)) : null,
     exclusionPolygons:    current.exclusionPolygons ? JSON.parse(JSON.stringify(current.exclusionPolygons)) : [],
+    // Where each zone's UAV returns: the position of its assigned home hub.
+    // The hubs are global settings and are never restored with the plan, but
+    // moving an assigned one changes what the UAVs would fly. A snapshot keeps
+    // the positions it was taken with.
+    assignedHubs:         'assignedHubs' in current
+      ? JSON.parse(JSON.stringify(current.assignedHubs))
+      : assignedHubPositions(current),
   };
+}
+
+/** Per plan zone, the position of the home hub assigned to it, or null. */
+function assignedHubPositions(current) {
+  const hubs = current.deliveryHubs || [];
+  return (current.plan?.zones || []).map((_, i) => {
+    const hub = hubs[current.deliveryHubAssignments?.[i]];
+    return hub ? { lat: hub.lat, lon: hub.lon } : null;
+  });
 }
 
 const latLon = (p) => (p ? [p.lat, p.lon] : null);
@@ -106,6 +123,7 @@ export function planSyncKey(current) {
     fenceEnabled: s.fenceEnabled,
     altitude: s.plan?.altitude_m ?? null,
     zones: (s.plan?.zones || []).map((z) => [z.sys_id ?? null, z.set_index ?? 0, z.altitude_m ?? null, z.track || []]),
+    hubs: s.assignedHubs.map(latLon),
   });
 }
 
