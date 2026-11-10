@@ -2,7 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { useState } from 'react';
 import { render, act, fireEvent, within, waitFor } from '@testing-library/react';
 import MonitoringSidebar from './MonitoringSidebar';
+import ConfirmProvider from '../ConfirmProvider';
 import { LONG_PRESS_MS } from '../../utils/armAction';
+import { usePlanCameraGate } from '../../hooks/usePlanCameraCheck';
+import useVehicleCommands from '../../hooks/useVehicleCommands';
 
 // Container launch through the real sidebar and the real useContainerLauncher
 // (MonitoringSidebar.test.jsx stands the launcher in). Owner's rehearsal,
@@ -109,5 +112,86 @@ describe('MonitoringSidebar container launch', () => {
     await act(async () => { question.resolve(); await question.promise; });
     await act(async () => { await Promise.resolve(); });
     expect(onTriggerVehicle).not.toHaveBeenCalled();
+  });
+});
+
+// The demo-rehearsal path (2026-11-10): the real handleLaunch behind a real
+// plan camera check that has docks to check, so the launch waits on the check
+// request. The launch has to reach the prepare request (POST
+// /api/control/launch, api.launchSequence) after the confirm closes.
+const TRACK = [{ lat: 0, lon: 0 }, { lat: 0.001, lon: 0.001 }];
+const DOCK_PLAN = { altitude_m: 200, zones: [{ track: TRACK }, { track: TRACK }] };
+// targ_wps bit 1 = waypoint 2: one dock per zone, so the gate sends a check.
+const TARG_WPS = { 7: 0b10, 8: 0b10 };
+const getAas = (_sysId, name) => ({ targ_alt: 0, use_trn: false })[name];
+const noop = () => {};
+
+function WiredHost({ fleet, api }) {
+  const confirmBeforeStart = usePlanCameraGate({
+    enabled: true, plan: DOCK_PLAN, searchPattern: 'corridor', vehicleList: fleet,
+    vehicleTargWps: TARG_WPS, vehicleNavLastWp: {}, getAas, check: api.checkPlanCamera,
+  });
+  const commands = useVehicleCommands({
+    api, vehicleList: fleet,
+    taskConfirmReset: noop, taskAssignReset: noop, setLaunchStates: noop, resumeHistory: noop,
+    confirmBeforeStart,
+  });
+  return (
+    <Host
+      vehicleList={fleet}
+      plan={DOCK_PLAN}
+      onLaunch={commands.handleLaunch}
+      onTriggerVehicle={commands.handleTriggerVehicle}
+    />
+  );
+}
+
+function wiredApi() {
+  const check = deferred();
+  return {
+    check,
+    checkPlanCamera: vi.fn(() => check.promise),
+    launchSequence: vi.fn(async (sysIds) => ({ status: 'container_prepared', sys_ids: sysIds })),
+    triggerVehicle: vi.fn(async () => ({})),
+    sendCommand: vi.fn(),
+  };
+}
+
+describe('MonitoringSidebar container launch with the real camera check', () => {
+  it('a confirmed launch keeps its control mounted and reaches the prepare request', async () => {
+    const api = wiredApi();
+    const view = render(<ConfirmProvider><WiredHost fleet={FLEET} api={api} /></ConfirmProvider>);
+
+    await waitFor(() => expect(holdButton(view)).not.toBeNull());
+    const control = holdButton(view);
+    await holdAndLaunch(view);
+    // The check request is out; the control the launch's signal belongs to
+    // must be the same element, not a remount.
+    expect(api.checkPlanCamera).toHaveBeenCalledTimes(1);
+    expect(api.checkPlanCamera.mock.calls[0][0].every((z) => z.docks.length === 1)).toBe(true);
+    expect(holdButton(view)).toBe(control);
+
+    await act(async () => { api.check.resolve({ status: 'ok', zones: [] }); });
+    await waitFor(() => expect(api.triggerVehicle).toHaveBeenCalledTimes(2));
+    expect(api.launchSequence).toHaveBeenCalledTimes(1);
+    expect(api.launchSequence.mock.calls[0][0]).toEqual([7, 8]);
+    expect(api.triggerVehicle.mock.calls.map((c) => c[0])).toEqual([7, 8]);
+  });
+
+  it('a control that really leaves PRE_LAUNCH during the check withdraws the launch', async () => {
+    const api = wiredApi();
+    const view = render(<ConfirmProvider><WiredHost fleet={FLEET} api={api} /></ConfirmProvider>);
+
+    await holdAndLaunch(view);
+    expect(api.checkPlanCamera).toHaveBeenCalledTimes(1);
+    // A UAV arms: the phase goes to IN_FLIGHT and HOLD TO LAUNCH unmounts.
+    const armed = FLEET.map((v, i) => (i === 0 ? { ...v, armed: true } : v));
+    view.rerender(<ConfirmProvider><WiredHost fleet={armed} api={api} /></ConfirmProvider>);
+    expect(holdButton(view)).toBeNull();
+
+    await act(async () => { api.check.resolve({ status: 'ok', zones: [] }); });
+    await act(async () => { await Promise.resolve(); });
+    expect(api.launchSequence).not.toHaveBeenCalled();
+    expect(api.triggerVehicle).not.toHaveBeenCalled();
   });
 });
