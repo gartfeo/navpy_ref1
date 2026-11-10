@@ -379,6 +379,28 @@ class _FakeGeoRef:
         return self._att
 
 
+# The sim's physics runs on its own thread, one 20 ms step per wall wait. The
+# wait is 2 ms at 10x, but Windows rounds it to its 15.6 ms timer tick and
+# parallel load stretches it further, so a fixed sleep covers an unknown number
+# of steps. Wait for the yaw instead, up to a deadline far past the slowest
+# slew here (about 1 s of sim time); a gimbal that never gets there still fails.
+YAW_WAIT_TIMEOUT_S = 5.0
+YAW_POLL_S = 0.02
+GEO_UPDATE_PERIOD_S = 0.05  # the 20 Hz geo update the test always used
+
+
+def _wait_for_yaw(gimbal, reached, tick=lambda: None, poll_s=YAW_POLL_S) -> float:
+    """Call ``tick`` and read the yaw every ``poll_s`` until ``reached(yaw)``
+    or the deadline; return the last yaw read for the caller's assertion."""
+    deadline_s = time.monotonic() + YAW_WAIT_TIMEOUT_S
+    while True:
+        tick()
+        yaw = gimbal.get_data().att.yaw
+        if reached(yaw) or time.monotonic() >= deadline_s:
+            return yaw
+        time.sleep(poll_s)
+
+
 class TestSecondLaunchGeoPointing(unittest.TestCase):
     """End-to-end through GimbalNavigation + a REAL GimbalSiyiSim: a launch-1
     pixel-tracking session leaves the sim's stale-RATE guard armed
@@ -437,24 +459,30 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
             #     arms the stale-RATE guard (set_rate sets _last_rate_wall).
             navigation.start_tracking(0)
             gimbal.set_rate(-50, 0)
-            time.sleep(0.15)
+            # Read before stop_tracking: its return-to-neutral starts slewing
+            # back on the next physics step, which a read after it would race.
+            launch_1_yaw = _wait_for_yaw(gimbal, lambda yaw: yaw < -5.0)
             navigation.stop_tracking()
             self.assertLess(
-                gimbal.get_data().att.yaw, -5.0,
+                launch_1_yaw, -5.0,
                 "precondition: launch-1 pixel slew should leave negative yaw",
             )
 
-            # --- Launch 2: geo-point at a POI that requires +60deg world yaw.
+            # --- Launch 2: geo-point at a POI that requires +60deg world yaw,
+            #     updating at 20 Hz until it gets there.
             geo_ref = _FakeGeoRef(Attitude(-30, 60, 0))
             poi = Location(40.30, 44.43, 1280.0, is_absolute=True)
             uav_loc = Location(40.29, 44.43, 1480.0, is_absolute=True)
             navigation.start_geo_tracking(poi, geo_ref)
-            for _ in range(12):
-                navigation.update_geo(uav_loc, vehicle.attitude)
-                time.sleep(0.05)
+            launch_2_yaw = _wait_for_yaw(
+                gimbal,
+                lambda yaw: yaw > 30.0,
+                tick=lambda: navigation.update_geo(uav_loc, vehicle.attitude),
+                poll_s=GEO_UPDATE_PERIOD_S,
+            )
 
             self.assertGreater(
-                gimbal.get_data().att.yaw, 30.0,
+                launch_2_yaw, 30.0,
                 "launch-2 geo-pointing was canceled by the stale-RATE guard — "
                 "gimbal stuck at the launch-1 attitude (the behind_cam bug)",
             )
@@ -474,15 +502,13 @@ class TestSecondLaunchGeoPointing(unittest.TestCase):
         try:
             navigation.start_tracking(0)
             gimbal.set_rate(70, 0)            # slew yaw far from neutral
-            time.sleep(0.5)                   # ~5 sim-s at 10x
-            moved = gimbal.get_data().att.yaw
+            moved = _wait_for_yaw(gimbal, lambda yaw: abs(yaw) > 30.0)
             self.assertGreater(
                 abs(moved), 30.0,
                 f"precondition: gimbal should be far from neutral (yaw={moved:.1f})",
             )
             navigation.stop_tracking()          # -> FOLLOW + return_to_neutral(yaw=0)
-            time.sleep(1.0)                   # let the physics slew back
-            rest = gimbal.get_data().att.yaw
+            rest = _wait_for_yaw(gimbal, lambda yaw: abs(yaw) < 5.0)
             self.assertLess(
                 abs(rest), 5.0,
                 f"gimbal yaw did not return to neutral after stop_tracking "

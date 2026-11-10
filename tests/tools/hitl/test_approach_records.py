@@ -31,7 +31,8 @@ SCENARIO = {"schema_version": 2, "series_id": "s1", "series_sha256": "d" * 64, "
             "scene_hash": "e" * 64, "consumers": ["unreal", "contact", "scoring"],
             "lane": {"bearing_deg": 0.0, "start_m": 400.0, "length_m": 2000.0, "height_m": 80.0, "repeats": 30},
             "limits": {"observe_s": 660.0, "min_height_m": 30.0},
-            "dock_size": {"kind": "car", "length_m": 4.5, "width_m": 1.8, "height_m": 1.5, "placement": "ground"}}
+            "dock_size": {"kind": "pickup", "length_m": 5.887, "width_m": 2.490, "height_m": 1.958,
+                          "placement": "ground"}}
 
 
 @pytest.fixture(autouse=True)

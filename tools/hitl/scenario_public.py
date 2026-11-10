@@ -2,7 +2,7 @@
 
 The scenario service (scenario_service.py) writes it into the run's scenario folder as SCENARIO_FILE: the scenario's
 identity (series, seed index, scene hash), the dock-independent search lane, the run's limits and the dock's design
-size (step 23b: phase A's placeholder dock is a car standing on the ground; only the pre-series check reads it, never
+size (step 23b: phase A's dock is a pickup truck standing on the ground; only the pre-series check reads it, never
 navpy). It holds no dock pose and no seed: the runner and navpy (through the run record, approach_records.py) receive only this. The dock
 pose goes only to the consumers in ALLOWED_CONSUMERS, each in its own file under PRIVATE_DIR, which the command side
 never opens; the runner hands Unreal its file's path without reading it.
@@ -37,9 +37,9 @@ LIMITS_SPEC: Mapping[str, jc.Check] = {
     "observe_s": jc.positive,        # the deadline on the lane after acquisition starts
     "min_height_m": jc.positive,     # the recovery floor (flight_floor.HeightFloor), released at the confirm (23b)
 }
-# Step 23b, phase A: a car on the ground at the dock POI (hitl_dock_detector.md section 5). A scene design fact, the
-# same in every seed; its pose stays private.
-DOCK_KINDS = ("car",)
+# Step 23b, phase A: a pickup truck on the ground at the dock POI, detected as COCO truck (hitl_dock_detector.md
+# section 5). A scene design fact, the same in every seed; its pose stays private.
+DOCK_KINDS = ("pickup",)
 DOCK_PLACEMENTS = ("ground",)
 DOCK_SPEC: Mapping[str, jc.Check] = {
     "kind": jc.choice(DOCK_KINDS),
