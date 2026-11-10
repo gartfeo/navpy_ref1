@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { applyLaunchOrder, resolvePreparedLaunchOrder } from '../utils/launchSequence';
 import { containersFromSysIds } from '../utils/containers';
 
@@ -46,19 +46,28 @@ export default function useContainerLauncher({
     if (allTerminal) setContainerLaunching(false);
   }, [containerLaunching, vehicleList, launchStates]);
 
-  // Container mode: START prepares ESP32 session then triggers all vehicles
+  // Container mode: START prepares ESP32 session then triggers all vehicles.
+  // The launch panel opens only once the session is prepared: opening it
+  // unmounts the launch control, whose unmount signal (opts.signal) cancels
+  // the launch chain, so opening it first cancelled every launch while the
+  // plan camera check was still answering (owner's rehearsal, 2026-11-09).
+  const preparing = useRef(false);
   const doContainerLaunch = useCallback(async (opts) => {
-    setContainerLaunching(true);
+    if (preparing.current) return;
+    preparing.current = true;
     // Launch vehicles in the operator-defined launch order (settings.launch.launch_order).
     const requestedSysIds = applyLaunchOrder(
       vehicleList.map((v) => v.sys_id),
       settings?.launch?.launch_order,
     );
-    const result = await onLaunch(requestedSysIds, opts);
-    if (result?.status !== 'container_prepared') {
-      setContainerLaunching(false);
-      return;
+    let result;
+    try {
+      result = await onLaunch(requestedSysIds, opts);
+    } finally {
+      preparing.current = false;
     }
+    if (result?.status !== 'container_prepared') return;
+    setContainerLaunching(true);
     const sysIds = resolvePreparedLaunchOrder(
       requestedSysIds,
       result.sys_ids,
