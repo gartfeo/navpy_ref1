@@ -48,14 +48,15 @@ export function tagPlanForRun(plan, run) {
 }
 
 /**
- * True when `plan` was published by a mission download (any run, a single
- * UAV's included), so it is the UAVs' own plan. It is, from the publish on,
- * while the download's post-processing still derives the area and dock picks
- * that the synced baseline is taken from. A plan the operator generates,
- * loads or restores carries no tag.
+ * The mission download (any run, a single UAV's included) that published
+ * `plan`, or null. A plan the operator generates, loads or restores carries
+ * none. Copies of a plan (a spread) carry the same run, so a consumer can
+ * tell "this download" from "a newer one" without relying on object
+ * identity: usePlanSnapshot counts a plan as the UAVs' from the publish on,
+ * until the baseline of that download is taken.
  */
-export function planFromDownload(plan) {
-  return !!plan && plan[PLAN_DOWNLOAD_RUN] != null;
+export function downloadRunOf(plan) {
+  return plan?.[PLAN_DOWNLOAD_RUN] ?? null;
 }
 
 /** True when `plan` descends from a publish by `run` (survives the trim). */

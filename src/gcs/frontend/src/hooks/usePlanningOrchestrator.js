@@ -109,12 +109,13 @@ export default function usePlanningOrchestrator({
   // The plan file writer is created by usePlanPersistence below.
   const savePlanRef = useRef(null);
   const {
-    onPlanSynced, markPlanSaved, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
+    onPlanSynced, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
   } = usePlanSnapshot({
     plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
     deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
     fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent: mission.fenceIntent,
+    fenceAcknowledged: mission.fenceAcknowledged, fenceObservations: mission.fenceObservations,
     fenceCustomVertices, exclusionPolygons,
     setPlan, setPolygon, setSearchPattern, setAnalysis,
     setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
@@ -270,6 +271,7 @@ export default function usePlanningOrchestrator({
     pendingPlanFile,
     setPendingPlanFile,
     markPlanSaved,
+    markPlanLoaded,
   });
   savePlanRef.current = handleSavePolygon;
 

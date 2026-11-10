@@ -8,7 +8,7 @@ import { act, renderHook } from '@testing-library/react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import useMissionState from './useMissionState';
 import useVehicleConnection, { fleetHasNoMission } from './useVehicleConnection';
-import { planFromDownload } from '../utils/planDownloadRun';
+import { downloadRunOf } from '../utils/planDownloadRun';
 
 const EMPTY = (sysId) => ({
   sys_id: sysId, mission_count: 0, waypoints: [], items: [], _diagnostic_request_id: `r${sysId}`,
@@ -25,7 +25,7 @@ const MISSION = (sysId) => ({
 
 const settle = () => act(() => new Promise((resolve) => { setTimeout(resolve, 0); }));
 
-function harness(vehicleList, answerFor, { discovered = [] } = {}) {
+function harness(vehicleList, answerFor, { discovered = [], extra = {} } = {}) {
   const onFleetWithoutMission = vi.fn();
   const ref = {};
   const hook = renderHook(({ vehicles }) => {
@@ -46,6 +46,7 @@ function harness(vehicleList, answerFor, { discovered = [] } = {}) {
       onFleetWithoutMission,
       settings: {},
       setNotification: vi.fn(),
+      ...extra,
     });
     ref.current = { mission, connection };
   }, { initialProps: { vehicles: vehicleList } });
@@ -80,7 +81,7 @@ describe('a connect that finds a mission', () => {
     await act(async () => { await ref.current.connection.handleConnect('udp:x', 3, 'UAV3'); });
     await settle();
     expect(ref.current.mission.plan?.zones?.length).toBe(1);
-    expect(planFromDownload(ref.current.mission.plan)).toBe(true);
+    expect(downloadRunOf(ref.current.mission.plan)).not.toBeNull();
     expect(onFleetWithoutMission).not.toHaveBeenCalled();
   });
 });
@@ -131,10 +132,39 @@ describe('a connect that finds no mission', () => {
     const joined = harness([{ sys_id: 1, name: 'UAV1' }], (sysId) => (sysId === 1 ? MISSION(1) : EMPTY(sysId)));
     await settle();
     // The restored plan is the UAVs' own (the monitor's start gate reads this).
-    expect(planFromDownload(joined.ref.current.mission.plan)).toBe(true);
+    expect(downloadRunOf(joined.ref.current.mission.plan)).not.toBeNull();
     joined.onFleetWithoutMission.mockClear();
     await act(async () => { await joined.ref.current.connection.handleConnect('udp:x', 3, 'UAV3'); });
     await settle();
     expect(joined.onFleetWithoutMission).not.toHaveBeenCalled();
+  });
+});
+
+// A UAV leaving keeps the plan on the rest of the fleet (the baseline is taken
+// again without its zone). Codex review, round 2: an edit made while the
+// disconnect request was out is not on the fleet and must not become it.
+describe('a UAV leaving a fleet that carries the plan', () => {
+  const TRACK = [{ lat: 40.1, lon: 44.1 }, { lat: 40.2, lon: 44.2 }];
+  const PLAN = { altitude_m: 100, zones: [{ sys_id: 1, zone_index: 0, track: TRACK }, { sys_id: 2, zone_index: 1, track: TRACK }] };
+
+  async function leave(syncedAnswers) {
+    const onPlanSynced = vi.fn();
+    const isPlanSynced = vi.fn();
+    syncedAnswers.forEach((answer) => isPlanSynced.mockReturnValueOnce(answer));
+    const { ref } = harness([], EMPTY, { extra: { onPlanSynced, isPlanSynced, forgetPlanSync: vi.fn() } });
+    await settle();
+    act(() => { ref.current.mission.setPlan(PLAN); });
+    onPlanSynced.mockClear();
+    await act(async () => { await ref.current.connection.handleDisconnect(2); });
+    expect(ref.current.mission.plan.zones.map((z) => z.sys_id)).toEqual([1]);
+    return onPlanSynced;
+  }
+
+  it('takes the baseline again for the remaining UAVs', async () => {
+    expect(await leave([true, true])).toHaveBeenCalledTimes(1);
+  });
+
+  it('not when the operator edited the plan during the request', async () => {
+    expect(await leave([true, false])).not.toHaveBeenCalled();
   });
 });

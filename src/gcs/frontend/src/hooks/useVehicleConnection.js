@@ -32,7 +32,6 @@ import { requestDeadline } from '../utils/simDeadline';
 // The best-effort AAS read after a plan download; its sim-time deadline on lockstep.
 const PARAMS_TIMEOUT_MS = 10000;
 // Tags a plan a single UAV's download published (a connect, not a run).
-const SINGLE_DOWNLOAD = Object.freeze({ single: true });
 
 /**
  * True when one download pass found no mission on any connected UAV: every
@@ -419,6 +418,8 @@ export default function useVehicleConnection({
     startupRun?.missionsBySysId.delete(sysId);
     startupRun?.answerKinds?.delete(sysId);
     const result = await api.disconnectVehicle(sysId);
+    // An edit made while the request was out is not on the fleet.
+    const keepSynced = wasSynced && !!isPlanSynced?.();
     const removedIds = result?.removed || [sysId];
     for (const id of removedIds) {
       startupRun?.excludedIds.add(id);
@@ -497,7 +498,7 @@ export default function useVehicleConnection({
       }
       derivePlanPolygon(remaining);
       const startupOwnsPlan = !!startupRun && planBelongsToRun(nextPlan, startupRun);
-      if (wasSynced && !startupOwnsPlan) onPlanSynced?.();
+      if (keepSynced && !startupOwnsPlan) onPlanSynced?.();
       if (startupOwnsPlan) {
         void enqueueStartupPostProcess(startupRun, async () => {
           const applied = await applyStartupPlanEffects(startupRun, () => (
@@ -593,10 +594,11 @@ export default function useVehicleConnection({
         startupRun.hasPublished = true;
       } else if (!currentPlan?.zones?.length) {
         // The UAV's own mission, and nothing else: the plan on the UAVs
-        // (planFromDownload). Merged into a plan that already came from a
-        // download, the spread above keeps that plan's tag; merged into the
-        // operator's own zones, it is not the UAVs' plan and stays untagged.
-        nextPlan = tagPlanForRun(nextPlan, SINGLE_DOWNLOAD);
+        // (downloadRunOf), each download its own run. Merged into a plan that
+        // already came from a download, the spread above keeps that plan's
+        // tag; merged into the operator's own zones, it is not the UAVs' plan
+        // and stays untagged.
+        nextPlan = tagPlanForRun(nextPlan, { single: true });
       }
       // Publish the ref before React's next render so a concurrent single-vehicle
       // download merges on top of this zone instead of racing on a stale read.

@@ -94,6 +94,7 @@ export default function usePlanPersistence({
   setPendingPlanFile,
   // The file's plan becomes the saved baseline (usePlanSnapshot).
   markPlanSaved,
+  markPlanLoaded,
 }) {
   const { t } = useTranslation();
 
@@ -247,11 +248,11 @@ export default function usePlanPersistence({
       undoRef.current = [];
       releaseDownloadedPlan?.();
       if (regenerates) regenerateLoadedPlan();
-      markPlanSaved?.();
+      markPlanLoaded?.();
     } catch {
       window.alert(t('planFile.invalidData'));
     }
-  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setManualDeliveryHubEdit, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef, releaseDownloadedPlan, markPlanSaved]);
+  }, [t, setAnalysis, setPolygon, drawing.loadVertices, regenerateLoadedPlan, resetZoneSelectionBaseline, setSearchPattern, setUavCount, setPartitionAngleDeg, setRouteOffsetM, setLaunchPoint, setCorridorPoints, authorFenceIntent, clearFenceIntent, setFenceEnabled, setFenceTouched, resetFenceObservations, handleSaveSettings, setSetLaunchPoints, setSetCorridorPoints, setActiveSetIndex, setDeliveryHubAssignments, setManualDeliveryHubEdit, setSimDockWps, setDetectAfterWps, setFenceOffsetM, setFenceCustomVertices, setExclusionPolygons, undoRef, releaseDownloadedPlan, markPlanLoaded]);
 
   // A file loaded before the planner is ready is held, not applied: applied
   // early, its analysis would be empty and the readiness transition would

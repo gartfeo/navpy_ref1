@@ -191,6 +191,16 @@ describe('the plan on the UAVs', () => {
     expect(h.hook.result.current.planSynced).toBe(false);
     h.hook.rerender({ ...STATE, plan: downloaded, deliveryHubAssignments: [1], manualDeliveryHubEdit: true });
     expect(h.hook.result.current.planSynced).toBe(false);
+    // Round 2: a copy (a UAV leaving spreads the plan) carries the same download.
+    h.hook.rerender({ ...STATE, plan: { ...downloaded }, simDockWps: { 0: [0] } });
+    expect(h.hook.result.current.planSynced).toBe(false);
+  });
+
+  it('a newer download counts as on the UAVs again until its own baseline lands', () => {
+    const h = harness(false, { ...STATE, plan: tagPlanForRun(PLAN, { single: true }) });
+    act(() => { h.hook.result.current.onPlanSynced(); });
+    h.hook.rerender({ ...STATE, plan: tagPlanForRun({ ...PLAN, altitude_m: 120 }, { single: true }) });
+    expect(h.hook.result.current.planSynced).toBe(true);
   });
 
   it('an upload that starts writing ends a downloaded plan\'s claim', () => {
@@ -205,6 +215,8 @@ describe('the plan on the UAVs', () => {
   // file's, so the saved plan, rebuilt exactly, asked again.
   it('Save on leaving records the plan written to the file, not the one restored', async () => {
     const h = harness(true);
+    // As the real writer (usePlanPersistence), it marks the plan saved.
+    h.savePlan.mockImplementation(() => h.hook.result.current.markPlanSaved());
     act(() => { h.hook.result.current.onPlanSynced(); });
     const edited = { ...STATE, simDockWps: { 0: [0] } };
     h.hook.rerender(edited);
@@ -225,7 +237,7 @@ describe('the plan on the UAVs', () => {
     await h.exit();
     expect(h.setters.setManualDeliveryHubEdit).toHaveBeenCalledWith(true);
     expect(h.setters.restoreFenceState).toHaveBeenCalledWith({
-      enabled: true, offsetM: 50, touched: true, intent: null,
+      enabled: true, offsetM: 50, touched: true, intent: null, acknowledged: null, observations: null,
     });
   });
 });
@@ -234,6 +246,50 @@ describe('the plan on the UAVs', () => {
 // off, leave with Don't save. The UAVs keep their fence; so must the editor,
 // and Start must show again.
 describe('Don\'t save with the real mission state', () => {
+  // Codex review, round 2: Clear All drops the acknowledgement and the fleet's
+  // fence observations; the restore must bring both back.
+  it('after Clear All, returns the acknowledgement and the fleet\'s fence observations', async () => {
+    const { wrapper } = confirmStub('alt');
+    const hook = renderHook(() => {
+      const m = useMissionState();
+      const snap = usePlanSnapshot({
+        ...m,
+        effectiveUavCount: 1,
+        drawingRef: { current: { loadVertices: vi.fn() } },
+        suppressRegenRef: { current: false },
+        undoRef: { current: [] },
+        goToMonitor: vi.fn(),
+        savePlanRef: { current: vi.fn() },
+      });
+      return { m, snap };
+    }, { wrapper });
+    const mission = () => hook.result.current.m;
+    act(() => {
+      mission().setPolygon(POLYGON);
+      mission().setPlan(PLAN);
+      mission().authorFenceIntent(true);
+      mission().reserveFenceObservations([1]);
+    });
+    act(() => { mission().resolveFenceIntent(mission().fenceIntent.generation, true, 'sig'); });
+    act(() => { hook.result.current.snap.onPlanSynced(); });
+    const epoch = mission().fenceObservations.epoch;
+    // Clear All (usePlanningOrchestrator).
+    act(() => {
+      mission().setPolygon([]);
+      mission().setPlan(null);
+      mission().setFenceEnabled(false);
+      mission().setFenceTouched(false);
+      mission().clearFenceIntent();
+      mission().resetFenceObservations();
+    });
+    await act(async () => { await hook.result.current.snap.handleExitPlanning(); });
+    expect(mission().fenceAcknowledged).toEqual({ signature: 'sig' });
+    expect(Object.keys(mission().fenceObservations.bySysId)).toEqual(['1']);
+    // A new epoch: reads issued for the cleared plan cannot land.
+    expect(mission().fenceObservations.epoch).toBeGreaterThan(epoch + 1);
+    expect(hook.result.current.snap.planSynced).toBe(true);
+  });
+
   it('returns the fence to what the UAVs hold and the plan reads as theirs', async () => {
     const { wrapper } = confirmStub('alt');
     const goToMonitor = vi.fn();

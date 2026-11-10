@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { buildPlanSnapshot, planEditKey, planHasContent, planSyncKey } from '../utils/planSnapshot';
-import { planFromDownload } from '../utils/planDownloadRun';
+import { downloadRunOf } from '../utils/planDownloadRun';
 import useConfirm from './useConfirm';
 
-const NO_SYNC = { key: null, plan: null };
+const NO_SYNC = { key: null, run: null };
 
 /**
  * The plan's two baselines and leaving plan mode.
@@ -12,10 +12,11 @@ const NO_SYNC = { key: null, plan: null };
  * - Synced: the plan on the UAVs, captured on upload and download
  *   (onPlanSynced). `planSynced` says the editor still holds exactly that
  *   plan, or a plan a download published whose baseline has not landed yet
- *   (planFromDownload); the monitor offers the start control only then. An
+ *   (downloadRunOf); the monitor offers the start control only then. An
  *   upload drops the baseline when it starts writing (forgetPlanSync): until
  *   it completes, what the UAVs carry is not known.
- * - Saved: the plan in the file last loaded or saved (markPlanSaved).
+ * - Saved: the plan in the file last saved (markPlanSaved, taken at once) or
+ *   loaded (markPlanLoaded, taken once the load has committed).
  *
  * Leaving plan mode with a plan that is in neither baseline asks whether to
  * save it first. Leaving with a plan that is not the one on the UAVs returns
@@ -26,7 +27,7 @@ export default function usePlanSnapshot({
   plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
   partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
   deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
-  fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent,
+  fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent, fenceAcknowledged, fenceObservations,
   fenceCustomVertices, exclusionPolygons,
   // Restore setters
   setPlan, setPolygon, setSearchPattern, setAnalysis,
@@ -44,8 +45,8 @@ export default function usePlanSnapshot({
   const vehicleSnapshotRef = useRef(null);
   const stateForSnapshotRef = useRef({});
   const [snapshotTrigger, setSnapshotTrigger] = useState(0);
-  // The synced baseline's key, and the plan object it was taken from: a
-  // download's provisional claim ends once its own baseline is taken.
+  // The synced baseline's key, and the download run of the plan it was taken
+  // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
   const [savedTrigger, setSavedTrigger] = useState(0);
   const savedKeyRef = useRef(null);
@@ -54,28 +55,32 @@ export default function usePlanSnapshot({
     plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
     partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
     deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
-    fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent,
+    fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent, fenceAcknowledged, fenceObservations,
     fenceCustomVertices, exclusionPolygons,
   };
   stateForSnapshotRef.current = current;
 
   const onPlanSynced = useCallback(() => setSnapshotTrigger(t => t + 1), []);
-  // Called in the same update that loads or saves the plan file: the baseline
-  // is taken once that update has committed.
-  const markPlanSaved = useCallback(() => setSavedTrigger(t => t + 1), []);
+  // Saved: the file holds the plan as it is now (leaving plan mode may restore
+  // the UAVs' plan right after). Loaded: called in the same update that
+  // applies the file, so the key is taken once that update has committed.
+  const markPlanSaved = useCallback(() => {
+    savedKeyRef.current = planEditKey(stateForSnapshotRef.current);
+  }, []);
+  const markPlanLoaded = useCallback(() => setSavedTrigger(t => t + 1), []);
   // What the UAVs carry is no longer known (an upload is writing) or no UAV is
   // left to carry it: nothing to compare with or restore. The plan in the
   // editor loses any download's claim too.
   const forgetPlanSync = useCallback(() => {
     vehicleSnapshotRef.current = null;
-    setSync({ key: null, plan: stateForSnapshotRef.current.plan ?? null });
+    setSync({ key: null, run: downloadRunOf(stateForSnapshotRef.current.plan) });
   }, []);
 
   useEffect(() => {
     if (snapshotTrigger === 0) return;
     const state = stateForSnapshotRef.current;
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
-    setSync({ key: planSyncKey(state), plan: state.plan ?? null });
+    setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
   }, [snapshotTrigger]);
 
   useEffect(() => {
@@ -94,9 +99,10 @@ export default function usePlanSnapshot({
   // A plan a download just published is the UAVs' plan before its baseline
   // lands (the download's post-processing derives the area and dock picks
   // first), or the monitor would call it "not on the UAVs" meanwhile. Once
-  // the baseline was taken from it, only the key decides: an edit that leaves
-  // the plan object alone (picks, hubs, fence) must still read as a change.
-  const provisional = planFromDownload(plan) && plan !== sync.plan;
+  // the baseline was taken from that download, only the key decides: an edit
+  // (picks, hubs, fence) must read as a change, also on a copy of the plan.
+  const run = downloadRunOf(plan);
+  const provisional = run != null && run !== sync.run;
   const planSynced = (sync.key != null && currentSyncKey === sync.key) || provisional;
   const planSyncedRef = useRef(planSynced);
   planSyncedRef.current = planSynced;
@@ -120,6 +126,7 @@ export default function usePlanSnapshot({
     restoreFenceState?.({
       enabled: snap.fenceEnabled, offsetM: snap.fenceOffsetM,
       touched: snap.fenceTouched, intent: snap.fenceIntent,
+      acknowledged: snap.fenceAcknowledged, observations: snap.fenceObservations,
     });
     setFenceCustomVertices?.(snap.fenceCustomVertices ?? null);
     setExclusionPolygons?.(snap.exclusionPolygons ?? []);
@@ -153,7 +160,7 @@ export default function usePlanSnapshot({
       if (answer === true) {
         savePlanRef?.current?.();
         // The file holds the plan as it is now, before the UAVs' plan is
-        // restored below (a deferred markPlanSaved would see the restore).
+        // restored below.
         savedKeyRef.current = planEditKey(state);
       }
     }
@@ -161,5 +168,5 @@ export default function usePlanSnapshot({
     goToMonitor();
   }, [goToMonitor, confirm, t, restoreVehiclePlan, savePlanRef]);
 
-  return { onPlanSynced, markPlanSaved, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
+  return { onPlanSynced, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced };
 }
