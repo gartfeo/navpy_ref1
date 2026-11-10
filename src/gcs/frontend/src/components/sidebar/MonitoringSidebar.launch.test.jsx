@@ -110,7 +110,8 @@ describe('MonitoringSidebar container launch', () => {
     await holdAndLaunch(view);
     view.unmount();
     await act(async () => { question.resolve(); await question.promise; });
-    await act(async () => { await Promise.resolve(); });
+    // Drain a macrotask so every pending await has run before asserting none.
+    await act(() => new Promise((r) => { setTimeout(r, 0); }));
     expect(onTriggerVehicle).not.toHaveBeenCalled();
   });
 });
@@ -190,7 +191,8 @@ describe('MonitoringSidebar container launch with the real camera check', () => 
     expect(holdButton(view)).toBeNull();
 
     await act(async () => { api.check.resolve({ status: 'ok', zones: [] }); });
-    await act(async () => { await Promise.resolve(); });
+    // Drain a macrotask so every pending await has run before asserting none.
+    await act(() => new Promise((r) => { setTimeout(r, 0); }));
     expect(api.launchSequence).not.toHaveBeenCalled();
     expect(api.triggerVehicle).not.toHaveBeenCalled();
   });
