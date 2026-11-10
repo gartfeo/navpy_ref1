@@ -38,7 +38,8 @@ Use these terms in docs, code and UI; keep existing API/parameter names.
   "landing net".
 - **Final approach** (engineering) = **parking navigation** (product) — the
   vision-based approach to the POI.
-- **Default delivery hub (DDH)** — the delivery module's return hub.
+- **Home hub** — the delivery module's return hub (formerly "default delivery
+  hub"; API and parameter names such as `default_delivery_hub` keep the old name).
 - **Detector** — the real detector defaults to a ChArUco board detector; the
   YOLO face model is a bench-only opt-in (`--detector-backend yolo`).
 

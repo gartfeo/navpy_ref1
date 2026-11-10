@@ -99,7 +99,7 @@ function dpAssign(costs, k, m) {
  * sharing only when there are more zones tha delivery hubs.
  *
  * @param {Array<object>} zones - Plan zones with .track arrays
- * @param {Array<{name, type, lat, lon}>} deliveryHubs - Default delivery hubs
+ * @param {Array<{name, type, lat, lon}>} deliveryHubs - Home hubs
  * @returns {Array<number|null>} assignments[zoneIdx] = deliveryHubIndex or null
  */
 export function autoAssignDeliveryHubs(zones, deliveryHubs) {
@@ -192,7 +192,7 @@ export function buildDeliveryHubsFromDownload(missionDeliveryHubs, existingDeliv
       return existing;
     }
     deliveryHubs.push({
-      name: `Default delivery hub ${deliveryHubs.length + 1}`,
+      name: `Home hub ${deliveryHubs.length + 1}`,
       type: typeof t.type === 'string' && t.type ? t.type : 'other',
       lat: t.lat,
       lon: t.lon,
@@ -219,7 +219,7 @@ export function normalizePlanFileHubs(hubs) {
   for (const [i, hub] of hubs.entries()) {
     if (!hub || !Number.isFinite(hub.lat) || !Number.isFinite(hub.lon)) return null;
     normalized.push({
-      name: typeof hub.name === 'string' && hub.name.trim() ? hub.name : `Default delivery hub ${i + 1}`,
+      name: typeof hub.name === 'string' && hub.name.trim() ? hub.name : `Home hub ${i + 1}`,
       type: typeof hub.type === 'string' && hub.type ? hub.type : 'other',
       lat: hub.lat,
       lon: hub.lon,

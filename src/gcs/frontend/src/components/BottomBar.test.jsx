@@ -58,6 +58,28 @@ describe('BottomBar in planning', () => {
   });
 });
 
+// The monitor's "plan not on the UAVs" fix opens plan mode with Upload ringed.
+describe('BottomBar Upload as the fix', () => {
+  const ringOf = (view) => view.getByRole('button', { name: 'bottomBar.upload' }).closest('[data-fix-highlight]');
+
+  it('is ringed only when plan mode was opened to upload', () => {
+    const plain = planning();
+    expect(ringOf(plain)).toBeNull();
+    plain.unmount();
+    const view = render(
+      <BottomBar phase={PHASES.PLANNING} analysis={ANALYSIS} polygon={POLYGON} vehicleList={[{ sys_id: 7 }]} highlightUpload />,
+    );
+    expect(ringOf(view)).not.toBeNull();
+  });
+
+  it('is not ringed while it cannot upload', () => {
+    const view = render(
+      <BottomBar phase={PHASES.PLANNING} analysis={null} polygon={[]} vehicleList={[{ sys_id: 7 }]} highlightUpload />,
+    );
+    expect(ringOf(view)).toBeNull();
+  });
+});
+
 // Seen on the UniRC (2026-11-08): a mission made outside the GCS, downloaded,
 // UAV in AUTO at item 3 of 5, read 0% complete (utils/missionProgress.test.js).
 describe('BottomBar in monitoring', () => {

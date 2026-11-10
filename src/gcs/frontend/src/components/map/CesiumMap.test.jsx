@@ -86,7 +86,6 @@ describe('CesiumMap dock markers', () => {
       onViewerReady: () => {},
       simMode: true,
       plan: { zones: [{ sys_id: 1, zone_index: 0, set_index: 0, track: [{ lat: 40, lon: 44 }] }] },
-      vehicleTargWps: { 1: 1 },
       vehicleList: [{ sys_id: 1 }],
       simDockWps: { 0: [0] },
     };
@@ -94,6 +93,23 @@ describe('CesiumMap dock markers', () => {
     expect(useDockMarkers.mock.lastCall[3]).toEqual([]);
     rerender(<CesiumMap {...planned} phase="PLANNING" />);
     expect(useDockMarkers.mock.lastCall[3]).toHaveLength(1);
+  });
+
+  // The stray "D" markers: a new plan picks no dock, but the UAVs' stored
+  // TARG_WPS (the demo's static parameters, or a previous mission) was drawn
+  // onto its waypoints. A UAV's parameter describes the mission on that UAV.
+  it('a plan with no dock picks shows no dock, whatever the UAVs store', () => {
+    render(
+      <CesiumMap
+        onViewerReady={() => {}}
+        simMode
+        phase="PLANNING"
+        plan={{ zones: [{ sys_id: 1, zone_index: 0, set_index: 0, track: [{ lat: 40, lon: 44 }, { lat: 40.1, lon: 44 }] }] }}
+        vehicleList={[{ sys_id: 1 }]}
+        simDockWps={{}}
+      />,
+    );
+    expect(useDockMarkers.mock.lastCall[3]).toEqual([]);
   });
 
   it('hands the marker hooks what the selector picks, each its own side', () => {

@@ -110,3 +110,22 @@ describe('PlanningToolbar — zone shape picker', () => {
       .queryAllByRole('radio')).toHaveLength(0);
   });
 });
+
+// The "no home hub" warning says to use the highlighted hub button: the button
+// is ringed while no hub exists, so the operator learns where it is.
+describe('PlanningToolbar — the home hub button as the fix', () => {
+  const ringOf = (button) => button.closest('[data-fix-highlight]');
+
+  it('is ringed while no home hub exists', () => {
+    const view = renderToolbar({ highlightDeliveryHub: true });
+    expect(ringOf(view.getByTitle('planningToolbar.placeDeliveryHub'))).not.toBeNull();
+  });
+
+  it('is plain once a hub exists, and while placing one', () => {
+    const plain = renderToolbar({ highlightDeliveryHub: false });
+    expect(ringOf(plain.getByTitle('planningToolbar.placeDeliveryHub'))).toBeNull();
+    plain.unmount();
+    const placing = renderToolbar({ highlightDeliveryHub: true, placingDeliveryHub: true });
+    expect(ringOf(placing.getByTitle('planningToolbar.stopDeliveryHub'))).toBeNull();
+  });
+});

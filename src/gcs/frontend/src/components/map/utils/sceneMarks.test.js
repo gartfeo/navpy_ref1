@@ -30,10 +30,10 @@ describe('createSceneMarks', () => {
   it('the dock highlighted with its distance and the hub, clamped to the ground over the terrain', () => {
     const scene = fakeScene();
     const marks = createSceneMarks(fakeCesium(), scene);
-    expect(marks.update({ dock, dockText: 'Dock · 420 m', hub, hubText: 'DDH', fleet: [] })).toBe(true);
+    expect(marks.update({ dock, dockText: 'Dock · 420 m', hub, hubText: 'Home hub', fleet: [] })).toBe(true);
     const [billboards, labels] = scene.list;
     expect(billboards.items).toHaveLength(2);
-    expect(labels.items.map((l) => l.text)).toEqual(['DDH', 'Dock · 420 m']);
+    expect(labels.items.map((l) => l.text)).toEqual(['Home hub', 'Dock · 420 m']);
     expect(labels.items[1].showBackground).toBe(true);
     for (const m of [...billboards.items, ...labels.items]) {
       expect(m.heightReference).toBe('clamp');
@@ -73,7 +73,7 @@ describe('createSceneMarks', () => {
   it('destroy removes its collections', () => {
     const scene = fakeScene();
     const marks = createSceneMarks(fakeCesium(), scene);
-    marks.update({ dock, dockText: 'Dock · 1 m', hub, hubText: 'DDH', fleet: [{ position: { x: 1, y: 2, z: 3 }, label: 'u2', zone: 0 }] });
+    marks.update({ dock, dockText: 'Dock · 1 m', hub, hubText: 'Home hub', fleet: [{ position: { x: 1, y: 2, z: 3 }, label: 'u2', zone: 0 }] });
     expect(scene.list).toHaveLength(4);
     expect(scene.list.every((c) => c.items.length > 0)).toBe(true);
     marks.destroy();

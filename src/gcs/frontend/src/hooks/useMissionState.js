@@ -163,6 +163,30 @@ export default function useMissionState() {
     setFenceAcknowledged(null);
   }, []);
 
+  /**
+   * Return the fence lifecycle to what it was when the plan on the UAVs was
+   * captured (usePlanSnapshot's restore): the decision, the acknowledgement
+   * (what the vehicles hold, so a matching request is not re-sent) and, when
+   * the discarded plan started a new observation lifecycle (Clear All, a new
+   * plan), the observations of the vehicles' fences (so the demo default does
+   * not fire into the gap). The restored observations get a new epoch: reads
+   * still in flight belong to the discarded plan.
+   */
+  const restoreFenceState = useCallback(({
+    enabled, offsetM, touched, intent, acknowledged, observations,
+  }) => {
+    setFenceEnabled(!!enabled);
+    if (offsetM != null) setFenceOffsetM(offsetM);
+    setFenceTouched(!!touched);
+    setFenceIntent(intent ? { ...intent } : null);
+    if (acknowledged !== undefined) setFenceAcknowledged(acknowledged ?? null);
+    if (observations) {
+      applyObservationState((prev) => (prev.epoch === observations.epoch ? prev : {
+        ...observations, epoch: prev.epoch + 1, edit: prev.edit,
+      }));
+    }
+  }, [applyObservationState]);
+
   const resolveFenceIntent = useCallback((ackGeneration, ok, signature) => {
     setFenceIntent((prev) => consumeFenceIntent(prev, ackGeneration, ok));
     if (ok && signature != null) setFenceAcknowledged({ signature });
@@ -266,6 +290,7 @@ export default function useMissionState() {
     fenceTouched, setFenceTouched,
     toggleFence,
     fenceIntent, authorFenceIntent, clearFenceIntent, resolveFenceIntent,
+    restoreFenceState,
     fenceAcknowledged,
     fenceGeometryRevision, notifyFenceGeometryReplaced, adoptDownloadedFenceGeometry,
     fenceObservations, beginFenceObservation, recordFenceObservation,

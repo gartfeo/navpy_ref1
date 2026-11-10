@@ -114,186 +114,6 @@ PLAN_TRIMMED_TRACK = {
 }
 
 
-class TestResolveSimDocks(unittest.TestCase):
-    """Test resolveSimDocks pure utility."""
-
-    def test_single_poi(self):
-        """Both vehicles have WP 5 → one POI per zone."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 16, "2": 16})  # both WP 5
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 2)
-        # Zone 0 → vehicle 1: WP 5 = track[4]
-        self.assertAlmostEqual(result[0]["lat"], 32.04, places=4)
-        self.assertAlmostEqual(result[0]["lon"], 34.84, places=4)
-        self.assertEqual(result[0]["wpNumber"], 5)
-        self.assertEqual(result[0]["zoneIndex"], 0)
-        self.assertEqual(result[0]["sys_id"], 1)
-        # Zone 1 → vehicle 2: WP 5 = track[4]
-        self.assertAlmostEqual(result[1]["lat"], 32.14, places=4)
-        self.assertAlmostEqual(result[1]["lon"], 34.94, places=4)
-        self.assertEqual(result[1]["zoneIndex"], 1)
-        self.assertEqual(result[1]["sys_id"], 2)
-
-    def test_per_vehicle_different_pois(self):
-        """Each vehicle has different POI WPs."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        # Vehicle 1: WP 1 (bitmask 1), Vehicle 2: WP 3 (bitmask 4)
-        vtw_json = json.dumps({"1": 1, "2": 4})
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 2)
-        # Zone 0 → vehicle 1: WP 1 = track[0]
-        self.assertAlmostEqual(result[0]["lat"], 32.0, places=4)
-        self.assertEqual(result[0]["wpNumber"], 1)
-        # Zone 1 → vehicle 2: WP 3 = track[2]
-        self.assertAlmostEqual(result[1]["lat"], 32.12, places=4)
-        self.assertEqual(result[1]["wpNumber"], 3)
-
-    def test_vehicle_without_pois_skipped(self):
-        """Vehicle with no targ_wps entry → zone skipped."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        # Only vehicle 2 has POIs
-        vtw_json = json.dumps({"2": 16})
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 1)
-        self.assertEqual(result[0]["zoneIndex"], 1)
-
-    def test_zone_with_sys_id(self):
-        """Zone with explicit sys_id uses that vehicle's bitmask."""
-        plan = {"zones": [{
-            "zone_index": 0, "set_index": 0, "sys_id": 2,
-            "track": [{"lat": 32.0, "lon": 34.80}, {"lat": 32.01, "lon": 34.81}],
-        }]}
-        plan_json = json.dumps(plan)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 1, "2": 2})  # v1: WP1, v2: WP2
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 1)
-        # Zone has sys_id=2 → uses vehicle 2's bitmask (2 = WP 2)
-        self.assertEqual(result[0]["wpNumber"], 2)
-        self.assertAlmostEqual(result[0]["lat"], 32.01, places=4)
-
-    def test_multiple_pois(self):
-        """Both vehicles have WPs 1,3 → two POIs per zone."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 5, "2": 5})  # bitmask 5 = WPs 1,3
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 4)
-        wp_numbers = [t["wpNumber"] for t in result]
-        self.assertEqual(wp_numbers, [1, 3, 1, 3])
-
-    def test_empty_vehicle_targ_wps(self):
-        """Empty vehicleTargWps → no POIs."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {{}}, {vl_json})"
-        )
-        self.assertEqual(result, [])
-
-    def test_null_plan(self):
-        """Null plan → no POIs."""
-        vl_json = json.dumps(VEHICLE_LIST)
-        result = _run_node(
-            f"resolveSimDocks(null, [[]], 'distributed', {{\"1\": 16}}, {vl_json})"
-        )
-        self.assertEqual(result, [])
-
-    def test_bitmask_exceeds_wp_count(self):
-        """Bitmask with WP index beyond track length → gracefully skipped."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 512, "2": 512})  # WP 10, track has 5
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, [[]], 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(result, [])
-
-    def test_corridor_search_pattern(self):
-        """Corridor search_pattern: wps = zoneTrack only (no corridor prepend)."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        corridor_json = json.dumps(CORRIDOR_POINTS)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 1, "2": 1})  # WP 1
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, {corridor_json}, 'corridor', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 2)
-        # Zone 0 track[0]
-        self.assertAlmostEqual(result[0]["lat"], 32.0, places=4)
-        self.assertAlmostEqual(result[0]["lon"], 34.80, places=4)
-
-    def test_raw_track_does_not_double_count_corridor(self):
-        """A freshly downloaded zone still carries its corridor prefix.
-
-        Startup publishes the raw track (corridor_end_index > 0) and trims it
-        only in a later post-processing pass. If corridorPointsArr is already
-        populated from an earlier publication, prepending it counts the corridor
-        twice and shifts every POI back by corridorLen.
-        """
-        plan_json = json.dumps(PLAN_RAW_TRACK)
-        corridor_json = json.dumps(CORRIDOR_POINTS)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 16})  # mission WP 5
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, {corridor_json}, 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 1)
-        # Raw track index 4 = the 3rd search waypoint, NOT the 1st (32.0/34.80).
-        self.assertAlmostEqual(result[0]["lat"], 32.02, places=4)
-        self.assertAlmostEqual(result[0]["lon"], 34.82, places=4)
-        self.assertEqual(result[0]["wpNumber"], 5)
-
-    def test_trimmed_track_still_prepends_corridor(self):
-        """corridor_end_index == 0 → track is trimmed, corridor must be prepended."""
-        plan_json = json.dumps(PLAN_TRIMMED_TRACK)
-        corridor_json = json.dumps(CORRIDOR_POINTS)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 16})  # mission WP 5
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, {corridor_json}, 'distributed', {vtw_json}, {vl_json})"
-        )
-        self.assertEqual(len(result), 1)
-        # 2 corridor pts + trimmed track → WP 5 = track[2]. Same point as the
-        # raw-track case above: the two plan shapes must resolve identically.
-        self.assertAlmostEqual(result[0]["lat"], 32.02, places=4)
-        self.assertAlmostEqual(result[0]["lon"], 34.82, places=4)
-
-    def test_non_corridor_with_corridor_points(self):
-        """Non-corridor search_pattern: wps = corridorPts + zoneTrack."""
-        plan_json = json.dumps(PLAN_2ZONES)
-        corridor_json = json.dumps(CORRIDOR_POINTS)
-        vl_json = json.dumps(VEHICLE_LIST)
-        vtw_json = json.dumps({"1": 5, "2": 5})  # WPs 1,3
-        result = _run_node(
-            f"resolveSimDocks({plan_json}, {corridor_json}, 'distributed', {vtw_json}, {vl_json})"
-        )
-        # Bitmask 5 = WPs 1,3. For each zone:
-        # WP 1 = corridorPts[0] = {31.90, 34.70}
-        # WP 3 = track[0] = zone-specific
-        self.assertEqual(len(result), 4)
-        # Zone 0: WP 1 = corridor[0]
-        self.assertAlmostEqual(result[0]["lat"], 31.90, places=4)
-        self.assertAlmostEqual(result[0]["lon"], 34.70, places=4)
-        # Zone 0: WP 3 = track[0] (index 2 in combined array)
-        self.assertAlmostEqual(result[1]["lat"], 32.0, places=4)
-        self.assertAlmostEqual(result[1]["lon"], 34.80, places=4)
-
-
 class TestResolveDetectionStart(unittest.TestCase):
     """Test resolveDetectionStart — first detection waypoint per zone."""
 
@@ -603,23 +423,56 @@ class TestDecodeBitmaskArray(unittest.TestCase):
 
 
 class TestPlannedDocksToShow(unittest.TestCase):
-    """Dock location rule: no static sim dock during monitoring."""
+    """Dock location rule: while planning, only the docks this plan picks."""
 
-    def _run(self, phase, docks):
-        src = open(os.path.join(_MAP_UTILS_DIR, "dockResolver.js"), encoding="utf-8").read()
-        code = _strip_es_modules(src) + (
-            f"\nconsole.log(JSON.stringify(plannedDocksToShow({json.dumps(phase)}, {json.dumps(docks)})));"
+    def _run(self, phase, plan, sim_dock_wps):
+        return _run_node(
+            f"plannedDocksToShow({json.dumps(phase)}, {json.dumps(plan)}, {json.dumps(sim_dock_wps)})"
         )
-        result = run_node(code, timeout=5)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        return json.loads(result.stdout)
 
-    def test_planning_shows_them(self):
-        self.assertEqual(self._run("PLANNING", [{"lat": 40, "lon": 44}]), [{"lat": 40, "lon": 44}])
-        self.assertEqual(self._run("PLANNING", None), [])
+    def test_planning_shows_the_plans_picks(self):
+        result = self._run("PLANNING", PLAN_2ZONES, {"0": [1]})
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0]["lat"], 32.01, places=4)
+
+    def test_planning_without_picks_shows_none(self):
+        # A new plan has no dock picks: nothing may come from the UAVs' stored
+        # TARG_WPS, which describes the mission on the UAV, not this plan.
+        self.assertEqual(self._run("PLANNING", PLAN_2ZONES, {}), [])
+        self.assertEqual(self._run("PLANNING", None, None), [])
 
     def test_monitoring_hides_them(self):
-        self.assertEqual(self._run("MONITORING", [{"lat": 40, "lon": 44}]), [])
+        self.assertEqual(self._run("MONITOR", PLAN_2ZONES, {"0": [1]}), [])
+
+
+class TestDetectionStartsToShow(unittest.TestCase):
+    """The UAVs' nav_last_wp is drawn only on the plan the UAVs carry."""
+
+    def _run(self, phase, plan_on_vehicles, detect_after_wps, vehicle_nav_last_wp):
+        args = {
+            "phase": phase,
+            "planOnVehicles": plan_on_vehicles,
+            "plan": PLAN_2ZONES,
+            "detectAfterWps": detect_after_wps,
+            "corridorPointsArr": [[]],
+            "searchPattern": "distributed",
+            "vehicleNavLastWp": vehicle_nav_last_wp,
+            "vehicleList": VEHICLE_LIST,
+        }
+        return _run_node(f"detectionStartsToShow({json.dumps(args)})")
+
+    def test_planning_uses_the_plans_selection_only(self):
+        self.assertEqual(self._run("PLANNING", True, {}, {"1": 3}), [])
+        result = self._run("PLANNING", True, {"0": 2}, {"1": 3})
+        self.assertEqual([p["wpNumber"] for p in result], [3])
+
+    def test_monitoring_a_plan_on_the_uavs_uses_their_parameters(self):
+        result = self._run("MONITOR", True, {}, {"1": 3})
+        self.assertEqual(len(result), 1)
+        self.assertAlmostEqual(result[0]["lat"], 32.02, places=4)
+
+    def test_monitoring_a_plan_not_on_the_uavs_uses_the_plans_selection(self):
+        self.assertEqual(self._run("MONITOR", False, {}, {"1": 3}), [])
 
 
 if __name__ == "__main__":

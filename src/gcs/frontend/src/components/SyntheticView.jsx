@@ -44,7 +44,7 @@ const NO_SIZE = { width: 0, height: 0 };
  * section 5 "Synthetic view"): RC control's first-person view without the
  * controls. A second public CesiumWidget with the main map's base layer on its
  * terrain, unlit like the map, with the UAV's own route, its dock (highlighted,
- * with the distance), its default delivery hub and the rest of the fleet
+ * with the distance), its home hub and the rest of the fleet
  * (map/utils/sceneMarks.js), and a flight path marker where its measured ground
  * velocity points (display only; utils/syntheticScene.js), looking
  * through the window UAV's gimbal camera where it has live gimbal telemetry

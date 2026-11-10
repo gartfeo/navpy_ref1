@@ -190,4 +190,26 @@ describe('ConfirmProvider', () => {
     await expect(result.current('Arm?')).rejects.toThrow('ConfirmProvider');
     expect(native).not.toHaveBeenCalled();
   });
+
+  // Leaving plan mode asks Save / Don't save / Keep editing in one dialog.
+  it('words a question and takes a third answer, which resolves "alt"', async () => {
+    const { confirm } = setup();
+    let answer;
+    act(() => {
+      answer = track(confirm('Save plan?', { dialog: {
+        title: 'Save it?', confirmLabel: 'Save', altLabel: "Don't save", cancelLabel: 'Keep editing',
+      } }));
+    });
+    expect(screen.getByText('Save it?')).toBeInTheDocument();
+    expect(screen.getByText('Keep editing')).toBeInTheDocument();
+    expect(screen.getByText('Save')).toBeInTheDocument();
+    // The second click of a double click is no answer, as for Confirm.
+    click(screen.getByText("Don't save"), 2);
+    await flush();
+    expect(answer.settled).toBe(false);
+    click(screen.getByText("Don't save"));
+    await flush();
+    expect(answer.value).toBe('alt');
+    expect(dialog()).toBeNull();
+  });
 });
