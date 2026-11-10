@@ -40,6 +40,9 @@ Owner rulings (2026-11-05):
 - 2026-11-06 (fourth answer): follow ArduPilot's own failsafe pattern; LOITER
   hold, 30 s, RTL and the dock kept are confirmed; the watchdog is our own
   module on the autopilot.
+- 2026-11-09: "Yes, rally at DDH". RTL means going home to the hub, the
+  mission's default delivery hub (DDH), and circling it there; see "Where RTL
+  goes" below.
 
 ## ArduPlane's pattern, which NavPy follows
 
@@ -71,6 +74,59 @@ NavPy's stages, mapped onto it:
 The Lua module is a script in `scripts/lua/`, on stock firmware (the
 2026-10-07 ruling), deployed like the others. It acts only in GUIDED, or in
 the LOITER it set itself, so pilot and failsafe modes always win.
+
+## Where RTL goes: the default delivery hub (2026-11-09)
+
+ArduPlane RTL flies to the nearest rally point and loiters there; with no
+rally point it goes to HOME, the arming point
+(`AP_Rally::calc_best_rally_or_home_location`). So every mission upload from
+the GCS also sets each vehicle's rally table (`src/gcs/backend/routes/mission_rally.py`,
+`src/gcs/backend/planner/rally_builder.py`):
+
+- The mission has a DDH: one rally point (`MAV_CMD_NAV_RALLY_POINT`,
+  `MAV_MISSION_TYPE_RALLY`) at the DDH, at the assignment's altitude above
+  HOME, the same value as `RTL_ALTITUDE`. The upload replaces the table.
+  `RALLY_INCL_HOME` = 0, so HOME is never chosen over the hub, and
+  `RALLY_LIMIT_KM` = 0, which ArduPilot documents as "the closest rally point
+  is always used". Plane's default limit is 5 km, and past it the autopilot
+  falls back to HOME, so a far hub would be ignored. The limit exists to
+  ignore a leftover point from another site; the next rule removes those.
+- The mission has no DDH: the table is cleared, so an RTL never flies to a
+  hub from an older mission; it goes to HOME. The clear is confirmed by
+  reading `RALLY_TOTAL` back as 0.
+- Per vehicle, after its mission is accepted, within the request's deadline,
+  like the geofence. The rally parameter writes and the `RALLY_TOTAL` read
+  are deadline-bounded exchanges. A failure (no ACK after 3 tries, a rejected
+  parameter, a clear not confirmed, the deadline) is reported per vehicle as
+  the upload's `rally` outcome and `rally_ok`, separately from the mission.
+  The planner shows it and stays in planning.
+- One upload at a time per vehicle (`vehicle_upload_lock.py`): mission,
+  `RTL_ALTITUDE`, rally table and geofence are one update, so a second
+  upload never pairs its mission with the first one's hub. The vehicle's
+  entry is looked up once the lock is held, so a reconnect by the earlier
+  request is seen. A request that cannot start before its deadline because
+  another is still updating that vehicle sends nothing to it and reports an
+  error; the wait is bounded even at a handoff between two requests.
+- An assignment with no waypoints uploads no mission, so the rally table is
+  left matching the mission still installed (its `rally` outcome is empty).
+- A rally update that failed is not repeated on its own after a reconnect;
+  the operator uploads again (todo 306).
+
+So every RTL circles the DDH: NavPy's recovery escalation, the Lua
+`nav_watchdog.lua` RTL, and ArduPilot's own failsafes (radio, GCS, battery,
+geofence), since all of them use the same RTL. Nothing in RTL parks the UAV:
+parking in the hub's dock net needs NavPy's vision-guided final approach.
+
+Owner rulings, 2026-11-09, on who uses RTL and who parks:
+
+- RTL is only for when NavPy is sick or dead: NavPy's recovery escalation
+  and the Lua watchdog (plus ArduPilot's own failsafes, which NavPy does not
+  control). The UAV then circles the hub, and the operator decides when to
+  hand it back to NavPy to park. NavPy never parks on its own after an RTL.
+- When NavPy is healthy (the sortie ends, or a dock fails), it sends no RTL.
+  It flies to the DDH itself, circles, and parks after an operator
+  confirmation that has no timeout and no cancel. That path is built
+  separately; the rally point here does not depend on it.
 
 ## What happens today (code read, not run)
 
@@ -111,8 +167,15 @@ Seen in UAV 1's ArduPilot log `~/ardupilot/1/logs/00000008.BIN` (owner run,
 1800 us (`AP_RCProtocol_UDP.cpp`); our params use channel 5 as the mode switch
 with position 6 = AUTOTUNE (`scripts/eval_gcs_demo_sitl_root.py:55-57`; the
 GCS stack's values live in the WSL template eeproms). Codex confirmed the
-mechanism from upstream source; the event that made ArduPlane re-read the
-switch at 21:39 is not proven.
+mechanism from upstream source. Step 10 (item 8, 2026-11-09) found there was
+no re-read at 21:39: that MODE record has the same TimeUS as the log-start
+messages, and `Plane::Log_Write_Vehicle_Startup_Messages` (`ArduPlane/Log.cpp`)
+writes the current mode and its reason when a log opens, which with
+`LOG_DISARMED` 0 is at arming. The switch was applied once, at the SITL boot
+before (`reset_mode_switch()` from `RC_Channels.cpp` and `system.cpp`, then the
+200 ms debounce), and AUTOTUNE held until the GCS set AUTO 0.7 s after its arm.
+UAVs 2 and 3 logged AUTOTUNE too; UAV 1 logs 14-21, with this fix, start in
+AUTO. Not proven: the boot time itself, which is not logged.
 
 Fix: sim UAVs only, FLTMODE6 = 10 (AUTO) and INITIAL_MODE = 10, written before
 boot (eval root defaults, and the GCS sim stack's launcher-owned instances)
@@ -383,8 +446,9 @@ merges before step 4, which builds on its deadline fix.
      time is frozen, no new ATTITUDE time for `AIRCRAFT_TIME_STALE_S` (0.5 s),
      counted from the last sample, so a stalled link or a frozen SITL still
      trips (`HangClock`, `nav_recovery_clock.py`). The declared waits are
-     wall-time bounds and count on the same clock, so at speed-up k a wait of
-     W s allows only W/k s of wall time.
+     wall-time bounds: they are taken as their share of the pass's wall time,
+     converted at the hang clock's rate over the pass, so at speed-up k a
+     wait of W s covers k x W s of aircraft time (step 10, item 10).
    - While stuck: the watchdog holds the fence closed
      (`MavCommandFence.hold_closed`, one lock with reopening), so no reopen
      opens it, even one recovery decided before the hang was seen; recovery
@@ -429,8 +493,10 @@ merges before step 4, which builds on its deadline fix.
    - "NavPy's GUIDED" is a GUIDED, armed, during which a NavPy heartbeat was
      fresh. A GUIDED entered while NavPy was dead, or never alive, is left
      alone.
-   - Params, added by the script to the AAS table (key 88, indices 20-23;
-     `aas_params.lua` leaves them free): `AAS_NWD_ENABLE` (1),
+   - Params, in the script's own table (key 89, prefix `AAS_NWD_`; step 9
+     found that sharing `aas_params.lua`'s key 88 lets one script's
+     `add_table` re-blank the other's params, so the watchdog read no
+     `AAS_NWD_ENABLE` and stayed disabled in SITL): `AAS_NWD_ENABLE` (1),
      `AAS_NWD_TMO` (1.5 s, `NAV_HOLD_TRIGGER_S`), `AAS_NWD_RTL` (30 s,
      `NAV_HOLD_RECOVERY_S`), `AAS_NWD_COMP` (191). Times are the
      autopilot's own clock (aircraft time); a heartbeat is timed when the
@@ -479,6 +545,51 @@ merges before step 4, which builds on its deadline fix.
      failsafe). Leaving its LOITER or RTL for any other mode, or disarming,
      stands it down. A refused mode change is retried each tick and reported
      once; a refused AUTO keeps the hold and its RTL deadline.
+   - NavPy's own recovery LOITER (step 10, item 9; owner ruling
+     2026-11-09, "Yes, guard it"; redesigned after Codex round 2). From
+     the moment NAV recovery requests its hold's LOITER (before any
+     heartbeat shows it), and while it owns the LOITER shown (or did when
+     last seen, a stale link), the companion heartbeat's `custom_mode`
+     carries a claim (`companion_hold_claim.py`): bit 0 `NAVPY_HOLD_CLAIM`,
+     bits 1-7 the LOITER request's token (`ModeRequest.requests`, so each
+     request a new one), bits 8-23 the incident's hold budget left
+     (`RecoveryIncident.remaining_s`) in tenths of a second, rounded down.
+     A claim starting, ending or naming a new token goes out at once; the
+     falling budget goes out at the heartbeat's own rate.
+     The script takes a claim only at a switch into an armed LOITER, and
+     only one received within `CLAIM_WINDOW_MS` (500 ms, two NavPy
+     heartbeat periods) of it, either side, whose token it never took
+     before. It then GUARDs (NAVWD 3, no mode write: the mode is LOITER
+     already) and owns the deadline: RTL at the claim's receipt plus
+     min(budget, `AAS_NWD_RTL`), the autopilot's clock, whatever NavPy's
+     heartbeat does. Any mode change or a disarm stands it down, and the
+     token stays spent. NavPy ends its hold only by changing the mode
+     (AUTO on resume, RTL for a failed sortie or at its own budget), never by
+     dropping the claim. So:
+     - NavPy dying after its LOITER shows but before a heartbeat said so is
+       guarded: the claim went out with the request (finding 1).
+     - A NavPy restarted within `AAS_NWD_TMO` (not knowing it held), or the
+       failed sortie's reopen in LOITER, sends unclaimed heartbeats; the
+       deadline stands (finding 2). The round-1 hand-back to a returning
+       NavPy, and its AUTO for one back without the claim, are gone.
+     - A pilot mode for one sample then LOITER, or a disarm then a re-arm,
+       while NavPy still claims (it has not seen the change yet), is not
+       guarded: that token is spent (finding 3).
+     - A claim received outside the window, delayed or spoofed, is never
+       taken over a pilot's LOITER (finding 4). Against a spoofer, the
+       window is all a script can do: an unsigned MAVLink link lets a
+       spoofer command modes directly anyway, so MAVLink signing is the
+       defence, not this script.
+     - The deadline keeps the summed-hold bound: NavPy dying 29 s into its
+       hold gives RTL at 30 s, not 60.5 s, and a later hold of the same
+       incident gets only what is left (finding 5). While NavPy lives, its
+       own RTL at the budget and the script's come at about the same time;
+       either is RTL.
+     A pilot's LOITER is never claimed (NavPy claims only a LOITER it
+     requested or owns). Known limit: a pilot who switches to LOITER within
+     the window of NavPy's own LOITER request (half a second) is taken for
+     NavPy's; any later mode change stands it down. NavPy's hold reports are
+     its own, so GUARD is no autopilot recovery report; its RTL is.
    - Mode writes, a known limit: each is preceded, as the last binding
      call, by a read that the mode is still the one it decided from (GUIDED
      for the hold, its LOITER for AUTO or RTL); a test checks the read is
@@ -577,7 +688,108 @@ merges before step 4, which builds on its deadline fix.
    current item, then the kept dock; (c) a fault held past 30 s gives RTL;
    (d) a killed NavPy gives the Lua LOITER, then AUTO after the GCS restarts
    it; (e) `MIS_RESTART` read back as 0. One Codex review round on the code.
-10. **Todos.** Done entries for 292 (and 291/290 from their sessions); new
+
+   Fault injection for (b) and (c), SITL only (`navpy/sim/cycle_fault.py`):
+   `--sim-cycle-fault-file PATH` wraps NAV's cycle at composition (without
+   the flag the cycle is not wrapped). While PATH exists each NAV cycle
+   fails: `hang` in it blocks the cycle (a stuck NAV loop, for the step-6
+   watchdog); anything else raises (a failed cycle, for NAV recovery).
+   Deleting it heals; remove it before stopping NavPy. Its default is the
+   environment variable `NAVPY_SIM_CYCLE_FAULT_FILE`, which reaches a NavPy
+   the GCS starts; `{sys_id}` in the path gives each UAV its own file.
+   Refused with an error
+   on a non-simulated autopilot and by the lockstep host. Arming it and each
+   mode change are recovery reports (source `sim_fault`), so an eval run with
+   it fails the clean-run gate, never scores clean.
+10. **Todos.** As built (2026-11-09): 292 moved to `architecture_todo_done.md`
+    (290 and 291 were done in their sessions). Done, one commit each with
+    tests: item 1 (a NAV exit in recovery's hold ends the episode as held, so
+    the sim record says `held`, not `nav_fail`, when the operator's mode ends
+    it), item 10 (declared bounded waits count in wall time on the hang
+    clock), item 11 (the held episode's end is journaled), item 12 (a
+    companion asks for SIM_SPEEDUP, without waiting, before its heartbeat
+    starts), item 2 (a watchdog check that woke more than
+    `NAV_WATCHDOG_LATE_S` late gives no new hang verdict; the next on-time
+    check decides), item 3 (a failed one-shot dock is never disarmed: RTL
+    through recovery's ownership, in sim and on hardware,
+    `core/flow/nav_sortie_return.py`; a dock keeps the sim disarm; the
+    waiting RTL outlives a hold, which reopens instead of handing it to the
+    mission's AUTO, and an escalation hands over to RTL and never sends AUTO
+    over an RTL shown: Codex round 1, findings 2 and 3. The real build arms
+    no episode, so its one-shot NAV_FAIL keeps today's RESET to search, as
+    `missed_dock.md` rule 1 says; the RTL reaches hardware once a real capture
+    signal arms episodes: finding 1, rebutted with a test). Item 8:
+    no re-read at 21:39, see "AUTOTUNE after a restart"; no code change.
+    Item 9 (owner ruling, "Yes, guard it"): the autopilot's watchdog guards
+    NavPy's own recovery LOITER too, claimed in its heartbeat with the
+    request's token and the incident's budget left, and owns its RTL
+    deadline (step 7 above; Codex round 2's five findings answered there).
+    Todos only (owner ruling): the systemd supervisor (todo 296,
+    with HITL) and an upstream heartbeat failsafe (todo 297). Follow-up, out of scope
+    (approach accuracy): a fresh approach after a hold ended `no_detection`
+    31.8 m out (todo 298; step 9 SITL, S1, two runs).
+    Original plan: done entries for 292 (and 291/290 from their sessions); new
     todos: systemd supervisor on the aircraft (with HITL), an upstream
     ArduPilot companion-heartbeat failsafe, and the unproven trigger of the
-    21:39 mode-switch re-read.
+    21:39 mode-switch re-read. From the step 9 SITL checks (2026-11-09),
+    not fixed here:
+    - a false "NavPy NAV loop stuck" on all three NavPys at once, for about
+      1.7 s, with no fault injected (likely a host stall; the in-process
+      watchdog's `NAV_HANG_S` counts it). A UAV owning GUIDED would have
+      held for it;
+    - with `AAS_NAV_ONESHOT` = 1, a failed dock (DOCK_FAILED) disarms in
+      simulation, and the SITL UAV fell (`Hit ground at 9.4 m/s`); seen when
+      the held approach still failed stale before the step 9 fix.
+
+   Step 9 fix, re-approach after a hold (owner ruling 2026-11-09, "New
+   approach"; `core/flow/nav_held_approach.py`): the command worker's held
+   command goes stale (1.0 s) before the hold triggers (1.5 s), latching the
+   episode's failure and command liveness, which the resumed approach read
+   as `NAV_FAIL: source_command_stale`. Now the NAV decision ends the
+   in-flight episode at its first decision while recovery holds
+   (`NavExitCleanup.end_episode`: dock-contact episode, source admission,
+   navigation reset; tracking, zoom, speedup and task stay) and drops what
+   it latched: not DOCK_FAILED, no one-shot finish. After the hold, if
+   recovery resumed in AUTO (or GUIDED was not reached before the hold, or
+   shows), it starts a fresh episode to the kept dock through NAV entry;
+   a mode the operator selected stands and ends the approach.
+
+   Codex review of the step 9 fixes, fixed:
+   1. The default delivery hub transit also asks for GUIDED through
+      `request_guided_owned`; the guard test scans all of `src/navpy`.
+   2. A fresh episode starts only on recovery's explicit resume in AUTO. A
+      hold that ends without it (the operator's mode, or a hold NavPy did
+      not own the mode for) ends the approach: no GUIDED over that mode.
+   3. The fresh episode's NAV entry clears the held marker only once it
+      succeeds; one that raises is retried at the next decision, unless the
+      operator selected a mode meanwhile.
+   4. The held episode's dock contact ends as aborted for the hold
+      (`HELD_REASON`, `FinalApproachDockContact.disarm_held`), never from
+      the terminal latched while fenced, so the sim record never shows it
+      as missed.
+
+   Codex round 2 on the step 9 fixes, fixed with one resume grant instead of
+   more flags (`RecoveryHold.resumed`):
+   1. Recovery issues the grant when the hold ends in NavPy's own AUTO and
+      voids it in any new hold or when a fresh heartbeat shows a mode other
+      than AUTO or GUIDED. The decision uses it only when a held episode
+      exists, and consumes it only once the fresh episode's NAV entry
+      succeeded; a stale grant with nothing held is discarded.
+   2. Abandonment keeps the held marker until NAV exits
+      (`NavTransition.exit` clears it), so a failed cleanup abandons again
+      next cycle instead of acquiring GUIDED over the operator's mode.
+   3. One hold budget per incident (`nav_recovery_incident.py`; Demo's
+      review of 114dde16): the RTL budget is the time spent holding (HOLD
+      and RESUMING) summed across an incident's holds, in aircraft time. An
+      incident ends when NavPy has run healthy in NORMAL for
+      `NAV_INCIDENT_CLEAR_S` (30 s, the hold budget). A single hold reaches
+      RTL at 30 s as before; two short unrelated stalls (the 1.7 s host
+      stall) cost only their own hold time, so no early RTL. A failed fresh
+      entry fails its cycle, which recovery counts. Bound: each hold adds at
+      least `NAV_HOLD_TRIGGER_S` before it can resume, so an entry that
+      always raises reaches RTL after at most budget / trigger = 20 holds,
+      within 2 x `NAV_HOLD_RECOVERY_S` = 60 s of aircraft time after the
+      first hold.
+   4. A fresh entry that raises rolls back what it completed first: the
+      partial episode ends as held (`HeldApproach.start_fresh_episode`), so
+      the retry arms again only after a matching end.

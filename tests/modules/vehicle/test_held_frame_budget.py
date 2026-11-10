@@ -33,7 +33,7 @@ from navpy.plugins.vehicle.ardupilot.mav_transport import MavTransport
 from navpy.plugins.vehicle.ardupilot.message_store import MessageStore
 from navpy.plugins.vehicle.ardupilot.mission_download import MissionDownloader
 from navpy.plugins.vehicle.ardupilot.mission_store import MissionStore
-from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import SendBudget
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import ExchangeIo, SendBudget, run_exchange
 from navpy.plugins.vehicle.ardupilot.parameter_reader import ParameterReader
 from navpy.plugins.vehicle.ardupilot.parameter_repository import ParameterRepository
 from navpy.plugins.vehicle.ardupilot.vehicle_foundation_composition import MESSAGE_HISTORY_POLICY
@@ -205,3 +205,23 @@ def test_the_log_names_free_sends_only_once_they_extend_the_budget():
         budget.before_send()
         labels.append(budget.label())
     assert labels == ["1/2", "2/2", "3/2 (+3 free)", "4/2 (+3 free)", "5/2 (+3 free)"]
+
+
+def test_a_send_the_deadline_refused_is_not_recorded():
+    """``send()`` returns False when the deadline passed before the send lock came:
+    nothing went out, so the budget and the outcome count only the sends made."""
+    radio, transport = _radio()
+    radio._answer = lambda _message: None
+    outcomes = iter([True, True, False])
+    io = ExchangeIo(
+        "PARAM_REQUEST_READ TEST",
+        lambda: next(outcomes) and transport.call(
+            lambda connection: connection.mav.param_request_read_send(TARGET, 0, b"TEST", -1)) is None,
+        lambda _cursor, _deadline: None,
+        transport.uplink_bytes,
+    )
+    exchange, sample = run_exchange(GCS, None, radio.messages, io, 0.001)
+    assert sample is None
+    assert (exchange.outcome, exchange.reason, exchange.attempts) == (
+        ExchangeOutcome.UNCONFIRMED, ExchangeReason.DEADLINE, 2)
+    assert radio.arrived == ["PARAM_REQUEST_READ"] * 2

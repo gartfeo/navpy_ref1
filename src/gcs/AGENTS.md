@@ -42,7 +42,10 @@ Frontend:
   next waypoint; the HUD is compact at normal size, full when maximized, and
   never repeats what the right panel shows (battery, link, mode and status
   texts only with the panel hidden; RC, which hides the panel, shows all
-  but the mode; `utils/hudLayout.js`). The map never follows a UAV;
+  but the mode; `utils/hudLayout.js`). At normal size Synthetic's map credits
+  open from a © button (maximized they always show). Synthetic also marks the
+  UAV's dock, its delivery hub, the rest of the fleet and a flight path marker,
+  and greys out while held (`docs/design/synthetic_view_marks.md`). The map never follows a UAV;
   only RC takes the map camera (first person). Sim test pattern:
   `simulation.video_test_source`. Design: `docs/design/gcs_video_streams.md`.
   The WHEP client is vendored third-party source:
@@ -215,7 +218,12 @@ Frontend:
   against this PC, start the GCS with `GCS_FRONTEND_DIST` set to the built
   `frontend\dist`, boot the emulator, then `adb -s emulator-5580 install -r
   <apk>` and `adb -s emulator-5580 reverse tcp:8000 tcp:<backend port>`.
-  Measure through `webview_devtools_remote_<pid>`.
+  Measure through `webview_devtools_remote_<pid>`. On the real handheld,
+  `python scripts\deploy_handheld.py --adb <adb> -s <ip:port>` deploys HEAD,
+  builds the app there with the handheld's own key and copies this PC's
+  Cesium token (never printed). An app installed from a PC build carries the
+  PC's key: deploy once with `--replace-app` (uninstalls it first, clearing
+  the app's stored data).
 - Live testing: delegate the full GCS/SITL flow (launch, connect, exercise,
   check logs, tear down) to the `live-tester` subagent; its procedure is in
   `.claude/agents/live-tester.md`.

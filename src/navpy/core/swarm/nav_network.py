@@ -24,6 +24,7 @@ from navpy.core.swarm.peer_poi_dispatch import (
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.swarm.task_actor import TaskActor
+from navpy.core.swarm.task_lost_helper import LostHelperPolicy
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detector_ports import SimulationControlPort
 from navpy.core.ports.detect_data import DetectedObject
@@ -40,8 +41,10 @@ class NavNetworkRuntime:
         confirmation_manager: ConfirmationManager,
         overrides: ConfirmOverrideInbox,
         logger: ILogger,
+        lost_helper_policy: Callable[[], LostHelperPolicy] = lambda: LostHelperPolicy.KEEP,
     ) -> None:
-        self._vehicle = vehicle
+        self._new_actor = lambda network: TaskActor(
+            vehicle, network, logger, lost_helper_policy=lost_helper_policy)
         self._simulation = simulation
         self._ground_location = ground_location
         self._confirmation_manager = confirmation_manager
@@ -60,9 +63,9 @@ class NavNetworkRuntime:
         self._disconnect()
         if network is None:
             return
-        actor = TaskActor(self._vehicle, network, self._logger)
+        actor = self._new_actor(network)
         override_listener = ConfirmOverrideListener(
-            self._vehicle.source_system,
+            actor.id,
             self._overrides.request,
             self._logger,
         )

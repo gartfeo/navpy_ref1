@@ -71,6 +71,8 @@ def parse_lockstep_args(argv: Sequence[str], device: str) -> Namespace:
         raise ValueError("lockstep NavPy stops on its lifecycle record only (--stop-on-lifecycle)")
     if args.nav_sim_speedup > 0.0:
         raise ValueError("lockstep NavPy never writes SIM_SPEEDUP (-gsu)")
+    if args.sim_cycle_fault_file is not None:
+        raise ValueError("lockstep NavPy never takes --sim-cycle-fault-file: no injected fault in a scored run")
     if args.network_type not in LOCKSTEP_NETWORK_TYPES:
         raise ValueError(f"lockstep NavPy's peer transport is -nt mav or none, not "
                          f"{args.network_type.value!r}: a host socket or port is wall-only")

@@ -36,12 +36,14 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageSample, Message
 
 @dataclass(frozen=True)
 class ExchangeIo:
-    """One exchange's wire side: ``send()`` sends once; ``await_reply(cursor, deadline)``
-    waits for its answer after ``cursor`` (a ``MessageStore.wait_after`` with literal
-    reply types, which the history guard checks)."""
+    """One exchange's wire side: ``send()`` sends once, and returns False when the
+    deadline passed before it could (the send lock was busy until then);
+    ``await_reply(cursor, deadline)`` waits for its answer after ``cursor`` (a
+    ``MessageStore.wait_after`` with literal reply types, which the history
+    guard checks)."""
 
     label: str
-    send: Callable[[], None]
+    send: Callable[[], bool | None]
     await_reply: Callable[[int, float], MessageSample | None]
     #: Bytes written so far on the link that carries the requests (``None``: unknown).
     uplink_bytes: Callable[[], int | None] | None = None
@@ -71,9 +73,16 @@ class SendBudget:
     def spent(self) -> bool:
         return self.counted >= self._attempts
 
+    def reading(self) -> int | None:
+        """The uplink count, taken right before a send (``None``: every send counts)."""
+        return None if self._uplink is None else self._uplink()
+
     def before_send(self) -> None:
-        """Call right before each send."""
-        written = None if self._uplink is None else self._uplink()
+        """Record a send about to go out for certain."""
+        self.record(self.reading())
+
+    def record(self, written: int | None) -> None:
+        """Record a send that went out; ``written`` is its :meth:`reading`."""
         if written is None:
             self.counted += 1
         else:
@@ -148,8 +157,11 @@ def _exchange(
     budget = SendBudget(policy, io.uplink_bytes)
     reason = stop_reason(policy, link)
     while reason is None and not budget.spent:
-        budget.before_send()
-        io.send()
+        written = budget.reading()
+        if io.send() is False:
+            reason = ExchangeReason.DEADLINE
+            break
+        budget.record(written)
         deadline = rt.monotonic() + timeout
         if policy.deadline_s is not None:
             deadline = min(deadline, policy.deadline_s)

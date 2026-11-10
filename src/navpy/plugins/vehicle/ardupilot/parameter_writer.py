@@ -81,9 +81,10 @@ class ParameterWriter:
         if spec is None:
             return ParameterExchange(ExchangeOutcome.UNATTEMPTED, ExchangeReason.INVALID, 0)
         # A write is idempotent, so a timeout resends it.
-        def send() -> None:
+        def send() -> bool:
             self._repository.invalidate(spec.name)
-            self._transport.call(
+            return self._transport.call_by(
+                policy.deadline_s,
                 lambda connection: connection.mav.param_set_send(
                     self._identity.target_system,
                     0,

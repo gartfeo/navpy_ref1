@@ -571,6 +571,21 @@ export function isAssignedOrLater(entry) {
   return !!entry && RANK[entry.status] >= RANK.assigned;
 }
 
+/**
+ * The dock a UAV works on: its furthest open round, whether the dock was given
+ * to it (receiverId) or it asked for its own detected dock and loiters until
+ * the operator confirms (askedBy, receiverId null; withOwnRound). An offer it
+ * has not taken (waiting) and a handled round are not its dock.
+ */
+export function vehicleDock(assignments, sysId) {
+  let best = null;
+  for (const entry of Object.values(assignments || {})) {
+    if (uavOf(entry) !== sysId || isHandled(entry) || !(RANK[entry.status] > RANK.waiting)) continue;
+    if (!best || RANK[entry.status] > RANK[best.status]) best = entry;
+  }
+  return best;
+}
+
 /** The entry a vehicle card shows: highest rank, then the round it answered. */
 export function vehicleAssignment(assignments, sysId) {
   const score = (entry) => RANK[entry.status] * 2 + (entry.doingUid ? 1 : 0);

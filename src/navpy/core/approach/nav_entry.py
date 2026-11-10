@@ -19,6 +19,9 @@ class NavEntryPorts:
     arm_dock_contact: Callable[[], None]
     stop_geo_tracking: Callable[[], None]
     is_geo_armed: Callable[[], bool]
+    # HITL step 23b: told when this entry attempt starts and when it has completed (the confirm's floor release).
+    entry_started: Callable[[], None] = lambda: None
+    entered: Callable[[], None] = lambda: None
 
 
 class NavEntry:
@@ -37,6 +40,7 @@ class NavEntry:
         self._logger = logger
 
     def run(self) -> None:
+        self._ports.entry_started()
         self._navigation_task.nav_mode_observed = False
         self._navigation_task.final_approach_navigation_active = False
         self._navigation_task.final_approach_nav_completed = False
@@ -61,6 +65,7 @@ class NavEntry:
             dest=LogStatusDest.DRONE,
         )
         self._logger.defer_status_texts(True)
+        self._ports.entered()
 
 
 __all__ = ["NavEntry", "NavEntryPorts"]

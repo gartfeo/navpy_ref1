@@ -20,7 +20,6 @@ from pymavlink.dialects.v20 import ardupilotmega as mav2
 REPO_ROOT = Path(__file__).resolve().parents[2]
 HARNESS = REPO_ROOT / "tests" / "lua" / "nav_watchdog_harness.lua"
 SCRIPT = REPO_ROOT / "scripts" / "lua" / "nav_watchdog.lua"
-AAS_PARAMS = REPO_ROOT / "scripts" / "lua" / "aas_params.lua"
 VM_I_COUNT = 10000
 GUIDED, AUTO, RTL, LOITER, FBWA = 15, 10, 11, 12, 5
 NAVPY_COMPONENT = mav2.MAV_COMP_ID_ONBOARD_COMPUTER
@@ -52,13 +51,13 @@ def _lua_path(p: Path) -> str:
 
 def heartbeat(
     *, sysid: int = 1, compid: int = NAVPY_COMPONENT, mav_type: int = mav2.MAV_TYPE_ONBOARD_CONTROLLER,
-    mavlink1: bool = False, corrupt: bool = False, claimed_len: int | None = None,
+    mavlink1: bool = False, corrupt: bool = False, claimed_len: int | None = None, custom_mode: int = 0,
 ) -> str:
     """A HEARTBEAT as the mavlink_message_t ArduPilot hands a script, in hex: checksum, then the wire header and
     payload (the C struct's field order). ``claimed_len`` overwrites the length byte and pads the payload as the
     full C struct does."""
     link = mav2.MAVLink(None, srcSystem=sysid, srcComponent=compid)
-    wire = bytearray(link.heartbeat_encode(mav_type, mav2.MAV_AUTOPILOT_INVALID, 0, 0, mav2.MAV_STATE_ACTIVE)
+    wire = bytearray(link.heartbeat_encode(mav_type, mav2.MAV_AUTOPILOT_INVALID, 0, custom_mode, mav2.MAV_STATE_ACTIVE)
                      .pack(link, force_mavlink1=mavlink1))
     assert wire[0] == (0xFE if mavlink1 else 0xFD)
     if corrupt:
@@ -78,12 +77,21 @@ def heartbeat(
 NAVPY = heartbeat()
 
 
+def claim(token: int = 3, budget_s: float = 30.0) -> str:
+    """NavPy's heartbeat claiming its hold's LOITER (companion_hold_claim.encode_hold_claim, independently here)."""
+    return heartbeat(custom_mode=1 | token << 1 | round(budget_s * 10) << 8)
+
+
+CLAIM = claim()
+
+
 def run(scenario: str) -> dict:
     driver = textwrap.dedent(f"""
         local h = dofile('{_lua_path(HARNESS)}')
         local S = h.state
         h.load('{_lua_path(SCRIPT)}')
         local NAVPY = '{NAVPY}'
+        local CLAIM = '{CLAIM}'
     """) + textwrap.dedent(scenario) + "\nh.dump()\n"
     proc = subprocess.run(LUA_ARGV + ["-e", driver], capture_output=True, text=True, timeout=120,
                           env=dict(os.environ, MSYS_NO_PATHCONV="1"))
@@ -111,17 +119,28 @@ def test_loads_receives_heartbeats_and_owns_its_aas_params():
     out = run("h.run(100)")
     state = out["state"]
     assert state["init_args"] == [10, 1] and state["registered"] == [0]       # (queue length, message ids)
-    assert state["table_added"] == [88, "AAS_", 30]
+    assert state["table_added"] == [89, "AAS_NWD_", 8]
     assert [(p["index"], p["name"]) for p in state["added_params"]] == [
-        (20, "NWD_ENABLE"), (21, "NWD_TMO"), (22, "NWD_RTL"), (23, "NWD_COMP"),
+        (1, "ENABLE"), (2, "TMO"), (3, "RTL"), (4, "COMP"),
     ]
     assert "NavPy watchdog loaded" in texts(out)
 
 
-def test_aas_params_lua_leaves_the_watchdog_indices_free():
-    used = {int(line.split(",")[1]) for line in AAS_PARAMS.read_text(encoding="utf-8").splitlines()
-            if "add_param(PARAM_TABLE_KEY" in line}
-    assert used.isdisjoint({20, 21, 22, 23})
+def test_no_two_deployed_scripts_add_the_same_param_table():
+    """ArduPilot's add_table on a key another script already added re-blanks every entry of that table
+    (AP_Param.cpp, "fill in footer for all entries"): in SITL, nav_watchdog.lua on aas_params.lua's key 88 left
+    AAS_NWD_ENABLE unset and the watchdog disabled (step 9, 2026-11-09). Each script owns its key."""
+    import re
+
+    keys = {}
+    for script in sorted(SCRIPT.parent.glob("*.lua")):
+        text = script.read_text(encoding="utf-8")
+        key = re.search(r"^local PARAM_TABLE_KEY\s*=\s*(\d+)", text, re.MULTILINE)
+        if "param:add_table(" in text:
+            assert key, f"{script.name}: add_table without a PARAM_TABLE_KEY"
+            keys.setdefault(int(key.group(1)), []).append(script.name)
+    assert all(len(names) == 1 for names in keys.values()), keys
+    assert keys[89] == ["nav_watchdog.lua"] and keys[88] == ["aas_params.lua"]
 
 
 def test_reports_its_state_once_a_second():
@@ -461,3 +480,135 @@ def test_at_4hz_a_dead_navpy_holds_1_5s_after_its_last_heartbeat():
     out = run(FLY_4HZ + "fly(5000)\nh.run(2000)")
     assert modes(out) == [LOITER]
     assert out["modes"][0]["t"] - 5000 == 1500
+
+
+# Step 10, item 9 (owner ruling 2026-11-09, "Yes, guard it"; Codex round 2): NavPy's own recovery LOITER, claimed
+# in its heartbeat from its LOITER request on, is taken at the switch into LOITER and its RTL deadline is then this
+# script's. A pilot's LOITER, or a pilot mode or disarm after the guard starts, still stands.
+
+# NavPy alive in GUIDED, heartbeat every 200 ms to 3000 ms; then its hold: LOITER at 3100 with claims from 3200.
+HOLD = ALIVE + "S.mode = 12\n"
+
+
+def test_item9_navpys_claimed_loiter_is_guarded_and_rtl_comes_at_the_claims_budget():
+    out = run(HOLD + "h.run(1000, CLAIM, 200)\nh.run(40000)")       # NavPy dies at 4000 ms
+    assert modes(out) == [RTL]                                       # no mode write to guard: it is LOITER
+    assert out["modes"][0]["t"] == 3200 + 30000                      # the claim's receipt + its budget
+    assert "NavPy watchdog: guarding NavPy's LOITER" in texts(out)
+    assert out["floats"][-1]["value"] == 2
+
+
+def test_item9_the_guard_reports_its_own_state_and_is_no_recovery():
+    out = run(HOLD + "h.run(3000, CLAIM, 200)")
+    assert out["floats"][-1]["value"] == 3
+
+
+def test_codex2_1_navpy_dying_right_after_its_loiter_shows_is_still_guarded():
+    """The claim goes out with the LOITER request, before any heartbeat shows LOITER (finding 1)."""
+    out = run(ALIVE + f"""
+        h.push('{CLAIM}')                    -- 3000: NavPy requests LOITER and claims it, then dies
+        h.run(200)
+        S.mode = 12                          -- 3200: the LOITER shows
+        h.run(40000)
+    """)
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 3000 + 30000
+
+
+@pytest.mark.parametrize("returns", ["NAVPY", "CLAIM"])
+def test_codex2_2_heartbeats_after_the_guard_starts_never_cancel_its_deadline(returns):
+    """A NavPy restarted within the timeout (it does not know it held), or the sortie's reopen in LOITER, sends
+    unclaimed heartbeats: the deadline stands, as it does for a NavPy alive and still claiming (finding 2)."""
+    out = run(HOLD + f"h.run(1000, CLAIM, 200)\nh.run(40000, {returns}, 200)")
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 3200 + 30000
+
+
+def test_codex2_5_the_deadline_is_the_incidents_budget_left_not_a_fresh_30_s():
+    """NavPy dies 29 s into its hold: RTL at the budget, not 29 + 1.5 + 30 s (finding 5)."""
+    out = run(HOLD + "h.run(29000, CLAIM, 200)\nh.run(40000)")
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 3200 + 30000
+
+
+def test_codex2_5_a_later_hold_of_the_incident_gets_only_the_budget_left():
+    out = run(HOLD + f"h.run(1000, '{claim(budget_s=12.5)}', 200)\nh.run(20000)")
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 3200 + 12500
+
+
+def test_item9_aas_nwd_rtl_caps_the_claimed_budget():
+    out = run("S.params.AAS_NWD_RTL = 10\n" + HOLD + "h.run(1000, CLAIM, 200)\nh.run(20000)")
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 3200 + 10000
+
+
+def test_item9_navpy_ending_its_hold_by_a_mode_change_stands_the_guard_down():
+    out = run(HOLD + "h.run(2000, CLAIM, 200)\nS.mode = 10\nh.run(40000, NAVPY, 200)")
+    assert out["modes"] == [] and out["floats"][-1]["value"] == 0
+
+
+def test_item9_a_pilots_loiter_is_not_guarded():
+    out = run("S.mode = 12\n" + ALIVE + "h.run(40000)")                # NavPy alive, its heartbeat unclaimed
+    assert out["modes"] == [] and texts(out) == ["NavPy watchdog loaded"]
+
+
+def test_item9_a_disarmed_claimed_loiter_is_not_guarded():
+    out = run("S.armed = false\n" + HOLD + "h.run(1000, CLAIM, 200)\nh.run(40000)")
+    assert out["modes"] == [] and texts(out) == ["NavPy watchdog loaded"]
+
+
+@pytest.mark.parametrize("pilot_mode", [FBWA, RTL, AUTO, GUIDED])
+def test_codex2_3_a_one_sample_pilot_mode_spends_the_claim(pilot_mode):
+    """The pilot leaves NavPy's guarded LOITER for one tick and picks LOITER again while NavPy, not having seen it,
+    still claims: not guarded again, no RTL over the pilot's LOITER (finding 3)."""
+    out = run(HOLD + f"""
+        h.run(1000, CLAIM, 200)
+        S.mode = {pilot_mode}
+        h.run(100)
+        S.mode = 12
+        h.run(1000, CLAIM, 200)
+        h.run(40000)
+    """)
+    assert out["modes"] == []
+    assert "NavPy watchdog: mode changed, standing down" in texts(out)
+    assert out["floats"][-1]["value"] == 0
+
+
+def test_codex2_3_a_disarm_spends_the_claim():
+    out = run(HOLD + """
+        h.run(1000, CLAIM, 200)
+        S.armed = false
+        h.run(100)
+        S.armed = true                       -- armed again in LOITER, NavPy still claiming
+        h.run(1000, CLAIM, 200)
+        h.run(40000)
+    """)
+    assert out["modes"] == []
+    assert "NavPy watchdog: disarmed, standing down" in texts(out)
+
+
+def test_codex2_4_a_claim_received_after_the_switch_window_is_ignored():
+    """A pilot's LOITER, then a delayed (or spoofed) claim 0.9 s later: not taken (finding 4)."""
+    out = run(ALIVE + "S.mode = 12\nh.run(800, NAVPY, 200)\nh.run(1000, CLAIM, 200)\nh.run(40000)")
+    assert out["modes"] == [] and texts(out) == ["NavPy watchdog loaded"]
+
+
+def test_item9_navpys_next_hold_with_a_new_token_is_guarded_again():
+    """NavPy's resume (AUTO), then a later hold of its own with a new LOITER request."""
+    out = run(HOLD + f"""
+        h.run(1000, CLAIM, 200)
+        S.mode = 10
+        h.run(2000, NAVPY, 200)
+        S.mode = 12
+        h.run(1000, '{claim(token=4, budget_s=20)}', 200)
+        h.run(30000)
+    """)
+    assert modes(out) == [RTL] and out["modes"][0]["t"] == 6200 + 20000
+
+
+def test_codex2_4_a_claim_received_long_before_the_switch_is_ignored():
+    """NavPy claimed a LOITER request that never showed (refused) and stopped claiming; the pilot's LOITER 3 s later
+    is not NavPy's (finding 4)."""
+    out = run(ALIVE + f"""
+        h.run(400, '{claim(token=5)}', 200)
+        h.run(3000, NAVPY, 200)
+        S.mode = 12
+        h.run(40000)
+    """)
+    assert out["modes"] == [] and texts(out) == ["NavPy watchdog loaded"]

@@ -44,6 +44,33 @@ it.each(['distributed', 'corridor'])('sends current upload fields for %s', async
   expect(mission.goToMonitor).toHaveBeenCalledOnce();
 });
 
+it('drops the downloaded item numbers of each vehicle that took the upload', async () => {
+  // A downloaded track carries its mission item numbers (utils/missionProgress.js);
+  // after the upload the vehicle flies the GCS's layout, so they no longer apply.
+  const dock = { name: 'Fixture', lat: 0.01, lon: 0.02, type: 'other' };
+  const track = [{ lat: 0, lon: 0, seq: 2 }, { lat: 0.001, lon: 0.001, seq: 3 }];
+  let plan = { zones: [{ zone_index: 0, track, sys_id: 5 }, { zone_index: 1, track, sys_id: 6 }], altitude_m: 120 };
+  const setPlan = vi.fn((next) => { plan = typeof next === 'function' ? next(plan) : next; });
+  const mission = {
+    polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }], searchPattern: 'distributed',
+    launchPoint: null, corridorPoints: [], plan,
+    setPlan, setLaunchPoints: [null], setCorridorPointsArr: [[]],
+    goToMonitor: vi.fn(), deliveryHubAssignments: [0, 0], manualDeliveryHubEdit: true,
+    simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(),
+  };
+  const api = { uploadMissions: vi.fn().mockResolvedValue({ status: 'partial', results: [
+    { sys_id: 5, progress: 1, done: true }, { sys_id: 6, progress: 0, done: true, error: 'timeout' },
+  ] }), writeAasParams: vi.fn(), restartCompanionsReady: vi.fn() };
+  const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  const { result } = renderHook(() => useMissionUpload({ mission, effectiveUavCount: 2,
+    localGenerate: vi.fn().mockResolvedValue(null), vehicleList: [{ sys_id: 5 }, { sys_id: 6 }], api,
+    settings: { default_delivery_hubs: [dock], simulation: { sim_mode: false } }, fence: null }));
+  await act(() => result.current.handleUpload());
+  expect(plan.zones[0].track.some((p) => 'seq' in p)).toBe(false);
+  expect(plan.zones[1].track.map((p) => p.seq)).toEqual([2, 3]);
+  alert.mockRestore();
+});
+
 describe('camera check before upload (sim)', () => {
   const dock = { name: 'Hub', lat: 0.01, lon: 0.02, type: 'other' };
   const track = [{ lat: 0, lon: 0 }, { lat: 0.001, lon: 0.001 }, { lat: 0.002, lon: 0.002 }];
@@ -120,5 +147,49 @@ describe('camera check before upload (sim)', () => {
     await act(() => result.current.handleUpload());
     expect(check).not.toHaveBeenCalled();
     expect(api.uploadMissions).toHaveBeenCalledOnce();
+  });
+});
+
+describe('return-to-hub rally point', () => {
+  function run(uploadResult) {
+    const mission = {
+      polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }],
+      searchPattern: 'distributed', launchPoint: null, corridorPoints: [],
+      plan: { zones: [{ zone_index: 0, track: [{ lat: 0, lon: 0 }, { lat: 0.001, lon: 0.001 }] }], altitude_m: 120 },
+      setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],
+      goToMonitor: vi.fn(), deliveryHubAssignments: [0], manualDeliveryHubEdit: true,
+      simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(),
+    };
+    const api = { uploadMissions: vi.fn().mockResolvedValue(uploadResult),
+      writeAasParams: vi.fn(), restartCompanionsReady: vi.fn() };
+    const { result } = renderHook(() => useMissionUpload({ mission, effectiveUavCount: 1,
+      localGenerate: vi.fn().mockResolvedValue(null), vehicleList: [{ sys_id: 3 }], api,
+      settings: { default_delivery_hubs: [{ name: 'Hub', lat: 0.01, lon: 0.02 }],
+        simulation: { sim_mode: false } }, fence: null }));
+    return { result, mission };
+  }
+
+  it('stays in planning and names the vehicle whose RTL would not reach the hub', async () => {
+    const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+    const { result, mission } = run({
+      status: 'complete', fence_ok: true, rally_ok: false,
+      results: [{ sys_id: 3, error: null,
+        rally: { applied: false, action: 'set', error: 'rally point not acknowledged after 3 attempts', failed_params: [] } }],
+    });
+    await act(() => result.current.handleUpload());
+    expect(mission.goToMonitor).not.toHaveBeenCalled();
+    expect(alert).toHaveBeenCalledOnce();
+    expect(alert.mock.calls[0][0]).toContain('Return-to-hub point not set');
+    expect(alert.mock.calls[0][0]).toContain('Vehicle 3: rally point not acknowledged');
+    alert.mockRestore();
+  });
+
+  it('moves to monitoring once every rally point is set', async () => {
+    const { result, mission } = run({
+      status: 'complete', fence_ok: true, rally_ok: true,
+      results: [{ sys_id: 3, error: null, rally: { applied: true, action: 'set', total: 1 } }],
+    });
+    await act(() => result.current.handleUpload());
+    expect(mission.goToMonitor).toHaveBeenCalledOnce();
   });
 });

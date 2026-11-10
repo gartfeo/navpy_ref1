@@ -23,6 +23,7 @@ from navpy.plugins.vehicle.ardupilot.vehicle_public_mission import (
     VehicleFenceFacet,
     VehicleMissionEditFacet,
     VehicleMissionTransferFacet,
+    VehicleRallyFacet,
 )
 from navpy.plugins.vehicle.ardupilot.vehicle_public_parameters import (
     VehicleParameterFacet,
@@ -65,6 +66,7 @@ class VehicleMav(
     VehicleMissionEditFacet,
     VehicleMissionTransferFacet,
     VehicleFenceFacet,
+    VehicleRallyFacet,
     VehicleMessagingFacet,
     VehicleCommandFacet,
     VehicleLifetimeFacet,

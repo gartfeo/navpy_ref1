@@ -572,6 +572,9 @@ class VehicleMavTest(unittest.TestCase):
         get_param.assert_not_called()
 
     def test_sim_speedup_reads_new_cache_value_before_probe_deadline(self):
+        # A companion asks for SIM_SPEEDUP once as it starts its heartbeat (navpy_recovery.md step 10, item 12);
+        # what this checks is that a cached value is read without another probe.
+        self.fake_conn.mav.param_request_read_send.reset_mock()
         self.dm.feed_message(self._make_vehicle_msg(
             self.dm,
             "PARAM_VALUE",

@@ -13,6 +13,7 @@ from navpy.plugins.detection.charuco.charuco_board import (
     charuco_board_spec_from_settings,
     charuco_detection_settings_from_settings,
 )
+from navpy.app.perception.rfdetr_profile import dock_acquisition, rfdetr_model_settings
 from navpy.core.kernel.config.detector_backend import (
     DetectorBackend,
     backend_requires_model_path,
@@ -28,11 +29,11 @@ from navpy.app.perception.vision_tracking_composition import build_tracking_conf
 from navpy.app.perception.vision_zoom_profile import build_zoom_config
 
 
-def resolve_real_model_path(model_path: str, logger: ILogger) -> Path:
+def resolve_real_model_path(model_path: str, logger: ILogger, backend: str = "yolo") -> Path:
     if not model_path:
         logger.error(
             "--detector-model-path is required when "
-            "--detector-type=real --detector-backend=yolo"
+            f"--detector-type=real --detector-backend={backend}"
         )
         raise ValueError("Model path is required for real detector")
     resolved = Path(__file__).resolve().parents[4] / model_path
@@ -61,7 +62,7 @@ class RealDetectorFactory:
         self._profile = profile
         self._backend = validate_detector_backend(backend)
         self._model_path: Path | None = (
-            resolve_real_model_path(model_path, logger)
+            resolve_real_model_path(model_path, logger, self._backend)
             if backend_requires_model_path(self._backend)
             else None
         )
@@ -135,6 +136,7 @@ class RealDetectorFactory:
                     charuco_detection=charuco_detection_settings_from_settings(
                         detector_settings,
                     ),
+                    rfdetr=rfdetr_model_settings(self._backend, detector_settings),
                     imgsz=int(detector_settings.get("imgsz", 640)),
                     conf=float(detector_settings.get("conf", 0.35)),
                     device=cast(
@@ -184,6 +186,7 @@ class RealDetectorFactory:
                         else build_fixed_zoom(mount_spec.device)
                     ),
                 ),
+                acquisition=dock_acquisition(self._backend, detector_settings),
                 debug=DetectorDebugConfig(
                     show=self._debug_show,
                     window_name=f"navpy-detector-{mount_index}",
