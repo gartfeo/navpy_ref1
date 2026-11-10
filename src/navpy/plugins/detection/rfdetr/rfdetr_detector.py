@@ -2,7 +2,7 @@
 
 One detector with one job: the frame (squashed whole or as fixed tiles, rfdetr_tiling.py) goes through RF-DETR's own
 pre- and post-processing (rfdetr_codec.py); rows below the profile's confidence and every class the profile does not
-map are dropped; the kept class becomes its navpy class (phase A: COCO ``car`` -> ``dock``). No fallback model and
+map are dropped; the kept class becomes its navpy class (phase A: COCO ``truck`` -> ``dock``). No fallback model and
 no other backend behind it: a frame it misses has no detection. Stateless per frame, like the other backends; the
 box is in full-frame pixels.
 """

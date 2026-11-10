@@ -6,9 +6,12 @@ vehicle state (mode, parameters, mission) is shared. It answers one tick
 later, as the firmware does at best. Every second it sends the heartbeats
 of ``heartbeats``: the gimbal's (compid 154) and the autopilot's (compid 1).
 ``param_burst`` unrelated ``PARAM_VALUE`` replies follow each named read's
-answer in the same tick. The mission is stored: ``MISSION_CLEAR_ALL``
-empties it, an upload (count, then one request per item, then the ack)
-replaces it, and a download serves it as uploaded. ``answer_limits``
+answer in the same tick. Each mission type (flight mission, fence, rally) is
+its own stored table, as in ArduPilot: ``MISSION_CLEAR_ALL`` empties the
+named table, an upload (count, then one request per item, then the ack)
+replaces it, a download serves it as uploaded, and every reply carries the
+request's ``mission_type``. A fence or rally change sets ``FENCE_TOTAL`` or
+``RALLY_TOTAL``, which the firmware keeps as the table's size. ``answer_limits``
 withholds replies: a message kind is answered at most that many times.
 It serves MAVFTP as ``GCS_FTP.cpp`` does for one file, ``@PARAM/param.pck``
 (the parameters as floats, no defaults): open, burst reads of at most
@@ -80,6 +83,15 @@ MISSION = (
 )
 
 
+#: The firmware's table-size parameter for each non-flight mission type.
+_TOTAL_PARAMETERS = {mavlink.MAV_MISSION_TYPE_FENCE: "FENCE_TOTAL",
+                     mavlink.MAV_MISSION_TYPE_RALLY: "RALLY_TOTAL"}
+
+
+def _mission_type(message: mavlink.MAVLink_message) -> int:
+    return getattr(message, "mission_type", mavlink.MAV_MISSION_TYPE_MISSION)
+
+
 class _Port:
     def __init__(self, sys_id: int) -> None:
         self.sink = ByteSink()
@@ -114,7 +126,11 @@ class ReferenceAutopilot:
             (mavlink.MAV_FRAME_GLOBAL_RELATIVE_ALT_INT, command, 0, 1, 0.0, 0.0, 0.0, 0.0, lat, lon, alt)
             for command, lat, lon, alt in MISSION
         ]
+        #: The fence and rally tables, by ``mission_type``; ``mission`` is type 0.
+        self.tables: dict[int, list[tuple]] = {
+            mavlink.MAV_MISSION_TYPE_FENCE: [], mavlink.MAV_MISSION_TYPE_RALLY: []}
         self._upload: list[tuple] | None = None
+        self._upload_type = mavlink.MAV_MISSION_TYPE_MISSION
         self._answers_left = dict(answer_limits or {})
         self._upload_count = 0
         #: The open MAVFTP read: (session, file bytes), and bursts left to send.
@@ -189,16 +205,21 @@ class ReferenceAutopilot:
         elif kind == "FILE_TRANSFER_PROTOCOL":
             self._ftp(port, source, bytes(message.payload))
         elif kind == "MISSION_REQUEST_LIST":
-            reply.mission_count_send(*source, len(self.mission), 0)
-        elif kind == "MISSION_REQUEST_INT" and message.seq < len(self.mission):
-            reply.mission_item_int_send(*source, message.seq, *self.mission[message.seq], 0)
+            kind_of = _mission_type(message)
+            reply.mission_count_send(*source, len(self._table(kind_of)), kind_of)
+        elif kind == "MISSION_REQUEST_INT" and message.seq < len(self._table(_mission_type(message))):
+            kind_of = _mission_type(message)
+            reply.mission_item_int_send(*source, message.seq, *self._table(kind_of)[message.seq], kind_of)
         elif kind == "MISSION_CLEAR_ALL":
-            self.mission = []
-            reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, 0)
+            kind_of = _mission_type(message)
+            self._store(kind_of, [])
+            reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, kind_of)
         elif kind == "MISSION_COUNT":
             self._upload, self._upload_count = [], message.count
-            reply.mission_request_int_send(*source, 0, 0)
-        elif kind == "MISSION_ITEM_INT" and self._upload is not None and message.seq == len(self._upload):
+            self._upload_type = _mission_type(message)
+            reply.mission_request_int_send(*source, 0, self._upload_type)
+        elif (kind == "MISSION_ITEM_INT" and self._upload is not None
+              and _mission_type(message) == self._upload_type and message.seq == len(self._upload)):
             # ArduPilot stores no frame for a command without a location (a jump)
             # and downloads it as MAV_FRAME_GLOBAL.
             frame = mavlink.MAV_FRAME_GLOBAL if message.command == mavlink.MAV_CMD_DO_JUMP else message.frame
@@ -208,10 +229,25 @@ class ReferenceAutopilot:
                 message.x, message.y, message.z,
             ))
             if len(self._upload) < self._upload_count:
-                reply.mission_request_int_send(*source, len(self._upload), 0)
+                reply.mission_request_int_send(*source, len(self._upload), self._upload_type)
             else:
-                self.mission, self._upload = self._upload, None
-                reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, 0)
+                self._store(self._upload_type, self._upload)
+                self._upload = None
+                reply.mission_ack_send(*source, mavlink.MAV_MISSION_ACCEPTED, self._upload_type)
+
+    def _table(self, mission_type: int) -> list[tuple]:
+        if mission_type == mavlink.MAV_MISSION_TYPE_MISSION:
+            return self.mission
+        return self.tables.get(mission_type, [])
+
+    def _store(self, mission_type: int, items: list[tuple]) -> None:
+        if mission_type == mavlink.MAV_MISSION_TYPE_MISSION:
+            self.mission = items
+            return
+        self.tables[mission_type] = items
+        total = _TOTAL_PARAMETERS.get(mission_type)
+        if total is not None:
+            self.parameters[total] = float(len(items))
 
     # -- MAVFTP ------------------------------------------------------------------
     def param_pck(self) -> bytes:

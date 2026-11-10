@@ -43,6 +43,7 @@ HITL = PROFILES[op.HITL_PROFILE]
 STEPS = op._zoom_steps(HITL)
 LIMITS = op.detector_limits(HITL)
 DOCK = op.dock_of({"dock_size": DEFAULT_DOCK})
+H = 80.0 - 0.979                    # the 80 m lane above the pickup's POI, its mid-height
 
 
 # --- product: the setting and the planner --------------------------------------------------------------------------
@@ -127,7 +128,7 @@ def test_a_malformed_setting_is_refused_when_the_planner_is_built(block):
 
 def _plan(**changes) -> op.OrbitPlan:
     """The series plan: the profile's 300 m circle, the step 13 lane at 80 m, the series' 30 m floor, the default
-    car on the ground, zoom 10, 24 m/s, the profile's whole-dock detector limits."""
+    pickup on the ground, zoom 10, 24 m/s, the profile's whole-dock detector limits."""
     base = op.OrbitPlan(radius_m=300.0, lane_height_m=80.0, dock=DOCK, floor_m=30.0, airspeed_m_s=24.0,
                         airspeed_band=(14.0, 35.0), min_pitch_deg=-45.0, roll_limit_deg=45.0, steps=STEPS,
                         zoom_command_tenths=100, detector=LIMITS)
@@ -155,35 +156,35 @@ def test_the_check_uses_the_measured_optics_the_profile_detector_and_the_public_
     assert (STEPS.stream.image_width, STEPS.stream.image_height) == (1920, 1080)
     assert LIMITS.input_scale(1920, 1080) == (1.0, 1.0)                 # tiles: native pixels
     assert (LIMITS.recall_min_box_px, LIMITS.acq_min_box_px) == (24.0, 24.0)
-    assert DOCK == op.Dock(4.5, 1.8, 1.5) and DOCK.poi_height_m == 0.75
+    assert DOCK == op.Dock(5.887, 2.490, 1.958) and DOCK.poi_height_m == pytest.approx(0.979)
 
 
 def test_the_dock_box_follows_its_yaw_and_the_depression():
-    step, h = STEPS.by_command(100), 79.25
+    step, h = STEPS.by_command(100), H
     slant = math.hypot(300.0, h)
     side_on = oc.dock_box_px(step, DOCK, slant, h, 90.0)                # long axis across the line of sight
     end_on = oc.dock_box_px(step, DOCK, slant, h, 0.0)
-    assert side_on[0] == pytest.approx(16970.9 * 4.5 / slant, rel=1e-3)
-    assert end_on[0] == pytest.approx(16970.9 * 1.8 / slant, rel=1e-3)
+    assert side_on[0] == pytest.approx(16970.9 * 5.887 / slant, rel=1e-3)
+    assert end_on[0] == pytest.approx(16970.9 * 2.490 / slant, rel=1e-3)
     sin_d = h / slant
-    assert end_on[1] == pytest.approx(16812.132 * (4.5 * sin_d + 1.5 * math.sqrt(1 - sin_d ** 2)) / slant)
+    assert end_on[1] == pytest.approx(16812.132 * (5.887 * sin_d + 1.958 * math.sqrt(1 - sin_d ** 2)) / slant)
 
 
 def test_the_first_detection_beyond_the_circle_sets_the_ground_ray_error():
-    """The gate's box floor at the search step bounds D: here 362 m, beyond the 300 m circle, and every declared
+    """The gate's box floor at the search step bounds D: here 444 m, beyond the 300 m circle, and every declared
     term is taken there (hitl_dock_detector.md section 4.1)."""
     plan = _plan()
     d = oc.first_detection_distance_m(plan)
-    assert d > plan.radius_m and d == pytest.approx(361.6, abs=0.5)
-    side = max(oc.smaller_side_input_px(plan, op.search_step(plan), math.hypot(d, 79.25), yaw)
+    assert d > plan.radius_m and d == pytest.approx(443.9, abs=0.5)
+    side = max(oc.smaller_side_input_px(plan, op.search_step(plan), math.hypot(d, H), yaw)
                for yaw in oc.DOCK_YAWS_DEG)
     assert side == pytest.approx(LIMITS.acq_min_box_px - plan.bounds.box_size_error_px, abs=0.05)
     terms = oc.centre_error_terms(plan)
-    assert terms["poi_height"] == pytest.approx(d * 0.75 / 79.25)
-    assert terms["lane_height"] == pytest.approx(d * 1.0 / 79.25)
-    assert terms["azimuth"] == pytest.approx(math.hypot(d, 79.25) * math.radians(1.0))
+    assert terms["poi_height"] == pytest.approx(d * 0.979 / H)
+    assert terms["lane_height"] == pytest.approx(d * 1.0 / H)
+    assert terms["azimuth"] == pytest.approx(math.hypot(d, H) * math.radians(1.0))
     assert terms["capture_skew"] == pytest.approx(2.4)
-    assert oc.centre_error_m(plan) == pytest.approx(sum(terms.values())) == pytest.approx(24.81, abs=0.01)
+    assert oc.centre_error_m(plan) == pytest.approx(sum(terms.values())) == pytest.approx(33.15, abs=0.01)
 
 
 def test_a_higher_gate_floor_brings_the_first_detection_in_and_never_inside_the_circle():
@@ -221,7 +222,7 @@ def test_the_turn_term_is_the_planners_at_the_nav_bank_cap():
 @pytest.mark.parametrize("changes, failing", [
     ({"airspeed_m_s": 36.0}, {"model_speed", "turn_radius"}),     # 2 v^2 / (g tan 35) = 377 m
     ({"airspeed_band": None}, {"model_speed"}),
-    ({"radius_m": 160.0}, {"turn_radius"}),                        # 167.7 m
+    ({"radius_m": 167.0}, {"turn_radius"}),                        # 167.7 m; nearer, the pickup breaks containment
     ({"min_pitch_deg": -20.0}, {"descent"}),                       # 80 / tan(13) = 346 m
     ({"min_pitch_deg": 0.0}, {"descent"}),
     ({"detector": dataclasses.replace(LIMITS, recall_min_box_px=100.0, acq_min_box_px=100.0)}, {"detector"}),
@@ -238,28 +239,28 @@ def test_a_plan_failing_a_check_is_refused(changes, failing):
 
 
 def test_the_detector_check_takes_the_far_side_of_the_circle_not_the_radius():
-    """The dock is r + e away on the far side: a limit the box meets at r (98 px) but not at r + e (93 px) fails."""
-    plan = _plan(detector=dataclasses.replace(LIMITS, recall_min_box_px=95.0, acq_min_box_px=95.0))
+    """The dock is r + e away on the far side: a limit the box meets at r (136 px) but not at r + e (127 px) fails."""
+    plan = _plan(detector=dataclasses.replace(LIMITS, recall_min_box_px=130.0, acq_min_box_px=130.0))
     detail = _detail(plan, "detector")
-    at_radius = min(oc.smaller_side_input_px(plan, STEPS.by_command(100), math.hypot(300.0, 79.25), yaw)
+    at_radius = min(oc.smaller_side_input_px(plan, STEPS.by_command(100), math.hypot(300.0, H), yaw)
                     for yaw in oc.DOCK_YAWS_DEG)
-    assert at_radius > 95.0 > detail["smaller_side_input_px"]
-    assert detail["farthest_slant_m"] == pytest.approx(math.hypot(300.0 + detail["centre_error_m"], 79.25), abs=0.01)
+    assert at_radius > 130.0 > detail["smaller_side_input_px"]
+    assert detail["farthest_slant_m"] == pytest.approx(math.hypot(300.0 + detail["centre_error_m"], H), abs=0.01)
     assert _failed(plan) == {"detector"}
 
 
 def test_a_squashed_frame_is_judged_in_its_own_input_pixels():
-    """The squash scales 1920 x 1080 to 704 x 704: the orbit box is 91 native px but 36 squash px across."""
+    """The squash scales 1920 x 1080 to 704 x 704: the orbit box is 122 native px but 47 squash px across."""
     squash = dataclasses.replace(LIMITS, input_scale=lambda w, h: (704 / w, 704 / h))
     side = _detail(_plan(detector=squash), "detector")["smaller_side_input_px"]
     assert side == pytest.approx(_detail(_plan(), "detector")["smaller_side_input_px"] * 704 / 1920, rel=0.05)
-    assert _failed(_plan(detector=dataclasses.replace(squash, recall_min_box_px=40.0, acq_min_box_px=40.0))) == {
+    assert _failed(_plan(detector=dataclasses.replace(squash, recall_min_box_px=50.0, acq_min_box_px=50.0))) == {
         "detector"}
 
 
 @pytest.mark.parametrize("changes", [
     {"radius_m": math.nan}, {"lane_height_m": 0.5}, {"radius_m": 0.0}, {"airspeed_m_s": -1.0},
-    {"dock": op.Dock(0.0, 1.8, 1.5)}, {"dock": op.Dock(4.5, 1.8, math.inf)},
+    {"dock": op.Dock(0.0, 2.490, 1.958)}, {"dock": op.Dock(5.887, 2.490, math.inf)},
     {"detector": dataclasses.replace(LIMITS, recall_min_box_px=math.nan)},
     {"detector": dataclasses.replace(LIMITS, acq_min_box_px=0.0)},
 ])
@@ -304,7 +305,7 @@ def test_no_results_is_not_feasible():
 
 def test_the_profile_without_the_whole_dock_detector_is_refused():
     with pytest.raises(ValueError):
-        op.detector_limits({"detector": {"rfdetr": {"variant": "large", "classes": {"car": "dock"},
+        op.detector_limits({"detector": {"rfdetr": {"variant": "large", "classes": {"truck": "dock"},
                                                     "input": "tiles"}}})
     with pytest.raises(ValueError):
         op.dock_of({"dock_size": {**DEFAULT_DOCK, "placement": "mast"}})

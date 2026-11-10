@@ -13,6 +13,7 @@ from pathlib import Path
 from unittest import mock
 
 import scripts.deploy_handheld as deploy
+import scripts.handheld_token as handheld_token
 
 _UPDATE = Path(deploy.REPO) / "scripts" / "termux" / "update_gcs.sh"
 _HEALTHY = '{"status":"ok","vehicles_connected":0,"unavailable_routes":[]}'
@@ -127,8 +128,9 @@ _RESULTS = {0: ["update result: updated"], 2: ["update result: app build failed"
 
 class _FakeHandheld:
     def __init__(self, built="b1", installed="b1", app_running=True, update_code=0,
-                 update_lines=None, preflight_code=0):
+                 update_lines=None, preflight_code=0, other_key=False):
         self.built, self.installed, self.running = built, installed, app_running
+        self.other_key, self.tokens = other_key, []
         self.update_code, self.preflight_code = update_code, preflight_code
         self.update_lines = _RESULTS.get(update_code, []) if update_lines is None else update_lines
         self.calls = []
@@ -160,9 +162,37 @@ class _FakeHandheld:
 
     def install(self, apk):
         self.calls.append("install")
+        if self.other_key:
+            raise deploy.OtherSigningKey("INSTALL_FAILED_UPDATE_INCOMPATIBLE")
+
+    def uninstall_app(self):
+        self.calls.append("uninstall")
+        self.other_key = False
+
+    def put_token(self, token, remote):
+        self.calls.append("token")
+        self.tokens.append((token, remote))
 
     def restart_app(self):
         self.calls.append("restart_app")
+
+
+class TestLocalToken(unittest.TestCase):
+    """The PC's token is found where the backend finds it (map_config.py)."""
+
+    def test_env_wins_then_the_file_then_none(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tok"
+            path.write_text(" from-file " + chr(10), encoding="utf-8")
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "from-env",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(handheld_token.local_cesium_token(), "from-env")
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path)}):
+                self.assertEqual(handheld_token.local_cesium_token(), "from-file")
+            with mock.patch.dict(os.environ, {handheld_token.CESIUM_ION_TOKEN_ENV: "",
+                                              handheld_token.CESIUM_ION_TOKEN_FILE_ENV: str(path) + ".missing"}):
+                self.assertIsNone(handheld_token.local_cesium_token())
 
 
 class TestDeploySteps(unittest.TestCase):
@@ -255,11 +285,160 @@ class TestDeploySteps(unittest.TestCase):
         self.assertIn("navpy-update-*.tgz", script)
         self.assertLess(script.index("flock -n 9"), script.index("navpy-update-*.tgz"))
 
+    def test_an_app_signed_with_another_key_is_reported_and_left_installed(self):
+        """Owner (2026-11-08): the app installed from a PC build is signed with
+        the PC's key, so adb install -r of the handheld's build failed with a
+        raw adb error. The deploy says what to do, keeps the old app, and the
+        open app still loads the new backend's page."""
+        handheld = _FakeHandheld(built="new", installed="old", other_key=True)
+        with self.assertRaisesRegex(deploy.DeployError, "--replace-app"):
+            deploy.deploy(handheld, self.bundle)
+        self.assertEqual(handheld.calls, ["upload", "update", "download", "install", "restart_app"])
+
+    def test_replace_app_uninstalls_an_app_signed_with_another_key_and_installs(self):
+        handheld = _FakeHandheld(built="new", installed="old", other_key=True)
+        deploy.deploy(handheld, self.bundle, replace_app=True)
+        self.assertEqual(handheld.calls,
+                         ["upload", "update", "download", "install", "uninstall", "install", "restart_app"])
+
+    def test_replace_app_never_uninstalls_an_app_that_updates_in_place(self):
+        handheld = _FakeHandheld(built="new", installed="old")
+        deploy.deploy(handheld, self.bundle, replace_app=True)
+        self.assertEqual(handheld.calls, ["upload", "update", "download", "install", "restart_app"])
+
+    def test_the_pcs_token_is_staged_and_put_in_place_under_the_deploy_lock(self):
+        """Owner (2026-11-08): the handheld had no token, so no satellite layer.
+        Codex P2: a deploy that does not get the lock must change no token, and
+        two deploys must not share a staging file."""
+        first, second = _FakeHandheld(), _FakeHandheld()
+        deploy.deploy(first, self.bundle, token="tok")
+        deploy.deploy(second, self.bundle, token="tok")
+        [(token, staged)] = first.tokens
+        self.assertEqual(token, "tok")
+        self.assertNotEqual(staged, deploy.TOKEN_ON_DEVICE)
+        self.assertNotEqual(staged, second.tokens[0][1])
+        script = first.update_script
+        lock = script.index("flock -n 9")
+        lock_failed = script[lock:script.index("exit 1", lock)]
+        self.assertIn(f"'{staged}'", lock_failed)  # removed when the lock is not taken
+        put = script.index(f"mv -f '{staged}' '{deploy.TOKEN_ON_DEVICE}'")
+        self.assertLess(script.index("flock -n 9"), put)
+        self.assertLess(put, script.index("update_gcs.sh"))
+        self.assertLess(first.calls.index("token"), first.calls.index("update"))
+
+    def test_without_a_token_on_the_pc_the_handhelds_is_kept(self):
+        handheld = _FakeHandheld()
+        printed = []
+        with mock.patch("builtins.print", lambda *a, **k: printed.append(" ".join(map(str, a)))):
+            deploy.deploy(handheld, self.bundle, token=None)
+        self.assertNotIn("token", handheld.calls)
+        self.assertNotIn(f"'{deploy.TOKEN_ON_DEVICE}'", handheld.update_script.split("done")[-1])
+        self.assertNotIn("mv -f", handheld.update_script)
+        self.assertTrue(any("no Cesium Ion token" in line for line in printed))
+
+    def test_the_token_is_never_printed_or_put_in_the_script(self):
+        handheld = _FakeHandheld()
+        printed = []
+        with mock.patch("builtins.print", lambda *a, **k: printed.append(" ".join(map(str, a)))):
+            deploy.deploy(handheld, self.bundle, token="s3cr3t-token")
+        self.assertEqual(handheld.tokens[0][0], "s3cr3t-token")  # it was copied
+        self.assertFalse(any("s3cr3t-token" in line for line in printed))
+        self.assertNotIn("s3cr3t-token", handheld.update_script)
+
     def test_no_run_as_stops_before_copying(self):
         handheld = _FakeHandheld(preflight_code=1)
         with self.assertRaises(deploy.DeployError):
             deploy.deploy(handheld, self.bundle)
         self.assertEqual(handheld.calls, [])
+
+
+@unittest.skipUnless(_bash(), "bash is not installed")
+class TestTokenStep(unittest.TestCase):
+    """The locked token step (handheld_token.token_step) run by bash on real files."""
+
+    def setUp(self):
+        self.tmp = tempfile.TemporaryDirectory()
+        self.dir = Path(self.tmp.name)
+        self.active = self.dir / "cesium_ion_token"
+
+    def tearDown(self):
+        self.tmp.cleanup()
+
+    def run_step(self, staged, expect_ok=True, env=None):
+        # As the deploy runs it: set -e, then the update after the token step.
+        script = handheld_token.token_step(staged and staged.as_posix(), self.active.as_posix())
+        proc = subprocess.run([_bash(), "-e", "-c", script + "echo UPDATE\n"],
+                              capture_output=True, text=True, env=env)
+        if expect_ok:
+            self.assertEqual(proc.returncode, 0, proc.stderr)
+        return proc
+
+    def stage(self, text, name="cesium_ion_token.ab12.new"):
+        staged = self.dir / name
+        staged.write_text(text, encoding="utf-8")
+        return staged
+
+    def test_a_new_token_replaces_the_active_one(self):
+        # A token value no temp path can contain: "new" once matched a random
+        # temp directory name in the printed path (CI run 42670636338).
+        token = "tok-Zq7-not-in-any-path"
+        self.active.write_text("old", encoding="utf-8")
+        out = self.run_step(self.stage(token)).stdout
+        self.assertEqual(self.active.read_text(encoding="utf-8"), token)
+        self.assertIn("copied", out)
+        self.assertNotIn(token, out)
+
+    def test_a_first_token_is_put_in_place(self):
+        self.run_step(self.stage("tok"))
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "tok")
+
+    def test_the_same_token_leaves_the_active_file_untouched(self):
+        self.active.write_text("tok", encoding="utf-8")
+        os.utime(self.active, (1_000_000, 1_000_000))
+        staged = self.stage("tok")
+        out = self.run_step(staged).stdout
+        self.assertEqual(self.active.stat().st_mtime, 1_000_000)
+        self.assertFalse(staged.exists())
+        self.assertNotIn("copied", out)
+
+    def test_another_deploys_staged_token_is_left_alone(self):
+        """Codex P2 (round 2): a deploy removed another deploy's staged token,
+        which was still waiting for the lock."""
+        waiting = self.stage("theirs", "cesium_ion_token.b0b0.new")
+        self.run_step(self.stage("tok"))
+        self.run_step(None)
+        self.assertEqual(waiting.read_text(encoding="utf-8"), "theirs")
+
+    def test_a_missing_staged_token_stops_the_update(self):
+        """Codex P2 (round 2): the staged file gone, the old step still echoed
+        success and went on to the update."""
+        self.active.write_text("old", encoding="utf-8")
+        proc = self.run_step(self.dir / "cesium_ion_token.gone.new", expect_ok=False)
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertNotIn("UPDATE", proc.stdout)
+        self.assertNotIn("copied", proc.stdout)
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "old")
+
+    def test_a_failed_install_stops_the_update(self):
+        """Codex P2 (round 2): set -e ignores a failure left of &&, so a failed
+        chmod still reported the copy and went on to the update. The step must
+        stop by itself: it runs here without -e. A failing chmod is a shell
+        function, which bash runs before any chmod on PATH: a fake on PATH
+        was not reliably found (CI run 42653138450; in Git bash a Windows
+        path's drive colon splits PATH)."""
+        failing_chmod = "chmod() { echo 'chmod failed' >&2; return 1; }\n"
+        self.active.write_text("old", encoding="utf-8")
+        script = handheld_token.token_step(self.stage("new").as_posix(), self.active.as_posix())
+        proc = subprocess.run([_bash(), "-c", failing_chmod + script + "echo UPDATE\n"],
+                              capture_output=True, text=True)
+        self.assertIn("chmod failed", proc.stderr)  # the failing chmod is the one that ran
+        self.assertNotEqual(proc.returncode, 0)
+        self.assertNotIn("UPDATE", proc.stdout)
+        self.assertNotIn("copied", proc.stdout)
+        self.assertEqual(self.active.read_text(encoding="utf-8"), "old")
+
+    def test_no_token_means_no_step(self):
+        self.assertEqual(handheld_token.token_step(None, self.active.as_posix()), "")
 
 
 @unittest.skipUnless(_bash(), "bash is not installed")

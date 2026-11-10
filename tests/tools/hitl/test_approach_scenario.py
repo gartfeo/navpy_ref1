@@ -70,10 +70,19 @@ def test_the_drawn_dock_stays_in_its_region_in_whole_units():
     ({"dock_region": {"max_offset_m": 500.0}}, "above 200"),
     ({"consumers": ["scoring"]}, "unreal"),
     ({"consumers": ["unreal", "scoring", "navpy"]}, "must be one of unreal, contact, scoring"),
+    ({"dock_size": {**service.DEFAULT_DOCK, "kind": "car"}}, "must be one of pickup"),    # step 23b's old car
 ])
 def test_a_bad_series_is_refused(tmp_path, change, problem):
     with pytest.raises(RecordError, match=problem):
         service.prepare(_series(tmp_path, **change), 0, None)
+
+
+def test_a_new_series_carries_the_unreal_measured_pickup_on_the_ground():
+    """Step 23b (owner, 2026-11-09): the 2020 Silverado 1500 crew cab, width with mirrors, scored as COCO truck."""
+    series = service.new_series("s1", service.datetime(2026, 11, 9, tzinfo=service.timezone.utc))
+    assert series["dock_size"] == {"kind": "pickup", "length_m": 5.887, "width_m": 2.490, "height_m": 1.958,
+                                   "placement": "ground"}
+    assert sp.DOCK_KINDS == ("pickup",)
 
 
 def test_a_series_is_written_once_and_only_in_the_private_folder(tmp_path):

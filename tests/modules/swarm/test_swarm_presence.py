@@ -328,8 +328,11 @@ class PeerPresenceEventTest(unittest.TestCase):
         location = LocationMsgData(1.0, 2.0, 3.0)
 
         presence.on_checkin(Mock(sender_id=7))
-        presence.on_checkout(Mock(sender_id=7, location=location))
+        presence.on_checkout(Mock(
+            sender_id=7, location=location, meta=Mock(boot_id=4, msg_seq=9),
+        ))
         presence.on_checkout(Mock(sender_id=1, location=location))
 
         reported.assert_called_once_with(7, None, None)
-        checked_out.assert_called_once_with(7)
+        # The check-out's UID names the boot that left.
+        checked_out.assert_called_once_with(7, MsgRef(7, 4, 9))

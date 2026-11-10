@@ -444,11 +444,17 @@ loss × length (`stress` 0.11 against 0.105; `hw` seed 10 0.027 against
 
 ### Review additions
 
-- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, fence clear or
-  fence parameter write past its deadline; the fence's lock wait is bounded,
+- `POST /upload` starts no reconnect, `RTL_ALTITUDE` write, rally upload or
+  clear, fence clear or fence or rally parameter write past its deadline; the
+  fence's and the rally table's lock waits are bounded, the wait for another
+  request's update of the same vehicle is bounded (`vehicle_upload_lock.py`),
   and a reconnect waits for the link only until the deadline. A lock won
   after the deadline is given back unused. An error ACK to `MISSION_COUNT`
   ends an upload at once.
+- A bounded parameter exchange (`read_parameter`, `write_parameter`) waits
+  for the transport's send lock only until its deadline, and gives back a
+  lock won at or after it unsent (`MavTransport.call_by`); without a
+  deadline the send waits as before.
 - Residual overrun: a parameter write or a reconnect already started may
   end past the deadline (one write, about 6 s; building the reconnected
   vehicle is not bounded). The eval's HTTP timeout is 15 s above the budget.

@@ -220,6 +220,23 @@ def test_waiting_expires_only_for_its_own_token(slot):
     assert slot.state() is SlotState.EMPTY
 
 
+def test_a_late_applied_for_a_dropped_copy_never_assigns(slot):
+    # A helper that dropped WAITING (and so reported FREE) never flies that
+    # copy, even when it waits for the same task again (task_lost_helper.py).
+    held = _wait(slot)
+    dropped = _reply(slot, held)
+    assert slot.expire(held.token) == held
+    applied = MsgRef(OWNER, BOOT, 60)
+
+    assert slot.on_ack(dropped, ACK_STATUS_APPLIED, applied) == (AckKind.NONE, None)
+    assert slot.state() is SlotState.EMPTY
+
+    _reply(slot, _wait(slot, request=MsgRef(OWNER, BOOT, 52)), seq=6)
+
+    assert slot.on_ack(dropped, ACK_STATUS_APPLIED, applied) == (AckKind.NONE, None)
+    assert slot.state() is SlotState.WAITING
+
+
 def test_waiting_survives_reset_and_clear(slot):
     held = _wait(slot)
 

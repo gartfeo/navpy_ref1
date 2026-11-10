@@ -225,10 +225,13 @@ FACADE_METHOD_ALLOWANCES = {
     # 89 = 88 + exclusive_send, the send lock the HITL airspeed guard holds so
     # its freshness check and its attitude write are one step (HITL step 20,
     # Codex round 2) -- a ratchet.
+    # 91 = 89 + upload_rally and clear_rally, the rally table that sends every
+    # RTL to the mission's default delivery hub (owner ruling 2026-11-09,
+    # navpy_recovery.md "RTL goes to the hub") -- a ratchet.
     (
         "src/navpy/plugins/vehicle/ardupilot/vehicle_mav.py",
         "VehicleMav",
-    ): FacadeMethodAllowance(1, 89, frozenset({"_parts"})),
+    ): FacadeMethodAllowance(1, 91, frozenset({"_parts"})),
     # 45 = 44 + gimbal_capture_history, the gimbal readback history that
     # integration timing brackets at the capture instant (HITL stage 1
     # step 11, hitl_guidance.md section 9) -- a ratchet, not headroom.

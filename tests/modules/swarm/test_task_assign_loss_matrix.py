@@ -35,6 +35,7 @@ from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from navpy.core.kernel.location import Location
 from navpy.core.swarm.task_actor import TaskActor
 from navpy.core.swarm.task_actor_slots import SlotState
+from navpy.core.swarm.task_lost_helper import LostHelperPolicy
 from tests.detection_factory import make_detected_poi
 
 OWNER, NEAR_PEER, FAR_PEER = 1, 2, 3
@@ -126,8 +127,9 @@ def _decode(sender_id, mav_msg):
 class Swarm:
     """Owner 1 and peers 2 (nearest the POI) and 3 on one lossy bus."""
 
-    def __init__(self, clock):
+    def __init__(self, clock, lost_helper_policy=LostHelperPolicy.KEEP):
         self.clock = clock
+        self.lost_helper_policy = lost_helper_policy
         self.pending = deque()
         self.log = []  # (time_s, sender, message, dropped)
         self.drop = lambda _sender, _message: False
@@ -136,19 +138,27 @@ class Swarm:
         self.loggers = {}
         self.actors = {}
         for node_id in (OWNER, NEAR_PEER, FAR_PEER):
-            vehicle = Vehicle(node_id, self)
-            logger = MagicMock()
-            network = NetworkMavlink(node_id, vehicle, logger)
-            actor = TaskActor(vehicle, network, logger, monotonic_s=clock)
-            actor.start()
-            network.set_listener(actor)
-            self.vehicles[node_id] = vehicle
-            self.loggers[node_id] = logger
-            self.networks[node_id] = network
-            self.actors[node_id] = actor
+            self.join(node_id)
         self.beat()
         for actor in self.actors.values():
             clock.every(HEARTBEAT_S, actor._presence.heartbeat)
+
+    def join(self, node_id):
+        """Start one node's TaskActor on the bus (it checks in)."""
+        vehicle = Vehicle(node_id, self)
+        logger = MagicMock()
+        network = NetworkMavlink(node_id, vehicle, logger)
+        actor = TaskActor(
+            vehicle, network, logger, monotonic_s=self.clock,
+            lost_helper_policy=lambda: self.lost_helper_policy,
+        )
+        actor.start()
+        network.set_listener(actor)
+        self.vehicles[node_id] = vehicle
+        self.loggers[node_id] = logger
+        self.networks[node_id] = network
+        self.actors[node_id] = actor
+        return actor
 
     @property
     def owner(self):

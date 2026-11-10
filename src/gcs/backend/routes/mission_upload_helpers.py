@@ -4,14 +4,16 @@ from __future__ import annotations
 import asyncio
 import logging
 import math
-from typing import Callable
+from typing import Awaitable, Callable
 from navpy.core.ports.parameter_exchange import ExchangePolicy
 from navpy.core.ports.vehicle_control_interfaces import VehicleParameters
 from gcs.backend.exchange_budget import expired, remaining_s
-from gcs.backend.models import VehicleAssignment, FencePlan, FenceOutcome
+from gcs.backend.models import VehicleAssignment, FencePlan, FenceOutcome, UploadProgress
 from gcs.backend.vehicle_manager import VehicleEntry, VehicleManager
 from gcs.backend.full_params import FullParamCache
 from gcs.backend.planner.fence_builder import MIN_FENCE_VERTICES, FenceUploadResult
+from gcs.backend.routes.checked_param_writes import write_checked_params
+from gcs.backend.routes.mission_rally import apply_rally
 
 log = logging.getLogger("gcs.backend.routes.missions")
 # FENCE_TOTAL is written by the vehicle itself on upload; never set it here.
@@ -96,6 +98,38 @@ def reconnect_within(manager: VehicleManager, sys_id: int,
     return manager.reconnect_vehicle(sys_id, timeout=min(RECONNECT_WAIT_S, remaining))
 
 
+async def finish_uploaded_vehicle(
+    loop: asyncio.AbstractEventLoop,
+    entry: VehicleEntry,
+    sys_id: int,
+    altitude_m: float,
+    hub: dict | None,
+    apply_fence_fn: Callable[[], Awaitable[dict | None]],
+    *,
+    mission_replaced: bool,
+    cache: FullParamCache,
+    policy: ExchangePolicy | None,
+) -> tuple[dict | None, dict | None]:
+    """The vehicle work once its mission is accepted; returns (fence, rally) outcomes.
+
+    RTL_ALTITUDE, then the rally table (every RTL goes to the mission's DDH and
+    circles it, or to HOME when the mission has none), then the geofence. Each
+    blocking MAVLink round trip runs in the executor, never on the loop thread.
+    An assignment with no waypoints uploads nothing (``upload_mission_with_retry``
+    accepts it as zero items), so the installed mission and its DDH stay: then
+    the rally table is not touched and the rally outcome is None (Codex round 1
+    on the rally change, finding 2).
+    """
+    await loop.run_in_executor(None, write_rtl_altitude, entry.vehicle, altitude_m, policy)
+    cache.invalidate_keys(sys_id, ["RTL_ALTITUDE"])
+    if not mission_replaced:
+        return await apply_fence_fn(), None
+    rally = await loop.run_in_executor(None, lambda: apply_rally(
+        entry.vehicle, sys_id, hub, altitude_m, cache=cache, policy=policy,
+    ))
+    return await apply_fence_fn(), rally
+
+
 def write_rtl_altitude(vehicle: VehicleParameters, altitude_m: float,
                        policy: ExchangePolicy | None) -> None:
     """Set RTL_ALTITUDE unless the request's deadline has passed (todo 105)."""
@@ -103,30 +137,6 @@ def write_rtl_altitude(vehicle: VehicleParameters, altitude_m: float,
         log.warning("RTL_ALTITUDE not written: the request deadline passed")
         return
     vehicle.set_parameter("RTL_ALTITUDE", float(altitude_m))
-
-
-def _write_fence_params(vehicle: VehicleParameters, writes: list[tuple[str, float]],
-                        policy: ExchangePolicy | None = None) -> list[str]:
-    """Write each fence param and return the names the vehicle did not ack.
-
-    Every write is attempted and its result checked: a rejected FENCE_ENABLE
-    must not be reported as an applied fence just because the writes before it
-    succeeded. Past the request's deadline a write is not started and counts
-    as failed.
-    """
-    failed: list[str] = []
-    for name, value in writes:
-        if expired(policy):
-            failed.append(name)
-            continue
-        try:
-            ok = vehicle.set_parameter(name, value)
-        except Exception as exc:  # noqa: BLE001 - reported, never raised on
-            log.warning("Fence param %s write errored: %s", name, exc)
-            ok = False
-        if not ok:
-            failed.append(name)
-    return failed
 
 
 def _outcome(action: str, *, applied: bool, enabled: bool = False,
@@ -182,7 +192,7 @@ async def apply_fence(
             # The stored ring, FENCE_TYPE and FENCE_ACTION are deliberately
             # left as the vehicle has them, so re-enabling later restores the
             # operator's own configuration rather than a guess.
-            failed = _write_fence_params(
+            failed = write_checked_params(
                 entry.vehicle, [("FENCE_ENABLE", 0.0), ("FENCE_AUTOENABLE", 0.0)], policy,
             )
             # The vehicle's values changed even when one write was rejected.
@@ -220,7 +230,7 @@ async def apply_fence(
         # Enforce as an inclusion polygon with RTL on breach. FENCE_AUTOENABLE=1
         # (enable on takeoff) keeps the fence from blocking pre-arm on an
         # auto-launch UAV; validated in live SITL.
-        failed = _write_fence_params(entry.vehicle, [
+        failed = write_checked_params(entry.vehicle, [
             ("FENCE_TYPE", float(fence.type)),
             ("FENCE_ACTION", float(fence.action)),
             ("FENCE_AUTOENABLE", 1.0),
@@ -243,6 +253,32 @@ async def apply_fence(
         # invalidation is bookkeeping and never replaces it.
         return _outcome("enable" if fence.enabled else "disable",
                         applied=False, error=str(e))
+
+
+def not_started(sys_id: int, error: str) -> UploadProgress:
+    """The result for a vehicle whose update never started: nothing was sent."""
+    return UploadProgress(sys_id=sys_id, progress=0.0, done=True, error=error)
+
+
+def not_connected(sys_id: int) -> UploadProgress:
+    return not_started(sys_id, f"Vehicle {sys_id} not connected")
+
+
+def upload_summary(results: list[UploadProgress]) -> dict:
+    """The /upload response from the per-vehicle results.
+
+    Fence and rally truth are reported apart from mission truth: a vehicle with
+    no fence or rally attempt (none requested, an empty assignment, or its
+    mission failed) cannot make them false, and a failed fence or rally table
+    cannot make the mission look failed.
+    """
+    return {
+        "status": "complete" if all(r.error is None for r in results) else "partial_failure",
+        "results": results,
+        "fence_ok": all(r.fence is None or r.fence.applied for r in results),
+        # False only when a vehicle's RTL may not reach its mission's DDH.
+        "rally_ok": all(r.rally is None or r.rally.applied for r in results),
+    }
 
 
 def fence_outcome_model(status: dict | None) -> FenceOutcome | None:

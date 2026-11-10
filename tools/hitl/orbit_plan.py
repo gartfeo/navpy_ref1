@@ -35,7 +35,7 @@ CRUISE_PARAM = "AIRSPEED_CRUISE"
 
 @dataclass(frozen=True)
 class Dock:
-    """The scene's dock (phase A: a car on the ground), from the scenario's public half."""
+    """The scene's dock (phase A: a pickup truck on the ground), from the scenario's public half."""
     length_m: float
     width_m: float
     height_m: float

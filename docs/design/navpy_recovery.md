@@ -40,6 +40,9 @@ Owner rulings (2026-11-05):
 - 2026-11-06 (fourth answer): follow ArduPilot's own failsafe pattern; LOITER
   hold, 30 s, RTL and the dock kept are confirmed; the watchdog is our own
   module on the autopilot.
+- 2026-11-09: "Yes, rally at DDH". RTL means going home to the hub, the
+  mission's default delivery hub (DDH), and circling it there; see "Where RTL
+  goes" below.
 
 ## ArduPlane's pattern, which NavPy follows
 
@@ -71,6 +74,59 @@ NavPy's stages, mapped onto it:
 The Lua module is a script in `scripts/lua/`, on stock firmware (the
 2026-10-07 ruling), deployed like the others. It acts only in GUIDED, or in
 the LOITER it set itself, so pilot and failsafe modes always win.
+
+## Where RTL goes: the default delivery hub (2026-11-09)
+
+ArduPlane RTL flies to the nearest rally point and loiters there; with no
+rally point it goes to HOME, the arming point
+(`AP_Rally::calc_best_rally_or_home_location`). So every mission upload from
+the GCS also sets each vehicle's rally table (`src/gcs/backend/routes/mission_rally.py`,
+`src/gcs/backend/planner/rally_builder.py`):
+
+- The mission has a DDH: one rally point (`MAV_CMD_NAV_RALLY_POINT`,
+  `MAV_MISSION_TYPE_RALLY`) at the DDH, at the assignment's altitude above
+  HOME, the same value as `RTL_ALTITUDE`. The upload replaces the table.
+  `RALLY_INCL_HOME` = 0, so HOME is never chosen over the hub, and
+  `RALLY_LIMIT_KM` = 0, which ArduPilot documents as "the closest rally point
+  is always used". Plane's default limit is 5 km, and past it the autopilot
+  falls back to HOME, so a far hub would be ignored. The limit exists to
+  ignore a leftover point from another site; the next rule removes those.
+- The mission has no DDH: the table is cleared, so an RTL never flies to a
+  hub from an older mission; it goes to HOME. The clear is confirmed by
+  reading `RALLY_TOTAL` back as 0.
+- Per vehicle, after its mission is accepted, within the request's deadline,
+  like the geofence. The rally parameter writes and the `RALLY_TOTAL` read
+  are deadline-bounded exchanges. A failure (no ACK after 3 tries, a rejected
+  parameter, a clear not confirmed, the deadline) is reported per vehicle as
+  the upload's `rally` outcome and `rally_ok`, separately from the mission.
+  The planner shows it and stays in planning.
+- One upload at a time per vehicle (`vehicle_upload_lock.py`): mission,
+  `RTL_ALTITUDE`, rally table and geofence are one update, so a second
+  upload never pairs its mission with the first one's hub. The vehicle's
+  entry is looked up once the lock is held, so a reconnect by the earlier
+  request is seen. A request that cannot start before its deadline because
+  another is still updating that vehicle sends nothing to it and reports an
+  error; the wait is bounded even at a handoff between two requests.
+- An assignment with no waypoints uploads no mission, so the rally table is
+  left matching the mission still installed (its `rally` outcome is empty).
+- A rally update that failed is not repeated on its own after a reconnect;
+  the operator uploads again (todo 306).
+
+So every RTL circles the DDH: NavPy's recovery escalation, the Lua
+`nav_watchdog.lua` RTL, and ArduPilot's own failsafes (radio, GCS, battery,
+geofence), since all of them use the same RTL. Nothing in RTL parks the UAV:
+parking in the hub's dock net needs NavPy's vision guidance.
+
+Owner rulings, 2026-11-09, on who uses RTL and who parks:
+
+- RTL is only for when NavPy is sick or dead: NavPy's recovery escalation
+  and the Lua watchdog (plus ArduPilot's own failsafes, which NavPy does not
+  control). The UAV then circles the hub, and the operator decides when to
+  hand it back to NavPy to park. NavPy never parks on its own after an RTL.
+- When NavPy is healthy (the sortie ends, or a dock fails), it sends no RTL.
+  It flies to the DDH itself, circles, and parks after an operator
+  confirmation that has no timeout and no cancel. That path is built
+  separately; the rally point here does not depend on it.
 
 ## What happens today (code read, not run)
 

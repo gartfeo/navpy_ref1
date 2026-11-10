@@ -30,12 +30,14 @@ from navpy.plugins.vehicle.ardupilot.message_store import MessageSample, Message
 
 @dataclass(frozen=True)
 class ExchangeIo:
-    """One exchange's wire side: ``send()`` sends once; ``await_reply(cursor, deadline)``
-    waits for its answer after ``cursor`` (a ``MessageStore.wait_after`` with literal
-    reply types, which the history guard checks)."""
+    """One exchange's wire side: ``send()`` sends once, and returns False when the
+    deadline passed before it could (the send lock was busy until then);
+    ``await_reply(cursor, deadline)`` waits for its answer after ``cursor`` (a
+    ``MessageStore.wait_after`` with literal reply types, which the history
+    guard checks)."""
 
     label: str
-    send: Callable[[], None]
+    send: Callable[[], bool | None]
     await_reply: Callable[[int, float], MessageSample | None]
 
 
@@ -97,7 +99,9 @@ def _exchange(
     sent = 0
     reason = stop_reason(policy, link)
     while reason is None and sent < policy.attempts:
-        io.send()
+        if io.send() is False:
+            reason = ExchangeReason.DEADLINE
+            break
         sent += 1
         deadline = rt.monotonic() + timeout
         if policy.deadline_s is not None:

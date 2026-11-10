@@ -29,6 +29,7 @@ from navpy.core.swarm.task_messaging import (
     TaskMessageRouter,
     TaskMessageSender,
 )
+from navpy.core.swarm.task_lost_helper import LostHelperPolicy
 from navpy.core.swarm.task_peer_status import PeerStatusCoordinator
 from navpy.core.swarm.task_rebroadcast import TaskRebroadcastCoordinator
 from navpy.core.ports.vehicle_contract import IVehicle
@@ -45,6 +46,9 @@ class TaskActor(ListenerAbc):
         network: NetworkAbc,
         logger: ILogger,
         monotonic_s: Callable[[], float] = rt.monotonic,
+        lost_helper_policy: Callable[[], LostHelperPolicy] = (
+            lambda: LostHelperPolicy.KEEP
+        ),
     ) -> None:
         self.id: int = vehicle.source_system
         self.vehicle = vehicle
@@ -93,7 +97,10 @@ class TaskActor(ListenerAbc):
             lambda: int(selection.node_state()) | selection.display_bits,
             _peer_status_ports(
                 rebroadcast,
-                PeerStatusCoordinator(auction_state, rebroadcast, auction.replan),
+                PeerStatusCoordinator(
+                    auction_state, rebroadcast, auction.replan, logger,
+                    lost_helper_policy,
+                ),
             ),
             logger,
         )

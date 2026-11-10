@@ -28,7 +28,7 @@ _COCO_CATEGORY_IDS = (
     67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90,
 )
 COCO91_TO_80 = {category: index for index, category in enumerate(_COCO_CATEGORY_IDS)}
-# The COCO 0-79 names the profile may name (phase A keeps only ``car``).
+# The COCO 0-79 names the profile may name (phase A keeps only ``truck``).
 COCO80_NAMES = {"person": 0, "bicycle": 1, "car": 2, "motorcycle": 3, "bus": 5, "truck": 7}
 # (3, 256): channel c (RGB) of an 8-bit value v, ImageNet-normalised.
 _LUT = ((np.arange(256, dtype=np.float32)[None] / np.float32(255.0) - MEAN[:, None]) / STD[:, None]).astype(np.float32)
