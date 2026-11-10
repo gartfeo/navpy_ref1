@@ -29,6 +29,8 @@ function Host(props) {
       <MonitoringSidebar
         vehicleList={FLEET}
         plan={PLAN}
+        // The plan is the one on the UAVs (uploaded), so the start control shows.
+        planOnVehicles
         navpyStatus={{}}
         launchStates={{}}
         settings={SETTINGS}

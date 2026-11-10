@@ -208,7 +208,7 @@ export default function useMissionUpload({
           zones: prev.zones.map((z) => (uploaded.has(z.sys_id) ? { ...z, track: withoutSeqs(z.track) } : z)),
         } : prev);
       }
-      // An RTL that would not reach the DDH is a failed upload step too, even
+      // An RTL that would not reach the home hub is a failed upload step too, even
       // though the mission itself is on the vehicle.
       const rallyFailures = rallyUploadFailures(result);
       const rallyOk = result.rally_ok !== false && rallyFailures.length === 0;
