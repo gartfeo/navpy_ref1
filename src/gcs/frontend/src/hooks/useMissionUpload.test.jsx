@@ -71,6 +71,45 @@ it('drops the downloaded item numbers of each vehicle that took the upload', asy
   alert.mockRestore();
 });
 
+// Codex review of the plan-mode change: upload A, edit to B, upload B with one
+// UAV failing. The old baseline A must not survive: Don't save would restore
+// A and offer Start while UAV 5 carries B.
+it('drops the plan-on-the-UAVs baseline as it starts writing, and takes a new one only on success', async () => {
+  const dock = { name: 'Fixture', lat: 0.01, lon: 0.02, type: 'other' };
+  const track = [{ lat: 0, lon: 0 }, { lat: 0.001, lon: 0.001 }];
+  const mission = {
+    polygon: [{ lat: 0, lon: 0 }, { lat: 0, lon: 1 }, { lat: 1, lon: 0 }], searchPattern: 'distributed',
+    launchPoint: null, corridorPoints: [],
+    plan: { zones: [{ zone_index: 0, track, sys_id: 5 }, { zone_index: 1, track, sys_id: 6 }], altitude_m: 120 },
+    setPlan: vi.fn(), setLaunchPoints: [null], setCorridorPointsArr: [[]],
+    goToMonitor: vi.fn(), deliveryHubAssignments: [0, 0], manualDeliveryHubEdit: true,
+    simDockWps: {}, detectAfterWps: {}, setUploadProgress: vi.fn(),
+  };
+  const order = [];
+  const onUploadStart = vi.fn(() => { order.push('unsynced'); return 'sent-key'; });
+  const onPlanSynced = vi.fn(() => order.push('synced'));
+  const partial = { status: 'partial', results: [
+    { sys_id: 5, progress: 1, done: true }, { sys_id: 6, progress: 0, done: true, error: 'timeout' },
+  ] };
+  const api = { uploadMissions: vi.fn(async () => { order.push('write'); return partial; }),
+    writeAasParams: vi.fn(), restartCompanionsReady: vi.fn() };
+  const alert = vi.spyOn(window, 'alert').mockImplementation(() => {});
+  const { result } = renderHook(() => useMissionUpload({ mission, effectiveUavCount: 2,
+    localGenerate: vi.fn().mockResolvedValue(null), vehicleList: [{ sys_id: 5 }, { sys_id: 6 }], api,
+    onPlanSynced, onUploadStart,
+    settings: { default_delivery_hubs: [dock], simulation: { sim_mode: false } }, fence: null }));
+  await act(() => result.current.handleUpload());
+  expect(order).toEqual(['unsynced', 'write']);
+
+  api.uploadMissions.mockImplementation(async () => { order.push('write'); return { status: 'complete' }; });
+  order.length = 0;
+  await act(() => result.current.handleUpload());
+  expect(order).toEqual(['unsynced', 'write', 'synced']);
+  // The baseline is taken for what was sent (usePlanSnapshot checks no edit came since).
+  expect(onPlanSynced).toHaveBeenCalledWith('sent-key');
+  alert.mockRestore();
+});
+
 describe('camera check before upload (sim)', () => {
   const dock = { name: 'Hub', lat: 0.01, lon: 0.02, type: 'other' };
   const track = [{ lat: 0, lon: 0 }, { lat: 0.001, lon: 0.001 }, { lat: 0.002, lon: 0.002 }];

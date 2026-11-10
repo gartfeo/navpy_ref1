@@ -85,7 +85,7 @@
       "map": "Map",
       "launch": "Launch",
       "calibration": "Calibration",
-      "defaultDeliveryHubs": "DDH"
+      "defaultDeliveryHubs": "Home hubs"
     },
     "calibration": {
       "radio": "Radio",
@@ -516,7 +516,7 @@
     "mapCredits": "Map credits",
     "sceneDock": "Dock · {{dist}}",
     "sceneDockNoDistance": "Dock",
-    "sceneHub": "DDH",
+    "sceneHub": "Home hub",
     "waitingForPose": "Waiting for pose · {{name}}",
     "syntheticUnavailable": "Synthetic view unavailable",
     "retry": "Retry",
@@ -567,8 +567,8 @@
     "drawKeepOut": "Draw keep-out (closes after 3 points; keep clicking to refine)",
     "stopKeepOut": "Stop drawing keep-out",
     "set": "Set {{index}}",
-    "stopDeliveryHub": "Stop placing default delivery hubs",
-    "placeDeliveryHub": "Place default delivery hub on map",
+    "stopDeliveryHub": "Stop placing home hubs",
+    "placeDeliveryHub": "Place a home hub on the map",
     "drawShape": "Zone shape",
     "shape": {
       "polygon": "Polygon",
@@ -580,7 +580,14 @@
     }
   },
   "planning": {
-    "exitDirtyConfirm": "Plan has been modified but not uploaded to vehicles.\n\nClick OK to discard changes, or Cancel to go back and upload or save."
+    "savePrompt": {
+      "title": "Save plan?",
+      "message": "This plan is not uploaded to the UAVs and not saved to a file. Save it before leaving plan mode?",
+      "messageRestore": "This plan is not uploaded to the UAVs and not saved to a file. Save it before leaving plan mode?\n\nLeaving returns the map to the plan on the UAVs.",
+      "save": "Save",
+      "dontSave": "Don't save",
+      "keepEditing": "Keep editing"
+    }
   },
   "exclusionSection": {
     "title": "Keep-out zones",
@@ -634,7 +641,7 @@
     "fenceObservedHint": "Read from the connected UAVs, not from the plan.",
     "fenceOffset": "Offset from zone",
     "takeoffRound": "Takeoff round",
-    "fenceHint": "Auto-generated from the search zone, corridor, default delivery hubs, and simulation POIs. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
+    "fenceHint": "Auto-generated from the search zone, corridor, home hubs, and simulation POIs. Drag the amber handles on the map to reshape it; double-click a handle to delete it.",
     "fenceRequestNone": "Next upload: no fence change — the vehicles keep their current settings.",
     "fenceRequestEnable": "Next upload: requests this fence update with the mission",
     "fenceRequestDisable": "Next upload: requests fence disable with the mission",
@@ -667,7 +674,7 @@
   },
   "deliveryHub": {
     "autoAssign": "Auto-assign",
-    "generatePlanFirst": "Generate a plan first to assign default delivery hubs.",
+    "generatePlanFirst": "Generate a plan first to assign home hubs.",
     "none": "-- None --",
     "types": {
       "building": "Building",
@@ -678,8 +685,8 @@
       "fuel": "Fuel",
       "other": "Other"
     },
-    "missionDeliveryHubs": "Default delivery hubs",
-    "noHubsDefined": "No default delivery hubs defined. Add at least one before uploading."
+    "missionDeliveryHubs": "Home hubs",
+    "noHubsDefined": "No home hub yet. Place one with the highlighted hub button on the map toolbar before uploading."
   },
   "monitor": {
     "uavStatus": "UAV STATUS",
@@ -691,6 +698,8 @@
     "editPlan": "Edit Plan",
     "startPlanning": "Start Planning",
     "downloadPlan": "Download Plan",
+    "planNotUploaded": "The plan on the map is not on the UAVs. Upload it before starting the mission.",
+    "uploadPlan": "Upload plan",
     "downloadingPlan": "Downloading...",
     "connectingPlan": "Connecting...",
     "start": "START",
@@ -934,20 +943,20 @@
     "defaultZoom": "Default zoom"
   },
   "defaultDeliveryHubsTab": {
-    "title": "Default Delivery Hubs",
+    "title": "Home Hubs",
     "add": "+ Add",
     "importCsv": "Import CSV",
     "placeOnMap": "Place on Map",
     "clearAll": "Clear All",
-    "clearConfirm": "Clear all default delivery hubs?",
+    "clearConfirm": "Clear all home hubs?",
     "name": "Name",
     "type": "Type",
     "lat": "Lat",
     "lon": "Lon",
     "remove": "Remove",
     "csvFormat": "CSV format: name,type,lat,lon. Types: {{types}}",
-    "description": "Preconfigured delivery hubs a UAV returns to when delivery to the main known recipient fails.",
-    "noHubs": "No default delivery hubs defined. Add manually or import a CSV file."
+    "description": "Home hubs: preconfigured hubs a UAV returns to when delivery to the main known recipient fails.",
+    "noHubs": "No home hubs defined. Add one, place one on the map, or import a CSV file."
   },
   "launchTab": {
     "preflightCal": "Preflight Calibration",

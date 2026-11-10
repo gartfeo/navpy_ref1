@@ -39,7 +39,8 @@ Use these terms in docs, code and UI; keep existing API/parameter names.
 - **Guidance** — closed-loop steering of a UAV toward a reference: the POI
   (delivery or pickup), a moving platform, or a path. Guidance to a POI is
   **parking navigation** in product language.
-- **Default delivery hub (DDH)** — the delivery module's return hub.
+- **Home hub** — the delivery module's return hub (formerly "default delivery
+  hub"; API and parameter names such as `default_delivery_hub` keep the old name).
 - **Detector** — the real detector defaults to a ChArUco board detector; the
   YOLO face model is a bench-only opt-in (`--detector-backend yolo`).
 

@@ -47,7 +47,7 @@ export default function useDeliveryHubLayer(cesiumRef, viewerRef, deliveryHubs, 
           scaleByDistance: new Cesium.NearFarScalar(500, 1.0, 20000, 0.3),
         },
         label: {
-          text: location.name || `Default delivery hub ${i + 1}`,
+          text: location.name || `Home hub ${i + 1}`,
           font: 'bold 11px sans-serif',
           fillColor: Cesium.Color.WHITE,
           outlineColor: Cesium.Color.BLACK,

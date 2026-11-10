@@ -2,7 +2,7 @@
  * What the Synthetic view marks in its 3D scene besides the UAV's own route
  * (docs/design/gcs_video_streams.md, section 5 "Synthetic view"; research in
  * docs/design/synthetic_view_marks.md): the dock the UAV works on, its
- * default delivery hub (DDH), the rest of the fleet, and where it is going
+ * home hub, the rest of the fleet, and where it is going
  * (the flight path marker). Display only: never a navigation input.
  */
 import { vehicleDock } from './taskAssignmentState';
@@ -22,7 +22,7 @@ export function syntheticDock(assignments, sysId) {
 }
 
 /**
- * The default delivery hub assigned to the UAV's zone, or null. A UAV's zone
+ * The home hub assigned to the UAV's zone, or null. A UAV's zone
  * is its index in the fleet list, as on the main map (useTrackLayer, routeFor).
  *
  * @param {object[]} vehicleList

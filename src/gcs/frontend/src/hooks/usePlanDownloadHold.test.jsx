@@ -35,7 +35,7 @@ const LARGE_AREA = [
   { lat: 40.2, lon: 44.6 }, { lat: 40.2, lon: 44.3 },
 ];
 const LAUNCH = { lat: 40.31, lon: 44.47 };
-const HUB = { name: 'Default delivery hub 1', type: 'building', lat: 40.31, lon: 44.46 };
+const HUB = { name: 'Home hub 1', type: 'building', lat: 40.31, lon: 44.46 };
 const VEHICLES = [1, 2, 3].map((sys_id) => ({ sys_id, name: `UAV${sys_id}` }));
 
 // What a vehicle returns for the mission the GCS uploaded to it.

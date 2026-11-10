@@ -117,7 +117,7 @@ export default function DeliveryHubAssignmentSection({ plan, settings, deliveryH
                   <option value="">{t('deliveryHub.none')}</option>
                   {deliveryHubs.map((location, oi) => (
                     <option key={oi} value={oi}>
-                      {location.name || `Default delivery hub ${oi + 1}`} ({t('deliveryHub.types.' + location.type) || location.type})
+                      {location.name || `Home hub ${oi + 1}`} ({t('deliveryHub.types.' + location.type) || location.type})
                     </option>
                   ))}
                 </select>

@@ -25,7 +25,7 @@ function loadEsm(relPath) {
   return m.exports;
 }
 
-const { buildPlanSnapshot, isPlanDirty } = loadEsm('utils/planSnapshot.js');
+const { buildPlanSnapshot, isPlanDirty, planEditKey, planSyncKey, planHasContent } = loadEsm('utils/planSnapshot.js');
 
 let passed = 0;
 function test(name, fn) {
@@ -84,11 +84,13 @@ test('isPlanDirty: modified searchPattern -> dirty', () => {
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
-test('isPlanDirty: modified analysis -> dirty', () => {
+// The analysis is derived from the area (entering plan mode re-runs it): on
+// its own it changes nothing the UAVs fly, so it must not read as an edit.
+test('isPlanDirty: analysis alone -> not dirty', () => {
   const state = makeBaseline();
   const snap = buildPlanSnapshot(state);
   state.analysis = { min_uavs: 5, max_uavs: 8, sets: 2 };
-  assert.strictEqual(isPlanDirty(state, snap), true);
+  assert.strictEqual(isPlanDirty(state, snap), false);
 });
 
 test('isPlanDirty: modified uavCount -> dirty', () => {
@@ -119,11 +121,20 @@ test('isPlanDirty: modified setCorridorPointsArr -> dirty', () => {
   assert.strictEqual(isPlanDirty(state, snap), true);
 });
 
-test('isPlanDirty: modified deliveryHubAssignments -> dirty', () => {
-  const state = makeBaseline();
+test('isPlanDirty: hand-made deliveryHubAssignments change -> dirty', () => {
+  const state = { ...makeBaseline(), manualDeliveryHubEdit: true };
   const snap = buildPlanSnapshot(state);
   state.deliveryHubAssignments = [2, 3];
   assert.strictEqual(isPlanDirty(state, snap), true);
+});
+
+// Automatic assignments follow the routes and the hubs (settings), and upload
+// recomputes them; the operator did not make them.
+test('isPlanDirty: automatic deliveryHubAssignments change -> not dirty', () => {
+  const state = makeBaseline();
+  const snap = buildPlanSnapshot(state);
+  state.deliveryHubAssignments = [2, 3];
+  assert.strictEqual(isPlanDirty(state, snap), false);
 });
 
 test('isPlanDirty: modified simDockWps -> dirty', () => {
@@ -203,6 +214,58 @@ test('buildPlanSnapshot: null-safe defaults for missing values', () => {
   assert.deepStrictEqual(snap.deliveryHubAssignments, []);
   assert.deepStrictEqual(snap.simDockWps, {});
   assert.deepStrictEqual(snap.detectAfterWps, {});
+});
+
+// ---- planEditKey: what counts as an operator edit (plan file baseline) ----
+
+test('planEditKey: the generated routes are not authored input', () => {
+  const state = makeBaseline();
+  const key = planEditKey(state);
+  state.plan.zones[0].track = [[5, 6]];
+  assert.strictEqual(planEditKey(state), key);
+  assert.notStrictEqual(planSyncKey(state), planSyncKey(makeBaseline()));
+});
+
+test('planEditKey: an unset UAV count that follows the area is no edit', () => {
+  const loaded = { ...makeBaseline(), uavCount: null, effectiveUavCount: 3 };
+  const later = { ...makeBaseline(), uavCount: 3, effectiveUavCount: 3 };
+  assert.strictEqual(planEditKey(later), planEditKey(loaded));
+});
+
+test('planEditKey: per-set padding is no edit', () => {
+  const loaded = makeBaseline();
+  const padded = { ...makeBaseline(), setLaunchPoints: [{ lat: 10, lon: 20 }, null], setCorridorPointsArr: [[{ lat: 10.5, lon: 20.5 }], []] };
+  assert.strictEqual(planEditKey(padded), planEditKey(loaded));
+});
+
+test('planEditKey: the demo fence default is no edit, an operator toggle is', () => {
+  const loaded = makeBaseline();
+  const demo = { ...makeBaseline(), fenceEnabled: true, fenceTouched: false };
+  const toggled = { ...makeBaseline(), fenceEnabled: true, fenceTouched: true };
+  assert.strictEqual(planEditKey(demo), planEditKey(loaded));
+  assert.notStrictEqual(planEditKey(toggled), planEditKey(loaded));
+});
+
+test('planEditKey: empty selection entries are no edit', () => {
+  const loaded = makeBaseline();
+  const withEmpty = { ...makeBaseline(), simDockWps: { 0: [1, 3], 1: [] } };
+  assert.strictEqual(planEditKey(withEmpty), planEditKey(loaded));
+});
+
+test('planEditKey: drawing, moving a launch point or picking a dock is an edit', () => {
+  const key = planEditKey(makeBaseline());
+  assert.notStrictEqual(planEditKey({ ...makeBaseline(), polygon: [] }), key);
+  assert.notStrictEqual(planEditKey({ ...makeBaseline(), setLaunchPoints: [{ lat: 1, lon: 1 }] }), key);
+  assert.notStrictEqual(planEditKey({ ...makeBaseline(), simDockWps: { 0: [1] } }), key);
+  assert.notStrictEqual(planEditKey({ ...makeBaseline(), exclusionPolygons: [[{ lat: 1, lon: 1 }, { lat: 2, lon: 1 }, { lat: 2, lon: 2 }]] }), key);
+});
+
+test('planHasContent: an area, a launch point or routes', () => {
+  assert.strictEqual(planHasContent({}), false);
+  assert.strictEqual(planHasContent({ polygon: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] }), false);
+  assert.strictEqual(planHasContent(makeBaseline()), true);
+  assert.strictEqual(planHasContent({ setLaunchPoints: [{ lat: 1, lon: 1 }] }), true);
+  assert.strictEqual(planHasContent({ plan: { zones: [{ track: [] }] } }), true);
 });
 
 console.log(`PASS -- All ${passed} plan snapshot tests passed.`);

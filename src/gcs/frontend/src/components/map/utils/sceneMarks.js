@@ -10,8 +10,8 @@ const LABEL_OFFSET_PX = -22;
 /**
  * The Synthetic view's marks beside the route (utils/syntheticScene.js): the
  * UAV's dock, highlighted with its distance (the scene's anchor, like a
- * cockpit synthetic vision display's active runway), its default delivery hub
- * (DDH), and each other fleet UAV as a dot in its zone colour with its name
+ * cockpit synthetic vision display's active runway), its home hub,
+ * and each other fleet UAV as a dot in its zone colour with its name
  * (cooperative vehicles, never a threat colour). Scene primitives, so it works
  * on a CesiumWidget. Ground marks clamp to the terrain and draw over it (no
  * depth test), like the main map's markers.

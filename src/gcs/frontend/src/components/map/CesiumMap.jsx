@@ -29,7 +29,7 @@ import { observeHeight } from './utils/observeHeight';
 import useTrackWpMarkers from './hooks/useTrackWpMarkers';
 import { useRouteSource, useFpvRouteLabels } from './hooks/useRouteSource';
 import MapStoppedNotice from './MapStoppedNotice';
-import { plannedDocksToShow, resolveSimDocks, resolveSimDocksFromPlan, resolveDetectionStart, resolveDetectionStartFromPlan } from './utils/dockResolver';
+import { detectionStartsToShow, plannedDocksToShow } from './utils/dockResolver';
 import { dockMarkerEntries } from '../../utils/taskAssignmentState';
 
 export { pointInPolygon };
@@ -112,8 +112,9 @@ function CesiumMap({
   simMode,
   simDockWps,
   onToggleSimDock,
-  vehicleTargWps,
   vehicleNavLastWp,
+  // The map shows the plan on the UAVs: their own parameters may be drawn on it.
+  planOnVehicles = false,
   detectAfterWps,
   mapDefaults,
   baseLayer,
@@ -328,26 +329,21 @@ function CesiumMap({
   const vehicleSysIdKey = (vehicleList || []).map(v => v.sys_id).join(',');
 
   const simDockWpsKey = JSON.stringify(simDockWps || {});
-  const simDocks = useMemo(() => {
-    if (!simMode) return null;
-    if (phase === 'PLANNING' && simDockWps && Object.keys(simDockWps).length > 0) {
-      return resolveSimDocksFromPlan(plan, simDockWps);
-    }
-    return resolveSimDocks(plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleList);
-  }, [simMode, phase, plan, setCorridorPointsArr, searchPattern, vehicleTargWps, vehicleSysIdKey, simDockWpsKey]);
-
-  const stablePois = useMemo(() => plannedDocksToShow(phase, simDocks), [phase, simDocks]);
+  const stablePois = useMemo(
+    () => (simMode ? plannedDocksToShow(phase, plan, simDockWps) : []),
+    [simMode, phase, plan, simDockWpsKey],
+  );
 
   useDockMarkers(cesiumRef, viewerRef, entitiesRef, stablePois, viewerReady);
 
   const detectAfterWpsKey = JSON.stringify(detectAfterWps || {});
   const detectionPoints = useMemo(() => {
     if (!simMode) return null;
-    if (phase === 'PLANNING' && detectAfterWps && Object.keys(detectAfterWps).length > 0) {
-      return resolveDetectionStartFromPlan(plan, detectAfterWps);
-    }
-    return resolveDetectionStart(plan, setCorridorPointsArr, searchPattern, vehicleNavLastWp, vehicleList);
-  }, [simMode, phase, plan, setCorridorPointsArr, searchPattern, vehicleNavLastWp, vehicleSysIdKey, detectAfterWpsKey]);
+    return detectionStartsToShow({
+      phase, planOnVehicles, plan, detectAfterWps,
+      corridorPointsArr: setCorridorPointsArr, searchPattern, vehicleNavLastWp, vehicleList,
+    });
+  }, [simMode, phase, planOnVehicles, plan, setCorridorPointsArr, searchPattern, vehicleNavLastWp, vehicleSysIdKey, detectAfterWpsKey]);
   useDetectionMarkers(cesiumRef, viewerRef, entitiesRef, detectionPoints, viewerReady);
   useTrackWpMarkers(cesiumRef, viewerRef, entitiesRef, trackPosRef, plan, simMode, phase, simDockWps, viewerReady);
 

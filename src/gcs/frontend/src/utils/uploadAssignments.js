@@ -47,7 +47,7 @@ function zoneLabel(zones, i) {
  * than silently uploaded without a delivery hub.
  *
  * @param {Array<object>} zones - plan zones (with .track, optional .set_index)
- * @param {Array<object>} deliveryHubs - default delivery hubs
+ * @param {Array<object>} deliveryHubs - home hubs
  * @param {Array<number|null>|undefined} currentAssignments - current per-zone delivery hub indices
  * @param {boolean} manualDeliveryHubEdit - whether the user has manually edited assignments
  * @param {boolean} regenerated - whether the plan was just regenerated for this upload

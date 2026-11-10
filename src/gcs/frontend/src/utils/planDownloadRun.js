@@ -47,6 +47,18 @@ export function tagPlanForRun(plan, run) {
   return { ...plan, [PLAN_DOWNLOAD_RUN]: run };
 }
 
+/**
+ * The mission download (any run, a single UAV's included) that published
+ * `plan`, or null. A plan the operator generates, loads or restores carries
+ * none. Copies of a plan (a spread) carry the same run, so a consumer can
+ * tell "this download" from "a newer one" without relying on object
+ * identity: usePlanSnapshot counts a plan as the UAVs' from the publish on,
+ * until the baseline of that download is taken.
+ */
+export function downloadRunOf(plan) {
+  return plan?.[PLAN_DOWNLOAD_RUN] ?? null;
+}
+
 /** True when `plan` descends from a publish by `run` (survives the trim). */
 export function planBelongsToRun(plan, run) {
   return !!plan && !!run && !run.cancelled && plan[PLAN_DOWNLOAD_RUN] === run;

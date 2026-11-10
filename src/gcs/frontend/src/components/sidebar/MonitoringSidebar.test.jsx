@@ -36,6 +36,7 @@ function Host({ withSlot = true, ...props }) {
       <MonitoringSidebar
         vehicleList={[UAV]}
         plan={PLAN}
+        planOnVehicles
         navpyStatus={{}}
         launchStates={{}}
         settings={SETTINGS('bungee')}
@@ -66,6 +67,23 @@ describe('MonitoringSidebar footer', () => {
     for (const type of ['bungee', 'container']) {
       const view = render(<Host plan={null} settings={SETTINGS(type)} />);
       expect(inSlot(view).getByRole('button', { name: 'monitor.downloadPlan' })).toBeInTheDocument();
+      view.unmount();
+    }
+  });
+
+  // The start control is for the mission on the UAVs. A plan only drawn or
+  // loaded here (never uploaded) offers no start: it says so and offers the
+  // upload, for each launch type.
+  it('a plan not on the UAVs: no start, the notice and Upload plan instead', () => {
+    for (const type of ['bungee', 'container']) {
+      const onUploadPlan = vi.fn();
+      const view = render(<Host planOnVehicles={false} onUploadPlan={onUploadPlan} settings={SETTINGS(type)} />);
+      const slot = inSlot(view);
+      expect(slot.queryByRole('button', { name: 'monitor.holdToStart' })).toBeNull();
+      expect(slot.queryByRole('button', { name: 'monitor.holdToLaunch' })).toBeNull();
+      expect(slot.getByTestId('plan-not-uploaded')).toHaveTextContent('monitor.planNotUploaded');
+      fireEvent.click(slot.getByRole('button', { name: 'monitor.uploadPlan' }));
+      expect(onUploadPlan).toHaveBeenCalledTimes(1);
       view.unmount();
     }
   });

@@ -1,9 +1,9 @@
 /**
  * Vehicles whose rally table does not match their mission after an upload.
  *
- * The backend sets one rally point at each mission's default delivery hub
- * (DDH), so every RTL flies there and circles it, or clears the table when the
- * mission has no DDH. A failure here means an RTL may go to HOME or to an
+ * The backend sets one rally point at each mission's home hub, so every RTL
+ * flies there and circles it, or clears the table when the mission has no
+ * home hub. A failure here means an RTL may go to HOME or to an
  * older hub. It is reported separately from the mission result: the mission
  * itself is on the vehicle.
  *

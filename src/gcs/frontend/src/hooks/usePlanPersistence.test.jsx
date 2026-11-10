@@ -118,8 +118,8 @@ describe('current development plan files', () => {
       default_delivery_hubs: [{ lat: 40.31, lon: 44.45, type: 'building' }, { lat: 40.32, lon: 44.46, name: ' ' }],
       delivery_hub_assignments: [1, 0, 1] });
     expect(io.props.handleSaveSettings).toHaveBeenCalledWith({ default_delivery_hubs: [
-      { name: 'Default delivery hub 1', type: 'building', lat: 40.31, lon: 44.45 },
-      { name: 'Default delivery hub 2', type: 'other', lat: 40.32, lon: 44.46 },
+      { name: 'Home hub 1', type: 'building', lat: 40.31, lon: 44.45 },
+      { name: 'Home hub 2', type: 'other', lat: 40.32, lon: 44.46 },
     ] });
     // The saved assignment is an operator decision: it survives regeneration.
     expect(io.props.setDeliveryHubAssignments).toHaveBeenCalledWith([1, 0, 1]);

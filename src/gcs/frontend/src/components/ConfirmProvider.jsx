@@ -27,9 +27,11 @@ export const ConfirmContext = createContext(outsideProvider);
 export const isSingleClick = (event) => (event?.detail ?? 0) <= 1;
 
 /**
- * Provides `confirm(message, { signals }) => Promise<boolean>`: true on
+ * Provides `confirm(message, { signals, dialog }) => Promise<boolean>`: true on
  * Confirm, false on Cancel, Escape, a tap outside the dialog, or when any of
- * `signals` aborts (the asking component went away, or the control the
+ * `signals` aborts. `dialog` ({ title, confirmLabel, cancelLabel, altLabel })
+ * words the question; with `altLabel` it has a third answer, which resolves
+ * 'alt' (the asking component went away, or the control the
  * question is for; hooks/useConfirm). Requests made while a dialog is open
  * wait their turn, one dialog at a time, in request order.
  *
@@ -59,13 +61,13 @@ export default function ConfirmProvider({ children }) {
     request.resolve(ok);
   }, []);
 
-  const confirm = useCallback((message, { signals = [] } = {}) => {
+  const confirm = useCallback((message, { signals = [], dialog = null } = {}) => {
     const watched = signals.filter(Boolean);
     if (watched.some((s) => s.aborted)) return Promise.resolve(false);
     if (pending.current.some((r) => r.message === message)) return Promise.resolve(false);
     return new Promise((resolve) => {
       nextId.current += 1;
-      const request = { id: nextId.current, message, resolve };
+      const request = { id: nextId.current, message, dialog, resolve };
       const onAbort = () => settle(request, false);
       watched.forEach((s) => s.addEventListener('abort', onAbort, { once: true }));
       // Settled any way, the request stops listening, so a long-lived signal
@@ -96,8 +98,9 @@ export default function ConfirmProvider({ children }) {
   );
 }
 
-/** One shown question: Confirm takes a single click only, Escape cancels. */
+/** One shown question: Confirm and the third answer take a single click only, Escape cancels. */
 function Question({ request, settle, t }) {
+  const dialog = request.dialog || {};
   useEffect(() => {
     const onKey = (e) => { if (e.key === 'Escape') settle(request, false); };
     window.addEventListener('keydown', onKey);
@@ -106,10 +109,13 @@ function Question({ request, settle, t }) {
 
   return (
     <ConfirmModal
-      title={t('confirm.title')}
+      title={dialog.title ?? t('confirm.title')}
       message={request.message}
       tone="caution"
-      confirmLabel={t('confirm.ok')}
+      confirmLabel={dialog.confirmLabel ?? t('confirm.ok')}
+      cancelLabel={dialog.cancelLabel}
+      altLabel={dialog.altLabel}
+      onAlt={(event) => { if (isSingleClick(event)) settle(request, 'alt'); }}
       onConfirm={(event) => { if (isSingleClick(event)) settle(request, true); }}
       onCancel={() => settle(request, false)}
     />

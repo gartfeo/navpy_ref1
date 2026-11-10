@@ -62,19 +62,6 @@ export default function usePlanningOrchestrator({
   // ---- Drawing ref (for usePlanSnapshot, which needs loadVertices at call time) ----
   const drawingRef = useRef(null);
 
-  // ---- Plan snapshot (dirty-check + exit planning) ----
-  const { onPlanSynced, handleExitPlanning } = usePlanSnapshot({
-    plan, polygon, searchPattern, analysis, uavCount,
-    partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
-    deliveryHubAssignments, simDockWps, detectAfterWps,
-    fenceCustomVertices, exclusionPolygons,
-    setPlan, setPolygon, setSearchPattern, setAnalysis,
-    setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
-    setSetCorridorPoints, setDeliveryHubAssignments, setSimDockWps,
-    setDetectAfterWps, setFenceCustomVertices, setExclusionPolygons,
-    drawingRef, suppressRegenRef, goToMonitor, undoRef,
-  });
-
   // ---- Phase ref for effects ----
   const phaseRef = useRef(phase);
   phaseRef.current = phase;
@@ -116,6 +103,27 @@ export default function usePlanningOrchestrator({
     plannerReady: generationReady,
     setDeliveryHubAssignments,
     manualDeliveryHubEdit,
+  });
+
+  // ---- Plan snapshot (synced / saved baselines + exit planning) ----
+  // The plan file writer is created by usePlanPersistence below.
+  const savePlanRef = useRef(null);
+  const {
+    onPlanSynced, beginPlanUpload, markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
+  } = usePlanSnapshot({
+    plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
+    partitionAngleDeg, routeOffsetM, setLaunchPoints, setCorridorPointsArr,
+    deliveryHubAssignments, manualDeliveryHubEdit, simDockWps, detectAfterWps,
+    fenceTouched, fenceEnabled, fenceOffsetM, fenceIntent: mission.fenceIntent,
+    fenceAcknowledged: mission.fenceAcknowledged, fenceObservations: mission.fenceObservations,
+    fenceCustomVertices, exclusionPolygons,
+    setPlan, setPolygon, setSearchPattern, setAnalysis,
+    setUavCount, setPartitionAngleDeg, setRouteOffsetM, setSetLaunchPoints,
+    setSetCorridorPoints, setDeliveryHubAssignments, setManualDeliveryHubEdit,
+    setSimDockWps, setDetectAfterWps, restoreFenceState: mission.restoreFenceState,
+    setFenceCustomVertices, setExclusionPolygons,
+    drawingRef, suppressRegenRef, goToMonitor, undoRef,
+    savePlanRef,
   });
 
   // ---- Drawing ----
@@ -262,7 +270,10 @@ export default function usePlanningOrchestrator({
     plannerReady,
     pendingPlanFile,
     setPendingPlanFile,
+    markPlanSaved,
+    markPlanLoaded,
   });
+  savePlanRef.current = handleSavePolygon;
 
   // ---- Drag handlers ----
   const {
@@ -448,6 +459,11 @@ export default function usePlanningOrchestrator({
     // For useMissionUpload / useVehicleConnection (stay in App)
     derivePlanPolygon,
     onPlanSynced,
+    beginPlanUpload,
+    // The editor holds exactly the plan last uploaded or downloaded.
+    planSynced,
+    isPlanSynced,
+    forgetPlanSync,
     effectiveUavCount,
     effectiveSets,
     localGenerate,

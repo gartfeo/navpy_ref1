@@ -13,9 +13,13 @@ const TONE_ACCENT = {
 /**
  * Confirmation modal for high-consequence actions (E-STOP, reboot, container
  * launch). `confirmLabel` overrides the confirm button text (defaults to the
- * E-STOP label); `tone` selects the accent colour.
+ * E-STOP label); `tone` selects the accent colour. `altLabel` with `onAlt`
+ * adds a third answer between Cancel and Confirm (Save / Don't save /
+ * Keep editing); `cancelLabel` renames Cancel.
  */
-export default function ConfirmModal({ title, message, onConfirm, onCancel, confirmLabel, tone = 'danger' }) {
+export default function ConfirmModal({
+  title, message, onConfirm, onCancel, confirmLabel, tone = 'danger', altLabel, onAlt, cancelLabel,
+}) {
   const { t } = useTranslation();
   const accent = TONE_ACCENT[tone] || colors.error;
   const confirmColor = tone === 'caution' ? '#000' : '#fff';
@@ -54,7 +58,7 @@ export default function ConfirmModal({ title, message, onConfirm, onCancel, conf
       >
         <h2 style={{ color: accent, marginBottom: 12, fontSize: 20 }}>{title}</h2>
         <p style={{ color: colors.text, marginBottom: 24, fontSize: 14, whiteSpace: 'pre-line' }}>{message}</p>
-        <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, justifyContent: 'center' }}>
           <button
             onClick={onCancel}
             style={{
@@ -67,8 +71,24 @@ export default function ConfirmModal({ title, message, onConfirm, onCancel, conf
               fontSize: 14,
             }}
           >
-            {t('confirm.cancel')}
+            {cancelLabel ?? t('confirm.cancel')}
           </button>
+          {altLabel && (
+            <button
+              onClick={onAlt}
+              style={{
+                background: colors.surface,
+                color: colors.textBright,
+                border: `1px solid ${accent}`,
+                borderRadius: 4,
+                padding: '8px 24px',
+                cursor: 'pointer',
+                fontSize: 14,
+              }}
+            >
+              {altLabel}
+            </button>
+          )}
           <button
             onClick={onConfirm}
             style={{

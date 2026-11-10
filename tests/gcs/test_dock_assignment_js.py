@@ -259,7 +259,7 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         console.log(JSON.stringify(r));
         """)
         self.assertEqual(len(result["deliveryHubs"]), 1)
-        self.assertEqual(result["deliveryHubs"][0]["name"], "Default delivery hub 1")
+        self.assertEqual(result["deliveryHubs"][0]["name"], "Home hub 1")
         self.assertEqual(result["deliveryHubs"][0]["type"], "other")
         self.assertAlmostEqual(result["deliveryHubs"][0]["lat"], 32.0)
         self.assertAlmostEqual(result["deliveryHubs"][0]["lon"], 34.8)
@@ -295,8 +295,8 @@ class TestBuildDocksFromDownload(unittest.TestCase):
         """)
         self.assertEqual(len(result["deliveryHubs"]), 2)
         self.assertEqual(result["assignments"], [None, 0, None, 1])
-        self.assertEqual(result["deliveryHubs"][0]["name"], "Default delivery hub 1")
-        self.assertEqual(result["deliveryHubs"][1]["name"], "Default delivery hub 2")
+        self.assertEqual(result["deliveryHubs"][0]["name"], "Home hub 1")
+        self.assertEqual(result["deliveryHubs"][1]["name"], "Home hub 2")
 
     def test_empty_array(self):
         result = _run_js("""
