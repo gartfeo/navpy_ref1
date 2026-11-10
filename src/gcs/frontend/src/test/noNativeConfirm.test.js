@@ -27,8 +27,25 @@ function sourceFiles(dir) {
   });
 }
 
+// Parsing and scope-tracking every source file costs over a second of CPU.
+// An identifier or string the AST reads as `confirm` is either the word
+// `confirm` in the text or written with an escape (confirm, '\x63onfirm',
+// a line continuation), and every escape needs a backslash, so a file with
+// neither cannot reach the native dialog and is not parsed. That skips about
+// three quarters of the files and halves the scan.
+function mayNameConfirm(code) {
+  return /\bconfirm\b/.test(code) || code.includes('\\');
+}
+
+// The scan still parses the large files, about 0.6-1.2 s alone. A full
+// `npm test` runs one worker per core, which stretched the old full scan from
+// 1.6 s alone to 5.2-8.2 s (2026-11-09), past vitest's 5 s unit-test default.
+// This budget is for a whole-tree scan under that load; a hang still fails.
+const TREE_SCAN_TIMEOUT_MS = 30_000;
+
 /** Line numbers where `code` reaches the browser's confirm. */
 export function nativeConfirmLines(code) {
+  if (!mayNameConfirm(code)) return [];
   const ast = parse(code, { sourceType: 'module', plugins: ['jsx'] });
   const lines = [];
   traverse(ast, {
@@ -56,7 +73,7 @@ describe('no native confirm()', () => {
     const offenders = sourceFiles(SRC).flatMap((file) => nativeConfirmLines(readFileSync(file, 'utf8'))
       .map((n) => `${relative(SRC, file)}:${n}`));
     expect(offenders).toEqual([]);
-  });
+  }, TREE_SCAN_TIMEOUT_MS);
 
   it('a top-level helper calling confirm is caught beside a hook with its own confirm', () => {
     const code = [
@@ -88,5 +105,15 @@ describe('no native confirm()', () => {
       'api.confirm("w"); const el = <Modal onConfirm={() => done()} />;',
     ].join('\n');
     expect(nativeConfirmLines(code)).toEqual([]);
+  });
+
+  it('confirm written with escapes is still parsed and caught', () => {
+    const code = [
+      "window['\\x63onfirm']('a');",
+      '\\u0063onfirm("b");',
+      "self['conf\\",
+      "irm']('c');",
+    ].join('\n');
+    expect(nativeConfirmLines(code)).toEqual([1, 2, 3]);
   });
 });
