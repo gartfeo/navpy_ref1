@@ -6,7 +6,7 @@ NAVLINK traces built from them (``navpy.sim.lockstep.navlink_trace``):
 | Gate | Pass |
 |---|---|
 | Run (packets) | every packet id is defined once and has exactly one terminal disposition (``PacketJournal``); no NAVLINK packet is ``undelivered`` |
-| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write; ``radio_fault``: a scheduled fault cut it; or ``receiver_retired``: a scheduled restart ended its receiver, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered`` |
+| Assignment and forwarding | every peer holds exactly one task by a complete chain (below); adverts sent before stop-all reach every peer they are for (an advert may stop only at ``radio_broken``: the radio broke its sender SITL's serial1 write; ``radio_fault``: a scheduled fault cut it; or ``receiver_retired``: a scheduled restart ended its receiver, ``navlink_trace``); every packet's source is a fleet sysid or the ground station, except an emission the radio journal records ``false`` (below, counted in ``report.json``); no NAVLINK packet is ``router_dropped`` or ``router_filtered``, unless its root emission is ``false`` (todo 121(a)) |
 
 The chain of a peer task, correlated by UID and ``task_id`` (auction task ids
 are the detector's namespace, so the plan's POIs are joined by the backend
@@ -25,6 +25,14 @@ A false emission (:func:`unverified_sources`): with radio byte loss
 its table). The coordinator does the deletion, so it records every emission
 that is no clean packet as ``false``; only those are exempt from the source
 check, and every other emission stays checked.
+
+Such a frame's id is random, so it can fall in the NAVLINK range, and the
+router's id filter then drops it as designed. The router check exempts a
+``router_dropped`` or ``router_filtered`` packet only when its root emission's
+full packet id (origin, generation, device, sequence) is in the radio's
+``false`` set, whatever its source: a false frame's source is random too, so
+it can be a fleet sysid or the ground station (todo 121(a)). The id range,
+the source, the tick or the device alone never exempt a packet.
 """
 
 from __future__ import annotations
@@ -209,10 +217,15 @@ def _advert_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int])
     return errors
 
 
+def _false_emissions(records: Sequence[Mapping[str, Any]]) -> set[tuple]:
+    """Full packet ids of every emission the radio journal records ``false`` (no clean packet)."""
+    return {tuple(event[2]) for event in radio_events(records) if event[0] == "false"}
+
+
 def unverified_sources(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[list[Any]]:
     """The emissions the source check exempts: false emissions from outside the fleet (module docstring)."""
     allowed = {*sys_ids, GCS_SYSTEM}
-    false = {tuple(event[2]) for event in radio_events(records) if event[0] == "false"}
+    false = _false_emissions(records)
     return [event for _k, event in packet_events(records)
             if event[0] == "emitted" and event[5][0] not in allowed and tuple(event[1]) in false]
 
@@ -220,14 +233,16 @@ def unverified_sources(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[i
 def _source_errors(records: Sequence[Mapping[str, Any]], sys_ids: Sequence[int]) -> list[str]:
     allowed = {*sys_ids, GCS_SYSTEM}
     exempt = {tuple(event[1]) for event in unverified_sources(records, sys_ids)}
+    false = _false_emissions(records)  # all of them, any source: not unverified_sources()
     roots = _roots(records)
     errors = []
     for k, event in packet_events(records):
         if event[0] == "emitted" and event[5][0] not in allowed and tuple(event[1]) not in exempt:
             errors.append(f"forwarding: {event[1]} from system {event[5][0]} at tick {k}")
-        elif (event[0] in ("router_dropped", "router_filtered")
-              and roots.get(tuple(event[1]), [None] * 5)[4] in NAVLINK_IDS):
-            errors.append(f"forwarding: NAVLINK {event[1]} {event[0]} at tick {k}")
+        elif event[0] in ("router_dropped", "router_filtered"):
+            root = roots.get(tuple(event[1]))
+            if root is not None and root[4] in NAVLINK_IDS and tuple(root[1]) not in false:
+                errors.append(f"forwarding: NAVLINK {event[1]} {event[0]} at tick {k}")
     return errors
 
 
