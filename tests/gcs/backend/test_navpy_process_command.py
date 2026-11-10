@@ -41,3 +41,22 @@ def test_a_supervised_companion_gets_the_flag_navpy_parses():
                                  log_level=None, navigation_speedup=0.0)
     assert SUPERVISED_FLAG not in plain
     assert not supervised(make_parser().parse_args(plain[3:]))
+
+
+def test_the_demo_lost_helper_policy_reaches_navpy_from_the_environment(monkeypatch):
+    from navpy.app.navpy_argparse import make_parser
+
+    def command():
+        return _build_navpy_command(2, "udpin:127.0.0.1:14560", detector_debug_show=False,
+                                    vision_profile=None, log_level=None, navigation_speedup=0.0,
+                                    supervised=True)
+
+    monkeypatch.delenv("NAVPY_SIM_SWARM_LOST_HELPER", raising=False)
+    assert "--swarm-lost-helper" not in command()
+    assert make_parser().parse_args(command()[3:]).swarm_lost_helper == "keep"
+
+    monkeypatch.setenv("NAVPY_SIM_SWARM_LOST_HELPER", " Auto ")
+    assert make_parser().parse_args(command()[3:]).swarm_lost_helper == "auto"
+
+    monkeypatch.setenv("NAVPY_SIM_SWARM_LOST_HELPER", "ask")  # not a policy yet: ignored
+    assert "--swarm-lost-helper" not in command()

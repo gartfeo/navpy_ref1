@@ -119,6 +119,8 @@ class _TaskAuctionStore:
     dispatches: dict[int, TaskDispatch]
     generation: int = 0
     closed: bool = False
+    #: When a helper's boot was last heard (task_lost_helper.py).
+    monotonic_s: Callable[[], float] = rt.monotonic
 
 
 __all__ = [

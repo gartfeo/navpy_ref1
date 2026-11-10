@@ -30,7 +30,9 @@ def create_task_state(
     note: Callable[[str], None] = lambda _line: None,
 ) -> SwarmTaskState:
     peers = PeerRoster(lock, monotonic_s, note)
-    store = _TaskAuctionStore(lock=lock, peers=peers, dispatches={})
+    store = _TaskAuctionStore(
+        lock=lock, peers=peers, dispatches={}, monotonic_s=monotonic_s,
+    )
     return SwarmTaskState(
         SelectedTaskSlot(lock, monotonic_s),
         TaskAuctionState(store, TaskAuctionLifecycle(store)),

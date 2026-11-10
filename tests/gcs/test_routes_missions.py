@@ -921,3 +921,300 @@ class TestUploadMissions:
         assert status["action"] == "rejected"
         upload.assert_not_called()
         cache.invalidate_keys.assert_not_called()
+
+
+class TestUploadRally:
+    """The upload makes each vehicle's RTL go to its mission's DDH."""
+
+    _HUB_BODY = {
+        "assignments": [{
+            "sys_id": 1, "zone_index": 0, "altitude_m": 150.0,
+            "waypoints": [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}],
+            "default_delivery_hub": {"lat": 32.01, "lon": 34.02, "type": "dock"},
+        }],
+    }
+
+    @staticmethod
+    def _mission(success=True):
+        from gcs.backend.planner.waypoint_builder import UploadResult
+        return UploadResult(success=success, uploaded_count=4 if success else 0,
+                            expected_count=4, attempts=1,
+                            error=None if success else "Upload failed after 3 attempts")
+
+    def test_ddh_mission_sets_one_rally_point_at_the_hub(self, client, mock_vehicle):
+        mock_vehicle.upload_rally = MagicMock(return_value=True)
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["status"] == "complete" and data["rally_ok"] is True
+        assert data["results"][0]["rally"]["action"] == "set"
+        assert data["results"][0]["rally"]["applied"] is True
+        (item,) = mock_vehicle.upload_rally.call_args.args[0]
+        assert (item.x, item.y, item.z) == (round(32.01 * 1e7), round(34.02 * 1e7), 150.0)
+        mock_vehicle.set_parameter.assert_called_once_with("RTL_ALTITUDE", 150.0)
+        # The rally params go through the request-bounded exchange (finding 3).
+        rally_writes = {c.args[0]: c.args[1] for c in mock_vehicle.write_parameter.call_args_list}
+        assert rally_writes == {"RALLY_INCL_HOME": 0.0, "RALLY_LIMIT_KM": 0.0}
+
+    def test_mission_without_ddh_clears_the_rally_table(self, client, mock_vehicle):
+        from navpy.core.ports.parameter_exchange import ExchangeOutcome, ParameterExchange
+        mock_vehicle.read_parameter = MagicMock(
+            return_value=ParameterExchange(ExchangeOutcome.CONFIRMED, None, 1, 0.0))
+        body = {"assignments": [{**self._HUB_BODY["assignments"][0], "default_delivery_hub": None}]}
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=body)
+
+        data = resp.json()
+        assert data["rally_ok"] is True
+        assert data["results"][0]["rally"]["action"] == "clear"
+        mock_vehicle.clear_rally.assert_called_once_with()
+        mock_vehicle.upload_rally.assert_not_called()
+
+    def test_rally_failure_is_reported_apart_from_the_mission(self, client, mock_vehicle):
+        mock_vehicle.upload_rally = MagicMock(return_value=False)
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission()):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["status"] == "complete"  # the mission is on the vehicle
+        assert data["rally_ok"] is False
+        rally = data["results"][0]["rally"]
+        assert rally["applied"] is False and "not acknowledged" in rally["error"]
+
+    def test_failed_mission_leaves_the_rally_table_alone(self, client, mock_vehicle):
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   return_value=self._mission(success=False)):
+            resp = client.post("/api/vehicles/upload", json=self._HUB_BODY)
+
+        data = resp.json()
+        assert data["results"][0]["rally"] is None and data["rally_ok"] is True
+        mock_vehicle.upload_rally.assert_not_called()
+        mock_vehicle.clear_rally.assert_not_called()
+
+    def test_empty_assignment_leaves_mission_and_rally_table_alone(self, client, mock_vehicle):
+        """Codex round 1, finding 2: no waypoints uploads no mission (the
+        uploader's zero-item success), so the installed mission's DDH must stay
+        the rally point: no rally set or clear, rally None. RTL_ALTITUDE is
+        still written as before."""
+        from gcs.backend.planner.waypoint_builder import UploadResult
+        empty_ok = UploadResult(success=True, uploaded_count=0, expected_count=0, attempts=0)
+        body = {"assignments": [{**self._HUB_BODY["assignments"][0], "waypoints": []}]}
+        with patch("gcs.backend.routes.missions.upload_mission_with_retry", return_value=empty_ok):
+            resp = client.post("/api/vehicles/upload", json=body)
+
+        data = resp.json()
+        assert data["status"] == "complete" and data["rally_ok"] is True
+        assert data["results"][0]["rally"] is None
+        mock_vehicle.upload_rally.assert_not_called()
+        mock_vehicle.clear_rally.assert_not_called()
+        mock_vehicle.write_parameter.assert_not_called()
+        mock_vehicle.read_parameter.assert_not_called()
+
+
+class TestOverlappingUploads:
+    """Two uploads to one vehicle never interleave (Codex rounds 1 and 2).
+
+    Request A uploads its mission and is held there; request B, sent meanwhile,
+    must not run until A has finished, else A's rally step would write hub A
+    over B's mission and hub, with both reporting success.
+    """
+
+    @staticmethod
+    def _body(hub_lat: float) -> dict:
+        return {"assignments": [{
+            "sys_id": 1, "zone_index": 0, "altitude_m": 150.0,
+            "waypoints": [{"lat": 32.0, "lon": 34.0}, {"lat": 32.001, "lon": 34.001}],
+            "default_delivery_hub": {"lat": hub_lat, "lon": 34.02, "type": "dock"},
+        }]}
+
+    @staticmethod
+    def _signalling_locks(blocked):
+        """Upload locks that set ``blocked`` (a threading.Event) when an acquire has to wait."""
+        import asyncio
+
+        from gcs.backend.routes.vehicle_upload_lock import VehicleUploadLocks
+
+        class SignallingLock(asyncio.Lock):
+            async def acquire(self) -> bool:
+                if self.locked():
+                    blocked.set()
+                return await super().acquire()
+
+        return VehicleUploadLocks(SignallingLock)
+
+    @staticmethod
+    def _ok():
+        from gcs.backend.planner.waypoint_builder import UploadResult
+        return UploadResult(success=True, uploaded_count=4, expected_count=4, attempts=1)
+
+    def test_second_upload_waits_for_the_first_so_its_hub_wins(self, mock_entry, mock_vehicle):
+        import asyncio
+        import threading
+
+        from gcs.backend.models import UploadRequest
+        from gcs.backend.routes.missions import upload_missions
+
+        a_inside = threading.Event()
+        # Set when B queues behind A (fixed), or once B wrote its hub (unfixed).
+        release_a = threading.Event()
+        order: list[str] = []
+        rally_hubs: list[int] = []
+
+        def upload_mission(vehicle, track, altitude_m, **kwargs):
+            name = "A" if kwargs["default_delivery_hub"]["lat"] == 32.01 else "B"
+            order.append(f"{name} mission")
+            if name == "A":
+                a_inside.set()
+                assert release_a.wait(5.0)
+            return self._ok()
+
+        def upload_rally(items, policy=None):
+            rally_hubs.append(items[0].x)
+            release_a.set()
+            return True
+
+        mock_vehicle.upload_rally = MagicMock(side_effect=upload_rally)
+        mgr = MagicMock()
+        mgr.get_vehicle = MagicMock(return_value=mock_entry)
+
+        async def scenario():
+            first = asyncio.create_task(upload_missions(UploadRequest(**self._body(32.01))))
+            await asyncio.get_running_loop().run_in_executor(None, a_inside.wait, 5.0)
+            second = asyncio.create_task(upload_missions(UploadRequest(**self._body(32.05))))
+            return await first, await second
+
+        with patch("gcs.backend.routes.missions.vehicle_mgr", mgr), \
+             patch("gcs.backend.routes.missions.vehicle_upload_locks",
+                   self._signalling_locks(release_a)), \
+             patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   side_effect=upload_mission):
+            first, second = asyncio.run(scenario())
+
+        assert first["rally_ok"] is True and second["rally_ok"] is True
+        assert order == ["A mission", "B mission"]
+        # The last request's hub is the vehicle's rally point.
+        assert rally_hubs == [round(32.01 * 1e7), round(32.05 * 1e7)]
+
+    def test_a_queued_upload_uses_the_entry_current_when_it_starts(self, mock_vehicle):
+        """Codex round 2, finding 2: B looked the vehicle up before queueing; A
+        reconnected it while holding the lock, closing that entry. B must use
+        the new entry, not the closed one."""
+        import asyncio
+        import threading
+
+        from gcs.backend.models import UploadRequest
+        from gcs.backend.routes.missions import upload_missions
+
+        old_entry, new_entry = MagicMock(name="old"), MagicMock(name="new")
+        old_entry.vehicle, new_entry.vehicle = MagicMock(name="old vehicle"), mock_vehicle
+        mock_vehicle.upload_rally = MagicMock(return_value=True)
+        current = [old_entry]
+        a_inside, b_looked_up = threading.Event(), threading.Event()
+        used: list[object] = []
+
+        def get_vehicle(sys_id):
+            if a_inside.is_set():
+                b_looked_up.set()  # B's look-up before it queues
+            return current[0]
+
+        def upload_mission(vehicle, track, altitude_m, **kwargs):
+            used.append(vehicle)
+            if len(used) == 1:  # A
+                a_inside.set()
+                assert b_looked_up.wait(5.0)
+                current[0] = new_entry  # A's reconnect replaced the entry
+            return self._ok()
+
+        mgr = MagicMock()
+        mgr.get_vehicle = MagicMock(side_effect=get_vehicle)
+
+        async def scenario():
+            first = asyncio.create_task(upload_missions(UploadRequest(**self._body(32.01))))
+            await asyncio.get_running_loop().run_in_executor(None, a_inside.wait, 5.0)
+            second = asyncio.create_task(upload_missions(UploadRequest(**self._body(32.05))))
+            return await first, await second
+
+        with patch("gcs.backend.routes.missions.vehicle_mgr", mgr), \
+             patch("gcs.backend.routes.missions.upload_mission_with_retry",
+                   side_effect=upload_mission):
+            asyncio.run(scenario())
+
+        assert used == [old_entry.vehicle, new_entry.vehicle]
+
+    def test_a_vehicle_still_busy_at_the_deadline_gets_no_transfer(self):
+        import asyncio
+
+        from navpy.core.kernel import runtime_time as rt
+        from navpy.core.ports.parameter_exchange import ExchangePolicy
+        from gcs.backend.routes.vehicle_upload_lock import VehicleUploadLocks
+
+        locks = VehicleUploadLocks()
+
+        async def scenario():
+            async with locks.held(1, None) as first:
+                policy = ExchangePolicy(3, rt.monotonic() + 0.05, stop_on_silence=True)
+                async with locks.held(1, policy) as second:
+                    return first, second
+
+        assert asyncio.run(scenario()) == (True, False)
+
+    def test_a_free_lock_is_taken_even_past_the_deadline(self):
+        """The update's own steps report the deadline; the lock adds no refusal."""
+        import asyncio
+
+        from navpy.core.ports.parameter_exchange import ExchangePolicy
+        from gcs.backend.routes.vehicle_upload_lock import VehicleUploadLocks
+
+        async def scenario():
+            async with VehicleUploadLocks().held(1, ExchangePolicy(3, 0.0)) as held:
+                return held
+
+        assert asyncio.run(scenario()) is True
+
+    def test_a_handoff_to_a_woken_waiter_still_ends_at_the_deadline(self):
+        """Codex round 2, finding 1: A releases to B, which has been woken but has
+        not run yet, so the lock reads unlocked. C, with a short deadline, comes
+        in at that moment: its wait behind B must still end at C's deadline."""
+        import asyncio
+
+        from navpy.core.kernel import runtime_time as rt
+        from navpy.core.ports.parameter_exchange import ExchangePolicy
+        from gcs.backend.routes.vehicle_upload_lock import VehicleUploadLocks
+
+        locks = VehicleUploadLocks()
+
+        async def scenario():
+            release_b = asyncio.Event()
+            b_held: list[bool] = []
+
+            async def b():
+                async with locks.held(1, None) as held:
+                    b_held.append(held)
+                    await release_b.wait()
+
+            async def c() -> bool:
+                policy = ExchangePolicy(3, rt.monotonic() + 0.05, stop_on_silence=True)
+                async with locks.held(1, policy) as held:
+                    return held
+
+            a = locks.held(1, None)
+            assert await a.__aenter__() is True
+            b_task = asyncio.create_task(b())
+            await asyncio.sleep(0)  # one loop turn, no time: B queues on A's lock
+            await a.__aexit__(None, None, None)  # B woken, not yet run
+            try:
+                # C runs in this task, before B resumes (a new task would be
+                # scheduled after B's wake-up). The outer bound only makes an
+                # unbounded C fail the test instead of hanging it.
+                async with asyncio.timeout(2.0):
+                    c_held = await c()
+            finally:
+                release_b.set()
+                await b_task
+            return c_held, b_held
+
+        assert asyncio.run(scenario()) == (False, [True])
