@@ -13,10 +13,11 @@ const NO_SYNC = { key: null, run: null };
  *
  * - An upload: the editor as the upload read it (`upload`, taken before
  *   anything was awaited) with the plan and fence request it sent.
- * - A download: the editor as the download published its plan and derived
- *   the area from it (`download`, a beginPlanDownload token, see
- *   publishedState), with the dock and detection waypoints its parameter read
- *   restored, when it did.
+ * - A download (`download`, a beginPlanDownload token): what it published,
+ *   the editor right after its latest publication of the plan and the area
+ *   derived from it, with the dock and detection waypoints its parameter read
+ *   restored, when it did; the operator's own decisions, which a download
+ *   never writes, as they were when it started (DOWNLOAD_NEVER_WRITES).
  * - Neither (a UAV left a fleet whose plan the editor still holds): the editor.
  *
  * What the UAVs acknowledged and report about their fences is the latest, as
@@ -29,7 +30,7 @@ function syncedState(editor, source) {
   };
   if (source?.upload) return { ...source.upload, ...latestFence };
   if (source?.download) {
-    const published = source.download.state ?? editor;
+    const published = { ...(source.download.published ?? editor), ...source.download.operator };
     return {
       ...published,
       simDockWps: source.simDockWps ?? published.simDockWps,
@@ -41,23 +42,17 @@ function syncedState(editor, source) {
 }
 
 /**
- * The editor a download's publication leaves, without the edits the operator
- * made while that download was running. A download publishes progressively
- * (one UAV's mission at a time), so a later publication starts from the state
- * recorded for the same download's plan (`chain`), not from the editor, and
- * takes from the editor only what the publication itself changed (`before` is
- * the editor just before it). The plan is always the published one: a plan
- * replaced by anything else ends the download before its baseline is taken.
+ * The operator's own decisions: no download writes them (it reads the plan,
+ * the area, the launch points and corridors, the hub assignments, the dock
+ * picks; the fence it only observes). An edit to one of them while a download
+ * runs is not on the UAVs, so its baseline keeps them as they were when the
+ * download started. Edits to what the download writes are overwritten by it,
+ * or replace its plan and end it.
  */
-function publishedState(before, after, chain) {
-  const run = downloadRunOf(after.plan);
-  const base = run != null && chain?.run === run ? chain.state : before;
-  const state = { ...base, plan: after.plan };
-  for (const key of Object.keys(after)) {
-    if (!Object.is(after[key], before[key])) state[key] = after[key];
-  }
-  return state;
-}
+const DOWNLOAD_NEVER_WRITES = [
+  'partitionAngleDeg', 'routeOffsetM', 'manualDeliveryHubEdit',
+  'fenceTouched', 'fenceEnabled', 'fenceOffsetM', 'fenceIntent', 'exclusionPolygons',
+];
 
 /**
  * The plan's two baselines and leaving plan mode.
@@ -69,8 +64,8 @@ function publishedState(before, after, chain) {
  *   monitor offers the start control only then. An upload reads the editor
  *   before it awaits anything (capturePlanState) and drops the baseline when
  *   it starts writing (beginPlanUpload): until it completes, what the UAVs
- *   carry is not known. A download marks the editor it published
- *   (beginPlanDownload).
+ *   carry is not known. A download starts with beginPlanDownload and marks
+ *   each publication of its plan (notePlanPublished).
  * - Saved: the plan in the file last saved (markPlanSaved, taken at once) or
  *   loaded (markPlanLoaded, taken once the load has committed).
  *
@@ -107,9 +102,6 @@ export default function usePlanSnapshot({
   // Downloads that published a plan whose editor state is not captured yet.
   const [publishTrigger, setPublishTrigger] = useState(0);
   const pendingDownloadsRef = useRef([]);
-  // The last state recorded for a downloaded plan ({ run, state }): the next
-  // publication of that plan builds on it (publishedState).
-  const downloadChainRef = useRef(null);
   // The synced baseline's key, and the download run of the plan it was taken
   // from: a download's provisional claim ends once its own baseline is taken.
   const [sync, setSync] = useState(NO_SYNC);
@@ -131,16 +123,21 @@ export default function usePlanSnapshot({
   })), []);
   // The editor as it is now: what an upload builds its request from.
   const capturePlanState = useCallback(() => ({ ...stateForSnapshotRef.current }), []);
-  // Called by a download in the same update that publishes its plan and
-  // derives the area: the returned token holds the editor once that update
-  // has committed, for onPlanSynced({ download: token }).
+  // A download starts (before it awaits anything): the token keeps the
+  // operator's decisions as they are now, for onPlanSynced({ download: token }).
   const beginPlanDownload = useCallback(() => {
-    // The updates of this publication are not rendered yet: the ref holds the
-    // editor just before it.
-    const token = { before: { ...stateForSnapshotRef.current }, state: null };
+    const state = stateForSnapshotRef.current;
+    return {
+      operator: Object.fromEntries(DOWNLOAD_NEVER_WRITES.map((key) => [key, state[key]])),
+      published: null,
+    };
+  }, []);
+  // Called in the same update that publishes the download's plan and derives
+  // the area: the token takes the editor once that update has committed.
+  const notePlanPublished = useCallback((token) => {
+    if (!token) return;
     pendingDownloadsRef.current.push(token);
     setPublishTrigger((n) => n + 1);
-    return token;
   }, []);
   // Saved: the file holds the plan as it is now (leaving plan mode may restore
   // the UAVs' plan right after). Loaded: called in the same update that
@@ -154,7 +151,6 @@ export default function usePlanSnapshot({
   // editor loses any download's claim too.
   const forgetPlanSync = useCallback(() => {
     vehicleSnapshotRef.current = null;
-    downloadChainRef.current = null;
     setSync({ key: null, run: downloadRunOf(stateForSnapshotRef.current.plan) });
   }, []);
   // An upload starts writing: what the UAVs carry is unknown until it completes.
@@ -164,11 +160,8 @@ export default function usePlanSnapshot({
   // completes within one update is captured first.
   useEffect(() => {
     if (publishTrigger === 0) return;
-    const after = stateForSnapshotRef.current;
-    for (const token of pendingDownloadsRef.current) {
-      token.state = publishedState(token.before, after, downloadChainRef.current);
-      downloadChainRef.current = { run: downloadRunOf(after.plan), state: token.state };
-    }
+    const published = { ...stateForSnapshotRef.current };
+    for (const token of pendingDownloadsRef.current) token.published = published;
     pendingDownloadsRef.current = [];
   }, [publishTrigger]);
 
@@ -176,10 +169,7 @@ export default function usePlanSnapshot({
     if (snapshotTrigger.n === 0) return;
     const state = syncedState(stateForSnapshotRef.current, snapshotTrigger.source);
     vehicleSnapshotRef.current = buildPlanSnapshot(state);
-    const run = downloadRunOf(state.plan);
-    // A later download into this plan builds on the baseline just taken.
-    downloadChainRef.current = run != null ? { run, state } : null;
-    setSync({ key: planSyncKey(state), run });
+    setSync({ key: planSyncKey(state), run: downloadRunOf(state.plan) });
   }, [snapshotTrigger]);
 
   useEffect(() => {
@@ -268,7 +258,7 @@ export default function usePlanSnapshot({
   }, [goToMonitor, confirm, t, restoreVehiclePlan, savePlanRef]);
 
   return {
-    onPlanSynced, capturePlanState, beginPlanUpload, beginPlanDownload,
+    onPlanSynced, capturePlanState, beginPlanUpload, beginPlanDownload, notePlanPublished,
     markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
   };
 }

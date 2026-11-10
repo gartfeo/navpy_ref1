@@ -13,6 +13,7 @@ import useMissionUpload from './useMissionUpload';
 import useMissionState from './useMissionState';
 import useVehicleConnection from './useVehicleConnection';
 import { confirmStub } from '../test/confirmStub';
+import { buildDeliveryHubsFromDownload } from '../utils/deliveryHubAssignment';
 
 vi.mock('../utils/missionUploadActivation', () => ({
   activateUploadedSimPlan: vi.fn(async () => ({ targWpsUpdates: {}, navLastWpUpdates: {} })),
@@ -210,6 +211,7 @@ describe('download', () => {
         isPlanSynced: snap.isPlanSynced,
         forgetPlanSync: snap.forgetPlanSync,
         beginPlanDownload: snap.beginPlanDownload,
+        notePlanPublished: snap.notePlanPublished,
         settings: {},
         setNotification: vi.fn(),
       });
@@ -306,6 +308,7 @@ describe('a download that publishes UAV by UAV', () => {
         isPlanSynced: snap.isPlanSynced,
         forgetPlanSync: snap.forgetPlanSync,
         beginPlanDownload: snap.beginPlanDownload,
+        notePlanPublished: snap.notePlanPublished,
         settings: {},
         setNotification: vi.fn(),
       });
@@ -339,5 +342,137 @@ describe('a download that publishes UAV by UAV', () => {
     const { snap, mission } = await download(path, true);
     expect(mission.fenceEnabled).toBe(true);
     expect(snap.planSynced).toBe(false);
+  });
+});
+
+// Codex review, round 2: edits before a download's first mission, a merge
+// into an edited plan, and a UAV leaving a page-load restore.
+describe('a download and edits around it', () => {
+  const HUB = { name: 'Hub 1', lat: 40.01, lon: 44.01, type: 'other' };
+  const MISSION = (sysId) => ({
+    sys_id: sysId, mission_count: 2, altitude_m: 100,
+    waypoints: [{ lat: 40 + sysId / 10, lon: 44.1, alt: 100 }, { lat: 40.2, lon: 44 + sysId / 10, alt: 100 }],
+    items: [], default_delivery_hub: HUB, _diagnostic_request_id: `r${sysId}`,
+  });
+  const FLEET = [{ sys_id: 1, name: 'UAV1' }, { sys_id: 2, name: 'UAV2' }];
+
+  beforeEach(() => {
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({ ok: false, json: async () => null }));
+  });
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  function harness({ vehicles = [], hubs = [HUB], downloadMission, downloadFence } = {}) {
+    const { wrapper } = confirmStub(false);
+    const ref = {};
+    const hook = renderHook(({ vehicles: list }) => {
+      const mission = useMissionState();
+      // Settings' home hubs (useSettings saves optimistically).
+      const [deliveryHubs, setDeliveryHubs] = useState(hubs);
+      // What usePlanPersistence.derivePlanPolygon writes besides the area: the
+      // UAV count, and the hubs the missions carry, added to Settings.
+      const derivePlanPolygon = (zones, _pattern, _polygon, _backbone, _launch, missionHubs) => {
+        mission.setUavCount(zones.length);
+        if (!missionHubs) return;
+        const restored = buildDeliveryHubsFromDownload(missionHubs, deliveryHubs);
+        if (restored.deliveryHubs.length === 0) return;
+        setDeliveryHubs(restored.deliveryHubs);
+        mission.setDeliveryHubAssignments(restored.assignments);
+      };
+      const snap = usePlanSnapshot({ ...SNAPSHOT_DEPS(), ...mission, deliveryHubs });
+      const connection = useVehicleConnection({
+        mission,
+        vehicleList: list,
+        removeVehicle: vi.fn(),
+        api: {
+          downloadMission: vi.fn(downloadMission ?? ((sysId) => Promise.resolve(MISSION(sysId)))),
+          downloadFence: vi.fn(downloadFence ?? (() => Promise.resolve(null))),
+          disconnectVehicle: vi.fn((sysId) => Promise.resolve({ removed: [sysId] })),
+          connectVehicle: vi.fn().mockResolvedValue({ status: 'connected' }),
+          discoverVehicles: vi.fn(),
+        },
+        telemetryStoreRef: { current: { getVehicles: () => ({}), subscribe: () => () => {} } },
+        derivePlanPolygon,
+        onPlanSynced: snap.onPlanSynced,
+        isPlanSynced: snap.isPlanSynced,
+        forgetPlanSync: snap.forgetPlanSync,
+        beginPlanDownload: snap.beginPlanDownload,
+        notePlanPublished: snap.notePlanPublished,
+        settings: { default_delivery_hubs: deliveryHubs },
+        setNotification: vi.fn(),
+      });
+      ref.current = { mission, snap, connection, setDeliveryHubs };
+    }, { wrapper, initialProps: { vehicles } });
+    return { ref, hook };
+  }
+
+  // Finding 1: the fence switched on before any mission answered.
+  it.each([
+    ['Download plan', []],
+    ['the page-load restore', FLEET],
+  ])('%s: an edit made before the first mission arrives is not on the UAVs', async (path, vehicles) => {
+    const missions = deferred();
+    const h = harness({
+      vehicles,
+      downloadMission: (sysId) => missions.promise.then(() => MISSION(sysId)),
+    });
+    await settle();
+    let done = Promise.resolve();
+    if (path === 'Download plan') {
+      h.hook.rerender({ vehicles: FLEET });
+      act(() => { done = h.ref.current.connection.handleDownloadPlan(); });
+    }
+    await settle();
+    expect(h.ref.current.mission.plan).toBeNull();
+    act(() => { h.ref.current.mission.authorFenceIntent(true); });
+    await act(async () => { missions.resolve(); await done; });
+    await settle();
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(false);
+  });
+
+  // Finding 2: a single connect merges into a plan whose assigned hub the
+  // operator moved; the merge rebuilds the other zones' hubs from Settings.
+  it('a UAV connecting into an edited plan does not make the edit the UAVs\'', async () => {
+    const h = harness();
+    await settle();
+    await act(async () => { await h.ref.current.connection.handleConnect('udp:x', 1, 'UAV1'); });
+    await settle();
+    expect(h.ref.current.mission.deliveryHubAssignments).toEqual([0]);
+    expect(h.ref.current.snap.planSynced).toBe(true);
+    act(() => { h.ref.current.setDeliveryHubs([{ ...HUB, lat: 41.01 }]); });
+    expect(h.ref.current.snap.planSynced).toBe(false);
+    await act(async () => { await h.ref.current.connection.handleConnect('udp:x', 2, 'UAV2'); });
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(false);
+  });
+
+  it('a UAV connecting into the UAVs\' plan keeps it the UAVs\'', async () => {
+    const h = harness();
+    await settle();
+    await act(async () => { await h.ref.current.connection.handleConnect('udp:x', 1, 'UAV1'); });
+    await settle();
+    await act(async () => { await h.ref.current.connection.handleConnect('udp:x', 2, 'UAV2'); });
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    expect(h.ref.current.snap.planSynced).toBe(true);
+  });
+
+  // Finding 3: a UAV leaving while the page-load restore still reads the fences.
+  it('a UAV leaving during the page-load restore leaves the rest on the UAVs', async () => {
+    const fences = deferred();
+    const h = harness({ vehicles: FLEET, downloadFence: () => fences.promise });
+    await settle();
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(2);
+    await act(async () => { await h.ref.current.connection.handleDisconnect(2); });
+    h.hook.rerender({ vehicles: [FLEET[0]] });
+    await act(async () => { fences.resolve(null); });
+    await settle();
+    await settle();
+    expect(h.ref.current.mission.plan?.zones?.length).toBe(1);
+    expect(h.ref.current.mission.uavCount).toBe(1);
+    expect(h.ref.current.snap.planSynced).toBe(true);
   });
 });

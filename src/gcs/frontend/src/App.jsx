@@ -510,6 +510,7 @@ export default function App() {
     isPlanSynced: planning.isPlanSynced,
     forgetPlanSync: planning.forgetPlanSync,
     beginPlanDownload: planning.beginPlanDownload,
+    notePlanPublished: planning.notePlanPublished,
     onFleetWithoutMission: handleFleetWithoutMission,
     settings,
     setVehicleTargWps, setVehicleNavLastWp, setNotification,

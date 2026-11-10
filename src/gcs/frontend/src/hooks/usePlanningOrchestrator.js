@@ -109,7 +109,7 @@ export default function usePlanningOrchestrator({
   // The plan file writer is created by usePlanPersistence below.
   const savePlanRef = useRef(null);
   const {
-    onPlanSynced, capturePlanState, beginPlanUpload, beginPlanDownload,
+    onPlanSynced, capturePlanState, beginPlanUpload, beginPlanDownload, notePlanPublished,
     markPlanSaved, markPlanLoaded, forgetPlanSync, handleExitPlanning, planSynced, isPlanSynced,
   } = usePlanSnapshot({
     plan, polygon, searchPattern, analysis, uavCount, effectiveUavCount,
@@ -464,6 +464,7 @@ export default function usePlanningOrchestrator({
     capturePlanState,
     beginPlanUpload,
     beginPlanDownload,
+    notePlanPublished,
     // The editor holds exactly the plan last uploaded or downloaded.
     planSynced,
     isPlanSynced,

@@ -58,9 +58,10 @@ export default function useVehicleConnection({
   // Whether the editor holds exactly the plan on the UAVs, and forgetting
   // that plan once no UAV is left to carry it (usePlanSnapshot).
   isPlanSynced, forgetPlanSync,
-  // Marks the editor a download publishes, so the baseline is taken from it
-  // and not from an edit made while the post-processing runs (usePlanSnapshot).
-  beginPlanDownload,
+  // A download's baseline is what it published, never an edit made while it
+  // ran (usePlanSnapshot): beginPlanDownload as it starts, notePlanPublished
+  // in the update that publishes its plan and derives the area.
+  beginPlanDownload, notePlanPublished,
   // Called when a connect finds no mission on any connected UAV.
   onFleetWithoutMission,
   settings,
@@ -302,19 +303,20 @@ export default function useVehicleConnection({
       metadataMission.launch_point,
       startupMissionDeliveryHubsForZones(run, zones),
     );
-    const published = beginPlanDownload?.() ?? null;
+    notePlanPublished?.(run.planToken);
     await observeFleetFence(
       zones.map((z) => ({ sys_id: z.sys_id })).filter((v) => v.sys_id != null),
       isCurrent,
     );
     if (!isCurrent()) return null;
     const restored = await applySimParams(zones, isCurrent);
-    return isCurrent() ? { download: published, ...restored } : null;
-  }, [applySimParams, beginPlanDownload, derivePlanPolygon, observeFleetFence, reserveFenceObservations]);
+    return isCurrent() ? { download: run.planToken, ...restored } : null;
+  }, [applySimParams, derivePlanPolygon, notePlanPublished, observeFleetFence, reserveFenceObservations]);
 
   const downloadFleetMissions = useCallback(async (vehicles) => {
     if (vehicles.length === 0) return;
     const run = beginMissionDownloadRun(vehicles.map((v) => v.sys_id));
+    const planToken = beginPlanDownload?.() ?? null;
     let applyQueue = Promise.resolve();
     const answerKinds = new Map();
 
@@ -363,7 +365,7 @@ export default function useVehicleConnection({
           planRef.current = nextPlan;
           run.hasPublished = true;
           derivePlanPolygon(assembled.zones, assembled.searchPattern, assembled.polygon, assembled.corridorBackbone, assembled.launchPoint, assembled.missionDeliveryHubs);
-          const published = beginPlanDownload?.() ?? null;
+          notePlanPublished?.(planToken);
           // Observe every vehicle's own fence. They are configured per vehicle
           // and can legitimately disagree, so the first vehicle's answer is not
           // the fleet's answer.
@@ -379,7 +381,7 @@ export default function useVehicleConnection({
           const restored = await applySimParams(assembled.zones, stillThisRun);
           // The synced baseline includes the dock and detection waypoints the
           // vehicles' parameters just restored, or it would read as edited.
-          if (stillThisRun()) onPlanSynced?.({ download: published, ...restored });
+          if (stillThisRun()) onPlanSynced?.({ download: planToken, ...restored });
         });
       },
       onVehicleSettled: (sysId, result) => {
@@ -404,7 +406,7 @@ export default function useVehicleConnection({
       missionDownloadRunRef.current = null;
       if (!run.cancelled) reportIfFleetHasNoMission(answerKinds);
     }
-  }, [api.downloadMission, applySimParams, beginMissionDownloadRun, beginPlanDownload, cancelMissionDownloadRun, derivePlanPolygon, observeFleetFence, onPlanSynced, removeDownloading, reportIfFleetHasNoMission, reserveFenceObservations, setAnalysis, setNotification, setPlan, waitForBackendSettlement]);
+  }, [api.downloadMission, applySimParams, beginMissionDownloadRun, beginPlanDownload, cancelMissionDownloadRun, derivePlanPolygon, notePlanPublished, observeFleetFence, onPlanSynced, removeDownloading, reportIfFleetHasNoMission, reserveFenceObservations, setAnalysis, setNotification, setPlan, waitForBackendSettlement]);
 
   // Download missions from all connected vehicles -> assemble into plan.
   const handleDownloadPlan = useCallback(async () => {
@@ -529,6 +531,11 @@ export default function useVehicleConnection({
     const startupRequestIsActive = () => (
       startupMissionRequestIsActive(startupRun, sysId)
     );
+    // A page-load restore's token is its run's; a single connect is a download
+    // of its own. Whether the editor held the UAVs' plan as it started: a
+    // mission merged into it is the UAVs' plan only then.
+    const planToken = startupRun ? null : (beginPlanDownload?.() ?? null);
+    const syncedAtStart = !!isPlanSynced?.();
     addDownloading([sysId], downloadOwner);
     let m;
     try {
@@ -594,6 +601,11 @@ export default function useVehicleConnection({
       const mergedZones = startupRun
         ? startupZonesFromMissions(startupRun)
         : mergeDownloadedMissionZones(currentPlan?.zones, m, sysId);
+      // The other zones' hubs below come from the editor: merged into a plan
+      // the operator edited (before or during this download), the result is
+      // not the UAVs' plan.
+      const mergedIntoUavPlan = !currentPlan?.zones?.length
+        || (syncedAtStart && !!isPlanSynced?.());
       const startupMetadata = startupRun
         ? startupPlanMetadata(startupRun, currentPlan?.altitude_m || 100)
         : null;
@@ -650,12 +662,13 @@ export default function useVehicleConnection({
           metadataMission.launch_point,
           pois,
         );
-        const published = beginPlanDownload?.() ?? null;
+        notePlanPublished?.(planToken);
         await observeFenceFromVehicle(sysId, startupRequestIsActive);
         if (!startupRequestIsActive()) return;
         const restored = await applySimParams(zonesForEffects, startupRequestIsActive);
         if (!startupRequestIsActive()) return;
-        onPlanSynced?.({ download: published, ...restored });
+        if (mergedIntoUavPlan) onPlanSynced?.({ download: planToken, ...restored });
+        else forgetPlanSync?.();
         setNotification?.(`Mission downloaded from ${name || 'UAV ' + sysId}`);
       };
       if (startupRun) {
@@ -666,7 +679,7 @@ export default function useVehicleConnection({
     } catch (e) {
       console.warn('Mission post-processing failed (vehicle connected ok):', e);
     }
-  }, [api.downloadMission, setPlan, derivePlanPolygon, beginPlanDownload, observeFenceFromVehicle, onPlanSynced, deliveryHubAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement, reportIfFleetHasNoMission]);
+  }, [api.downloadMission, setPlan, derivePlanPolygon, beginPlanDownload, notePlanPublished, isPlanSynced, forgetPlanSync, observeFenceFromVehicle, onPlanSynced, deliveryHubAssignments, reserveFenceObservations, settings, applySimParams, applyStartupPlanEffects, setNotification, waitForBackendSettlement, reportIfFleetHasNoMission]);
 
   // Connect a single vehicle + auto-download its mission (only if no active plan)
   const handleConnect = useCallback(async (device, sysId, name) => {
@@ -776,6 +789,8 @@ export default function useVehicleConnection({
         postProcessQueue: Promise.resolve(),
         rosterRevision: 0,
         hasPublished: false,
+        // The operator's decisions as the restore starts (usePlanSnapshot).
+        planToken: beginPlanDownload?.() ?? null,
       };
     }
     const run = state.run;
