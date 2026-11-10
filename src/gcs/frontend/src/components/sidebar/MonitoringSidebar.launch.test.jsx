@@ -196,4 +196,27 @@ describe('MonitoringSidebar container launch with the real camera check', () => 
     expect(api.launchSequence).not.toHaveBeenCalled();
     expect(api.triggerVehicle).not.toHaveBeenCalled();
   });
+
+  it('a UAV arming while the prepare request is out triggers nothing', async () => {
+    const api = wiredApi();
+    const prepare = deferred();
+    api.launchSequence = vi.fn(async (sysIds) => {
+      await prepare.promise;
+      return { status: 'container_prepared', sys_ids: sysIds };
+    });
+    const view = render(<ConfirmProvider><WiredHost fleet={FLEET} api={api} /></ConfirmProvider>);
+
+    await holdAndLaunch(view);
+    await act(async () => { api.check.resolve({ status: 'ok', zones: [] }); });
+    await waitFor(() => expect(api.launchSequence).toHaveBeenCalledTimes(1));
+    // The prepare request is out; a UAV arms and HOLD TO LAUNCH unmounts.
+    const armed = FLEET.map((v, i) => (i === 0 ? { ...v, armed: true } : v));
+    view.rerender(<ConfirmProvider><WiredHost fleet={armed} api={api} /></ConfirmProvider>);
+    expect(holdButton(view)).toBeNull();
+
+    await act(async () => { prepare.resolve(); });
+    // Drain a macrotask so every pending await has run before asserting none.
+    await act(() => new Promise((r) => { setTimeout(r, 0); }));
+    expect(api.triggerVehicle).not.toHaveBeenCalled();
+  });
 });

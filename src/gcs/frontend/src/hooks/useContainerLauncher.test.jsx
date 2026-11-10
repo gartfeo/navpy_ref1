@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, act } from '@testing-library/react';
+import { render, screen, act, waitFor } from '@testing-library/react';
 import useContainerLauncher from './useContainerLauncher';
 import useMountSignal from './useMountSignal';
 
@@ -56,7 +56,7 @@ describe('useContainerLauncher launch', () => {
     expect(screen.getByText('HOLD TO LAUNCH')).toBeTruthy();
     await act(async () => { question.resolve(); await done; });
     expect(screen.getByText('launch panel')).toBeTruthy();
-    expect(onTriggerVehicle.mock.calls.map((c) => c[0])).toEqual([1, 2]);
+    await waitFor(() => expect(onTriggerVehicle.mock.calls.map((c) => c[0])).toEqual([1, 2]));
   });
 
   it('a refused launch leaves the control on screen and triggers nothing', async () => {
