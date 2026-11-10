@@ -51,7 +51,12 @@ export default function useContainerLauncher({
   // unmounts the launch control, whose unmount signal (opts.signal) cancels
   // the launch chain, so opening it first cancelled every launch while the
   // plan camera check was still answering (owner's rehearsal, 2026-11-09).
+  // A control that is gone by the time the session is prepared (the operator
+  // left the screen) triggers nothing; the prepared session moves no vehicle
+  // and the next launch clears it (Codex review of this change, finding 1).
   const preparing = useRef(false);
+  // Trigger groups waiting for the launch panel to be on screen.
+  const pendingTriggers = useRef(null);
   const doContainerLaunch = useCallback(async (opts) => {
     if (preparing.current) return;
     preparing.current = true;
@@ -67,7 +72,7 @@ export default function useContainerLauncher({
       preparing.current = false;
     }
     if (result?.status !== 'container_prepared') return;
-    setContainerLaunching(true);
+    if (opts?.signal?.aborted) return;
     const sysIds = resolvePreparedLaunchOrder(
       requestedSysIds,
       result.sys_ids,
@@ -80,16 +85,28 @@ export default function useContainerLauncher({
     // enforced abort-aware in launch_controller, not here. With no gap, launch in
     // the flat launch order exactly as before (no behavior change).
     const containerGap = settings?.launch?.container_gap_s || 0;
-    const groups = containerGap > 0
+    pendingTriggers.current = containerGap > 0
       ? containersFromSysIds(sysIds).map((c) => applyLaunchOrder(c, settings?.launch?.launch_order))
       : [sysIds];
-    for (const group of groups) {
-      for (const sysId of group) {
-        console.log('[launch] triggering vehicle', sysId);
-        await onTriggerVehicle(sysId);
+    setContainerLaunching(true);
+  }, [vehicleList, onLaunch, settings]);
+
+  // Trigger only once the launch panel is committed, so it is on screen before
+  // the first vehicle is sent (Codex review of this change, finding 2).
+  useEffect(() => {
+    if (!containerLaunching) return;
+    const groups = pendingTriggers.current;
+    if (!groups) return;
+    pendingTriggers.current = null;
+    (async () => {
+      for (const group of groups) {
+        for (const sysId of group) {
+          console.log('[launch] triggering vehicle', sysId);
+          await onTriggerVehicle(sysId);
+        }
       }
-    }
-  }, [vehicleList, onLaunch, onTriggerVehicle, settings]);
+    })();
+  }, [containerLaunching, onTriggerVehicle]);
 
   const esp32Host = settings?.launch?.esp32_host || '192.168.4.1';
   const esp32Port = settings?.launch?.esp32_port || 80;
