@@ -3,7 +3,7 @@ from __future__ import annotations
 
 import collections
 from typing import Optional
-from pymavlink.dialects.v20.ardupilotmega import MAVLink_message
+from pymavlink.dialects.v20.ardupilotmega import MAV_COMP_ID_AUTOPILOT1, MAVLink_message
 from navpy.core.kernel import runtime_time as rt
 from navpy.plugins.vehicle.ardupilot.vehicle_mav import VehicleMav
 from navpy.plugins.vehicle.ardupilot.preflight_health import (
@@ -14,6 +14,7 @@ from navpy.plugins.vehicle.ardupilot.preflight_health import (
 from gcs.backend.companion_identity import COMPANION_TELEMETRY_COMPONENT_IDS, is_from_companion
 from gcs.backend.companion_swarm_state import CompanionSwarmState
 from gcs.backend.position_path import PositionPath
+from gcs.backend.prearm_reasons import PrearmReasons
 from gcs.backend.producer_inventory import producers
 from gcs.backend.video_streams import VehicleVideoStreams
 from gcs.backend.vehicle_message_log import VehicleMessageLog
@@ -49,8 +50,9 @@ class VehicleEntry:
         self._status_texts: collections.deque = collections.deque(maxlen=20)
         self._accel_cal_events: collections.deque = collections.deque(maxlen=20)
         self._accel_cal_active_until: float = 0.0
-        self._prearm_mode_only: bool = False
-        self._prearm_other: bool = False
+        # ArduPilot's current PreArm reasons (STATUSTEXT), aged on the
+        # autopilot clock so a reason it stopped repeating stops counting.
+        self._prearm_reasons = PrearmReasons()
         # CONF-03 blocked-state (D-15/D-16/D-17): {"reason", "detail",
         # "task_id"} while the drone's pixel/zoom recognition gate is
         # actually blocking; None otherwise. Source-filtered by
@@ -82,6 +84,7 @@ class VehicleEntry:
             ("RC_CHANNELS", self._on_rc_channels),
             ("SWARM_HEARTBEAT", self._swarm_state.on_heartbeat),
             ("GLOBAL_POSITION_INT", self.position_path.on_global_position),
+            ("GLOBAL_POSITION_INT", self._on_autopilot_clock),
             ("HEARTBEAT", self._video_streams.on_heartbeat),
             ("COMMAND_ACK", self._video_streams.on_command_ack),
             ("CAMERA_INFORMATION", self._video_streams.on_camera_information),
@@ -98,6 +101,17 @@ class VehicleEntry:
         accel-cal command is sent.
         """
         self._accel_cal_active_until = rt.monotonic() + ACCEL_CAL_ACTIVE_WINDOW_S
+
+    def _on_autopilot_clock(self, msg: MAVLink_message) -> None:
+        """Advance the PreArm-reason clock from this vehicle's own autopilot."""
+        if hasattr(msg, "get_srcSystem") and (
+            msg.get_srcSystem() != self.sys_id
+            or msg.get_srcComponent() != MAV_COMP_ID_AUTOPILOT1
+        ):
+            return
+        boot_time_ms = getattr(msg, "time_boot_ms", None)
+        if isinstance(boot_time_ms, int) and not isinstance(boot_time_ms, bool):
+            self._prearm_reasons.observe_clock(boot_time_ms & 0xFFFFFFFF)
 
     def _on_statustext(self, msg: MAVLink_message) -> None:
         return vehicle_status._on_statustext(self, msg)
@@ -184,25 +198,23 @@ class VehicleEntry:
         return {"channels": channels, "count": len(channels)}
 
     def _refresh_prearm_flags(self) -> None:
-        """Clear stale PreArm flags whenever the vehicle is armable.
+        """Forget PreArm reasons whenever the vehicle is armable.
 
         "Armable" is *any* armable state — both ``ok`` and ``checks_disabled``
         (keying off armability rather than ``prearm_ok is True`` matters because
         ``checks_disabled`` is armable yet leaves ``prearm_ok`` as ``None``).
-        When armable there is no active pre-arm failure, so any
-        ``_prearm_mode_only`` / ``_prearm_other`` flags are stale and are cleared
-        — on *every* armable cycle, not just the transition, so a late or stale
-        "mode not armable" STATUSTEXT that arrives while already armable can't
-        survive and later exempt a real ``failed`` state. Called every telemetry
-        cycle from :meth:`snapshot`, so the reset never depends on the launch
-        gate being polled. Flags set by STATUSTEXT during an actual ``failed``
-        state are left intact (that state is not armable).
+        When armable there is no active pre-arm failure, so remembered reasons
+        are stale and are forgotten — on *every* armable cycle, not just the
+        transition, so a late "mode not armable" STATUSTEXT that arrives while
+        already armable can't survive and later exempt a real ``failed`` state.
+        Called every telemetry cycle from :meth:`snapshot`, so the reset never
+        depends on the launch gate being polled. While ``failed``, reasons age
+        out on the autopilot clock instead (:class:`PrearmReasons`).
         """
         if self.vehicle.prearm_check_state in (
             PREARM_STATE_OK, PREARM_STATE_CHECKS_DISABLED,
         ):
-            self._prearm_mode_only = False
-            self._prearm_other = False
+            self._prearm_reasons.clear()
 
     def _refresh_confirm_blocked(self) -> None:
         """Clear a stale CONFIRM_BLOCKED state (CONF-03, D-16) if the drone's
@@ -218,15 +230,13 @@ class VehicleEntry:
 
     @property
     def prearm_mode_not_armable_only(self) -> bool:
-        """True when prearm checks failed and the only PreArm reason is 'mode not armable'.
-
-        Pure read of the current state and flags; stale-flag maintenance happens
-        in :meth:`_refresh_prearm_flags` (driven by the telemetry cycle).
+        """True when prearm checks failed and every *current* PreArm reason
+        is 'mode not armable' (reasons ArduPilot stopped repeating have aged
+        out; see :class:`PrearmReasons`).
         """
         return (
             self.vehicle.prearm_check_state == PREARM_STATE_FAILED
-            and self._prearm_mode_only
-            and not self._prearm_other
+            and self._prearm_reasons.mode_not_armable_only()
         )
 
     def snapshot(self) -> dict:

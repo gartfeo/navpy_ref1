@@ -55,6 +55,19 @@ def _feed(vehicle, message_type: str, message) -> None:
     vehicle.feed_message(message)
 
 
+def _statustext(vehicle, text: str) -> None:
+    """Deliver an autopilot STATUSTEXT through the real subscription path."""
+    _feed(vehicle, "STATUSTEXT", types.SimpleNamespace(severity=3, text=text))
+
+
+def _autopilot_clock(vehicle, boot_time_ms: int) -> None:
+    """Advance the autopilot clock (time_boot_ms) via GLOBAL_POSITION_INT."""
+    _feed(vehicle, "GLOBAL_POSITION_INT", types.SimpleNamespace(
+        time_boot_ms=boot_time_ms, lat=0, lon=0, alt=0, relative_alt=0,
+        vx=0, vy=0, vz=0, hdg=0,
+    ))
+
+
 def _make_entry(vehicle):
     """Build VehicleEntry against the normal public VehicleMav surface."""
     from gcs.backend.vehicle_manager import VehicleEntry
@@ -189,7 +202,7 @@ class TestPrearmModeNotArmableReset(unittest.TestCase):
         entry = self._entry(v)
         # 1) failed with only "mode not armable" -> exempt
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=0))
-        entry._prearm_mode_only = True
+        _statustext(v, "PreArm: Mode not armable")
         entry._refresh_prearm_flags()
         self.assertTrue(entry.prearm_mode_not_armable_only)
         # 2) becomes armable via checks_disabled — observed ONLY by the cycle refresh
@@ -205,7 +218,7 @@ class TestPrearmModeNotArmableReset(unittest.TestCase):
         v = _make_vehicle()
         entry = self._entry(v)
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=0))
-        entry._prearm_mode_only = True
+        _statustext(v, "PreArm: Mode not armable")
         entry._refresh_prearm_flags()
         self.assertTrue(entry.prearm_mode_not_armable_only)
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=bit))
@@ -220,7 +233,7 @@ class TestPrearmModeNotArmableReset(unittest.TestCase):
         v = _make_vehicle()
         entry = self._entry(v)
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=0))
-        entry._prearm_mode_only = True
+        _statustext(v, "PreArm: Mode not armable")
         entry._refresh_prearm_flags()
         self.assertTrue(entry.prearm_mode_not_armable_only)
         entry._refresh_prearm_flags()
@@ -236,11 +249,92 @@ class TestPrearmModeNotArmableReset(unittest.TestCase):
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=bit))
         entry._refresh_prearm_flags()
         # A stale flag gets set while still armable (no armable transition occurs).
-        entry._prearm_mode_only = True
+        _statustext(v, "PreArm: Mode not armable")
         entry._refresh_prearm_flags()  # clears every armable cycle, not just transitions
         # Real failure follows with no fresh STATUSTEXT -> must NOT be exempt.
         _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=0))
         entry._refresh_prearm_flags()
+        self.assertFalse(entry.prearm_mode_not_armable_only)
+
+
+class TestPrearmReasonsAgeOut(unittest.TestCase):
+    """The exemption follows ArduPilot's *current* PreArm reasons: a reason it
+    stopped re-reporting (every 30 s of autopilot time) ages out, a reason it
+    keeps repeating keeps blocking. Regression for a single transient
+    "Accels inconsistent" blocking launch while the UAV sat in RTL."""
+
+    def _failed_entry(self):
+        bit = MAV_SYS_STATUS_PREARM_CHECK
+        v = _make_vehicle(self)
+        entry = _make_entry(v)
+        _feed(v, "SYS_STATUS", _make_sys_status(present=bit, enabled=bit, health=0))
+        entry._refresh_prearm_flags()
+        return v, entry
+
+    def _report_cycles(self, v, entry, start_ms, cycles, texts_per_cycle):
+        """ArduPilot report bursts 30 s apart (autopilot clock), with a
+        snapshot refresh after each, as the telemetry loop does."""
+        for i in range(cycles):
+            _autopilot_clock(v, start_ms + i * 30_000)
+            for text in texts_per_cycle:
+                _statustext(v, text)
+            entry._refresh_prearm_flags()
+
+    def test_stale_reason_then_mode_only_repeats_allows_launch(self):
+        v, entry = self._failed_entry()
+        _autopilot_clock(v, 100_000)
+        _statustext(v, "PreArm: Accels inconsistent")
+        _statustext(v, "PreArm: RTL mode not armable")
+        self.assertFalse(entry.prearm_mode_not_armable_only)
+        # Only the mode reason repeats afterwards.
+        self._report_cycles(v, entry, 130_000, 2, ["PreArm: RTL mode not armable"])
+        self.assertFalse(entry.prearm_mode_not_armable_only,
+                         "one missed report must not drop a reason")
+        self._report_cycles(v, entry, 190_000, 1, ["PreArm: RTL mode not armable"])
+        self.assertTrue(entry.prearm_mode_not_armable_only)
+
+    def test_still_repeating_real_reason_blocks(self):
+        v, entry = self._failed_entry()
+        self._report_cycles(v, entry, 100_000, 10, [
+            "PreArm: Accels inconsistent", "PreArm: RTL mode not armable",
+        ])
+        self.assertFalse(entry.prearm_mode_not_armable_only)
+
+    def test_real_reason_survives_one_lost_report(self):
+        v, entry = self._failed_entry()
+        self._report_cycles(v, entry, 100_000, 1, [
+            "PreArm: Accels inconsistent", "PreArm: RTL mode not armable",
+        ])
+        # Accels STATUSTEXT lost on the link in the next report only.
+        self._report_cycles(v, entry, 130_000, 1, ["PreArm: RTL mode not armable"])
+        self._report_cycles(v, entry, 160_000, 1, [
+            "PreArm: Accels inconsistent", "PreArm: RTL mode not armable",
+        ])
+        self.assertFalse(entry.prearm_mode_not_armable_only)
+
+    def test_wall_time_alone_does_not_age_reasons(self):
+        """Ageing is on the autopilot clock: with no newer autopilot time
+        (link silent, sim paused) a reason never expires."""
+        v, entry = self._failed_entry()
+        _autopilot_clock(v, 100_000)
+        _statustext(v, "PreArm: Accels inconsistent")
+        _statustext(v, "PreArm: RTL mode not armable")
+        for _ in range(5):
+            _statustext(v, "PreArm: RTL mode not armable")
+            entry._refresh_prearm_flags()
+        self.assertFalse(entry.prearm_mode_not_armable_only)
+
+    def test_foreign_clock_source_is_ignored(self):
+        """Only this vehicle's own autopilot advances the reason clock."""
+        v, entry = self._failed_entry()
+        _autopilot_clock(v, 100_000)
+        _statustext(v, "PreArm: Accels inconsistent")
+        _statustext(v, "PreArm: RTL mode not armable")
+        companion = types.SimpleNamespace(
+            time_boot_ms=900_000, get_srcSystem=lambda: 1,
+            get_srcComponent=lambda: 191)
+        entry._on_autopilot_clock(companion)
+        _statustext(v, "PreArm: RTL mode not armable")
         self.assertFalse(entry.prearm_mode_not_armable_only)
 
 
