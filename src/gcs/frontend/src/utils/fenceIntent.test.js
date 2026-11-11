@@ -11,6 +11,7 @@ import {
   resetFenceObservations,
   summarizeFenceObservations,
   fenceMapDisplay,
+  shouldAutoEnableDemoFence,
   vehicleFenceInEffect,
 } from './fenceIntent';
 
@@ -345,5 +346,19 @@ describe('summarizeFenceObservations — keep-out agreement', () => {
     const summary = summarizeFenceObservations(state, [1, 2]);
     expect(summary.exclusions).toEqual([]);
     expect(summary.exclusionsMixed).toBe(true);
+  });
+});
+
+// Codex review: a connecting UAV's download publishes its plan before telemetry
+// lists the UAV, so the roster's summary has asked no one yet.
+describe('shouldAutoEnableDemoFence', () => {
+  const base = { simMode: true, polygonLength: 3, fenceTouched: false, fenceEnabled: false };
+  it('a new plan in the demo gets the fence', () => {
+    const state = emptyFenceObservations();
+    expect(shouldAutoEnableDemoFence({ ...base, state, observations: summarizeFenceObservations(state, []) })).toBe(true);
+  });
+  it('not while a UAV not yet listed is asked about its fence', () => {
+    const state = reserveFenceObservations(emptyFenceObservations(), [3]);
+    expect(shouldAutoEnableDemoFence({ ...base, state, observations: summarizeFenceObservations(state, []) })).toBe(false);
   });
 });

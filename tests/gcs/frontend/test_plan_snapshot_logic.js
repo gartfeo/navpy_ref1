@@ -260,6 +260,21 @@ test('planEditKey: drawing, moving a launch point or picking a dock is an edit',
   assert.notStrictEqual(planEditKey({ ...makeBaseline(), exclusionPolygons: [[{ lat: 1, lon: 1 }, { lat: 2, lon: 1 }, { lat: 2, lon: 2 }]] }), key);
 });
 
+// ---- planSyncKey: the assigned home hubs' positions ----
+
+test('planSyncKey: moving an assigned home hub is a change, the plan file is not', () => {
+  const hubs = [{ name: 'A', lat: 1, lon: 2 }, { name: 'B', lat: 3, lon: 4 }];
+  const state = { ...makeBaseline(), deliveryHubs: hubs, deliveryHubAssignments: [0] };
+  const snap = buildPlanSnapshot(state);
+  // A snapshot keeps the positions it was taken with.
+  assert.strictEqual(planSyncKey(snap), planSyncKey(state));
+  const movedAssigned = { ...state, deliveryHubs: [{ ...hubs[0], lat: 1.5 }, hubs[1]] };
+  assert.notStrictEqual(planSyncKey(movedAssigned), planSyncKey(snap));
+  assert.strictEqual(planEditKey(movedAssigned), planEditKey(snap));
+  const movedOther = { ...state, deliveryHubs: [hubs[0], { ...hubs[1], lat: 3.5 }] };
+  assert.strictEqual(planSyncKey(movedOther), planSyncKey(snap));
+});
+
 test('planHasContent: an area, a launch point or routes', () => {
   assert.strictEqual(planHasContent({}), false);
   assert.strictEqual(planHasContent({ polygon: [{ lat: 1, lon: 1 }, { lat: 2, lon: 2 }] }), false);

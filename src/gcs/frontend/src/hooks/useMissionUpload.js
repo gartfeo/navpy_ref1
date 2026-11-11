@@ -4,7 +4,7 @@ import { buildTargWpsUpdates, buildNavLastWpUpdates } from '../utils/simDockRein
 import { resolveUploadAssignments } from '../utils/uploadAssignments';
 import { activateUploadedSimPlan } from '../utils/missionUploadActivation';
 import { withoutSeqs } from '../utils/missionProgress';
-import { fenceSignature, fenceUploadFailures } from '../utils/fenceIntent';
+import { consumeFenceIntent, fenceSignature, fenceUploadFailures } from '../utils/fenceIntent';
 import { rallyFailureLines, rallyUploadFailures } from '../utils/rallyOutcome';
 import { cameraCheckZone, confirmCameraCheck, zoneUploadAltitude } from '../utils/planCameraCheck';
 import { zoneLabel } from '../components/sidebar/DeliveryHubAssignmentSection';
@@ -19,17 +19,19 @@ import useConfirm from './useConfirm';
  * `fenceIntentGeneration` identifies the pending operator request so
  * `onFenceIntentResolved` can consume exactly the one this upload answered.
  *
- * `onUploadStart` drops the plan-on-the-UAVs baseline as the upload starts
- * writing (a partial or failed upload leaves the UAVs' plans unknown, so the
- * old baseline must neither enable the start control nor be restored) and
- * returns a token for what was sent. `onPlanSynced(token)` takes the new
- * baseline once the upload completed, unless the plan was edited meanwhile.
+ * `capturePlan` reads the editor state the request is built from, before
+ * anything is awaited: an edit made while the camera check or the upload is
+ * out is not in the request. `onUploadStart` drops the plan-on-the-UAVs
+ * baseline as the upload starts writing (a partial or failed upload leaves the
+ * UAVs' plans unknown, so the old baseline must neither enable the start
+ * control nor be restored). Once the upload completed, `onPlanSynced({ upload })`
+ * takes the new baseline from what was sent.
  */
 export default function useMissionUpload({
   mission,
   effectiveUavCount,
   localGenerate, approachPoint, corridorPath,
-  vehicleList, api, onPlanSynced, onUploadStart,
+  vehicleList, api, onPlanSynced, onUploadStart, capturePlan,
   onOperatorAction,
   setVehicleTargWps, setVehicleNavLastWp,
   settings,
@@ -51,6 +53,7 @@ export default function useMissionUpload({
     simDockWps, detectAfterWps,
     setUploadProgress,
   } = mission;
+  const { setSimDockWps, setDetectAfterWps, setDeliveryHubAssignments } = mission;
   const [uploading, setUploading] = useState(false);
 
   // Live mirror of deliveryHubAssignments so handleUpload reads the latest committed
@@ -59,6 +62,8 @@ export default function useMissionUpload({
   deliveryHubAssignmentsRef.current = deliveryHubAssignments;
 
   const handleUpload = useCallback(async () => {
+    // The editor this request is built from (the handler's own render).
+    const editorState = capturePlan?.() ?? null;
     const deliveryHubs = settings?.default_delivery_hubs || [];
     if (deliveryHubs.length === 0) {
       // The hub button on the map toolbar is ringed while no hub exists.
@@ -107,6 +112,20 @@ export default function useMissionUpload({
     if (missingLabels.length > 0) {
       window.alert(`All zones must have a home hub assigned. Missing: ${missingLabels.join(', ')}. Assign them in the Home hubs list of the plan panel, or press Auto-assign there.`);
       return;
+    }
+
+    // Dock and detection picks index the zones they were picked on. A
+    // regeneration that changes the zone count drops them, as the plan editor
+    // does (usePlanningOrchestrator): the request carries none, so the UAVs get
+    // what the editor shows.
+    const priorZoneCount = plan?.zones?.length || 0;
+    const zonesReplaced = generated != null && priorZoneCount !== 0
+      && activePlan.zones.length !== priorZoneCount;
+    const dockWps = zonesReplaced ? {} : simDockWps;
+    const detectWps = zonesReplaced ? {} : detectAfterWps;
+    if (zonesReplaced) {
+      setSimDockWps?.({});
+      setDetectAfterWps?.({});
     }
 
     // Use plan zone order as-is — what the user sees in the plan is what gets uploaded.
@@ -159,8 +178,8 @@ export default function useMissionUpload({
       return isCorridor ? 0 : setCp.length;
     });
     // targ_wps / nav_last_wp exactly as the sim activation below writes them.
-    const tw = simMode ? buildTargWpsUpdates(simDockWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
-    const nl = simMode ? buildNavLastWpUpdates(detectAfterWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    const tw = simMode ? buildTargWpsUpdates(dockWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
+    const nl = simMode ? buildNavLastWpUpdates(detectWps, sortedZones, vehicleList, isCorridor, corridorLens) : null;
     if (simMode) {
       // Warn before anything is sent: can the camera ever detect these docks?
       const checkZones = assignments.map((a, i) => cameraCheckZone({
@@ -185,10 +204,13 @@ export default function useMissionUpload({
       sys_id: vehicleList[i]?.sys_id ?? zone.sys_id,
     }));
     setPlan((prev) => prev ? { ...prev, zones: zonesWithAlt } : prev);
+    // Automatic hub assignments are what this upload resolved and sends; the
+    // operator's manual ones are sent as edited.
+    if (!manualDeliveryHubEdit) setDeliveryHubAssignments?.(effectiveAssignments);
 
     if (setUploadProgress) setUploadProgress({});
     setUploading(true);
-    const sentPlan = onUploadStart?.() ?? null;
+    onUploadStart?.();
     try {
       const result = await api.uploadMissions(assignments, fence);
       // Fence truth is separate from mission truth. A mission can upload
@@ -209,11 +231,9 @@ export default function useMissionUpload({
       // A vehicle that took the upload flies the GCS's own item layout now:
       // the item numbers kept from its downloaded mission no longer apply.
       const uploaded = new Set((result.results || []).filter((r) => !r.error).map((r) => r.sys_id));
+      const asUploaded = (z) => (uploaded.has(z.sys_id) ? { ...z, track: withoutSeqs(z.track) } : z);
       if (uploaded.size) {
-        setPlan((prev) => prev ? {
-          ...prev,
-          zones: prev.zones.map((z) => (uploaded.has(z.sys_id) ? { ...z, track: withoutSeqs(z.track) } : z)),
-        } : prev);
+        setPlan((prev) => prev ? { ...prev, zones: prev.zones.map(asUploaded) } : prev);
       }
       // An RTL that would not reach the home hub is a failed upload step too, even
       // though the mission itself is on the vehicle.
@@ -235,7 +255,21 @@ export default function useMissionUpload({
             setVehicleNavLastWp((prev) => ({ ...prev, ...activated.navLastWpUpdates }));
           }
         }
-        onPlanSynced?.(sentPlan);
+        onPlanSynced?.(editorState && {
+          upload: {
+            ...editorState,
+            // The editor holds the same plan once the updates above commit.
+            plan: { ...activePlan, zones: zonesWithAlt.map(asUploaded) },
+            simDockWps: dockWps,
+            detectAfterWps: detectWps,
+            // What was resolved and sent (a manual list is sent as edited).
+            deliveryHubAssignments: manualDeliveryHubEdit
+              ? editorState.deliveryHubAssignments : effectiveAssignments,
+            fenceIntent: fence != null
+              ? consumeFenceIntent(editorState.fenceIntent, fenceIntentGeneration, true)
+              : editorState.fenceIntent,
+          },
+        });
         goToMonitor();
       } else if (missionFailures.length || fenceFailures.length || rallyFailures.length) {
         // Mission and fence are independent outcomes on the same vehicle.
@@ -270,7 +304,7 @@ export default function useMissionUpload({
     } finally {
       setUploading(false);
     }
-  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, onOperatorAction, simDockWps, setVehicleTargWps, detectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
+  }, [polygon, searchPattern, effectiveUavCount, launchPoint, corridorPoints, approachPoint, corridorPath, plan, vehicleList, localGenerate, api.uploadMissions, api.writeAasParams, api.restartCompanionsReady, goToMonitor, setPlan, setLaunchPoints, setCorridorPointsArr, manualDeliveryHubEdit, settings, onPlanSynced, onUploadStart, capturePlan, onOperatorAction, simDockWps, setSimDockWps, setDeliveryHubAssignments, setVehicleTargWps, detectAfterWps, setDetectAfterWps, setVehicleNavLastWp, setUploadProgress, fence, fenceInvalid, fenceIntentGeneration, onFenceIntentResolved, api.checkPlanCamera, getAas, t, confirm]);
 
   return { uploading, handleUpload };
 }
