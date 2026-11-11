@@ -24,6 +24,7 @@ from gcs.backend.planner.fence_builder import upload_fence_with_retry
 from gcs.backend.planner.waypoint_builder import upload_mission_with_retry
 from gcs.backend.routes.missions import MISSION_UPLOAD_REQUEST_S
 from navpy.core.ports.mission_download import MissionDownload, MissionDownloadOutcome
+from navpy.core.ports.parameter_exchange import MAVLINK2_MAX_FRAME_BYTES
 from navpy.plugins.vehicle.ardupilot.link_state import HeartbeatState
 from tests.modules.vehicle.test_mission_transfer import TARGET, Autopilot, Receiver, _ack, _request
 
@@ -37,6 +38,12 @@ def test_a_gcs_download_sends_twelve_requests_while_the_autopilot_talks():
     link.observe_frame()
     assert autopilot.downloader(link).download(policy=gcs_policy(30.0), ack_timeout=0.001) == 0
     assert autopilot.connection.mav.mission_request_list_send.call_count == GCS_EXCHANGE_ATTEMPTS == 12
+
+
+def test_gcs_exchanges_do_not_count_sends_a_held_frame_may_swallow():
+    """The GCS uplink is the lossy radio: one lost byte can hold a whole frame
+    (``tests/modules/vehicle/test_held_frame_budget.py``)."""
+    assert gcs_policy(30.0).held_frame_bytes == MAVLINK2_MAX_FRAME_BYTES == 280
 
 
 class StoredVehicle:

@@ -27,6 +27,17 @@ class ExchangePolicy:
     stop_on_silence: bool = False
     #: End the exchange once this is true (a NavPy stop request).
     cancelled: Callable[[], bool] | None = None
+    #: Uplink bytes a lost byte can make the receiver swallow (a held frame); a send
+    #: counts against ``attempts`` only once the exchange's uplink carried this many
+    #: bytes since its first send. 0: every send counts (:data:`MAVLINK2_MAX_FRAME_BYTES`).
+    held_frame_bytes: int = 0
+
+
+#: The longest MAVLink 2 frame: 10 header bytes, 255 payload, 2 CRC and the 13-byte
+#: signature. A receiver's parser (ArduPilot's, mavlink-router's) that reads a header
+#: broken by a lost byte waits for this many bytes at most, swallowing every frame in
+#: them, before its CRC check fails and it looks for the next start marker.
+MAVLINK2_MAX_FRAME_BYTES = 10 + 255 + 2 + 13
 
 
 def with_cancel(policy: ExchangePolicy, cancelled: Callable[[], bool] | None) -> ExchangePolicy:
@@ -71,4 +82,11 @@ class ParameterExchange:
         return self.outcome is ExchangeOutcome.CONFIRMED
 
 
-__all__ = ["ExchangeOutcome", "ExchangePolicy", "ExchangeReason", "ParameterExchange", "with_cancel"]
+__all__ = [
+    "MAVLINK2_MAX_FRAME_BYTES",
+    "ExchangeOutcome",
+    "ExchangePolicy",
+    "ExchangeReason",
+    "ParameterExchange",
+    "with_cancel",
+]
