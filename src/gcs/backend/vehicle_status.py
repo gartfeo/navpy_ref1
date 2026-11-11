@@ -119,13 +119,9 @@ def _on_statustext(entry: VehicleEntry, msg: MAVLink_message) -> None:
     text = getattr(msg, "text", "").rstrip("\x00")
     label = entry._SEVERITY_LABELS.get(sev, "INFO")
     entry._status_texts.append({"severity": sev, "label": label, "text": text, "ts": rt.time()})
-    # Track PreArm message categories
+    # Track ArduPilot's current PreArm reasons (aged on the autopilot clock)
     if text.startswith("PreArm:"):
-        reason = text[7:].strip().lower()
-        if "mode not armable" in reason:
-            entry._prearm_mode_only = True
-        else:
-            entry._prearm_other = True
+        entry._prearm_reasons.observe(text[7:])
     # CONF-03 recognition-gate blocked state (D-15/D-16/D-17). CRITICAL:
     # gated behind _from_own_companion — only this UAV's companion may
     # set its blocked reason, not its autopilot or another component

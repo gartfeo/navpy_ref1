@@ -335,14 +335,14 @@ export default function App() {
   useEffect(() => {
     if (shouldAutoEnableDemoFence({
       simMode, polygonLength: polygon.length, fenceTouched, fenceEnabled,
-      observations: observedFence,
+      observations: observedFence, state: fenceObservations,
     })) {
       // Versioned like any other request, so it is sent once and then consumed
       // — but not marked "touched", because the operator did not touch it.
       authorFenceIntent(true, { touched: false });
     }
   }, [simMode, polygon.length, fenceTouched, fenceEnabled, authorFenceIntent,
-      observedFence]);
+      observedFence, fenceObservations]);
   const fenceMap = fenceMapDisplay({ enabled: fenceEnabled, polygon: fencePolygon, vehicleFence });
   // Fence edit gestures (vertex drag / midpoint insert / vertex delete) — the
   // first gesture snapshots the rendered ring into fenceCustomVertices.
@@ -509,6 +509,8 @@ export default function App() {
     onPlanSynced: planning.onPlanSynced,
     isPlanSynced: planning.isPlanSynced,
     forgetPlanSync: planning.forgetPlanSync,
+    beginPlanDownload: planning.beginPlanDownload,
+    notePlanPublished: planning.notePlanPublished,
     onFleetWithoutMission: handleFleetWithoutMission,
     settings,
     setVehicleTargWps, setVehicleNavLastWp, setNotification,
@@ -538,6 +540,7 @@ export default function App() {
     vehicleList, api,
     onPlanSynced: planning.onPlanSynced,
     onUploadStart: planning.beginPlanUpload,
+    capturePlan: planning.capturePlanState,
     onOperatorAction: cancelStartupMissionReconciliation,
     setVehicleTargWps, setVehicleNavLastWp,
     settings,

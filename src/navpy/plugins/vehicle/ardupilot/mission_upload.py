@@ -37,7 +37,7 @@ from navpy.plugins.vehicle.ardupilot.mission_timing import (
     default_mission_policy,
 )
 from navpy.plugins.vehicle.ardupilot.mission_upload_matching import MissionUploadMatcher
-from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import stop_reason
+from navpy.plugins.vehicle.ardupilot.parameter_exchange_loop import SendBudget, stop_reason
 
 MissionProgress = Callable[[int, int], None]
 
@@ -131,15 +131,16 @@ class MissionUploader:
     ) -> tuple[MissionEnvelope | None, ExchangeReason | None]:
         # The cursor precedes the first send, so a late request still counts.
         cursor = self._inbox.cursor()
-        sent = 0
+        budget = SendBudget(policy, self._transport.uplink_bytes)
         reason = stop_reason(policy, self._link)
-        while reason is None and sent < policy.attempts:
+        while reason is None and not budget.spent:
+            written = budget.reading()
             self._transport.call(
                 lambda connection: connection.mav.mission_count_send(
                     self._target, 0, total, mission_type,
                 )
             )
-            sent += 1
+            budget.record(written)
             envelope = self._inbox.wait_after(
                 cursor,
                 lambda message: (
@@ -149,7 +150,7 @@ class MissionUploader:
                 deadline=_capped(rt.monotonic() + ack_timeout, policy),
             )
             if policy.stop_on_silence or envelope is None:
-                self._log(f"MISSION_COUNT send {sent}/{policy.attempts}: "
+                self._log(f"MISSION_COUNT send {budget.label()}: "
                           f"{'no reply' if envelope is None else envelope.message.get_type()}")
             if envelope is not None:
                 return envelope, None

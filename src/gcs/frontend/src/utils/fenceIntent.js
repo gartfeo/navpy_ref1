@@ -294,13 +294,16 @@ export function fenceSignature({ enabled, vertices, exclusions }) {
  * Only for a plan we have authored nothing about AND asked no vehicle about.
  * Once a fence read is outstanding — pending, failed, or answered — the fleet's
  * own configuration is the subject, and a default that silently overwrites it
- * is not a default, it is an edit.
+ * is not a default, it is an edit. `state` (the observation state) counts a
+ * vehicle asked before telemetry lists it: a connecting UAV's download
+ * publishes its plan first.
  */
 export function shouldAutoEnableDemoFence({
-  simMode, polygonLength, fenceTouched, fenceEnabled, observations,
+  simMode, polygonLength, fenceTouched, fenceEnabled, observations, state,
 }) {
   if (!simMode || polygonLength < MIN_FENCE_RING) return false;
   if (fenceTouched || fenceEnabled) return false;
+  if (Object.keys(state?.bySysId || {}).length > 0) return false;
   return !observations?.hasObservations;
 }
 

@@ -378,12 +378,14 @@ export default function usePlanPersistence({
         const ci = getCorridorIdx(z) || heuristicSkip;
         return z.track.slice(ci);
       });
-      if (allPts.length < 3) return;
-      const hull = convexHull(allPts);
-      if (hull.length < 3) return;
-      resolvedPoly = hull;
-      setPolygon(hull);
-      drawing.loadVertices(hull);
+      // Too few points for an area: the hubs and the corridor trim below
+      // still come from the missions.
+      const hull = allPts.length >= 3 ? convexHull(allPts) : [];
+      if (hull.length >= 3) {
+        resolvedPoly = hull;
+        setPolygon(hull);
+        drawing.loadVertices(hull);
+      }
     }
     if (plannerReady && resolvedPoly && resolvedPoly.length >= 3 && downloadedSearchPattern !== 'corridor') {
       const a = analyzeArea(

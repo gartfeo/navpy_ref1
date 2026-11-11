@@ -197,17 +197,24 @@ describe('the plan on the UAVs', () => {
   });
 
   // Codex review, round 3: an edit made while the upload was out (the fence
-  // switched on) was taken into the baseline although it was not sent.
-  it('an upload takes the baseline only for the plan it sent', () => {
-    const h = harness(false);
+  // switched on) was taken into the baseline although it was not sent. The
+  // baseline is the plan sent, so leaving returns the map to it.
+  it('an upload takes the baseline from the plan it sent', async () => {
+    const h = harness('alt');
     let sent;
-    act(() => { sent = h.hook.result.current.beginPlanUpload(); });
+    act(() => {
+      sent = h.hook.result.current.capturePlanState();
+      h.hook.result.current.beginPlanUpload();
+    });
     h.hook.rerender({ ...STATE, fenceEnabled: true, fenceTouched: true });
-    act(() => { h.hook.result.current.onPlanSynced(sent); });
+    act(() => { h.hook.result.current.onPlanSynced({ upload: sent }); });
     expect(h.hook.result.current.planSynced).toBe(false);
-
-    act(() => { sent = h.hook.result.current.beginPlanUpload(); });
-    act(() => { h.hook.result.current.onPlanSynced(sent); });
+    await h.exit();
+    expect(h.setters.restoreFenceState).toHaveBeenCalledWith(
+      expect.objectContaining({ enabled: false, touched: false }),
+    );
+    // The restore's setters are stubs; the editor back on the plan sent is synced.
+    h.hook.rerender(STATE);
     expect(h.hook.result.current.planSynced).toBe(true);
   });
 
