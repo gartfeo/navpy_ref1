@@ -1089,6 +1089,21 @@ class TestReapPort(unittest.TestCase):
         # 30512 (both v4+v6); NOT 13001 (different port), the UDP row, or ESTABLISHED.
         self.assertEqual(pids, [30512])
 
+    def test_listener_with_misreported_state_is_found(self):
+        # Seen 2026-11-12: an orphan Vite kept serving 127.0.0.1:3000 while
+        # netstat labelled its listening socket FIN_WAIT_1. A socket with no
+        # peer (foreign 0.0.0.0:0) is a listener whatever the label says;
+        # missing it left the orphan on slot 0 after gcs_stop.
+        netstat = (
+            "  TCP    127.0.0.1:3000    0.0.0.0:0         FIN_WAIT_1   34520\n"
+            "  TCP    [::1]:3000        [::]:0            CLOSE_WAIT   34521\n"
+            "  TCP    127.0.0.1:51965   127.0.0.1:3000    TIME_WAIT    0\n"
+            "  TCP    127.0.0.1:3000    127.0.0.1:51966   FIN_WAIT_2   34520\n"
+        )
+        with patch.object(reg.os, "name", "nt"), \
+             patch.object(reg.subprocess, "run", return_value=MagicMock(stdout=netstat)):
+            self.assertEqual(reg.listeners_on_port(3000), [34520, 34521])
+
     def test_listeners_on_port_udp_matches_bound_udp_socket(self):
         with patch.object(reg.os, "name", "nt"), \
              patch.object(reg.subprocess, "run", return_value=MagicMock(stdout=self.NETSTAT)):
