@@ -194,11 +194,22 @@ def _matching_pid_field(
     if (
         not protocol.startswith("TCP")
         or len(parts) < 5
-        or parts[3].upper() != "LISTENING"
+        or not _is_tcp_listener(state=parts[3], foreign=parts[2])
         or parts[1].rsplit(":", 1)[-1] != target
     ):
         return None
     return parts[4]
+
+
+# A connected socket always has a peer, so a TCP row whose foreign address is
+# unspecified is a listening socket. Windows can label such a live listener
+# with a stale state (seen: FIN_WAIT_1 on a Vite dev server still serving its
+# port), and trusting the label alone left that orphan on its slot's port.
+_UNSPECIFIED_TCP_PEERS = frozenset({"0.0.0.0:0", "[::]:0", "*:*"})
+
+
+def _is_tcp_listener(*, state: str, foreign: str) -> bool:
+    return state.upper() == "LISTENING" or foreign in _UNSPECIFIED_TCP_PEERS
 
 
 def reap_port(
