@@ -20,6 +20,7 @@ from navpy.core.review.confirmation_ports import (
     ConfirmationRoundStatePort,
 )
 from navpy.core.review.confirmation_round_transaction import (
+    ConfirmationDeadline,
     ConfirmationRequestRef,
     ConfirmationRound,
     ConfirmationWorkerLease,
@@ -35,7 +36,7 @@ _OUTBOUND_ERRORS = (OSError,)
 
 
 class ConfirmationRoundRunner:
-    """Own one request deadline and its request-only resend cadence."""
+    """Start one round with its deadline and run its request-only resend cadence."""
 
     def __init__(
         self,
@@ -75,11 +76,14 @@ class ConfirmationRoundRunner:
             return
         request = self._request_message(poi, worker.poi_id)
         request.set_meta_from_provider()
+        # The window starts here and the wait is read once: sends, the image
+        # transfer, resends and a later parameter change cannot extend it.
         confirmation = self._state.begin_round(
             poi,
             worker,
             self._event_factory,
             ConfirmationRequestRef.from_meta(request.meta),
+            deadline=ConfirmationDeadline(self._monotonic, self._wait_time_s()),
         )
         if confirmation is None:
             return
@@ -98,7 +102,6 @@ class ConfirmationRoundRunner:
                     lambda: network.broadcast(request),
                 ):
                     return
-                first_send = self._monotonic()
                 if not self._media.send(
                     poi,
                     confirmation.poi_id,
@@ -117,7 +120,7 @@ class ConfirmationRoundRunner:
                 )
                 return
 
-            wait_time_s = self._wait_time_s()
+            wait_time_s = confirmation.deadline.wait_s
             if wait_time_s <= 0:
                 if self._state.complete_round(
                     confirmation,
@@ -130,8 +133,7 @@ class ConfirmationRoundRunner:
                     )
                 return
 
-            deadline = first_send + wait_time_s
-            self._wait_for_response(confirmation, request, deadline)
+            self._wait_for_response(confirmation, request)
             status = self._failure_policy.status(confirmation.poi_id)
             if not self._state.complete_round(confirmation, status):
                 return
@@ -156,10 +158,9 @@ class ConfirmationRoundRunner:
         self,
         confirmation: ConfirmationRound,
         request: TaskConfirmRequestMsg,
-        deadline: float,
     ) -> None:
         while True:
-            remaining = deadline - self._monotonic()
+            remaining = confirmation.deadline.remaining_s()
             if remaining <= 0:
                 return
             resend_interval = self._resend_interval_s()

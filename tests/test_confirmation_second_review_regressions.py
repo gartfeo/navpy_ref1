@@ -49,6 +49,7 @@ from navpy.core.swarm.task_assignment_planner import MinimumEtaAssignmentPlanner
 from navpy.core.swarm.task_auction_models import ResponseVerdict
 from navpy.core.swarm.task_msg_refs import MsgRef
 from tests.detection_factory import make_detected_poi
+from tests.confirmation_doubles import open_deadline
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -76,7 +77,7 @@ def test_new_review_invalidates_prior_recall_authority(
     poi = make_detected_poi(obj_id=7, task_id=7)
     old_ref = ConfirmationRequestRef(101, 1)
     old_worker = state.start_review(poi, threading.Event)
-    old_round = state.begin_round(poi, old_worker, threading.Event, old_ref)
+    old_round = state.begin_round(poi, old_worker, threading.Event, old_ref, deadline=open_deadline())
     assert old_round is not None
     assert state.complete_round(old_round, ConfirmationStatus.CONFIRMED)
     state.finish_worker(old_worker)

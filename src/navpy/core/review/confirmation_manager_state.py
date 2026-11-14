@@ -8,6 +8,7 @@ from typing import Optional
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.review.confirmation_round_state import ConfirmationRoundState
 from navpy.core.review.confirmation_round_transaction import (
+    ConfirmationDeadline,
     ConfirmationRequestRef,
     ConfirmationResponseKind,
     ConfirmationRound,
@@ -72,8 +73,12 @@ class ConfirmationManagerState:
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
+        *,
+        deadline: ConfirmationDeadline,
     ) -> Optional[ConfirmationRound]:
-        return self._rounds.begin(poi, lease, event_factory, request_ref)
+        return self._rounds.begin(
+            poi, lease, event_factory, request_ref, deadline=deadline,
+        )
 
     def complete_round(
         self,

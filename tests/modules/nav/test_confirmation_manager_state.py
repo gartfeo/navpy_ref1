@@ -17,6 +17,7 @@ from navpy.core.review.confirmation_manager_state import ConfirmationManagerStat
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject
 from tests.detection_factory import make_detected_poi
+from tests.confirmation_doubles import open_deadline
 
 
 def _poi(task_id: int) -> DetectedObject:
@@ -51,7 +52,7 @@ def test_response_after_reset_stays_late_and_cannot_restore_status() -> None:
     state = ConfirmationManagerState()
     poi = _poi(81)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
 
     state.reset()
@@ -68,9 +69,9 @@ def test_stale_round_cannot_finish_or_remove_replacement_payload() -> None:
     old_poi = _poi(9)
     new_poi = _poi(9)
     old_worker = state.start_review(old_poi, threading.Event)
-    old_round = state.begin_round(old_poi, old_worker, threading.Event)
+    old_round = state.begin_round(old_poi, old_worker, threading.Event, deadline=open_deadline())
     new_worker = state.start_review(new_poi, threading.Event)
-    new_round = state.begin_round(new_poi, new_worker, threading.Event)
+    new_round = state.begin_round(new_poi, new_worker, threading.Event, deadline=open_deadline())
     assert old_round is not None
     assert new_round is not None
 
@@ -94,7 +95,7 @@ def test_response_consumes_exact_round_once() -> None:
     state = ConfirmationManagerState()
     poi = _poi(10)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
 
     assert (
@@ -113,7 +114,7 @@ def test_first_use_metadata_less_response_remains_legacy_compatible() -> None:
     state = ConfirmationManagerState()
     poi = _poi(101)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
 
     assert (
@@ -132,6 +133,7 @@ def test_correlated_approve_and_recall_share_the_exact_round_token() -> None:
         worker,
         threading.Event,
         request_ref,
+        deadline=open_deadline(),
     )
     assert confirmation is not None
 
@@ -165,6 +167,7 @@ def test_reset_clears_retained_confirmation_round_token() -> None:
         worker,
         threading.Event,
         request_ref,
+        deadline=open_deadline(),
     )
     assert confirmation is not None
     assert (
@@ -211,7 +214,7 @@ def test_finish_worker_retires_its_unfinished_round_and_wakes_waiter() -> None:
     state = ConfirmationManagerState()
     poi = _poi(11)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
 
     state.finish_worker(worker)
@@ -226,9 +229,9 @@ def test_finishing_old_worker_does_not_remove_replacement_round() -> None:
     old_poi = _poi(12)
     replacement = _poi(12)
     old_worker = state.start_review(old_poi, threading.Event)
-    old_round = state.begin_round(old_poi, old_worker, threading.Event)
+    old_round = state.begin_round(old_poi, old_worker, threading.Event, deadline=open_deadline())
     new_worker = state.start_review(replacement, threading.Event)
-    new_round = state.begin_round(replacement, new_worker, threading.Event)
+    new_round = state.begin_round(replacement, new_worker, threading.Event, deadline=open_deadline())
     assert old_round is not None
     assert new_round is not None
 
@@ -365,7 +368,7 @@ def test_every_exact_round_resolution_waits_for_outbound_transaction(
     state = ConfirmationManagerState()
     poi = _poi(20)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
     send_entered = threading.Event()
     release_send = threading.Event()
@@ -394,7 +397,7 @@ def test_every_exact_round_resolution_waits_for_outbound_transaction(
         else:
             replacement = _poi(20)
             replacement_worker = state.start_review(replacement, threading.Event)
-            state.begin_round(replacement, replacement_worker, threading.Event)
+            state.begin_round(replacement, replacement_worker, threading.Event, deadline=open_deadline())
         resolution_finished.set()
 
     resolution_thread = threading.Thread(target=resolve)

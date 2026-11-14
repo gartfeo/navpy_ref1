@@ -13,6 +13,7 @@ from navpy.core.review.confirmation_response_state import (
 )
 from navpy.core.review.confirmation_send_gate import ConfirmationSendGate
 from navpy.core.review.confirmation_round_transaction import (
+    ConfirmationDeadline,
     ConfirmationRequestRef,
     ConfirmationResponseKind,
     ConfirmationRound,
@@ -49,6 +50,8 @@ class ConfirmationRoundState:
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
+        *,
+        deadline: ConfirmationDeadline,
     ) -> Optional[ConfirmationRound]:
         poi_id = lease.poi_id
         if poi_id is None:
@@ -65,6 +68,7 @@ class ConfirmationRoundState:
                         event_factory(),
                         poi,
                         lease,
+                        deadline,
                         request_ref,
                         self._responses.legacy_allowed(poi_id),
                     )
@@ -167,6 +171,9 @@ class ConfirmationRoundState:
                         return None
                     if not matches_round(confirmation, response_ref):
                         return ConfirmationResponseKind.LATE_OR_DUPLICATE
+                    # Refused before the pop: the round's worker still owns the timeout outcome.
+                    if is_confirmed and confirmation.deadline.expired():
+                        return ConfirmationResponseKind.DEADLINE_PASSED
                     self._rounds.pop(poi_id)
                     result = (
                         response_for_current_round(

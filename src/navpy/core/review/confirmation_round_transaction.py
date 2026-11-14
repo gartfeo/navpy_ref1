@@ -28,6 +28,43 @@ class ConfirmationOutboundTransaction:
             return action()
 
 
+class ConfirmationDeadline:
+    """One round's response deadline: fixed when built, never extended.
+
+    The round's worker and the response resolver ask this one object, so a
+    late worker, a slow image send, a resend or a changed wait parameter
+    cannot keep the round open for an approval. Expiry is one-way: a clock
+    that steps back does not reopen the round.
+    """
+
+    def __init__(self, monotonic: Callable[[], float], wait_s: float) -> None:
+        self._monotonic = monotonic
+        self._wait_s = wait_s
+        start_s = monotonic()
+        self._deadline_s = start_s + wait_s
+        # "not (a < b)", here and below: a NaN clock or wait counts as expired.
+        self._expired = not start_s < self._deadline_s
+        # Innermost lock: held only around the clock read and the latch.
+        self._lock = rt.Lock()
+
+    @property
+    def wait_s(self) -> float:
+        return self._wait_s
+
+    def remaining_s(self) -> float:
+        """Seconds left to answer; 0.0 from the deadline on."""
+        with self._lock:
+            if not self._expired:
+                now_s = self._monotonic()
+                if now_s < self._deadline_s:
+                    return self._deadline_s - now_s
+                self._expired = True
+            return 0.0
+
+    def expired(self) -> bool:
+        return not self.remaining_s() > 0.0
+
+
 @dataclass(frozen=True)
 class ConfirmationWorkerLease:
     poi_id: Optional[int]
@@ -64,6 +101,7 @@ class ConfirmationRound:
     response_event: rt.Event
     poi: DetectedObject
     worker: ConfirmationWorkerLease
+    deadline: ConfirmationDeadline
     request_ref: Optional[ConfirmationRequestRef] = None
     accepts_legacy_response: bool = True
     outbound: ConfirmationOutboundTransaction = field(
@@ -80,9 +118,12 @@ class ConfirmationResponseKind(Enum):
     LATE_OR_DUPLICATE = "late_or_duplicate"
     ALREADY_REJECTED = "already_rejected"
     WAKE_ONLY = "wake_only"
+    # An approval at or after the round's deadline: refused, round left open.
+    DEADLINE_PASSED = "deadline_passed"
 
 
 __all__ = [
+    "ConfirmationDeadline",
     "ConfirmationOutboundTransaction",
     "ConfirmationRequestRef",
     "ConfirmationResponseKind",

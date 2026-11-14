@@ -18,6 +18,7 @@ from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
+from tests.confirmation_doubles import open_deadline
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.kernel.location import Location
 
@@ -77,6 +78,7 @@ class ConfirmationManagerTests(unittest.TestCase):
             poi,
             lease,
             lambda: event,
+            deadline=open_deadline(),
         )
         self.assertIsNotNone(confirmation)
         return lease
