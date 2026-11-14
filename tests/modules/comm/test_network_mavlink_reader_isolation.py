@@ -20,6 +20,7 @@ from navpy.core.review.confirmation_manager_state import ConfirmationManagerStat
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.plugins.radio.mavlink.network_mavlink import NetworkMavlink
 from tests.detection_factory import make_detected_poi
+from tests.confirmation_doubles import open_deadline
 
 
 @pytest.fixture
@@ -56,7 +57,7 @@ def test_reader_does_not_wait_for_a_response_fenced_by_the_image_send(
     state = ConfirmationManagerState()
     poi = make_detected_poi(obj_id=7, task_id=7, class_id=0)
     worker = state.start_review(poi, threading.Event)
-    confirmation = state.begin_round(poi, worker, threading.Event)
+    confirmation = state.begin_round(poi, worker, threading.Event, deadline=open_deadline())
     assert confirmation is not None
     network.set_listener(ConfirmationInboundHandler(
         sys_id=101, state=state, media=MagicMock(), logger=MagicMock(),

@@ -9,6 +9,7 @@ from navpy.core.kernel import runtime_time as rt
 from navpy.core.link.msg_abc import MsgABC
 from navpy.core.ports.network_abc import ImageSendUnitRunner
 from navpy.core.review.confirmation_round_transaction import (
+    ConfirmationDeadline,
     ConfirmationRequestRef,
     ConfirmationResponseKind,
     ConfirmationRound,
@@ -70,6 +71,8 @@ class ConfirmationRoundStatePort(Protocol):
         lease: ConfirmationWorkerLease,
         event_factory: Callable[[], rt.Event],
         request_ref: Optional[ConfirmationRequestRef] = None,
+        *,
+        deadline: ConfirmationDeadline,
     ) -> Optional[ConfirmationRound]: ...
 
     def complete_round(

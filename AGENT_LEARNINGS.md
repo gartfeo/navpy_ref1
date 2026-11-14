@@ -2788,3 +2788,28 @@
   orphaned stub backend (`trap '' TERM; while :; do sleep 1; done`) and `update_gcs.sh` kept the
   pipe open. Stopping those two orphans (by their exact command line) let the run finish. When a
   run's log stops moving, py-spy the workers before waiting longer.
+
+## Confirmation round deadline (demo open item 1, step A; 2026-11-14)
+
+- `core/review` was byte-identical on main and on the unmerged demo line (ac7d41d4), and that line
+  fails seven guard tests of its own. Compare the files a fix touches (`git diff --stat main <line> -- <dir>`)
+  before choosing its base: this fix went on main and can be cherry-picked to the demo line.
+- A refusal in `resolve_response` must come before the round is popped and must not set the round's
+  event. After the pop the worker's `complete_round` returns False and no timeout outcome is written;
+  a set event makes the send gate refuse the rest of the image send and the POI stays CONFIRMING.
+- A latch read by two threads (worker outside the round locks, resolver inside them) needs its own
+  innermost lock around latch check, clock read and update (Codex plan review). Sequential
+  "clock steps back" tests do not show the race; pause one thread inside its clock read.
+- In a lockstep rig, `(runtime.now_us, call())` stamps the time before a call that can park. Take
+  the result first, then the stamp.
+- One-line mutation runs found two holes the green tests hid (a clock that turns NaN after the
+  start; a refusal that wakes the round). Restore each mutated file from bytes kept in memory in a
+  `finally`: `git checkout -- file` would also drop the uncommitted work. Match on text with
+  normalised line endings, the review files are CRLF.
+- Review findings (Codex and a five-lens pass): a test that waits for a status and then reads the
+  log races the worker, which writes the status first and logs after; wait on the log call itself.
+  A change that moves code also moves other docs' file:line references (two were off) and leaves
+  the old rule in other docs and in test names; `git grep` the old wording across docs and tests.
+- The deadline is the float sum start + wait, as the baton's timed waits are. On the lockstep clock
+  that sum can sit one float step above the tick exactly `wait` later (0.02 + 0.1 > 0.12), so that
+  tick is still inside the window. State tick-level rules in float terms and pin one such start tick.

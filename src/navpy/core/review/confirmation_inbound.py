@@ -103,6 +103,11 @@ class ConfirmationInboundHandler:
             self._logger.warning(
                 f"Ignoring late or duplicate confirmation for P{poi_id}."
             )
+        elif result is ConfirmationResponseKind.DEADLINE_PASSED:
+            self._logger.warning(
+                f"Ignoring approval for P{poi_id}: the round's response "
+                f"window is closed."
+            )
         elif result is ConfirmationResponseKind.ALREADY_REJECTED:
             self._logger.warning(
                 f"Ignoring confirm for already-rejected P{poi_id}.",

@@ -38,22 +38,31 @@ RC list; cards simplified). Fit is checked live; jsdom has no layout.
 - **What the vehicle does** (NavPy):
   - NAV_AUTO_CM 1: no card (`confirmation_coordinator.py:67-73`).
   - NAV_CWT 0 or less: after the request and its media, it confirms
-    (`confirmation_round_runner.py:94-125`; a send error takes the failure
-    policy instead).
-  - Otherwise, at `first_send + NAV_CWT` it confirms only if NAV_CM_FL is on
-    and the POI is still fresh; else TIMEOUT_REJECTED
-    (`confirmation_dependencies.py:62-65`).
+    (`confirmation_round_runner.py:100-134`; a send error takes the failure
+    policy instead). Such a round has no response window: it takes no Approve
+    at all, only a Deny.
+  - Otherwise, NAV_CWT after the round is built (just before its first send;
+    the wait is read once there, so sends, the image transfer, resends and a
+    later parameter change do not extend it) it confirms only if NAV_CM_FL is
+    on and the POI is still fresh; else TIMEOUT_REJECTED
+    (`confirmation_dependencies.py:62-65`). A NAV_CWT that is not a number
+    gives the same outcome after the request and its media, without waiting,
+    and that round takes no Approve either.
   - An operator response (`confirmation_response_state.py:37-52`): Approve on
-    an open round confirms it, with no freshness check; Deny on an open round
-    rejects it, and on a CONFIRMED POI recalls it; Approve on a rejected one
-    does nothing. The GCS's timeout answer is such a response, and the link
+    an open round confirms it, with no freshness check, but only before that
+    deadline: at or after it the vehicle ignores the Approve, even while its
+    own timeout is still pending (a slow image send, a late worker), and the
+    timeout outcome above stands (`ConfirmationDeadline`,
+    `confirmation_round_state.py` `resolve_response`). Deny on an open round
+    rejects it at any time, and on a CONFIRMED POI recalls it; Approve on a
+    rejected one does nothing. The GCS's timeout answer is such a response, and the link
     does not acknowledge it (`backend/routes/task_confirm.py:91`, `:127`).
   - The values are read at navigation start (`navigation_mode.py:166-168`,
     `nav_args.py:78-91`), and a companion CLI argument wins over the MAVLink
     param (`nav_args.py:42-48`). The GCS shows its cached MAVLink params
     (`useAasParams.js:278`, `:305`): an estimate of the vehicle's policy.
-  - Two independent timers: the vehicle's starts after its first send, the
-    GCS's at browser receipt. Which reaches zero first depends on link delay,
+  - Two independent timers: the vehicle's starts when it builds the round,
+    just before its first send, the GCS's at browser receipt. Which reaches zero first depends on link delay,
     scheduling, clock rates and whether the cached params match; neither is
     promised. A constant wall-clock offset cancels out (each side subtracts
     its own times); jumps and rate differences do not.
@@ -197,7 +206,8 @@ off, nav_cwt 30) a missed card rejects the dock.
    if still tracked". Not recommended: both state a vehicle outcome the GCS
    cannot know (delivery and the vehicle's round are unconfirmed), and "if
    still tracked" is wrong for the GCS's Approve, which confirms an open round
-   without the freshness check.
+   without the freshness check when it reaches the vehicle before the round's
+   deadline.
 6. **Demo policy**: keep reject; the demo card reads "Auto-deny in 0:30"
    ("Rejects in 0:30" with the alternative wording).
 7. **NAV_CWT 0 with NAV_CM_FL 0 or not loaded**: the card sends Deny at

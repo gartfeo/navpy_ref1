@@ -40,6 +40,7 @@ from navpy.core.skills.confirm.orbit_established import (
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from tests.modules.nav.acquisition_replay import GATES, OWN_CENTRE, AcquisitionRig, as_fix, frame, offset
+from tests.confirmation_doubles import open_deadline
 
 SETTINGS = AcquisitionGateSettings(**GATES)
 ON_CIRCLE = offset(OWN_CENTRE, 300.0, 0.0)
@@ -146,7 +147,7 @@ def _review_under_way():
     poi = frame(1.0, 0.5, lambda: 1.0)
     state.acquisition.publish(1, True)
     lease = state.start_review(poi, rt.Event)
-    round_ = state.begin_round(poi, lease, rt.Event)
+    round_ = state.begin_round(poi, lease, rt.Event, deadline=open_deadline())
     assert round_ is not None and state.registry.get_status(poi) is ConfirmationStatus.CONFIRMING
     return state, poi, lease, round_
 

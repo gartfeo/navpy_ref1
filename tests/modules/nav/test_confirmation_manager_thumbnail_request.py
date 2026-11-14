@@ -29,6 +29,7 @@ from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import ConfirmationEvidence
 from tests.detection_factory import make_detected_poi
+from tests.confirmation_doubles import open_deadline
 
 
 class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
@@ -192,6 +193,7 @@ class ConfirmationManagerThumbnailRequestTests(unittest.TestCase):
             self.poi,
             worker,
             threading.Event,
+            deadline=open_deadline(),
         )
         self.assertIsNotNone(confirmation)
         original_pending_poi = self.confirmation_manager._state.pending_poi

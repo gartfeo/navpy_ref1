@@ -5,7 +5,7 @@ added on top of the existing ConfirmationManager suite in test_confirmation_mana
 confirm_wait_time_sec used there, so no resend fires in those tests).
 
 The loop has exactly two exits: a final confirm response arrives, or the
-single confirm_wait_time_sec window (counted from the first send) expires.
+single confirm_wait_time_sec window (counted from the round's start) expires.
 """
 import threading
 import time
@@ -23,6 +23,7 @@ from navpy.core.review import confirmation_manager as tm_module
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
+from tests.confirmation_doubles import SettableClock
 from tests.detection_factory import make_detected_poi
 from tests.runtime_overlay import RuntimeOverlay
 
@@ -174,6 +175,62 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         )
 
     @patch.object(tm_module, "RESEND_INTERVAL_S", 0.05)
+    def test_late_gcs_approval_is_ignored_and_the_round_times_out(self):
+        """An approval that reaches the vehicle at the round's deadline, while
+        its worker is still inside a wait, must not confirm the POI: the
+        worker's own timeout outcome stands and is logged as automatic.
+
+        Through the real manager wiring, so it also shows that the worker
+        and the response handler read one clock.
+        """
+        self.mock_args.confirm_wait_time_sec = 5.0
+        clock = SettableClock(100.0)
+        delivered = threading.Event()
+        poi_id = self.poi.identity.obj_id
+
+        def _deliver_late_approval():
+            clock.now_s = 105.0  # the deadline; the worker has not looked yet
+            self.confirmation_manager.on_message(TaskConfirmResponseMsg(
+                receiver_id=1,
+                task_id=poi_id,
+                is_confirmed=True,
+            ))
+            delivered.set()
+
+        _RaceEvent.on_first_timeout = _deliver_late_approval
+        self.addCleanup(setattr, _RaceEvent, "on_first_timeout", None)
+        # The worker writes the status first and its log line after: wait for
+        # the line itself, not for the status.
+        outcome_logged = threading.Event()
+
+        def _note_outcome(*_args, **kwargs):
+            if "after" in str(kwargs.get("status")):
+                outcome_logged.set()
+
+        self.mock_logger.info.side_effect = _note_outcome
+
+        with patch.object(tm_module, "rt", RuntimeOverlay(Event=_RaceEvent, monotonic=clock)):
+            self.confirmation_manager.review([self.poi])
+            self.assertTrue(
+                delivered.wait(timeout=3.0), "the late approval was never delivered",
+            )
+            self.assertTrue(
+                outcome_logged.wait(timeout=3.0), "the round never logged a timeout outcome",
+            )
+
+        self.assertEqual(
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
+        )
+        self.mock_logger.warning.assert_any_call(
+            f"Ignoring approval for P{poi_id}: the round's response window is closed."
+        )
+        statuses = [
+            entry.kwargs.get("status") for entry in self.mock_logger.info.call_args_list
+        ]
+        self.assertNotIn(f"P{poi_id} confirmed by GCS", statuses)
+        self.assertIn(f"P{poi_id} auto-rejected (timeout) after 5.0s.", statuses)
+
+    @patch.object(tm_module, "RESEND_INTERVAL_S", 0.05)
     def test_no_resend_is_sent_after_the_response_is_consumed(self):
         """The response handler and the resend must share one atomic order:
         once the handler has consumed the pending token, NO further
@@ -233,9 +290,9 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         )
 
     @patch.object(tm_module, "RESEND_INTERVAL_S", 0.05)
-    def test_window_counted_from_first_send_not_extended_by_resends(self):
-        """D-11: the single confirm_wait_time_sec window is counted from the
-        FIRST send; the resends inside it must not restart or extend it."""
+    def test_window_is_not_extended_by_resends(self):
+        """D-11: the round has a single confirm_wait_time_sec window; the
+        resends inside it must not restart or extend it."""
         self.mock_args.confirm_wait_time_sec = 0.3
         start = time.monotonic()
 
