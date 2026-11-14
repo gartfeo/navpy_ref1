@@ -118,7 +118,8 @@ class ConfirmationResponseKind(Enum):
     LATE_OR_DUPLICATE = "late_or_duplicate"
     ALREADY_REJECTED = "already_rejected"
     WAKE_ONLY = "wake_only"
-    # An approval at or after the round's deadline: refused, round left open.
+    # An approval when the round's response window is closed (at or after its
+    # deadline, or a round with no window): refused, round left registered.
     DEADLINE_PASSED = "deadline_passed"
 
 

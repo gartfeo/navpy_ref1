@@ -199,19 +199,30 @@ class ConfirmationManagerResendTests(unittest.TestCase):
 
         _RaceEvent.on_first_timeout = _deliver_late_approval
         self.addCleanup(setattr, _RaceEvent, "on_first_timeout", None)
+        # The worker writes the status first and its log line after: wait for
+        # the line itself, not for the status.
+        outcome_logged = threading.Event()
+
+        def _note_outcome(*_args, **kwargs):
+            if "after" in str(kwargs.get("status")):
+                outcome_logged.set()
+
+        self.mock_logger.info.side_effect = _note_outcome
 
         with patch.object(tm_module, "rt", RuntimeOverlay(Event=_RaceEvent, monotonic=clock)):
             self.confirmation_manager.review([self.poi])
             self.assertTrue(
                 delivered.wait(timeout=3.0), "the late approval was never delivered",
             )
-            self.assertEqual(
-                self._await_status(ConfirmationStatus.TIMEOUT_REJECTED, ConfirmationStatus.CONFIRMED),
-                ConfirmationStatus.TIMEOUT_REJECTED,
+            self.assertTrue(
+                outcome_logged.wait(timeout=3.0), "the round never logged a timeout outcome",
             )
 
+        self.assertEqual(
+            self.confirmation_manager.get_status(self.poi), ConfirmationStatus.TIMEOUT_REJECTED,
+        )
         self.mock_logger.warning.assert_any_call(
-            f"Ignoring approval for P{poi_id}: it arrived after the response deadline."
+            f"Ignoring approval for P{poi_id}: the round's response window is closed."
         )
         statuses = [
             entry.kwargs.get("status") for entry in self.mock_logger.info.call_args_list
@@ -279,9 +290,9 @@ class ConfirmationManagerResendTests(unittest.TestCase):
         )
 
     @patch.object(tm_module, "RESEND_INTERVAL_S", 0.05)
-    def test_window_counted_from_first_send_not_extended_by_resends(self):
-        """D-11: the single confirm_wait_time_sec window is counted from the
-        FIRST send; the resends inside it must not restart or extend it."""
+    def test_window_is_not_extended_by_resends(self):
+        """D-11: the round has a single confirm_wait_time_sec window; the
+        resends inside it must not restart or extend it."""
         self.mock_args.confirm_wait_time_sec = 0.3
         start = time.monotonic()
 

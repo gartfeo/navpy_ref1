@@ -6,7 +6,13 @@ operator answer is an input of one tick, taken by an inbound thread. A tick
 runs inputs before due timers by default, and timers first with the
 ``timers_first`` scheduling model, so the deadline tick is where the answer
 and the worker's own timeout meet. Whatever the order, an approval counts
-only on a tick before the deadline.
+only on a tick whose time is below the deadline.
+
+The deadline is the product's float sum, start + wait, the same value the
+baton uses for the worker's timed wait. For some start ticks that sum is one
+float step above the tick that lies exactly ``wait`` later, and that tick is
+then still inside the window for the worker and the resolver alike (the last
+test pins it).
 """
 
 from __future__ import annotations
@@ -55,6 +61,7 @@ def _run(
     timers_first: bool = False,
     host_delays: bool = False,
     first_send_s: float = 0.0,
+    start_tick: int = 0,
 ) -> Outcome:
     runtime = BatonRuntime()
     runtime.runnable.scheduling.timers_first = timers_first
@@ -105,6 +112,8 @@ def _run(
         )
 
         def worker() -> None:
+            if start_tick:
+                sleep(runtime, start_tick * TICK_US / 1_000_000)
             lease = state.start_review(poi, threads.Event)
             runner.run(poi, lease)
             outcome.round_ended_us = runtime.now_us
@@ -242,3 +251,24 @@ def test_approval_held_behind_a_send_past_the_deadline_is_refused(
     assert outcome.status is ConfirmationStatus.TIMEOUT_REJECTED
     assert outcome.round_ended_us == _us(7)
     assert TIMEOUT_LABEL in outcome.info_logs
+
+
+@pytest.mark.parametrize("timers_first", [False, True])
+def test_the_deadline_is_the_float_sum_for_the_worker_and_the_resolver_alike(
+    timers_first: bool,
+) -> None:
+    """A round built at tick 1 (0.02 s) with a 0.1 s wait has the deadline
+    0.02 + 0.1 = 0.12000000000000001, one float step above tick 6 (0.12 s).
+    Tick 6 is therefore inside the window: an approval there confirms, and an
+    unanswered round times out on tick 7. Worker and resolver never disagree."""
+    assert 0.02 + WAIT_S > 6 * TICK_US / 1_000_000
+
+    on_tick_6 = _run(approve_at_tick=6, timers_first=timers_first, start_tick=1)
+    assert on_tick_6.answers == [(_us(6), Kind.CONFIRMED)]
+    assert on_tick_6.status is ConfirmationStatus.CONFIRMED
+
+    on_tick_7 = _run(approve_at_tick=7, timers_first=timers_first, start_tick=1)
+    assert on_tick_7.answers[0][1] in (Kind.DEADLINE_PASSED, Kind.LATE_OR_DUPLICATE)
+    assert on_tick_7.status is ConfirmationStatus.TIMEOUT_REJECTED
+    assert on_tick_7.round_ended_us == _us(7)
+    assert TIMEOUT_LABEL in on_tick_7.info_logs

@@ -263,6 +263,37 @@ def test_replacement_after_a_refusal_owns_the_poi_with_a_fresh_window() -> None:
     assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMED
 
 
+def test_late_approval_to_a_superseded_round_is_refused_and_the_round_is_still_cleaned_up() -> None:
+    """A newer review holds the worker lease but has not built its round yet."""
+    state, poi, clock = ConfirmationManagerState(), _poi(56), SettableClock(START_S)
+    _old_worker, old_round = _open_round(state, poi, clock)
+    state.start_review(poi, threading.Event)  # supersedes the old worker
+    clock.now_s = DEADLINE_S
+
+    assert state.resolve_response(56, True) is Kind.DEADLINE_PASSED
+
+    assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMING
+    assert state.pending_poi(56) is poi
+    # The superseded worker cannot write an outcome; its own exit removes the round.
+    assert not state.complete_round(old_round, ConfirmationStatus.CONFIRMED)
+    assert state.registry.get_status(poi) is ConfirmationStatus.CONFIRMING
+    assert state.retire_round(old_round)
+    assert state.pending_poi(56) is None
+
+
+def test_late_approval_to_an_already_rejected_poi_is_refused_as_late() -> None:
+    state, poi, clock = ConfirmationManagerState(), _poi(57), SettableClock(START_S)
+    _worker, confirmation = _open_round(state, poi, clock)
+    state.registry.set_status(57, ConfirmationStatus.REJECTED)
+    clock.now_s = DEADLINE_S
+
+    assert state.resolve_response(57, True) is Kind.DEADLINE_PASSED
+
+    assert state.registry.get_status(poi) is ConfirmationStatus.REJECTED
+    assert state.pending_poi(57) is poi
+    assert state.retire_round(confirmation)
+
+
 def test_approval_queued_behind_a_send_is_judged_when_it_is_resolved() -> None:
     """The approval arrives in time but waits on the round's send lock past the
     deadline: the clock is read inside the transaction, so it is refused."""

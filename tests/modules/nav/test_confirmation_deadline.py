@@ -7,8 +7,10 @@ import threading
 
 import pytest
 
+from navpy.core.review import confirmation_round_transaction as transaction_module
 from navpy.core.review.confirmation_round_transaction import ConfirmationDeadline
 from tests.confirmation_doubles import SettableClock
+from tests.runtime_overlay import RuntimeOverlay
 
 
 def test_open_until_just_before_the_deadline() -> None:
@@ -127,7 +129,6 @@ def test_the_window_cannot_be_changed_after_construction() -> None:
 
 
 def test_a_frozen_clock_below_the_deadline_stays_open() -> None:
-    """No hidden second clock: the answer follows the injected one alone."""
     clock = SettableClock(10.0)
     deadline = ConfirmationDeadline(clock, 30.0)
 
@@ -135,6 +136,32 @@ def test_a_frozen_clock_below_the_deadline_stays_open() -> None:
         assert not deadline.expired()
 
     assert deadline.remaining_s() == 30.0
+
+
+def test_every_check_reads_the_clock_while_holding_the_deadline_lock(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    locks: list[threading.Lock] = []
+
+    def make_lock() -> threading.Lock:
+        locks.append(threading.Lock())
+        return locks[-1]
+
+    monkeypatch.setattr(transaction_module, "rt", RuntimeOverlay(Lock=make_lock))
+    held_at_read: list[bool] = []
+
+    def clock() -> float:
+        held_at_read.append(bool(locks) and locks[0].locked())
+        return 10.0
+
+    deadline = ConfirmationDeadline(clock, 30.0)
+    assert deadline.remaining_s() == 30.0
+    assert not deadline.expired()
+
+    assert len(locks) == 1
+    # The start sample needs no lock: nothing else can see the object yet.
+    assert held_at_read == [False, True, True]
+    assert not locks[0].locked()
 
 
 def test_expiry_cannot_be_recorded_while_another_thread_is_mid_check() -> None:

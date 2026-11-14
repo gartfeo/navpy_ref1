@@ -2806,3 +2806,10 @@
   start; a refusal that wakes the round). Restore each mutated file from bytes kept in memory in a
   `finally`: `git checkout -- file` would also drop the uncommitted work. Match on text with
   normalised line endings, the review files are CRLF.
+- Review findings (Codex and a five-lens pass): a test that waits for a status and then reads the
+  log races the worker, which writes the status first and logs after; wait on the log call itself.
+  A change that moves code also moves other docs' file:line references (two were off) and leaves
+  the old rule in other docs and in test names; `git grep` the old wording across docs and tests.
+- The deadline is the float sum start + wait, as the baton's timed waits are. On the lockstep clock
+  that sum can sit one float step above the tick exactly `wait` later (0.02 + 0.1 > 0.12), so that
+  tick is still inside the window. State tick-level rules in float terms and pin one such start tick.

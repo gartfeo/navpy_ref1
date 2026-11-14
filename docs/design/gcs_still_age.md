@@ -27,7 +27,7 @@ sizes). Fit is checked live; jsdom has no layout.
   a reload or a second browser does not get earlier cards or stills
   (`useTaskConfirmation.js:45`), so there is no older receipt time to restore.
 - **How the picture relates to the request.** A round keeps the POI object it
-  began with (`confirmation_round_state.py:62`, `:133`), and detector updates build
+  began with (`confirmation_round_state.py:65`, `:138`), and detector updates build
   new objects (`real_detected_object_builder.py:80`). So both the first image and
   a resend use evidence retained from before the request
   (`confirmation_media.py:74`, `confirmation_inbound.py:54-65`). That evidence is

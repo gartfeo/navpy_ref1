@@ -39,13 +39,15 @@ RC list; cards simplified). Fit is checked live; jsdom has no layout.
   - NAV_AUTO_CM 1: no card (`confirmation_coordinator.py:67-73`).
   - NAV_CWT 0 or less: after the request and its media, it confirms
     (`confirmation_round_runner.py:100-134`; a send error takes the failure
-    policy instead).
+    policy instead). Such a round has no response window: it takes no Approve
+    at all, only a Deny.
   - Otherwise, NAV_CWT after the round is built (just before its first send;
     the wait is read once there, so sends, the image transfer, resends and a
     later parameter change do not extend it) it confirms only if NAV_CM_FL is
     on and the POI is still fresh; else TIMEOUT_REJECTED
     (`confirmation_dependencies.py:62-65`). A NAV_CWT that is not a number
-    ends the round at once with the same outcome.
+    gives the same outcome after the request and its media, without waiting,
+    and that round takes no Approve either.
   - An operator response (`confirmation_response_state.py:37-52`): Approve on
     an open round confirms it, with no freshness check, but only before that
     deadline: at or after it the vehicle ignores the Approve, even while its
@@ -204,7 +206,8 @@ off, nav_cwt 30) a missed card rejects the dock.
    if still tracked". Not recommended: both state a vehicle outcome the GCS
    cannot know (delivery and the vehicle's round are unconfirmed), and "if
    still tracked" is wrong for the GCS's Approve, which confirms an open round
-   without the freshness check.
+   without the freshness check when it reaches the vehicle before the round's
+   deadline.
 6. **Demo policy**: keep reject; the demo card reads "Auto-deny in 0:30"
    ("Rejects in 0:30" with the alternative wording).
 7. **NAV_CWT 0 with NAV_CM_FL 0 or not loaded**: the card sends Deny at
