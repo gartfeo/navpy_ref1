@@ -163,8 +163,8 @@ class DetectorControlDelegateFacet:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._parts.instance.set_zoom_size_demand(enabled)
 
-    def freeze_final_approach_zoom_at_min(self) -> bool:
-        return self._parts.instance.freeze_final_approach_zoom_at_min()
+    def freeze_guidance_zoom_at_min(self) -> bool:
+        return self._parts.instance.freeze_guidance_zoom_at_min()
 
 
 

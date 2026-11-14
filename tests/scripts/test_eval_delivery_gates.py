@@ -19,12 +19,12 @@ from scripts.eval_delivery_gates import (
 )
 from scripts.eval_delivery_roles import resolve_roles
 from scripts.eval_gcs_demo_assignment_lines import parse_assignment_lines
-from scripts.eval_gcs_demo_evidence import parse_final_approach_episodes
+from scripts.eval_gcs_demo_evidence import parse_guidance_episodes
 from scripts.eval_gcs_demo_models import (
     DockArmed,
     DockedEvidence,
-    FinalApproachCommand,
-    FinalApproachEpisode,
+    GuidanceCommand,
+    GuidanceEpisode,
 )
 
 FIXTURE = json.loads(fixture.FIXTURE_PATH.read_text(encoding="utf-8"))
@@ -86,14 +86,14 @@ BACKEND = "\n".join([
 
 def _episode(
     sys_id: int, dock: int, wall_s: float = APPROVED_AT + 5.0, docked_at: int | None = -1,
-) -> FinalApproachEpisode:
-    command = FinalApproachCommand(
+) -> GuidanceEpisode:
+    command = GuidanceCommand(
         1.0, "frame", 1, 1, dock, 10.0, None, 0.0, 0.0, 0.0, 0.5, True, False,
     )
     armed = DockArmed(sys_id, 1, dock, 1, 9.0, wall_s)
     at = dock if docked_at == -1 else docked_at
     docked = None if at is None else DockedEvidence(2.0, sys_id, 1, at, 1, 10.5, 0.05, 0.04, 0.03)
-    return FinalApproachEpisode((command,), (), docked is not None, armed, docked)
+    return GuidanceEpisode((command,), (), docked is not None, armed, docked)
 
 
 def _evidence(texts=None, episodes=None, backend=BACKEND) -> DeliveryEvidence:
@@ -233,7 +233,7 @@ def test_the_parser_keeps_each_episode_s_own_armed_and_docked_rows(tmp_path):
         ]
 
     debug.write_text(header + "".join(moved(1) + moved(2) + moved(3)), encoding="utf-8")
-    episodes = parse_final_approach_episodes(debug, vehicle_id=1)
+    episodes = parse_guidance_episodes(debug, vehicle_id=1)
     assert [(item.armed.dock, item.armed.episode) for item in episodes] == [(11, 1), (12, 2), (13, 3)]
     assert [(item.docked_row.dock, item.docked_row.episode, item.docked_row.aircraft_ts)
             for item in episodes[:2]] == [(11, 1, 1000.5), (12, 2, 1000.6)]

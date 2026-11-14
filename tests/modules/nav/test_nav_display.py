@@ -12,8 +12,8 @@ from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
 from navpy.core.approach.nav_exit_cleanup import NavCleanupResult
 from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeResult,
+    GuidanceResult,
 )
 from navpy.core.flow.nav_display import (
     NavDisplay,
@@ -86,17 +86,17 @@ def test_builder_reads_peer_navigation_when_it_builds():
 # NAV exit writes the outcome latch
 
 
-def _exit(latch, *, contact=None, terminal=None):
+def _exit(latch, *, contact=None, result=None):
     cleanup = Mock()
     cleanup.run.return_value = NavCleanupResult(
         snap=ClosestSnap(dist=0.7),
         errors=(),
         own_dock_contact=contact,
-        dock_terminal=terminal,
+        dock_result=result,
     )
     transition = NavTransition(
         Mock(), cleanup, Mock(), Mock(return_value=()),
-        NavigationTaskState(final_approach_navigation_active=True),
+        NavigationTaskState(guidance_navigation_active=True),
         lambda: False, logger=Mock(), outcome=latch,
     )
     return transition.exit(NavState.RESET)
@@ -107,8 +107,8 @@ def _contact():
 
 
 def _failed(reason):
-    return FinalApproachEpisodeTerminal(
-        IDENTITY, FinalApproachTerminal.FAILED, reason,
+    return GuidanceEpisodeResult(
+        IDENTITY, GuidanceResult.FAILED, reason,
     )
 
 
@@ -123,7 +123,7 @@ def test_a_contact_latches_docked():
 def test_a_failed_dock_latches_its_reason():
     latch = NavOutcomeLatch()
 
-    _exit(latch, terminal=_failed(fail_reason.MISSED_DOCK))
+    _exit(latch, result=_failed(fail_reason.MISSED_DOCK))
 
     assert latch.last == NavOutcome(docked=False, reason="missed_dock")
 
@@ -131,7 +131,7 @@ def test_a_failed_dock_latches_its_reason():
 def test_an_unnamed_failure_latches_nav_fail():
     latch = NavOutcomeLatch()
 
-    _exit(latch, terminal=_failed(None))
+    _exit(latch, result=_failed(None))
 
     assert latch.last == NavOutcome(docked=False, reason="nav_fail")
 
@@ -140,7 +140,7 @@ def test_an_exit_without_an_outcome_keeps_the_last_one():
     latch = NavOutcomeLatch()
     _exit(latch, contact=_contact())
 
-    _exit(latch)  # the real build: no armed episode, no terminal
+    _exit(latch)  # the real build: no armed episode, no result
 
     assert latch.last == NavOutcome(docked=True)
 
@@ -149,7 +149,7 @@ def test_only_the_next_outcome_replaces_it():
     latch = NavOutcomeLatch()
     _exit(latch, contact=_contact())
 
-    _exit(latch, terminal=_failed(fail_reason.NO_DETECTION))
+    _exit(latch, result=_failed(fail_reason.NO_DETECTION))
 
     assert latch.last == NavOutcome(docked=False, reason="no_detection")
 
@@ -159,11 +159,11 @@ def test_a_failed_exit_latches_nothing():
     cleanup = Mock()
     cleanup.run.return_value = NavCleanupResult(
         snap=None, errors=(RuntimeError("cleanup"),),
-        own_dock_contact=_contact(), dock_terminal=None,
+        own_dock_contact=_contact(), dock_result=None,
     )
     transition = NavTransition(
         Mock(), cleanup, Mock(), Mock(return_value=()),
-        NavigationTaskState(final_approach_navigation_active=True),
+        NavigationTaskState(guidance_navigation_active=True),
         lambda: False, outcome=latch,
     )
 
@@ -251,7 +251,7 @@ def test_from_code_reads_bit_zero_only(code):
     ("navigation_rejected", 4),
     ("source_command_stale", 5),
     ("discontinuity_source_missing", 6),
-    ("final_approach_record_unavailable", 7),
+    ("guidance_record_unavailable", 7),
     ("source_event_active_poi_missing", 8),
     ("source_event_pump", 9),
     ("internal_error", 10),

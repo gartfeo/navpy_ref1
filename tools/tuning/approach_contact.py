@@ -1,4 +1,4 @@
-"""The approach runner's contact wiring (hitl_final_approach.md section 9, steps 26 and 27).
+"""The approach runner's contact wiring (hitl_guidance.md section 9, steps 26 and 27).
 
 The runner writes the run's contact link (tools/hitl/contact_service.py ``link``: a fresh key and two loopback
 endpoints, in the private run folder), starts the contact service as its own process once Unreal has built the scene

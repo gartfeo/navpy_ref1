@@ -38,7 +38,7 @@ from scripts.eval_delivery_gates import delivery_assignment_evidence, delivery_r
 from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_inputs import recorded_lockstep, require_recorded_scenario
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario, load_resolved_plan
-from scripts.eval_gcs_demo_poi_binding import final_approach_poi_binding_errors
+from scripts.eval_gcs_demo_poi_binding import guidance_poi_binding_errors
 from scripts.eval_gcs_demo_slice_gates import JOURNAL_FILE, slice_gate_errors
 from scripts.eval_gcs_demo_recovery import (
     ASSIGNMENT_EVIDENCE_ERROR, ASSIGNMENT_RULE_ERROR, faults_planned, run_verdict, unexpected_recovery_errors,
@@ -57,7 +57,7 @@ def mission_assignment_errors(
         rows = [row for row in approvals if row["sys_id"] == sys_id]
         if len(rows) == 1:
             approved_tasks[sys_id] = int(rows[0]["task_id"])
-    return final_approach_poi_binding_errors(
+    return guidance_poi_binding_errors(
         log_dir,
         plan,
         global_assignments,

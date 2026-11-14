@@ -1,4 +1,4 @@
-"""Exact adapters and construction for final approach."""
+"""Exact adapters and construction for guidance."""
 
 from __future__ import annotations
 
@@ -12,76 +12,76 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.approach.vision_nav.command_executor import (
-    FinalApproachCommandExecutor,
-    FinalApproachExecutorPorts,
+    GuidanceCommandExecutor,
+    GuidanceExecutorPorts,
 )
 from navpy.core.approach.vision_nav.command_freshness import (
-    FinalApproachCommandFreshness,
-    FinalApproachFreshnessCheck,
+    GuidanceCommandFreshness,
+    GuidanceFreshnessCheck,
 )
 from navpy.core.approach.vision_nav.command_hold import (
-    FinalApproachCommandHold,
+    GuidanceCommandHold,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
-    FinalApproachEpisodeFailures,
-    FinalApproachCommandLiveness,
+    GuidanceEpisodeFailures,
+    GuidanceCommandLiveness,
 )
 from navpy.core.approach.vision_nav.command_postprocess import (
-    FinalApproachPostprocessFence,
+    GuidancePostprocessFence,
 )
 from navpy.core.approach.vision_nav.command_reset import (
-    FinalApproachCommandReset,
-    FinalApproachCommandResetPorts,
+    GuidanceCommandReset,
+    GuidanceCommandResetPorts,
 )
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachAttitudeActuator,
-    FinalApproachCommandTransaction,
+    GuidanceAttitudeActuator,
+    GuidanceCommandTransaction,
 )
 from navpy.core.approach.vision_nav.confirmation import (
-    FinalApproachConfirmation,
-    FinalApproachConfirmationPorts,
+    GuidanceConfirmation,
+    GuidanceConfirmationPorts,
 )
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
-    FinalApproachDiagnosticMailbox,
+    GuidanceDiagnosticMailbox,
 )
 from navpy.core.approach.vision_nav.diagnostics import (
-    NavigationFinalApproachDiagnostics,
-    FinalApproachDiagnosticReader,
-    FinalApproachDiagnosticSnapshot,
+    NavigationGuidanceDiagnostics,
+    GuidanceDiagnosticReader,
+    GuidanceDiagnosticSnapshot,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.approach.vision_nav.ingress import (
-    FinalApproachIngress,
-    FinalApproachIngressPorts,
+    GuidanceIngress,
+    GuidanceIngressPorts,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.approach.vision_nav.runtime import (
-    FinalApproachCommandWorkRuntime,
-    FinalApproachSessionRuntime,
+    GuidanceCommandWorkRuntime,
+    GuidanceSessionRuntime,
     VisionNavRuntime,
 )
-from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.runtime_state import GuidanceRuntimeStatus
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.source_time_adapter import (
-    PoseCadenceFinalApproachSourceTimeObserver,
+    PoseCadenceGuidanceSourceTimeObserver,
 )
-from navpy.core.approach.vision_nav.dock_outcome import FinalApproachDockOutcome
-from navpy.core.approach.vision_nav.docked_evidence import FinalApproachDockedEvidence
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch, TerminalObserver
+from navpy.core.approach.vision_nav.dock_outcome import GuidanceDockOutcome
+from navpy.core.approach.vision_nav.docked_evidence import GuidanceDockedEvidence
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, ResultObserver
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
 
 
 @dataclass(frozen=True)
-class FinalApproachRuntimeComposition:
+class GuidanceRuntimeComposition:
     runtime: VisionNavRuntime
-    confirmation: FinalApproachConfirmation
-    dock_outcome: FinalApproachDockOutcome
+    confirmation: GuidanceConfirmation
+    dock_outcome: GuidanceDockOutcome
 
 
-class FinalApproachVehicleActuator:
+class GuidanceVehicleActuator:
     def __init__(self, set_attitude: Callable[..., None]) -> None:
         self._set_attitude = set_attitude
 
@@ -99,7 +99,7 @@ class FinalApproachVehicleActuator:
         )
 
 
-class FinalApproachVehicleDiagnosticReader:
+class GuidanceVehicleDiagnosticReader:
     def __init__(
         self,
         attitude: Callable[[], Attitude | None],
@@ -108,8 +108,8 @@ class FinalApproachVehicleDiagnosticReader:
         self._attitude = attitude
         self._location = location
 
-    def read(self) -> FinalApproachDiagnosticSnapshot:
-        return FinalApproachDiagnosticSnapshot(
+    def read(self) -> GuidanceDiagnosticSnapshot:
+        return GuidanceDiagnosticSnapshot(
             attitude=self._read_attitude(),
             location=self._read_location(),
         )
@@ -127,58 +127,58 @@ class FinalApproachVehicleDiagnosticReader:
             return None
 
 
-def compose_final_approach_runtime(
+def compose_guidance_runtime(
     *,
     lock: rt.RLock,
     slot: NavigationCommandSlot,
     sys_id: int,
-    actuator: FinalApproachAttitudeActuator,
-    diagnostic_reader: FinalApproachDiagnosticReader,
+    actuator: GuidanceAttitudeActuator,
+    diagnostic_reader: GuidanceDiagnosticReader,
     law: VisionNavLaw,
     aircraft_roll_deg: Callable[[], float],
     aircraft_sequence: str,
     aircraft_degrees: bool,
     navigation_logger: NavigationLogger,
     wall_period_s: Callable[[float], float],
-    on_terminal: TerminalObserver | None = None,
-    report_stale_hold: Callable[[FinalApproachFreshnessCheck], None] = (
+    on_result: ResultObserver | None = None,
+    report_stale_hold: Callable[[GuidanceFreshnessCheck], None] = (
         lambda check: None
     ),
-    report_stale_command: Callable[[FinalApproachFreshnessCheck], None] = (
+    report_stale_command: Callable[[GuidanceFreshnessCheck], None] = (
         lambda check: None
     ),
-) -> FinalApproachRuntimeComposition:
+) -> GuidanceRuntimeComposition:
     if type(sys_id) is not int:
-        raise TypeError("final-approach vehicle target_system must be an integer")
-    source_time = PoseCadenceFinalApproachSourceTimeObserver(sys_id)
-    liveness = FinalApproachCommandLiveness()
-    episode = FinalApproachEpisodeLatch(on_terminal)
-    worker_failures = FinalApproachEpisodeFailures(lock, episode, liveness)
-    freshness = FinalApproachCommandFreshness(wall_period_s)
-    hold = FinalApproachCommandHold(
+        raise TypeError("guidance vehicle target_system must be an integer")
+    source_time = PoseCadenceGuidanceSourceTimeObserver(sys_id)
+    liveness = GuidanceCommandLiveness()
+    episode = GuidanceEpisodeLatch(on_result)
+    worker_failures = GuidanceEpisodeFailures(lock, episode, liveness)
+    freshness = GuidanceCommandFreshness(wall_period_s)
+    hold = GuidanceCommandHold(
         actuator, source_time, worker_failures, freshness,
         report_stale=report_stale_hold,
     )
-    projector = FinalApproachFrameProjector(
-        FinalApproachProjectionConfig(aircraft_sequence, aircraft_degrees)
+    projector = GuidanceFrameProjector(
+        GuidanceProjectionConfig(aircraft_sequence, aircraft_degrees)
     )
     epochs = SourceEpochLedger()
-    mailbox = FinalApproachDiagnosticMailbox()
-    status = FinalApproachRuntimeStatus()
+    mailbox = GuidanceDiagnosticMailbox()
+    status = GuidanceRuntimeStatus()
     visual_pass = VisualPassDetector()
-    postprocess_fence = FinalApproachPostprocessFence()
-    diagnostics = NavigationFinalApproachDiagnostics(
+    postprocess_fence = GuidancePostprocessFence()
+    diagnostics = NavigationGuidanceDiagnostics(
         navigation_logger,
         diagnostic_reader,
     )
-    docked_evidence = FinalApproachDockedEvidence(
+    docked_evidence = GuidanceDockedEvidence(
         lock,
         diagnostics.record_docked,
         postprocess_fence,
         diagnostics.record_dock_armed,
         diagnostics.record_dock_disarmed,
     )
-    command_reset = FinalApproachCommandReset(FinalApproachCommandResetPorts(
+    command_reset = GuidanceCommandReset(GuidanceCommandResetPorts(
         lock,
         slot,
         mailbox,
@@ -191,8 +191,8 @@ def compose_final_approach_runtime(
         docked_evidence,
         episode,
     ))
-    ingress = FinalApproachIngress(
-        FinalApproachIngressPorts(
+    ingress = GuidanceIngress(
+        GuidanceIngressPorts(
             lock,
             slot,
             projector,
@@ -202,17 +202,17 @@ def compose_final_approach_runtime(
             command_reset,
         )
     )
-    confirmation = FinalApproachConfirmation(
-        FinalApproachConfirmationPorts(lock, projector, epochs, law, aircraft_roll_deg)
+    confirmation = GuidanceConfirmation(
+        GuidanceConfirmationPorts(lock, projector, epochs, law, aircraft_roll_deg)
     )
-    transaction = FinalApproachCommandTransaction(
+    transaction = GuidanceCommandTransaction(
         law,
         visual_pass,
         actuator,
         episode,
     )
-    executor = FinalApproachCommandExecutor(
-        FinalApproachExecutorPorts(
+    executor = GuidanceCommandExecutor(
+        GuidanceExecutorPorts(
             slot,
             transaction,
             mailbox,
@@ -227,10 +227,10 @@ def compose_final_approach_runtime(
         )
     )
     runtime = VisionNavRuntime(
-        FinalApproachCommandWorkRuntime(
+        GuidanceCommandWorkRuntime(
             slot, ingress, executor, hold, docked_evidence,
         ),
-        FinalApproachSessionRuntime(
+        GuidanceSessionRuntime(
             lock,
             epochs,
             command_reset,
@@ -240,8 +240,8 @@ def compose_final_approach_runtime(
             docked_evidence,
         ),
     )
-    dock_outcome = FinalApproachDockOutcome(lock, episode, diagnostics.record_dock_failed)
-    return FinalApproachRuntimeComposition(runtime, confirmation, dock_outcome)
+    dock_outcome = GuidanceDockOutcome(lock, episode, diagnostics.record_dock_failed)
+    return GuidanceRuntimeComposition(runtime, confirmation, dock_outcome)
 
 
 def _attitude_or_none(value: Attitude | None) -> Attitude | None:
@@ -256,8 +256,8 @@ def _location_or_none(value: Location | None) -> Location | None:
 
 
 __all__ = [
-    "FinalApproachRuntimeComposition",
-    "FinalApproachVehicleActuator",
-    "FinalApproachVehicleDiagnosticReader",
-    "compose_final_approach_runtime",
+    "GuidanceRuntimeComposition",
+    "GuidanceVehicleActuator",
+    "GuidanceVehicleDiagnosticReader",
+    "compose_guidance_runtime",
 ]

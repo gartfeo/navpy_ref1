@@ -1,4 +1,4 @@
-"""Pixel-boundary robustness checks for visual-rate final approach.
+"""Pixel-boundary robustness checks for visual-rate guidance.
 
 The old tests injected separate plant and law FPA truth.  These regressions
 perturb only the rendered pixel. Navigation never receives the bias value. Pure

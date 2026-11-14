@@ -128,7 +128,7 @@ def _offer(slot, task_id=10):
 
 class HeartbeatNodeStateTest(unittest.TestCase):
     """The heartbeat state is FREE unless the slot holds a task or nav
-    flies a final approach."""
+    is in guidance."""
 
     def setUp(self):
         self.lock = threading.RLock()
@@ -157,7 +157,7 @@ class HeartbeatNodeStateTest(unittest.TestCase):
     def test_empty_slot_and_no_approach_is_free(self):
         self._assert_reported(SwarmNodeState.FREE)
 
-    def test_final_approach_is_busy(self):
+    def test_guidance_is_busy(self):
         self.slot.set_participation(True, False)
         self._assert_reported(SwarmNodeState.BUSY)
 

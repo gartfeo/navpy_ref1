@@ -22,7 +22,7 @@ NAVIGATION_ALGORITHM_PARAM_BY_VALUE = {
     algorithm.value: param
     for param, algorithm in NAVIGATION_ALGORITHM_BY_PARAM.items()
 }
-# Final approach defaults to the pure-vision law. PID/PN (0/1) are legacy
+# Guidance defaults to the pure-vision law. PID/PN (0/1) are legacy
 # geo laws: their Roll-L1 lateral command reads compass yaw/heading, NED
 # ground velocity and the POI geo position (see AGENTS.md "Pure Vision
 # Approach Constraint"), so they must be selected explicitly.
@@ -30,7 +30,7 @@ DEFAULT_NAVIGATION_ALGORITHM = NavigationAlgorithm.VISION_NAV_PN
 
 
 def resolve_navigation_algorithm(value, logger: Optional[ILogger] = None) -> NavigationAlgorithm:
-    """Resolve CLI/MAVLink final-approach controller selection to a known algorithm."""
+    """Resolve CLI/MAVLink guidance controller selection to a known algorithm."""
     if isinstance(value, NavigationAlgorithm):
         return value
     if isinstance(value, str):
@@ -71,8 +71,8 @@ class NavigationArgs(object):
     def __init__(self, args, vehicle: NavigationParameterReader, logger: ILogger):
         self.use_direct_poi = None
         self.use_terrain = None
-        self.final_approach_throttle = None
-        self.final_approach_angle = None
+        self.guidance_throttle = None
+        self.guidance_angle = None
         self.pitch_lock_dist = None  # Min distance to lock pitch while maneuvering
         self.pitch_lock_roll_diff = None  # Roll error threshold for pitch lock
         self.navigation_algorithm = None
@@ -98,13 +98,13 @@ class NavigationArgs(object):
         return self._vehicle.get_param_or_default(param_name, default)
 
     def refresh(self):
-        old_final_approach_angle = self.final_approach_angle
-        old_final_approach_throttle = self.final_approach_throttle
+        old_guidance_angle = self.guidance_angle
+        old_guidance_throttle = self.guidance_throttle
 
         self.use_direct_poi = bool(self._get_param('AAS_DEL_DIR'))
-        desired_final_approach_angle = float(self._get_param('AAS_DEL_PITCH'))
+        desired_guidance_angle = float(self._get_param('AAS_DEL_PITCH'))
         throttle = self._get_param('AAS_DEL_THR')
-        self.final_approach_throttle = throttle if throttle is not None and throttle >= 0 else None
+        self.guidance_throttle = throttle if throttle is not None and throttle >= 0 else None
         self.use_terrain = bool(self._get_param('AAS_USE_TRN'))
         self.pitch_lock_dist = float(self._get_param('AAS_DEL_PLD'))
         self.pitch_lock_roll_diff = float(self._get_param('AAS_DEL_PLRD'))
@@ -120,25 +120,25 @@ class NavigationArgs(object):
         )
 
         self.pitch_args.refresh()
-        self._calc_final_approach_angle(desired_final_approach_angle)
+        self._calc_guidance_angle(desired_guidance_angle)
 
-        if old_final_approach_angle != self.final_approach_angle or old_final_approach_throttle != self.final_approach_throttle:
-            self._logger.info(f'T: {self.final_approach_angle} deg, 'f'{self.final_approach_throttle}%')
+        if old_guidance_angle != self.guidance_angle or old_guidance_throttle != self.guidance_throttle:
+            self._logger.info(f'T: {self.guidance_angle} deg, 'f'{self.guidance_throttle}%')
 
-    def _calc_final_approach_angle(self, desired_final_approach_angle: float):
-        min_final_approach_angle = self._vehicle.min_pitch * 0.9
+    def _calc_guidance_angle(self, desired_guidance_angle: float) -> None:
+        min_guidance_angle = self._vehicle.min_pitch * 0.9
 
-        if desired_final_approach_angle < min_final_approach_angle:
-            if self.final_approach_angle is None or self.final_approach_angle != min_final_approach_angle:
+        if desired_guidance_angle < min_guidance_angle:
+            if self.guidance_angle is None or self.guidance_angle != min_guidance_angle:
                 self._logger.warning(
-                    f'Navigation: desired final approach angle: {desired_final_approach_angle} is too low, '
-                    f'setting to {min_final_approach_angle} (min pitch -10%)'
+                    f'Navigation: desired guidance angle: {desired_guidance_angle} is too low, '
+                    f'setting to {min_guidance_angle} (min pitch -10%)'
                 )
-            self.final_approach_angle = min_final_approach_angle
+            self.guidance_angle = min_guidance_angle
         else:
-            if self.final_approach_angle is not None and self.final_approach_angle != desired_final_approach_angle:
-                self._logger.info(f'Navigation: setting final approach angle to {desired_final_approach_angle}')
-            self.final_approach_angle = desired_final_approach_angle
+            if self.guidance_angle is not None and self.guidance_angle != desired_guidance_angle:
+                self._logger.info(f'Navigation: setting guidance angle to {desired_guidance_angle}')
+            self.guidance_angle = desired_guidance_angle
 
     @classmethod
     def add_args(cls, parser):
@@ -149,7 +149,7 @@ class NavigationArgs(object):
                        help=f"Approach pitch (clipped by vehicle pitch -10%%). Default: {p['AAS_DEL_PITCH']}")
         g.add_argument('-dt', dest='AAS_DEL_THR', type=int, action=StoreWithFlag,
                        default=p['AAS_DEL_THR'],
-                       help=f"Throttle percentage during final-approach descent. Default: {p['AAS_DEL_THR']}")
+                       help=f"Throttle percentage during guidance descent. Default: {p['AAS_DEL_THR']}")
         g.add_argument('-ut', dest='AAS_USE_TRN', type=parse_boolean, action=StoreWithFlag,
                        default=p['AAS_USE_TRN'],
                        help=f"Enable Terrain. Default: {p['AAS_USE_TRN']}")
@@ -170,7 +170,7 @@ class NavigationArgs(object):
                        dest='AAS_DEL_CTRL', choices=choices,
                        action=StoreWithFlag, default=DEFAULT_NAVIGATION_ALGORITHM.value,
                        help=(
-                           "Final approach algorithm "
+                           "Guidance algorithm "
                            "(0=PID legacy geo, 1=PN legacy geo, 2=vision-nav-pn). "
                            f"Default: {DEFAULT_NAVIGATION_ALGORITHM.value}"
                        ))

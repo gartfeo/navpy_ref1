@@ -1,4 +1,4 @@
-"""The approach run's search lane (hitl_final_approach.md section 5, the dock location rule).
+"""The approach run's search lane (hitl_guidance.md section 5, the dock location rule).
 
 The lane is fixed and never derived from a dock: from the autopilot's home it goes start_m along bearing_deg,
 then back and forth over length_m at height_m above home, repeated with DO_JUMP, then loiters. navpy's

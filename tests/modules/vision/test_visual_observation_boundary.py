@@ -11,8 +11,8 @@ import pytest
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.ports.detect_data import DetectedObject, DetectionSizeClass
 from navpy.core.ports.detection_components import (
@@ -89,8 +89,8 @@ def _poi(
 
 
 def _project(poi: DetectedObject) -> np.ndarray:
-    frame = FinalApproachFrameProjector(
-        FinalApproachProjectionConfig("ZYX", True),
+    frame = GuidanceFrameProjector(
+        GuidanceProjectionConfig("ZYX", True),
     ).project(poi.visual_detection(), 0)
     assert frame is not None
     return np.asarray(frame.body_ray)
@@ -172,14 +172,14 @@ def test_point_mass_uses_production_pixel_projector_boundary() -> None:
     runner = Path("scripts/vision_static_point_mass_run.py").read_text(
         encoding="utf-8"
     )
-    assert "FinalApproachFrameProjector" not in sensor
-    assert "FinalApproachFrameProjector" in runner
-    assert "FinalApproachVisionFrame(" not in sensor + runner
+    assert "GuidanceFrameProjector" not in sensor
+    assert "GuidanceFrameProjector" in runner
+    assert "GuidanceVisionFrame(" not in sensor + runner
     assert "body_ray_to_pixel" in sensor
     assert "vision_los_uas" not in sensor + runner
 
 
-def test_camera_transform_helper_is_not_the_final_approach_truth_channel() -> None:
+def test_camera_transform_helper_is_not_the_guidance_truth_channel() -> None:
     ray = np.asarray([0.2, -0.3, 0.9], dtype=float)
     transform = camera_to_body_from_gimbal(_gimbal())
     camera = unit_vector(transform.matrix().T @ unit_vector(ray))
@@ -227,7 +227,7 @@ def test_a_missing_yaw_rate_refuses_the_frame_deliberately() -> None:
     matrix = ideal_angular_camera_matrix(FrameSize(2560, 1440))
     gimbal = _gimbal()
     poi = _poi(pixel=(1280.0, 720.0), matrix=matrix, gimbal=gimbal)
-    projector = FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
+    projector = GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True))
 
     assert projector.project(poi.visual_detection(), 0) is not None
 

@@ -18,7 +18,7 @@ You are the **QA Engineer** for NavPy, a cooperative UAV swarm framework. You th
 ### Integration Points
 - **Backend <-> Frontend**: API contracts, WebSocket telemetry, mission upload flow
 - **Vehicle <-> NavController**: state machine transitions, command execution
-- **Vision <-> Navigation**: detection -> frame-local LOS/pixels -> navigation law input (no geo truth in the final-approach command path)
+- **Vision <-> Navigation**: detection -> frame-local LOS/pixels -> navigation law input (no geo truth in the guidance command path)
 - **Comm <-> Vehicle**: message routing, heartbeat, parameter sync
 
 ### System-Level Validation

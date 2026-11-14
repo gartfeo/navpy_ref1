@@ -2,7 +2,7 @@
 
 In SITL (2026-11-09) an injected NAV cycle fault mid-approach only fenced commands: NAV entry, the self-detected
 approach and the peer approach asked for GUIDED through ``approach.commands.request_guided()`` directly, so recovery
-never learned the GUIDED was NavPy's, never owned it, and so never held in LOITER or went to RTL; the final approach
+never learned the GUIDED was NavPy's, never owned it, and so never held in LOITER or went to RTL; guidance
 asks only when the mode is not GUIDED already. ``request_guided_owned`` tells recovery, then asks.
 """
 from __future__ import annotations

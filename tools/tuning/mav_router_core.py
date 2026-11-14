@@ -257,7 +257,7 @@ class MavRouter:
     # ---- endpoint barrier ------------------------------------------------------------------
     def close_endpoint(self, name: str) -> dict:
         """Refuse the client's packets from now on, drop those queued, and return once no write of its packets is in
-        progress (design section 2: the barrier before the terminal record and before the runner's RTL)."""
+        progress (design section 2: the barrier before the result record and before the runner's RTL)."""
         client = self.clients[name]
         with self._lock:
             already, dropped = client.close_barrier()

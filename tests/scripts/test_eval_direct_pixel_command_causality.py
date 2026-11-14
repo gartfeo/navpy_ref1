@@ -5,14 +5,14 @@ import math
 
 import pytest
 
-from navpy.plugins.laws.vision_pn.command_anchor import FinalApproachLimits
+from navpy.plugins.laws.vision_pn.command_anchor import GuidanceLimits
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachLawEvidence,
+    GuidanceLawEvidence,
 )
 from navpy.core.approach.vision_nav.diagnostic_capture import (
     law_evidence_payload,
 )
-from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
+from navpy.plugins.laws.vision_pn.law_plan import GuidancePlanOrigin
 from scripts.eval_direct_pixel_command_causality import (
     _OPTIONAL,
     _REQUIRED,
@@ -103,7 +103,7 @@ def _row(
     ]
     if omit:
         fields = [f for f in fields if not f.startswith(f"{omit}=")]
-    return ("12:00:00.000,EVENT:FINAL_APPROACH_RESPONSE_STATE,"
+    return ("12:00:00.000,EVENT:GUIDANCE_RESPONSE_STATE,"
             + ";".join(fields) + ",,,,,,,,,\n")
 
 
@@ -286,11 +286,11 @@ def test_the_logged_payload_carries_every_field_the_audit_reads() -> None:
     """Producer and consumer are two files; nothing else holds them together.
 
     The audit reads flat CSV keys while the record keeps value objects, so a
-    rename inside `FinalApproachLimits` or `FinalApproachPlanOrigin` would quietly change
+    rename inside `GuidanceLimits` or `GuidancePlanOrigin` would quietly change
     the column set. The audit would then refuse every log, or -- worse, for a
     field it treats as optional -- score a held command as an integration.
     """
-    payload = law_evidence_payload(FinalApproachLawEvidence(
+    payload = law_evidence_payload(GuidanceLawEvidence(
         control_bearing_deg=3.0,
         lateral_rate_deg_s=0.2,
         aircraft_turn_rate_deg_s=1.0,
@@ -302,12 +302,12 @@ def test_the_logged_payload_carries_every_field_the_audit_reads() -> None:
         control_elevation_deg=6.0,
         vertical_rate_deg_s=0.1,
         pitch_time_constant_s=0.5,
-        configured_limits=FinalApproachLimits(45.0, -55.0, 25.0),
-        effective_limits=FinalApproachLimits(
+        configured_limits=GuidanceLimits(45.0, -55.0, 25.0),
+        effective_limits=GuidanceLimits(
             EFFECTIVE_ROLL_LIMIT, EFFECTIVE_PITCH_MIN, EFFECTIVE_PITCH_MAX),
         raw_roll_deg=12.0,
         raw_pitch_deg=-7.6,
-        origin=FinalApproachPlanOrigin(
+        origin=GuidancePlanOrigin(
             reason="normal",
             anchor_cmd_roll_deg=11.0,
             anchor_cmd_pitch_deg=-7.0,

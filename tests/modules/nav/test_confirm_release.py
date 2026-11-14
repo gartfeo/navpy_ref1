@@ -24,7 +24,7 @@ def test_the_record_round_trips_and_malformed_lines_are_not_records(capsys):
     assert line == f'{NAVPY_CONFIRM_MARKER} {{"task":4}}'
     assert parse_confirm_record(line) == {"task": 4}
     for bad in ("", "NAVPY_CONFIRM_V1", 'NAVPY_CONFIRM_V1 {"task":true}', "NAVPY_CONFIRM_V1 [1]",
-                'NAVPY_TERMINAL_V1 {"task":4}', 'NAVPY_CONFIRM_V1 {"task":"4"}', None):
+                'NAVPY_RESULT_V1 {"task":4}', 'NAVPY_CONFIRM_V1 {"task":"4"}', None):
         assert parse_confirm_record(bad) is None
 
 
@@ -69,14 +69,14 @@ def test_a_nav_entry_that_fails_reports_nothing_and_one_that_completes_reports_o
 
     told = []
     zoom = Mock()
-    zoom.freeze_final_approach_wide.return_value = False            # the minimum zoom cannot be held
+    zoom.freeze_guidance_wide.return_value = False            # the minimum zoom cannot be held
     entry = NavEntry(NavEntryPorts(Mock(), Mock(), lambda: True, Mock(), Mock(), lambda: False,
                                    entry_started=lambda: told.append("start"),
                                    entered=lambda: told.append(1)), Mock(), zoom, Mock())
     with pytest.raises(RuntimeError, match="minimum zoom"):
         entry.run()
     assert told == ["start"]                                        # the attempt started, never completed
-    zoom.freeze_final_approach_wide.return_value = True
+    zoom.freeze_guidance_wide.return_value = True
     entry.run()
     assert told == ["start", "start", 1]
 

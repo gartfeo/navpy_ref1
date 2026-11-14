@@ -101,15 +101,15 @@ def test_track_averages_the_vector_not_the_heading_across_the_wrap() -> None:
     )
 
 
-def test_final_approach_window_prefers_samples_near_the_poi() -> None:
+def test_guidance_window_prefers_samples_near_the_poi() -> None:
     recorder = GroundTrackRecorder(POI)
-    # Far away heading east, then committed to a northward final-approach run.
+    # Far away heading east, then committed to a northward guidance run.
     _feed(recorder, 20, vn=0.0, ve=20.0, lat=40.05)
     _feed(recorder, 5, vn=20.0, ve=0.0, lat=40.0005)
 
     summary = recorder.summary(0.0, 0.0)
 
-    assert summary["used_final_approach_window"] is True
+    assert summary["used_guidance_window"] is True
     assert summary["track_sample_count"] == 5
     assert summary["track_deg"] == pytest.approx(0.0, abs=0.5)
 

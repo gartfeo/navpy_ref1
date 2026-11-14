@@ -32,7 +32,7 @@ def test_exit_cleanup_fences_navigation_before_every_other_cleanup():
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
             disarm_dock_contact=lambda: events.append("disarm"),
-            close_final_approach_source=lambda: events.append("source"),
+            close_guidance_source=lambda: events.append("source"),
             navigation_reset=lambda: events.append("fence") or snap,
             detector_stop=lambda: events.append("detector"),
         ),
@@ -68,7 +68,7 @@ def test_exit_cleanup_source_failure_skips_command_reset_but_cleans_independent(
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
             disarm_dock_contact=lambda: fail("disarm"),
-            close_final_approach_source=lambda: fail("source"),
+            close_guidance_source=lambda: fail("source"),
             navigation_reset=lambda: fail("fence"),
             detector_stop=lambda: fail("detector"),
         ),
@@ -91,8 +91,8 @@ def _transition(
 ):
     events = [] if events is None else events
     navigation_task = NavigationTaskState(
-        final_approach_navigation_active=navigation_active,
-        final_approach_nav_completed=completed,
+        guidance_navigation_active=navigation_active,
+        guidance_nav_completed=completed,
     )
     snap = object()
     cleanup = Mock()
@@ -126,7 +126,7 @@ def test_snap_is_reported_before_oneshot_completion_side_effects():
 
 
 @pytest.mark.parametrize("completed", [False])
-def test_oneshot_runs_only_after_final_approach_nav_completion(completed):
+def test_oneshot_runs_only_after_guidance_nav_completion(completed):
     transition, _, oneshot, _, _ = _transition(completed=completed)
 
     outcome = transition.exit()

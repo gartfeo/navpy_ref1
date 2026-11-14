@@ -1,4 +1,4 @@
-"""One approach run's manifest (hitl_final_approach.md section 9, stage 1 step 13): its files and their producers.
+"""One approach run's manifest (hitl_guidance.md section 9, stage 1 step 13): its files and their producers.
 
 The runner (tools/tuning/approach.py) writes it once every owned process has stopped:
 

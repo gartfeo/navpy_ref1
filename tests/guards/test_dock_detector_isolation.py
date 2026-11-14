@@ -16,12 +16,12 @@ from pathlib import Path
 import pytest
 
 from navpy.core.approach.vision_nav.confirmation import (
-    FinalApproachConfirmation,
-    FinalApproachConfirmationPorts,
+    GuidanceConfirmation,
+    GuidanceConfirmationPorts,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.approach.vision_nav.visual_pass import VisualPassDetector
@@ -32,8 +32,8 @@ from navpy.core.ports.tracks import TrackedObject
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from tests.detection_factory import make_detected_poi
 from tests.modules.nav.test_approach_acquisition_review import (
-    FinalApproachLawConfig,
-    FixedFinalApproachLawConfigProvider,
+    GuidanceLawConfig,
+    FixedGuidanceLawConfigProvider,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -85,12 +85,12 @@ def test_no_nav_module_names_the_detector_the_gate_or_the_floor_release():
     assert offenders == []
 
 
-def _confirmation() -> FinalApproachConfirmation:
-    return FinalApproachConfirmation(FinalApproachConfirmationPorts(
+def _confirmation() -> GuidanceConfirmation:
+    return GuidanceConfirmation(GuidanceConfirmationPorts(
         lock=threading.RLock(),
-        projector=FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True)),
+        projector=GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True)),
         epochs=SourceEpochLedger(),
-        law=VisionNavLaw(FixedFinalApproachLawConfigProvider(FinalApproachLawConfig(-55.0, 20.0, 45.0, None, 0.0))),
+        law=VisionNavLaw(FixedGuidanceLawConfigProvider(GuidanceLawConfig(-55.0, 20.0, 45.0, None, 0.0))),
     ))
 
 

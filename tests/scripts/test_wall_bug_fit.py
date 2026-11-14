@@ -184,7 +184,7 @@ def test_failure_kinds_read_lockstep_errors_and_log_lines_alike():
         "DOCK_FAILED: no_detection", "max roll-command step 54.90deg > 50.00deg",
         "2026-01-01 00:02:37,484 INFO NAV_FAIL: source_command_stale task=1 obj=0"]) == {
         "observation_gap", "no_detection", "roll_step", "source_command_stale"}
-    assert failure_kinds(["final-approach episode reached SNAP without DOCKED",
+    assert failure_kinds(["guidance episode reached SNAP without DOCKED",
                           "NAV_FAIL: missed_dock", "forwarding: NAVLINK [1] router_filtered at tick 3"]) == set()
 
 
@@ -331,7 +331,7 @@ def test_a_seeds_kinds_include_its_navpys_logged_failures(tmp_path):
     run.mkdir()
     (run / "uav_2_navigation.log").write_text("x INFO NAV_FAIL: source_command_stale task=1 obj=0\n",
                                               encoding="utf-8")
-    result = _result(3, "product", ["vehicle 2: final-approach episode reached SNAP without DOCKED"])
+    result = _result(3, "product", ["vehicle 2: guidance episode reached SNAP without DOCKED"])
     result["attempts"][0]["run"] = run.name
     assert fit.run_kinds(result, tmp_path) == {"source_command_stale"}
 

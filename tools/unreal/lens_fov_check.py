@@ -1,4 +1,4 @@
-r"""Offline FOV check of the Unreal lens table run (HITL stage 1 step 5, hitl_final_approach.md section 9): per
+r"""Offline FOV check of the Unreal lens table run (HITL stage 1 step 5, hitl_guidance.md section 9): per
 used zoom, the pinhole the rendered pictures show, against the real camera's reference FOV.
 
 From a cadence_check recording of a run with -NavPyLensProfile: for every settled frame (cadence_lens's expected

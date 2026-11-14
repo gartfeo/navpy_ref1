@@ -1,6 +1,6 @@
 """AIRSPEED (295) decoding on the shared bus (plugins/vehicle/ardupilot/airspeed_decode.py, mav_bus_reader.py).
 
-hitl_final_approach.md section 9, step 19. The end-to-end tests send raw packet bytes from a fake board through
+hitl_guidance.md section 9, step 19. The end-to-end tests send raw packet bytes from a fake board through
 the PC router (tools/tuning/mav_router_core.py) into navpy's real MavBus on a UDP port, with one receiver per
 fleet system, and check what each receiver gets.
 """

@@ -1,6 +1,6 @@
-# Missed final approach ends as "dock failed" (v3.1, 2026-10-18, Codex- and owner-approved)
+# Missed guidance ends as "dock failed" (v3.1, 2026-10-18, Codex- and owner-approved)
 
-Owner ruling 2026-10-18 (todo 74): a missed final approach is a failed dock. The UAV must not RESET, restart its
+Owner ruling 2026-10-18 (todo 74): a missed guidance is a failed dock. The UAV must not RESET, restart its
 mission or search. It ends with the same behaviour as DOCKED but reports "dock failed" (status, log, GCS); the cause
 is investigated later from the logs. The approach is over once it stops closing (it passed the closest point):
 contact means docked, no contact means dock failed. Builds on `docked_state.md` and `physical_docking.md`.
@@ -23,9 +23,9 @@ approach can no longer be flown; it may come before the pass (owner question 1).
 truth to time the end.
 
 ## Rules
-1. **Scope (simulation, this step).** A vision final-approach episode armed with the sim contact sensor, whose GUIDED
+1. **Scope (simulation, this step).** A vision guidance episode armed with the sim contact sensor, whose GUIDED
    session was observed
-   (`final_approach_navigation_active`) and which ends by a NAV_FAIL (the NAV decision's RESET request) ends as a dock:
+   (`guidance_navigation_active`) and which ends by a NAV_FAIL (the NAV decision's RESET request) ends as a dock:
    contact kept → DOCKED (today), otherwise DOCK FAILED with the NAV_FAIL reason. Everything else keeps today's flow:
    GUIDED not accepted (→ DETECT), operator exits (disarm, manual mode, GUIDED departure: the inactive guard first),
    builds without the vision runtime, and the real build (no sensor, so no episode is armed today). The real build
@@ -33,14 +33,14 @@ truth to time the end.
 2. **The end is immediate.** NAV exit redirects that RESET to DOCKED, as it already does for a contact. No waiting
    state, no new timer.
 3. **A NAV_FAIL ends commands, atomically.** `mark_failed` takes the reason; the episode latch records FAILED with
-   it (an earlier MISSED stays the terminal, reason `missed_dock`; first latch wins), and FAILED of an armed episode
-   joins `commands_ended`, so `terminal_result()` suppresses any frame admitted after it. Unarmed (the real build) it
+   it (an earlier MISSED stays the result, reason `missed_dock`; first latch wins), and FAILED of an armed episode
+   joins `commands_ended`, so `suppressed_result()` suppresses any frame admitted after it. Unarmed (the real build) it
    does not: RESET retires the work as today. Under the same runtime lock held
    and queued work is retired (as `retire_after_docking`). Today RESET does that a tick later.
-4. **Outcome is decided once, at NAV exit.** Cleanup snapshots the episode terminal (identity, terminal, reason;
-   `FinalApproachDockOutcome`, its own NAV-exit port)
-   before `navigation_reset` clears the latch, into `NavCleanupResult.dock_terminal`, next to the kept contact
-   (`own_dock_contact`). Contact kept → DOCKED; FAILED/MISSED terminal → DOCK FAILED.
+4. **Outcome is decided once, at NAV exit.** Cleanup snapshots the episode result (identity, result, reason;
+   `GuidanceDockOutcome`, its own NAV-exit port)
+   before `navigation_reset` clears the latch, into `NavCleanupResult.dock_result`, next to the kept contact
+   (`own_dock_contact`). Contact kept → DOCKED; FAILED/MISSED result → DOCK FAILED.
    First latch still wins (`physical_docking.md` unchanged): a contact after the NAV_FAIL is not counted. Hit or miss
    stays the sensor's. Lock order stays contact lock → runtime lock; nothing takes them in reverse.
 5. **Behaviour is DOCKED's.** The DOCKED entry, hold, one-shot force-disarm (SITL only, `products/delivery/nav_oneshot_completion.py`)
@@ -58,7 +58,7 @@ truth to time the end.
 - The delivery eval: a role whose episode has a `DOCK_FAILED` row is reported "dock failed: <reason>" and fails;
   it is matched to its `DOCK_ARMED` by identity, not by command rows (a failure may come before any command).
   Rejected: duplicate, stale-episode or wrong vehicle/task/dock rows, a `DOCKED` and a `DOCK_FAILED` for one episode,
-  and any command row after the terminal row.
+  and any command row after the result row.
 
 ## Forced miss for the check
 A sim-only net radius override `NAVPY_SIM_DOCK_NET_RADIUS_M` (default 0.5, owner-set): read by the sim composition,
@@ -73,7 +73,7 @@ its report. `0` makes every pass a miss.
 ## Steps
 | Step | Change | Gate |
 |---|---|---|
-| m1 | FAILED with reason ends commands; NAV exit redirect and outcome; status line and row; eval parse/report/conflict; radius override | Unit: each NAV_FAIL reason in scope → DOCKED state, outcome FAILED + reason, no AUTO restart, no new confirmation, status line once; out-of-scope endings → today; a frame admitted after the NAV_FAIL and before exit → suppressed, no command row; held and queued work retired; contact before the NAV_FAIL → DOCKED; contact after it → still FAILED; real build → FAILED; one-shot: disarmed and final; cyclic: climb then AUTO, outcome cleared; outcome survives the RESET clear; cleanup error → today's raise; terminal snapshot survives the reset; MISSED then NAV_FAIL keeps `missed_dock`; repeated NAV_FAIL; contact/failure/exit interleavings; Pure Vision guard; eval: forced-miss report, zero-command failure, duplicate/stale/wrong-identity/conflicting rows, command after terminal; full suite |
+| m1 | FAILED with reason ends commands; NAV exit redirect and outcome; status line and row; eval parse/report/conflict; radius override | Unit: each NAV_FAIL reason in scope → DOCKED state, outcome FAILED + reason, no AUTO restart, no new confirmation, status line once; out-of-scope endings → today; a frame admitted after the NAV_FAIL and before exit → suppressed, no command row; held and queued work retired; contact before the NAV_FAIL → DOCKED; contact after it → still FAILED; real build → FAILED; one-shot: disarmed and final; cyclic: climb then AUTO, outcome cleared; outcome survives the RESET clear; cleanup error → today's raise; result snapshot survives the reset; MISSED then NAV_FAIL keeps `missed_dock`; repeated NAV_FAIL; contact/failure/exit interleavings; Pure Vision guard; eval: forced-miss report, zero-command failure, duplicate/stale/wrong-identity/conflicting rows, command after result; full suite |
 | m2 | SITL | One delivery wall eval (quiet PC) green. One forced-miss run (radius 0): every UAV logs `STATE DOCK_FAILED`, no `ONHOLD: WAYPOINT 1` or new confirmation after it, disarmed in one-shot |
 
 ## Owner questions

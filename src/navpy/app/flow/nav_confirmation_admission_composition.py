@@ -1,4 +1,4 @@
-"""Composition of confirmation review and final-approach admission gates."""
+"""Composition of confirmation review and guidance admission gates."""
 
 from __future__ import annotations
 
@@ -8,8 +8,8 @@ from navpy.core.skills.acquire.approach_strategy import ApproachKind
 from navpy.core.skills.confirm.confirmation_action import (
     ConfirmationAction,
     ConfirmationGeoHold,
-    FinalApproachConfirmationAdmission,
-    FinalApproachConfirmationPorts,
+    GuidanceConfirmationAdmission,
+    GuidanceConfirmationPorts,
 )
 from navpy.core.skills.confirm.confirmation_frame_policy import ConfirmationFramePolicy
 from navpy.core.skills.geo_approach.confirmation_legacy_prep import (
@@ -33,8 +33,8 @@ from navpy.app.flow.nav_composition_types import (
     VehicleApproachOwnership,
 )
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
-from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
-from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.approach.guidance_record_deadline import GuidanceRecordDeadline
+from navpy.core.skills.confirm.guidance_release_gate import GuidanceReleaseGate
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.core.perception.detection_coordination import DetectionCoordination
 
@@ -61,14 +61,14 @@ def compose_confirmation_admission_workflows(
             logger,
         ),
         OperatorReviewPublisher(
-            final_approach_active=lambda: navigation.final_approach.is_active,
+            guidance_active=lambda: navigation.guidance.is_active,
             review=lambda pois: poi.confirmation_manager.review(pois),
-            freeze_final_approach_zoom=observation.zoom.freeze_final_approach_wide,
+            freeze_guidance_zoom=observation.zoom.freeze_guidance_wide,
             set_tracking_zoom=observation.zoom.set_recognition_demand,
             logger=logger,
             legacy=(
                 None
-                if navigation.final_approach.is_active
+                if navigation.guidance.is_active
                 else LegacyReviewPreparation(
                     LegacyReviewPorts(
                         ground_location=(
@@ -99,14 +99,14 @@ def compose_confirmation_admission_workflows(
         observation.debug,
         observation.blocked,
     )
-    final_approach_admission = FinalApproachConfirmationAdmission(
-        FinalApproachConfirmationPorts(
-            final_approach_active=lambda: navigation.final_approach.is_active,
-            can_confirm=navigation.final_approach.can_confirm_detection,
-            record_confirmed=navigation.final_approach.record_confirmed_detection,
+    guidance_admission = GuidanceConfirmationAdmission(
+        GuidanceConfirmationPorts(
+            guidance_active=lambda: navigation.guidance.is_active,
+            can_confirm=navigation.guidance.can_confirm_detection,
+            record_confirmed=navigation.guidance.record_confirmed_detection,
             auto_confirm=lambda: args.is_auto_confirm,
         ),
-        state.final_approach,
+        state.guidance,
         review,
         observation.debug,
     )
@@ -125,20 +125,20 @@ def compose_confirmation_admission_workflows(
         poi.confirmation_manager,
         observation.source,
         ConfirmationFramePolicy(observation.debug),
-        final_approach_admission,
+        guidance_admission,
         recognition,
         observation.blocked,
         observation.debug,
         confirmation_geo_hold,
         navigation_task.acquisition,
     )
-    release = FinalApproachReleaseGate(
+    release = GuidanceReleaseGate(
         observation.source,
         observation.freshness,
         observation.debug,
     )
-    deadline = FinalApproachRecordDeadline(
-        state.final_approach,
+    deadline = GuidanceRecordDeadline(
+        state.guidance,
         state.navigation_failures.mark_failed,
         lambda: state.clock.decision_s(),
         logger,

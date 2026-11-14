@@ -186,7 +186,7 @@ lockstep matrix and a pytest run):
 - C: eval and load from this branch: priority and share
 
 C passes when every run passes the eval and the background load keeps
-using CPU during each final approach and finishes. A and B tell which part
+using CPU during each guidance and finishes. A and B tell which part
 does the work; a passing A is inconclusive, not a failure of C. Then two
 share-holding wall evals run at once from two worktrees (disjoint P-cores,
 both pass). A long-lived background child that spans a share's expiry and
@@ -227,7 +227,7 @@ numpy DLL, so A1 ran beside the matrix only):
   NavPy's reader lag. The C3 miss (UAV 2, SNAP without `DOCKED`) had no
   lasting backlog (p95 61 ms, max 77 ms) but slow frames (todo 65's load
   sensitivity); a share of the miss from that lag is not ruled out.
-- The load kept running during every final approach (matrix 0.3-0.9 core
+- The load kept running during every guidance (matrix 0.3-0.9 core
   in C2-C6; 0.05 in C7, between cells, with about 16 cores idle) and
   finished. In C2 one matrix cell failed: another chat's 20 NORMAL burners
   (a checkout without this change) starved this branch's BELOW_NORMAL
@@ -248,7 +248,7 @@ numpy DLL, so A1 ran beside the matrix only):
   probe's processes and WSL's guest (vmmemWSL, about 3 cores) explain only
   about 10 of those cores; WSL's own Windows processes used under 0.5 core
   and DPCs 2%, so the rest is not yet attributed.
-- **Size stays 4.** In final approach a stack used 2.2-2.5 cores on Windows
+- **Size stays 4.** In guidance a stack used 2.2-2.5 cores on Windows
   (NavPy 0.65-0.8 each, backend 0.1-0.25), leaving room for NavPy's peaks
   (1.27 core p95 in m1). Four is a safe size, not shown to be the
   smallest. Todo 66 saved an estimated 0.02 core per NavPy (the cut

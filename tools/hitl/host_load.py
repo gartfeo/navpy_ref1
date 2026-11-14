@@ -1,4 +1,4 @@
-"""Host load during a HITL run (hitl_final_approach.md section 9, step 27 "Simple checks": record CPU/GPU/temperature;
+"""Host load during a HITL run (hitl_guidance.md section 9, step 27 "Simple checks": record CPU/GPU/temperature;
 no crash or thermal throttling).
 
 The runner starts it as its own process for the whole run. Each period it samples the host's CPU busy share

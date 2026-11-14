@@ -9,12 +9,12 @@ import pytest
 
 from navpy.core.approach.logs.log_events import LogEvent, format_standard_event_row
 from navpy.core.approach.vision_nav.diagnostics import (
-    NavigationFinalApproachDiagnostics,
+    NavigationGuidanceDiagnostics,
 )
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 from scripts import eval_gcs_demo_evidence as evidence
 from tests.scripts.test_eval_gcs_navigation_demo_review_regressions import (
-    _final_approach_row,
+    _guidance_row,
 )
 
 VEHICLE = 7
@@ -51,7 +51,7 @@ def _docked_row(
 ) -> str:
     """Produced by the runtime's own diagnostics, then the standard formatter."""
     logger = _EventLogger()
-    diagnostics = NavigationFinalApproachDiagnostics(logger, reader=None)  # type: ignore[arg-type]
+    diagnostics = NavigationGuidanceDiagnostics(logger, reader=None)  # type: ignore[arg-type]
     diagnostics.record_docked(
         DockContactEvent(
             DockContactIdentity(vehicle, task, dock, episode),
@@ -73,7 +73,7 @@ def _armed_row(
     episode: int = 1,
 ) -> str:
     logger = _EventLogger()
-    diagnostics = NavigationFinalApproachDiagnostics(logger, reader=None)  # type: ignore[arg-type]
+    diagnostics = NavigationGuidanceDiagnostics(logger, reader=None)  # type: ignore[arg-type]
     diagnostics.record_dock_armed(DockContactIdentity(vehicle, task, dock, episode))
     return _formatted(wall, logger, LogEvent.DOCK_ARMED)
 
@@ -88,7 +88,7 @@ def _formatted(wall: str, logger: _EventLogger, expected: LogEvent) -> str:
 
 def _issued(count: int = 3, start: int = 0) -> str:
     return "".join(
-        _final_approach_row(
+        _guidance_row(
             f"12:00:00.{(start + index) * 50:03d}",
             obs=1.0 + (start + index) * 0.1,
             roll="10.0",
@@ -104,7 +104,7 @@ def _write(tmp_path: Path, text: str) -> Path:
 
 
 def _parse(path: Path) -> list:
-    return evidence.parse_final_approach_command_episodes(path, vehicle_id=VEHICLE)
+    return evidence.parse_guidance_command_episodes(path, vehicle_id=VEHICLE)
 
 
 def test_docked_row_closes_the_episode(tmp_path: Path) -> None:
@@ -139,7 +139,7 @@ def test_stale_docked_episode_is_rejected(tmp_path: Path) -> None:
 
 
 def test_docked_outside_an_episode_is_rejected(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="outside a final-approach episode"):
+    with pytest.raises(ValueError, match="outside a guidance episode"):
         _parse(_write(tmp_path, _armed_row() + _docked_row() + _issued() + SNAP_ROW))
 
 
@@ -269,13 +269,13 @@ def _failed_row(
     reason: str = "no_detection",
 ) -> str:
     logger = _EventLogger()
-    diagnostics = NavigationFinalApproachDiagnostics(logger, reader=None)  # type: ignore[arg-type]
+    diagnostics = NavigationGuidanceDiagnostics(logger, reader=None)  # type: ignore[arg-type]
     diagnostics.record_dock_failed(DockContactIdentity(vehicle, task, dock, episode), reason)
     return _formatted(wall, logger, LogEvent.DOCK_FAILED)
 
 
 def _episodes(path: Path) -> list:
-    return evidence.parse_final_approach_episodes(path, vehicle_id=VEHICLE)
+    return evidence.parse_guidance_episodes(path, vehicle_id=VEHICLE)
 
 
 def test_a_failed_row_after_snap_closes_an_undocked_episode(tmp_path: Path) -> None:
@@ -286,7 +286,7 @@ def test_a_failed_row_after_snap_closes_an_undocked_episode(tmp_path: Path) -> N
 def test_a_failure_before_any_command_is_kept(tmp_path: Path) -> None:
     """GUIDED accepted, then lost at once: no command row, still one failure."""
     for text in (_armed_row() + SNAP_ROW + _failed_row(), _armed_row() + _failed_row()):
-        episodes, failures = evidence.parse_final_approach_outcomes(
+        episodes, failures = evidence.parse_guidance_outcomes(
             _write(tmp_path, text), vehicle_id=VEHICLE,
         )
         assert episodes == []
@@ -298,7 +298,7 @@ def test_a_failed_attempt_after_a_docked_one_is_not_hidden(tmp_path: Path) -> No
         _armed_row() + _issued() + _docked_row() + SNAP_ROW
         + _armed_row(episode=2) + _failed_row(episode=2)
     )
-    episodes, failures = evidence.parse_final_approach_outcomes(
+    episodes, failures = evidence.parse_guidance_outcomes(
         _write(tmp_path, text), vehicle_id=VEHICLE,
     )
     assert [episode.docked for episode in episodes] == [True]
@@ -362,8 +362,8 @@ def test_the_delivery_gate_reports_a_failed_dock_with_its_reason(tmp_path: Path)
     from scripts.eval_delivery_gates import docking_errors
 
     rows = _armed_row(vehicle=2, dock=0) + _failed_row(vehicle=2, dock=0, reason="missed_dock")
-    _, failed = evidence.parse_final_approach_outcomes(_write(tmp_path, rows), vehicle_id=2)
+    _, failed = evidence.parse_guidance_outcomes(_write(tmp_path, rows), vehicle_id=2)
     errors = docking_errors(2, "", [], [SimpleNamespace(name="kept")], 0, None, failed)
 
     assert errors[0] == "UAV 2 dock failed at kept: missed_dock"
-    assert "has 0 final-approach episodes" in errors[1]
+    assert "has 0 guidance episodes" in errors[1]

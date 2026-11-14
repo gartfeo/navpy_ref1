@@ -1,6 +1,6 @@
-# Final approach: docking is physical, not a vision decision (v4, 2026-10-13, owner-approved)
+# Guidance: docking is physical, not a vision decision (v4, 2026-10-13, owner-approved)
 
-Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 findings in v3; v4 adds its 2 v3 findings
+Replaces the v1 end-divergence rule ("rework"). Codex resolved all 5 v2 findings in v3; v4 adds its 2 v3 findings
 (the thread that requests RESET, and an episode-level latch). Fixes
 `architecture_todo.md` items 35 and 36. Owner approved v4 and the 0.5 m net radius. d1-d3 are built (unit-tested); d4 (SITL) is open.
 
@@ -37,12 +37,12 @@ Replaces the v1 terminal-divergence rule ("rework"). Codex resolved all 5 v2 fin
   strictly under `SIM_DOCK_NET_RADIUS_M` (0.5 m, owner-set; matches the eval's strict `< 0.5 m` SNAP gate).
 - **Event:** `DOCKED` with (vehicle, task, dock uid, episode, aircraft time, closest 3D/h/v distance), published once.
 
-## Terminal transaction
+## Result transaction
 The existing a7 latch machinery is kept and re-pointed from the vision trigger to the contact trigger:
 1. Contact.
 2. Under the runtime lock: latch completion (first latch wins), retire held and queued commands, stage the `DOCKED`
    evidence row behind earlier command rows (the ordered pass-evidence path).
-3. Set `final_approach_nav_completed` and request RESET.
+3. Set `guidance_nav_completed` and request RESET.
 
 - **Threads.** The position callback does steps 1-2 only: it latches and fences at once. Step 3 runs on the navigation
   loop thread, which picks up the latched completion in its next decision. It never runs from the callback, so a
@@ -66,7 +66,7 @@ is ignored. Zero commands are actuated after the latch.
   - a duplicate, stale or wrong-episode event;
   - an event that does not match the UAV's own dock;
   - any command row after the event.
-- `FINAL_APPROACH_PASS` and its consumers (the parser, metrics, workflow markers, standalone evaluators) are switched
+- `GUIDANCE_PASS` and its consumers (the parser, metrics, workflow markers, standalone evaluators) are switched
   to `DOCKED` or removed.
 
 ## Steps

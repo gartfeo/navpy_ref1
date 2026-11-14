@@ -15,8 +15,8 @@ from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.approach.nav_snap_reporter import NavSnapReporter
 from navpy.core.approach.vision_nav.episode_latch import (
     UNNAMED_FAILURE_REASON,
-    FinalApproachEpisodeTerminal,
-    FinalApproachTerminal,
+    GuidanceEpisodeResult,
+    GuidanceResult,
 )
 from navpy.core.flow.nav_display import NavOutcomeLatch
 from navpy.core.flow.nav_held_approach import HeldApproach
@@ -73,7 +73,7 @@ class NavTransition:
     def _end_held_episode(self) -> None:
         """Recovery's hold: the in-flight episode ends without failure (owner ruling 2026-11-09)."""
         self._cleanup.end_episode()
-        self._navigation_task.final_approach_navigation_active = False
+        self._navigation_task.guidance_navigation_active = False
         if self._logger is not None:
             # A recovery report (journaled, step 8): the eval sees the held episode end, not only the NavPy log.
             self._logger.recovery("NAV approach held: episode ended, a fresh one follows the resume", "nav")
@@ -87,8 +87,8 @@ class NavTransition:
                 self._held.end_episode()
             except Exception as error:  # noqa: BLE001 - teardown transaction
                 held_errors.append(error)
-        navigation_active = self._navigation_task.final_approach_navigation_active
-        completed = self._navigation_task.final_approach_nav_completed
+        navigation_active = self._navigation_task.guidance_navigation_active
+        completed = self._navigation_task.guidance_nav_completed
         cleanup = self._cleanup.run()
         errors = held_errors + list(cleanup.errors)
 
@@ -105,11 +105,11 @@ class NavTransition:
         docked = dock_ending and cleanup.own_dock_contact is not None
         # A started approach that ended by NAV_FAIL without contact is a
         # failed dock: it ends like DOCKED, never back to search
-        # (missed_dock.md). The terminal names an armed (sim) episode.
+        # (missed_dock.md). The result names an armed (sim) episode.
         failed = (
             dock_ending
             and not docked
-            and _failed_terminal(cleanup.dock_terminal)
+            and _failed_result(cleanup.dock_result)
         )
         if docked or failed:
             # One-shot is how a real dock ends: the sortie finishes, final.
@@ -134,23 +134,23 @@ class NavTransition:
         if docked:
             self._report_docked(cleanup)
         elif failed:
-            self._report_dock_failed(cleanup.dock_terminal)
+            self._report_dock_failed(cleanup.dock_result)
         return outcome
 
     def _report_dock_failed(
         self,
-        terminal: FinalApproachEpisodeTerminal | None,
+        result: GuidanceEpisodeResult | None,
     ) -> None:
         """Evidence row and operator status line, once the exit succeeded."""
-        if terminal is None:
+        if result is None:
             return
-        reason = terminal.reason or UNNAMED_FAILURE_REASON
-        self._cleanup.record_dock_failed(terminal, reason)
+        reason = result.reason or UNNAMED_FAILURE_REASON
+        self._cleanup.record_dock_failed(result, reason)
         if self._outcome is not None:
             self._outcome.record_failed(reason)
         if self._logger is None:
             return
-        identity = terminal.identity
+        identity = result.identity
         self._logger.info(
             f"STATE DOCK_FAILED (sim): reason={reason} "
             f"dock={identity.dock_uid} task={identity.task_id}",
@@ -174,10 +174,10 @@ class NavTransition:
         )
 
 
-def _failed_terminal(terminal: FinalApproachEpisodeTerminal | None) -> bool:
-    return terminal is not None and terminal.terminal in (
-        FinalApproachTerminal.FAILED,
-        FinalApproachTerminal.MISSED,
+def _failed_result(result: GuidanceEpisodeResult | None) -> bool:
+    return result is not None and result.outcome in (
+        GuidanceResult.FAILED,
+        GuidanceResult.MISSED,
     )
 
 

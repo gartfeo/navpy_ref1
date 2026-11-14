@@ -23,7 +23,7 @@ Design systems, decompose modules, enforce SOLID principles, and analyze depende
 - **core/kernel** — Shared types: `Location`, `Attitude`, `Wind`; settings, logging
 - **core/ports** — Contracts: `IVehicle`, `NetworkAbc`, detector types
 - **core/perception** — Camera, detection (`Detector`), tracking, `GeoRefCalc`, `ZcUtil`
-- **core/approach**, **plugins/laws** — Final-approach engine; law math (vision PN, geo PID/PN)
+- **core/approach**, **plugins/laws** — Guidance engine; law math (vision PN, geo PID/PN)
 - **core/flow** — State machine (`nav_state.NavState`): ONHOLD, DETECT, CONFIRM, NAV, RESET, RECOVERY; `NavController` wiring in `app/flow`
 - **core/link**, **plugins/radio** — Messages; `NetworkWifi`/`NetworkSerial`/`NetworkMavlink`
 - **core/swarm** — Multi-vehicle: `TaskActor`, `TaskDispatch`

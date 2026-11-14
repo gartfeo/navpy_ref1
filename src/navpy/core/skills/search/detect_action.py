@@ -14,7 +14,7 @@ from navpy.core.review.confirmation_manager import ConfirmationManager
 
 
 class DetectAction:
-    """Select work and maintain non-final-approach peer geo pointing."""
+    """Select work and maintain non-guidance peer geo pointing."""
 
     def __init__(
         self,

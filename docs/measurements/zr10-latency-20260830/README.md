@@ -130,7 +130,7 @@ Numbers a candidate must tolerate on this camera today:
   an asynchronous external event
 
 Lag hurts a rate estimator through the LOS curvature it misses, which is
-what the shootout scenarios measure. None of this decides the terminal law;
+what the shootout scenarios measure. None of this decides the guidance law;
 it bounds what a future SITL- or bird-fed harness run may assume.
 
 ## What would settle the open question

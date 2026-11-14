@@ -48,7 +48,7 @@ from scripts.eval_source_identity import (  # noqa: E402
 )
 import eval_preboot_profile as preboot_profile  # noqa: E402
 from scripts.pixel_pn_case_manifest import write_case_manifest  # noqa: E402
-from scripts.pixel_pn_final_approach_speed import final_approach_speed_plan  # noqa: E402
+from scripts.pixel_pn_guidance_speed import guidance_speed_plan  # noqa: E402
 from scripts.upload_north_line_mission import upload_north_line  # noqa: E402
 
 # The single-case identity closure does NOT reach the fleet harness: it is
@@ -223,7 +223,7 @@ def prepare_aircraft(
             mission, poi_wp=args.scoring_start_wp,
             poi_rel_alt_m=args.poi_alt, home_abs_alt_m=home_alt,
         ).mission_seq
-        plan.speed_plans[sys_id] = final_approach_speed_plan(
+        plan.speed_plans[sys_id] = guidance_speed_plan(
             args, speedup, mission, home_alt
         )
         plan.winds[sys_id] = (speed, direction)

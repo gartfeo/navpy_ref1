@@ -1,4 +1,4 @@
-"""The offline truth cross-check of one approach (hitl_final_approach.md section 7 "Truth cross-check, offline" and
+"""The offline truth cross-check of one approach (hitl_guidance.md section 7 "Truth cross-check, offline" and
 section 9 "Every ten-run series"): the closest approach of the bridge's ``link.csv`` path to the board centre Unreal
 built, and whether it joins the contact the service reported.
 

@@ -86,7 +86,7 @@ from pixel_pn_child_process import (  # noqa: E402
     terminate as _terminate,
     wait_ready as _wait_ready,
 )
-from pixel_pn_final_approach_speed import launch_speedup, final_approach_speed_plan
+from pixel_pn_guidance_speed import launch_speedup, guidance_speed_plan
 from upload_north_line_mission import (  # noqa: E402
     DEFAULT_ALT_M, DEFAULT_GATE_OFFSET_M, DEFAULT_LOITER_OFFSET_M,
     DEFAULT_WAYPOINT_OFFSET_M, upload_north_line,
@@ -105,7 +105,7 @@ TRUTH_CLOSURE_DRAIN_TIMEOUT_S = 5.0
 # empty the worker reissues the previous command as a held primitive.  So a run
 # that starves the law of fresh observations still emits commands at the full
 # nominal rate, and every command-side cadence measure looks healthy while the
-# commands themselves carry stale information.  The final-approach LOS-rate filter
+# commands themselves carry stale information.  The guidance LOS-rate filter
 # differentiates successive observations, so its usable bandwidth follows the
 # fresh-observation rate, not the command rate.
 #
@@ -375,7 +375,7 @@ def run_case(
                 f"({baseline_identity['sha256'][:12]} -> "
                 f"{case_identity['sha256'][:12]})"
             )
-        speed_plan = final_approach_speed_plan(args, speedup, mission, home_alt)
+        speed_plan = guidance_speed_plan(args, speedup, mission, home_alt)
         # The manifest lands BEFORE any parameter push: a case that dies on
         # an unserved parameter (an old binary, a transport fault) must
         # still leave the record of what it was configured to fly

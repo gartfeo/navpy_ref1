@@ -59,8 +59,8 @@ class UavIds:
 
 
 @dataclass(frozen=True)
-class FinalApproachCommand:
-    """Immutable passive copy of one atomic FINAL_APPROACH_CMD payload."""
+class GuidanceCommand:
+    """Immutable passive copy of one atomic GUIDANCE_CMD payload."""
 
     wall_s: float
     source: str
@@ -83,8 +83,8 @@ class FinalApproachCommand:
 
 
 @dataclass(frozen=True)
-class FinalApproachResponse:
-    """Pairing key and achieved roll of one FINAL_APPROACH_RESPONSE_STATE row.
+class GuidanceResponse:
+    """Pairing key and achieved roll of one GUIDANCE_RESPONSE_STATE row.
 
     Parsed leniently: the achieved-roll gate, not the parser, rejects bad
     evidence, so ``None`` means absent or non-numeric and a non-finite roll
@@ -98,11 +98,11 @@ class FinalApproachResponse:
 
 
 @dataclass(frozen=True)
-class FinalApproachEpisode:
+class GuidanceEpisode:
     """One episode's command rows and the response rows in its span."""
 
-    commands: tuple[FinalApproachCommand, ...]
-    responses: tuple[FinalApproachResponse, ...]
+    commands: tuple[GuidanceCommand, ...]
+    responses: tuple[GuidanceResponse, ...]
     #: A valid DOCKED row before the episode's SNAP; its absence is the
     #: docking gate's failure, not an evidence error.
     docked: bool
@@ -148,7 +148,7 @@ class DockedEvidence:
 
 
 @dataclass(frozen=True)
-class FinalApproachTiming:
+class GuidanceTiming:
     median_wall_gap_s: float | None = None
     max_wall_gap_s: float | None = None
     max_source_gap_s: float | None = None
@@ -156,7 +156,7 @@ class FinalApproachTiming:
 
 
 @dataclass(frozen=True)
-class FinalApproachScore:
+class GuidanceScore:
     sample_count: int = 0
     # Commanded-roll reversals: a diagnostic only, not gated.
     significant_reversals: int = 0
@@ -285,6 +285,6 @@ class MissionArtifacts:
 __all__ = [
     "ProductFailure", "AchievedRollScore", "CadenceLimits", "EpisodeMetrics", "GateLimits",
     "MissionArtifacts", "RegressionError", "RunReport", "RollQualityLimits", "StackContext",
-    "FinalApproachCommand", "FinalApproachEpisode", "FinalApproachResponse", "FinalApproachScore", "FinalApproachTiming",
+    "GuidanceCommand", "GuidanceEpisode", "GuidanceResponse", "GuidanceScore", "GuidanceTiming",
     "UavIds", "VehicleReport", "finite_number", "positive_int",
 ]

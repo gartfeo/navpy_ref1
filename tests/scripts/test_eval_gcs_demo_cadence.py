@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.approach.logs.log_events import format_standard_event_row
-from navpy.core.approach.vision_nav.diagnostics import NavigationFinalApproachDiagnostics
+from navpy.core.approach.vision_nav.diagnostics import NavigationGuidanceDiagnostics
 from navpy.core.ports.dock_contact import DockContactIdentity
 from scripts.eval_gcs_demo_cadence import (
     COVERAGE_GAP_BOUND_MS,
@@ -199,7 +199,7 @@ def test_legacy_armed_row_has_no_source_time(tmp_path: Path) -> None:
     assert window.entry_s is None
 
 
-def test_a_truncated_terminal_row_is_a_status_not_a_crash(tmp_path: Path) -> None:
+def test_a_truncated_result_row_is_a_status_not_a_crash(tmp_path: Path) -> None:
     _write_debug(tmp_path, _event("DOCK_ARMED", _ARMED), "12:00:01.000,EVENT:DOCK_DISARMED")
 
     assert cadence_annotation(tmp_path, 4)["status"].startswith("unavailable")
@@ -220,7 +220,7 @@ def test_an_armed_row_without_wall_time_fails_closed(tmp_path: Path) -> None:
 
 
 def test_an_unterminated_episode_does_not_absorb_the_next(tmp_path: Path) -> None:
-    # Episode 1 has no terminal row; episode 2 reuses its source times.
+    # Episode 1 has no result row; episode 2 reuses its source times.
     _write_observations(tmp_path, [
         (0.1 * step, 10.0 + 0.1 * step, "fresh", 0) for step in range(1, 5)
     ] + [(30.0 + 0.1 * step, 10.0 + 0.1 * step, "fresh", 1) for step in range(1, 9)])
@@ -322,7 +322,7 @@ def test_producer_rows_parse_into_one_window(tmp_path: Path) -> None:
                 "12:00:00.000", event, ((k, str(v)) for k, v in payload.items())
             ).rstrip("\n"))
 
-    diagnostics = NavigationFinalApproachDiagnostics(_Logger(), reader=None)  # type: ignore[arg-type]
+    diagnostics = NavigationGuidanceDiagnostics(_Logger(), reader=None)  # type: ignore[arg-type]
     identity = DockContactIdentity(4, 1, 11, 1)
     diagnostics.record_dock_armed(identity, 10.0)
     diagnostics.record_dock_disarmed(identity, 10.9)

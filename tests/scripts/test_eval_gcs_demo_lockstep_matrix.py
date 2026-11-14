@@ -20,7 +20,7 @@ def _write_run(run_dir, *, digest=DIGEST, passed=True, wall_s=100.0, parked_tick
     (run_dir / matrix.JOURNAL_FILE).write_text(
         json.dumps({"grid": {"drain_period_us": 40000}}) + "\n{}\n", encoding="utf-8")
     (run_dir / matrix.RUN_HOST_FILE).write_text(json.dumps({
-        "wall_s": wall_s, "result": {"outcome": "ok", "terminal_tick": 4900,
+        "wall_s": wall_s, "result": {"outcome": "ok", "result_tick": 4900,
                                      "final_tick": 4990, "parked_tick": parked_tick}}), encoding="utf-8")
     (run_dir / "artifact.csv").write_bytes(extra)
 

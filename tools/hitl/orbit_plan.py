@@ -1,4 +1,4 @@
-"""The inputs of the pre-series orbit check (scenario_checks.py, hitl_final_approach.md steps 23 and 23b).
+"""The inputs of the pre-series orbit check (scenario_checks.py, hitl_guidance.md steps 23 and 23b).
 
 An OrbitPlan holds everything the checks use: the HITL profile's explicit radius, measured zoom optics and whole-dock
 detector limits (its rfdetr input and acquisition blocks), the scenario's public lane height, floor and dock size
@@ -20,7 +20,7 @@ from navpy.core.perception.profile.vision_profile_loader import load_profiles
 from navpy.core.perception.tracking.dock_acquisition_gate import acquisition_block
 from navpy.core.perception.zoom.fixed_step_zoom_policy import ContainmentMargins
 from navpy.core.perception.zoom.fixed_zoom_steps import FixedZoomSteps, ZoomStep
-from navpy.core.skills.acquire.orbit_radius_setting import final_approach_orbit_setting
+from navpy.core.skills.acquire.orbit_radius_setting import guidance_orbit_setting
 from tools.hitl import scenario_public as sp
 from tools.hitl.json_checks import read_json
 from tools.tuning.dock_pass import PASS_AIRSPEED_M_S
@@ -141,9 +141,9 @@ def plan_for(public: Mapping[str, Any], params: Mapping[str, float], model_input
     if profile_name not in profiles:
         raise ValueError(f"vision profile {profile_name!r} not found")
     profile = profiles[profile_name]
-    radius = final_approach_orbit_setting(profile)
+    radius = guidance_orbit_setting(profile)
     if radius is None:
-        raise ValueError(f"vision profile {profile_name!r} sets no final_approach_orbit.radius_m")
+        raise ValueError(f"vision profile {profile_name!r} sets no guidance_orbit.radius_m")
     for name in (MIN_PITCH_PARAM, ROLL_LIMIT_PARAM):
         if name not in params:
             raise ValueError(f"the run's parameters set no {name}")

@@ -2,7 +2,7 @@
 
 Without the block nothing is gated, as before. A HITL profile sets::
 
-    "final_approach_gates": {
+    "guidance_gates": {
         "lock_dwell_s": 2.0,
         "lock_max_image_error_deg": 1.0,
         "lock_max_frame_gap_s": 0.5,
@@ -20,7 +20,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-FINAL_APPROACH_GATES_KEY = "final_approach_gates"
+GUIDANCE_GATES_KEY = "guidance_gates"
 
 
 @dataclass(frozen=True)
@@ -40,31 +40,31 @@ _FIELDS = tuple(AcquisitionGateSettings.__dataclass_fields__)
 
 def acquisition_gate_settings(profile: Mapping[str, object]) -> AcquisitionGateSettings | None:
     """The profile's gate tolerances, or None when it sets none."""
-    block = profile.get(FINAL_APPROACH_GATES_KEY) if isinstance(profile, Mapping) else None
+    block = profile.get(GUIDANCE_GATES_KEY) if isinstance(profile, Mapping) else None
     if block is None:
         return None
     if not isinstance(block, Mapping):
-        raise ValueError(f"vision profile {FINAL_APPROACH_GATES_KEY} must be a mapping")
+        raise ValueError(f"vision profile {GUIDANCE_GATES_KEY} must be a mapping")
     unknown = set(block) - set(_FIELDS)
     missing = set(_FIELDS) - set(block)
     if unknown or missing:
         raise ValueError(
-            f"{FINAL_APPROACH_GATES_KEY}: unknown {sorted(unknown)}, missing {sorted(missing)}"
+            f"{GUIDANCE_GATES_KEY}: unknown {sorted(unknown)}, missing {sorted(missing)}"
         )
     values = {}
     for name in _FIELDS:
         value = block[name]
         if isinstance(value, bool) or not isinstance(value, (int, float)) \
                 or not math.isfinite(value) or value <= 0.0:
-            raise ValueError(f"{FINAL_APPROACH_GATES_KEY}.{name} must be a positive number")
+            raise ValueError(f"{GUIDANCE_GATES_KEY}.{name} must be a positive number")
         values[name] = float(value)
     if values["lock_max_image_error_deg"] >= 90.0:
-        raise ValueError(f"{FINAL_APPROACH_GATES_KEY}.lock_max_image_error_deg must be below 90")
+        raise ValueError(f"{GUIDANCE_GATES_KEY}.lock_max_image_error_deg must be below 90")
     return AcquisitionGateSettings(**values)
 
 
 __all__ = [
     "AcquisitionGateSettings",
-    "FINAL_APPROACH_GATES_KEY",
+    "GUIDANCE_GATES_KEY",
     "acquisition_gate_settings",
 ]

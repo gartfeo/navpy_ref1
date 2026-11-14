@@ -128,7 +128,7 @@ class SelectedTaskSlot:
                 return RequestDecision(RequestKind.REJECT, reason="docked")
             if self._approaching:
                 return RequestDecision(
-                    RequestKind.REJECT, reason="flying a final approach",
+                    RequestKind.REJECT, reason="in guidance",
                 )
             if not flyable:
                 return RequestDecision(RequestKind.REJECT, reason="cannot fly it")
@@ -248,7 +248,7 @@ class SelectedTaskSlot:
             return self._state
 
     def node_state(self) -> SwarmNodeState:
-        """BUSY while holding a task or flying a final approach."""
+        """BUSY while holding a task or in guidance."""
         with self._lock:
             if self._state is not SlotState.EMPTY or self._busy():
                 return SwarmNodeState.BUSY

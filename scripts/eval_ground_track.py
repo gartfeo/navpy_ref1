@@ -34,11 +34,11 @@ from eval_navigation_models import PoiLocation  # noqa: E402
 from eval_navigation_scoring import horizontal_distance_m  # noqa: E402
 
 
-# Distance from the POI inside which the track is the final-approach track.
+# Distance from the POI inside which the track is the guidance track.
 # Matches the window used for LOS-rate diagnosis: far enough out that the
 # trajectory is still correctable, close enough that the vehicle has committed
 # to its run rather than still turning onto it.
-FINAL_APPROACH_TRACK_WINDOW_M = 200.0
+GUIDANCE_TRACK_WINDOW_M = 200.0
 # Below this ground speed the velocity vector's direction is dominated by noise
 # rather than motion, so it is not a meaningful track.
 MIN_TRACK_GROUND_SPEED_M_S = 1.0
@@ -130,9 +130,9 @@ class GroundTrackRecorder:
         wind_speed_mps: float,
         wind_dir_deg: float,
         *,
-        window_m: float = FINAL_APPROACH_TRACK_WINDOW_M,
+        window_m: float = GUIDANCE_TRACK_WINDOW_M,
     ) -> dict[str, float | int | None]:
-        """Resolve the wind into the measured final-approach track frame.
+        """Resolve the wind into the measured guidance track frame.
 
         ``wind_dir_deg`` follows the ArduPilot/meteorological convention: the
         direction the wind blows FROM.  A vehicle tracking toward ``track_deg``
@@ -163,10 +163,10 @@ class GroundTrackRecorder:
             if math.hypot(sample.north_m_s, sample.east_m_s)
             >= MIN_TRACK_GROUND_SPEED_M_S
         ]
-        final_approach = [
+        guidance = [
             sample for sample in moving if sample.range_m <= window_m
         ]
-        used = final_approach or moving
+        used = guidance or moving
         if not used:
             raise RuntimeError(
                 f"no moving ground-track samples in {len(self._samples)} records"
@@ -191,7 +191,7 @@ class GroundTrackRecorder:
         return {
             "sample_count": len(self._samples),
             "track_sample_count": len(used),
-            "used_final_approach_window": bool(final_approach),
+            "used_guidance_window": bool(guidance),
             "window_m": window_m,
             "track_deg": track_deg,
             "ground_speed_m_s": resultant_m_s,
@@ -206,6 +206,6 @@ class GroundTrackRecorder:
 __all__ = [
     "GroundTrackRecorder",
     "MIN_TRACK_GROUND_SPEED_M_S",
-    "FINAL_APPROACH_TRACK_WINDOW_M",
+    "GUIDANCE_TRACK_WINDOW_M",
     "TrackSample",
 ]

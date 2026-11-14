@@ -1,4 +1,4 @@
-"""A final approach held by NAV recovery: ended without failure, a fresh one after the resume (owner ruling
+"""Guidance held by NAV recovery: ended without failure, a fresh one after the resume (owner ruling
 2026-11-09, "New approach"; found in step 9 SITL).
 
 In SITL a NAV cycle fault mid-approach held the UAV in LOITER and resumed in AUTO, but the re-approach failed at
@@ -16,10 +16,10 @@ from navpy.core.approach.nav_entry import NavEntry, NavEntryPorts
 from navpy.core.approach.nav_exit_cleanup import NavExitCleanup, NavExitCleanupPorts
 from navpy.core.approach.vision_nav import nav_fail_reason as fail_reason
 from navpy.core.approach.vision_nav.command_liveness import (
-    FinalApproachCommandLiveness,
-    FinalApproachEpisodeFailures,
+    GuidanceCommandLiveness,
+    GuidanceEpisodeFailures,
 )
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
 from navpy.core.flow.nav_held_approach import HeldApproach
 from navpy.core.flow.nav_state import NavigationFailureLatch, NavigationTaskState, NavPhaseState, NavState
 from navpy.core.flow.nav_transition import NavTransition
@@ -29,12 +29,12 @@ from navpy.core.ports.flight_mode import FlightMode
 
 
 class Approach:
-    """The final approach's episode state, reset as ``NavigationLifecycle.reset``/``init`` do."""
+    """Guidance's episode state, reset as ``NavigationLifecycle.reset``/``init`` do."""
 
     def __init__(self) -> None:
-        self.liveness = FinalApproachCommandLiveness()
-        self.episode = FinalApproachEpisodeLatch()
-        self.worker = FinalApproachEpisodeFailures(rt.RLock(), self.episode, self.liveness)
+        self.liveness = GuidanceCommandLiveness()
+        self.episode = GuidanceEpisodeLatch()
+        self.worker = GuidanceEpisodeFailures(rt.RLock(), self.episode, self.liveness)
         self.inits = 0
         self.resets = 0
         self.failing_inits = 0      # the next inits that raise
@@ -64,15 +64,15 @@ def _rig(recovery=None):
     holding = [False]
     resumed = [False]
     guided_requests: list[str] = []
-    # Arming dock contact begins the armed episode (FinalApproachNavigationService.begin_dock_episode).
+    # Arming dock contact begins the armed episode (GuidanceNavigationService.begin_dock_episode).
     contact = Mock(disarm=Mock(return_value=None), arm=Mock(side_effect=lambda: approach.episode.begin(Mock())))
-    outcome = Mock(terminal=Mock(side_effect=approach.episode.terminal_snapshot), record_failed=Mock())
+    outcome = Mock(result=Mock(side_effect=approach.episode.result_snapshot), record_failed=Mock())
     transition = NavTransition(
         NavEntry(
             NavEntryPorts(
                 request_guided=lambda: _request_guided(recovery, guided_requests),
                 navigation_init=approach.init,
-                final_approach_active=lambda: False,
+                guidance_active=lambda: False,
                 arm_dock_contact=contact.arm,
                 stop_geo_tracking=lambda: None,
                 is_geo_armed=lambda: False,
@@ -82,7 +82,7 @@ def _rig(recovery=None):
         NavExitCleanup(
             NavExitCleanupPorts(
                 disarm_dock_contact=contact.disarm,
-                close_final_approach_source=Mock(),
+                close_guidance_source=Mock(),
                 navigation_reset=approach.reset,
                 detector_stop=Mock(name="stop_tracking"),
                 dock_outcome=outcome,
@@ -97,7 +97,7 @@ def _rig(recovery=None):
             clock_s=lambda: 0.0,
             clear_navigation_task=Mock(),
             request_guided=lambda: guided_requests.append("GUIDED retry"),
-            final_approach_active=lambda: True,
+            guidance_active=lambda: True,
             holding=(lambda: holding[0]) if recovery is None else (lambda: recovery.hold.holding),
             # Recovery's resume grant (RecoveryHold.resumed): set by a test, or by real recovery; used up once.
             resume_granted=(lambda: resumed[0]) if recovery is None else (lambda: recovery.hold.resumed),
@@ -127,7 +127,7 @@ def test_hold_mid_approach_fence_resume_then_a_fresh_episode_without_source_comm
 
     # The fault: NAV stops feeding; the fenced worker's held command goes stale (1.0 s) before the hold (1.5 s).
     approach.worker.mark_failed()
-    assert approach.episode.terminal_snapshot() is not None   # the held episode failed in the worker...
+    assert approach.episode.result_snapshot() is not None   # the held episode failed in the worker...
 
     holding[0] = True                                          # recovery holds: LOITER, commands fenced
     assert decision.advance(FlightMode.LOITER) is ApproachOutcome.WAITING
@@ -145,7 +145,7 @@ def test_hold_mid_approach_fence_resume_then_a_fresh_episode_without_source_comm
     # What act_nav reads first: no stale liveness carried over, so no NAV_FAIL: source_command_stale.
     assert approach.liveness.consume_failure() is False
     assert failures.consume() is False
-    assert approach.episode.terminal_snapshot() is None
+    assert approach.episode.result_snapshot() is None
     outcome.record_failed.assert_not_called()                   # never DOCK_FAILED
     assert task.nav_mode_observed
 

@@ -124,7 +124,7 @@ def _write_episode(
         timestamp = _clock(index, wall_step_s)
         obs_ts = f"{1000 + index * source_step_s:.3f}"
         debug_rows.append(
-            f"{timestamp},EVENT:FINAL_APPROACH_CMD,source=camera;generation=4;"
+            f"{timestamp},EVENT:GUIDANCE_CMD,source=camera;generation=4;"
             f"task=1;obj=11;obs_ts={obs_ts};"
             f"dt_wall_ms={dt};body_bearing_deg=2.5;cmd_roll={roll:.2f};"
             "cmd_pitch=-10;cmd_thr=0.55;issued=True;missed=False,,,,,,,,,"
@@ -133,14 +133,14 @@ def _write_episode(
             "" if achieved_roll is None else f"aircraft_roll_deg={achieved_roll:.2f};"
         )
         debug_rows.append(
-            f"{timestamp},EVENT:FINAL_APPROACH_RESPONSE_STATE,source=camera;"
+            f"{timestamp},EVENT:GUIDANCE_RESPONSE_STATE,source=camera;"
             f"obs_ts={obs_ts};cmd_roll_deg={roll:.2f};cmd_pitch_deg=-10;"
             f"{achieved_field}aircraft_pitch_deg=-9,,,,,,,,,"
         )
     # One unissued (aft-gated) row, then the contact sensor's DOCKED row.
     tail_index = len(rolls)
     debug_rows.append(
-        f"{_clock(tail_index, wall_step_s)},EVENT:FINAL_APPROACH_CMD,"
+        f"{_clock(tail_index, wall_step_s)},EVENT:GUIDANCE_CMD,"
         "source=camera;generation=4;task=1;obj=11;"
         f"obs_ts={1000 + tail_index * source_step_s:.3f};"
         f"dt_wall_ms={wall_step_s * 1000:.0f};body_bearing_deg=2.5;"
@@ -249,7 +249,7 @@ def _approval_records(
 
 
 def test_203401_like_oscillation_fails_even_with_good_truth_snap(tmp_path):
-    # UAV3's second 203401 final-approach episode, rounded from the real debug CSV.
+    # UAV3's second 203401 guidance episode, rounded from the real debug CSV.
     # Give it a deliberately passing 0.25 m truth SNAP: certification must still fail
     # on the oscillation/saturation evidence rather than pass on miss alone.
     # The fixture has commands only (no achieved roll was logged); the helper's
@@ -364,7 +364,7 @@ def test_positive_gsu_rejects_unchanged_launch_call_cadence(tmp_path):
 
     assert report.passed is False
     assert report.metrics.observed_speedup == pytest.approx(10.0)
-    assert any("final-approach observation speedup" in error for error in report.errors)
+    assert any("guidance observation speedup" in error for error in report.errors)
 
 
 def test_missing_nav_controller_pass_reset_fails(tmp_path):
@@ -461,7 +461,7 @@ def test_max_zoom_best_available_can_certify_smaller_operator_source(tmp_path):
     assert report.passed is True, report.errors
 
 
-def test_final_approach_event_gap_is_not_mislabeled_as_raw_camera_cadence(tmp_path):
+def test_guidance_event_gap_is_not_mislabeled_as_raw_camera_cadence(tmp_path):
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(
         tmp_path,
@@ -636,7 +636,7 @@ def test_legacy_pitch_state_rows_do_not_change_atomic_command_score(tmp_path):
     debug_path = tmp_path / "uav_1_navigation_debug.csv"
     debug_text = debug_path.read_text(encoding="utf-8")
     legacy_row = (
-        "12:00:00.050,EVENT:FINAL_APPROACH_PITCH_STATE,"
+        "12:00:00.050,EVENT:GUIDANCE_PITCH_STATE,"
         "lateral_source=body_fixed_visual_p;pn_available=False,,,,,,,,,\n"
     )
     debug_path.write_text(
@@ -697,7 +697,7 @@ def test_mid_episode_saturation_run_still_fails_run_gate(tmp_path):
     )
 
 
-def test_final_approach_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_path):
+def test_guidance_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_path):
     rolls = [10, 9, 8, 7, 6, 5, 4, 3, 2, 1]
     _write_episode(
         tmp_path,
@@ -714,7 +714,7 @@ def test_final_approach_clock_ratio_rejects_1x_despite_10x_bootstrap_marker(tmp_
 
     assert report.passed is False
     assert report.metrics.observed_speedup == pytest.approx(1.0)
-    assert any("final-approach observation speedup" in error for error in report.errors)
+    assert any("guidance observation speedup" in error for error in report.errors)
 
 
 def test_nonfinite_truth_snap_is_reported_explicitly(tmp_path):
@@ -985,7 +985,7 @@ def test_exact_run_binds_approval_confirmation_selection_and_commands(
     assert report.passed is False
     assert any(
         "local POI identity chain differs" in error
-        or "final-approach command identity" in error
+        or "guidance command identity" in error
         for error in report.errors
     )
 
@@ -1029,7 +1029,7 @@ def test_exact_run_rejects_both_peers_at_same_poi_coordinate(tmp_path):
     )
 
     assert report.passed is False
-    assert any("final-approach truth POI differs" in error for error in report.errors)
+    assert any("guidance truth POI differs" in error for error in report.errors)
 
 
 def test_exact_run_rejects_distinct_but_wrong_peer_coordinates(tmp_path):
@@ -1053,7 +1053,7 @@ def test_exact_run_rejects_distinct_but_wrong_peer_coordinates(tmp_path):
 
     assert report.passed is False
     assert any(
-        "final-approach truth POI differs" in error
+        "guidance truth POI differs" in error
         for error in report.errors
     )
 
@@ -1082,7 +1082,7 @@ def test_exact_run_rejects_peer_centers_swapped_against_approved_tasks(tmp_path)
     )
 
     assert report.passed is False
-    assert any("final-approach truth POI differs" in error for error in report.errors)
+    assert any("guidance truth POI differs" in error for error in report.errors)
 
 
 def test_exact_run_validates_commands_against_captured_autopilot_bounds(tmp_path):

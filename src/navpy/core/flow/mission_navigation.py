@@ -17,7 +17,7 @@ from navpy.core.skills.geo_approach.pass_tracker import LegacyPassTracker
 
 @dataclass(frozen=True)
 class MissionPassPorts:
-    final_approach_active: Callable[[], bool]
+    guidance_active: Callable[[], bool]
     poi_passed_override: Callable[[], Optional[bool]]
     last_visual_bearing_deg: Callable[[], Optional[float]]
     current_absolute: Callable[[], Optional[Location]]
@@ -53,7 +53,7 @@ class MissionPassPolicy:
 
     def passed_poi(self) -> bool:
         navigation_passed = self._ports.poi_passed_override()
-        if self._ports.final_approach_active():
+        if self._ports.guidance_active():
             return navigation_passed is True
         if isinstance(navigation_passed, bool):
             return navigation_passed
@@ -80,7 +80,7 @@ class MissionPassPolicy:
         return observation.passed
 
     def has_completion_evidence(self) -> bool:
-        if self._ports.final_approach_active():
+        if self._ports.guidance_active():
             return self._ports.poi_passed_override() is True
         return self._pass_tracker.has_crossing_evidence(
             self._ports.last_visual_bearing_deg()

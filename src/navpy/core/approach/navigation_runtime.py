@@ -1,7 +1,7 @@
 """Runtime strategies used by ``Navigation``.
 
 The selected navigation algorithm owns the runtime behavior needed by the
-final-approach worker. Legacy geo-assisted laws enqueue POI NED work, while
+guidance worker. Legacy geo-assisted laws enqueue POI NED work, while
 vision-nav laws provide their own observation pipeline in the
 vision-nav package.
 """

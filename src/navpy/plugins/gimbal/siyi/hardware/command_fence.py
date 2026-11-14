@@ -1,4 +1,4 @@
-"""The SIYI command fence of the HITL terminal handoff (docs/design/hitl_final_approach.md sections 2 and 7).
+"""The SIYI command fence of the HITL result handoff (docs/design/hitl_guidance.md sections 2 and 7).
 
 Once closed, every SIYI frame that would move the gimbal, zoom, focus or change mode is dropped and counted at the
 SDK's single send point (``sendMsg``, where every request and the SDK's own polling loops end), so a reconnect's
@@ -44,7 +44,7 @@ STOP_FRAMES = frozenset({
 StopResult = str   # "sent", "failed" (a send returned False or raised), "timeout" or "no_gimbal" (no SIYI SDK created)
 
 # Bound on quiescence and the stop: a SIYI send is one UDP sendto to a fixed endpoint and returns at once on loopback or
-# the camera LAN, so this only catches a stuck send (e.g. a hostname that does not resolve). It keeps the terminal
+# the camera LAN, so this only catches a stuck send (e.g. a hostname that does not resolve). It keeps the result
 # record from waiting on the gimbal; the fence stays closed either way.
 GIMBAL_STOP_TIMEOUT_S = 1.0
 
@@ -140,7 +140,7 @@ class SiyiCommandFence:
     def _stop_one(endpoint: _Endpoint) -> bool:
         with endpoint.lock:       # quiescence: a send in progress at this endpoint holds its lock
             sdk = endpoint.sdk
-        try:   # both stops pass the closed fence; the terminal record must still go out
+        try:   # both stops pass the closed fence; the result record must still go out
             rate = sdk.requestGimbalSpeed(0, 0)
             zoom = sdk.requestZoomHold()
         except Exception:

@@ -124,7 +124,7 @@ def test_run_gate_fails_on_a_fault_a_second_disposition_or_an_undelivered_navlin
     twice = copy.deepcopy(records)
     record, delivered = next((r, e) for r, e in _events(twice) if e[0] == "delivered")
     record["packets"].append(["discarded", delivered[1], "drain"])
-    assert packet_run_errors(twice) == [f"packets: {delivered[1]} has 2 terminal dispositions"]
+    assert packet_run_errors(twice) == [f"packets: {delivered[1]} has 2 end states"]
     parked = copy.deepcopy(records)
     record, delivered = next((r, e) for r, e in _events(parked) if e[0] == "delivered"
                              and isinstance(e[2], list))
@@ -659,17 +659,17 @@ def test_snap_gate_needs_k_t_as_the_last_first_snap(fleet):
     records, lines, _approvals = fleet
     assert fleet_snap_errors(records, lines) == []
     outcome = records[-1]
-    last = outcome["terminal_tick"]
-    early = records[:-1] + [{**outcome, "terminal_tick": last - 1}]
+    last = outcome["result_tick"]
+    early = records[:-1] + [{**outcome, "result_tick": last - 1}]
     assert fleet_snap_errors(early, lines) == [
         f"SNAP: vehicle 3's first SNAP at tick {last}, after k_T {last - 1}",
         f"SNAP: k_T {last - 1} is not the last first SNAP {last}"]
-    late = records[:-1] + [{**outcome, "terminal_tick": last + 1}]
+    late = records[:-1] + [{**outcome, "result_tick": last + 1}]
     assert fleet_snap_errors(late, lines) == [f"SNAP: k_T {last + 1} is not the last first SNAP {last}"]
     latched = records[:-1] + [{**outcome, "first_snaps": [[1, 1, 5], *outcome["first_snaps"][1:]]}]
     assert fleet_snap_errors(latched, lines)[0].startswith("SNAP: vehicle 1's first SNAP line at tick")
     no_snap = {**lines, 2: [row for row in lines[2] if "SNAP" not in row[1]]}
-    assert fleet_snap_errors(records, no_snap) == ["SNAP: no terminal tick or no SNAP from vehicles [2]"]
+    assert fleet_snap_errors(records, no_snap) == ["SNAP: no result tick or no SNAP from vehicles [2]"]
 
 
 def test_snap_gate_needs_the_latched_generation_to_be_that_ticks_member(fleet):
@@ -704,7 +704,7 @@ def _break(kind, records, lines, approvals):
     elif kind == "workflow":
         lines[2] = [row for row in lines[2] if "assigned by owner" not in row[1]]
     elif kind == "snap":
-        records[-1] = {**outcome, "terminal_tick": outcome["terminal_tick"] + 1}
+        records[-1] = {**outcome, "result_tick": outcome["result_tick"] + 1}
 
 
 @pytest.mark.parametrize(("kind", "prefix"), [

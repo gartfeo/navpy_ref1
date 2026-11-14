@@ -11,10 +11,10 @@ from typing import Optional, Tuple
 from scripts.eval_gcs_demo_evidence import positive_deltas
 from scripts.eval_gcs_demo_models import (
     AchievedRollScore,
-    FinalApproachCommand,
-    FinalApproachResponse,
-    FinalApproachScore,
-    FinalApproachTiming,
+    GuidanceCommand,
+    GuidanceResponse,
+    GuidanceScore,
+    GuidanceTiming,
     finite_number,
 )
 
@@ -34,8 +34,8 @@ def _significant_reversals(rolls: Sequence[float], threshold: float) -> int:
 
 
 def _validated_episode(
-    commands: Sequence[FinalApproachCommand], *, miss_allowed: bool = False,
-) -> list[FinalApproachCommand]:
+    commands: Sequence[GuidanceCommand], *, miss_allowed: bool = False,
+) -> list[GuidanceCommand]:
     """One source identity and no miss: the parser ends it at DOCKED.
 
     ``miss_allowed``: an undocked episode, whose miss the docking gate
@@ -44,28 +44,28 @@ def _validated_episode(
     if not episode:
         return episode
     if len({command.source_key for command in episode}) != 1:
-        raise ValueError("final-approach episode changed atomic source identity")
+        raise ValueError("guidance episode changed atomic source identity")
     if not miss_allowed and any(command.missed for command in episode):
-        raise ValueError("final-approach episode missed its dock")
+        raise ValueError("guidance episode missed its dock")
     return episode
 
 
-def final_approach_timing(
-    commands: Sequence[FinalApproachCommand], *, miss_allowed: bool = False,
-) -> FinalApproachTiming:
+def guidance_timing(
+    commands: Sequence[GuidanceCommand], *, miss_allowed: bool = False,
+) -> GuidanceTiming:
     episode = _validated_episode(commands, miss_allowed=miss_allowed)
     wall_gaps = positive_deltas(command.wall_s for command in episode)
     source_gaps = positive_deltas(command.obs_ts for command in episode)
     if any(gap <= 0.0 for gap in wall_gaps):
-        raise ValueError("final-approach wall timestamps must be strictly increasing")
+        raise ValueError("guidance wall timestamps must be strictly increasing")
     if any(gap <= 0.0 for gap in source_gaps):
-        raise ValueError("final-approach source timestamps must be strictly increasing")
+        raise ValueError("guidance source timestamps must be strictly increasing")
     ratios = [
         source_gap / wall_gap
         for source_gap, wall_gap in zip(source_gaps, wall_gaps)
         if source_gap > 0.0 and wall_gap > 0.0
     ]
-    return FinalApproachTiming(
+    return GuidanceTiming(
         median_wall_gap_s=statistics.median(wall_gaps) if wall_gaps else None,
         max_wall_gap_s=max(wall_gaps) if wall_gaps else None,
         max_source_gap_s=max(source_gaps) if source_gaps else None,
@@ -73,14 +73,14 @@ def final_approach_timing(
     )
 
 
-def score_final_approach_commands(
-    commands: Sequence[FinalApproachCommand],
+def score_guidance_commands(
+    commands: Sequence[GuidanceCommand],
     *,
     roll_limit_deg: float,
     saturation_margin_deg: float,
     significant_roll_deg: float,
     miss_allowed: bool = False,
-) -> FinalApproachScore:
+) -> GuidanceScore:
     limit = finite_number("roll_limit_deg", roll_limit_deg)
     margin = finite_number("saturation_margin_deg", saturation_margin_deg)
     threshold = finite_number("significant_roll_deg", significant_roll_deg)
@@ -90,10 +90,10 @@ def score_final_approach_commands(
               if command.issued]
     rolls = [command.cmd_roll for command in issued if command.cmd_roll is not None]
     if len(rolls) != len(issued):
-        raise ValueError("issued final-approach command is missing roll evidence")
+        raise ValueError("issued guidance command is missing roll evidence")
     saturation = [abs(roll) >= limit - margin for roll in rolls]
     roll_steps = [abs(right - left) for left, right in zip(rolls, rolls[1:])]
-    return FinalApproachScore(
+    return GuidanceScore(
         sample_count=len(rolls),
         significant_reversals=_significant_reversals(rolls, threshold),
         saturation_fraction=(sum(saturation) / len(saturation)) if saturation else 0.0,
@@ -114,8 +114,8 @@ def _evidence_error(reason: str, keys: Sequence[_PairKey]) -> str:
 
 
 def _paired_achieved_rolls(
-    issued: Sequence[FinalApproachCommand],
-    responses: Sequence[FinalApproachResponse],
+    issued: Sequence[GuidanceCommand],
+    responses: Sequence[GuidanceResponse],
 ) -> tuple[list[float], list[str]]:
     """Each issued command's own achieved roll, paired by (source, obs_ts).
 
@@ -123,7 +123,7 @@ def _paired_achieved_rolls(
     unmatched achieved roll is a named evidence error, never a skipped sample.
     """
     command_keys: list[_PairKey] = [(item.source, item.obs_ts) for item in issued]
-    by_key: dict[_PairKey, list[FinalApproachResponse]] = {}
+    by_key: dict[_PairKey, list[GuidanceResponse]] = {}
     for response in responses:
         by_key.setdefault((response.source, response.obs_ts), []).append(response)
     command_counts = Counter(command_keys)
@@ -155,8 +155,8 @@ def _paired_achieved_rolls(
 
 
 def score_achieved_roll(
-    commands: Sequence[FinalApproachCommand],
-    responses: Sequence[FinalApproachResponse],
+    commands: Sequence[GuidanceCommand],
+    responses: Sequence[GuidanceResponse],
     *,
     significant_roll_deg: float,
     miss_allowed: bool = False,
@@ -177,7 +177,7 @@ def score_achieved_roll(
 
 
 __all__ = [
-    "final_approach_timing",
+    "guidance_timing",
     "score_achieved_roll",
-    "score_final_approach_commands",
+    "score_guidance_commands",
 ]

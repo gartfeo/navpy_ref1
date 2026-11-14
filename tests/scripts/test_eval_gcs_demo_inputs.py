@@ -14,7 +14,7 @@ from scripts import eval_gcs_demo_config as config
 from scripts import eval_gcs_demo_inputs as inputs
 from scripts import eval_gcs_demo_process as process
 from scripts import eval_gcs_demo_sitl_root as sitl_root
-from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
+from scripts.eval_gcs_demo_constants import GUIDANCE_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_models import RegressionError
 from scripts.eval_gcs_demo_scenario import CERTIFIED_SCENARIO_PATH, load_scenario
 
@@ -37,7 +37,7 @@ def test_merge_rejects_values_that_are_not_finite_numbers(bad):
 
 def test_overrides_state_flown_values_but_no_calibration_or_lua_params():
     overrides = sitl_root.SITL_DEFAULT_OVERRIDES
-    assert overrides["ROLL_LIMIT_DEG"] == FINAL_APPROACH_ROLL_LIMIT_DEG
+    assert overrides["ROLL_LIMIT_DEG"] == GUIDANCE_ROLL_LIMIT_DEG
     # The companion link: a fresh eeprom would stream almost nothing on serial0,
     # and NavPy reads none of EXTRA1 and RAW_SENS (it requests ATTITUDE itself).
     assert overrides["SR0_POSITION"] == 2.0

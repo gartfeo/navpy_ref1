@@ -486,7 +486,7 @@ def test_all_peers_busy_get_no_adverts_until_one_is_free(swarm):
     assert _confirmed_to(swarm, FAR_PEER)
 
 
-def test_own_final_approach_while_waiting_rejects_and_the_owner_retries(swarm):
+def test_own_guidance_while_waiting_rejects_and_the_owner_retries(swarm):
     swarm.drop = lambda sender_id, message: (
         _kind(message, TaskAssignResponseMsg, NEAR_PEER, sender_id, is_accepted=True)
     )

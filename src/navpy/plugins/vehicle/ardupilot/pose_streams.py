@@ -1,6 +1,6 @@
 """Request a high-rate pose stream (ATTITUDE + position) from the autopilot.
 
-Final approach treats a detection as a body-fixed visual direction only when
+Guidance treats a detection as a body-fixed visual direction only when
 it carries a frame-atomic pose. The staleness of that pose is bounded by the
 ATTITUDE stream period, so simulated pose transport follows the autopilot's own
 scheduler-derived MAVLink limit instead of a detector or wall-clock setting.

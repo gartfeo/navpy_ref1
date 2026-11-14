@@ -1,4 +1,4 @@
-"""The ten-run series report (hitl_final_approach.md section 9, step 27 and "Every ten-run series").
+"""The ten-run series report (hitl_guidance.md section 9, step 27 and "Every ten-run series").
 
     python -s -m tools.hitl.approach_report --series SERIES_ID --observation-run DIR [--run-root DIR]
         [--out report.json]

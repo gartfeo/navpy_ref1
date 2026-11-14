@@ -1,6 +1,6 @@
-"""How an armed final-approach episode ended, for NAV exit (missed_dock.md).
+"""How an armed guidance episode ended, for NAV exit (missed_dock.md).
 
-NAV cleanup reads the episode's first terminal before the reset clears the
+NAV cleanup reads the episode's first result before the reset clears the
 latch; after a successful exit it records the DOCK_FAILED row. Neither is a
 command input.
 """
@@ -10,32 +10,32 @@ from __future__ import annotations
 from collections.abc import Callable
 
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeLatch,
-    FinalApproachEpisodeTerminal,
+    GuidanceEpisodeLatch,
+    GuidanceEpisodeResult,
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.dock_contact import DockContactIdentity
 
 
-class FinalApproachDockOutcome:
+class GuidanceDockOutcome:
     def __init__(
         self,
         lock: rt.RLock,
-        episode: FinalApproachEpisodeLatch,
+        episode: GuidanceEpisodeLatch,
         record_failed: Callable[[DockContactIdentity, str], None],
     ) -> None:
         self._lock = lock
         self._episode = episode
         self._record_failed = record_failed
 
-    def terminal(self) -> FinalApproachEpisodeTerminal | None:
-        """The armed episode's first terminal; None when none was armed."""
+    def result(self) -> GuidanceEpisodeResult | None:
+        """The armed episode's first result; None when none was armed."""
         with self._lock:
-            return self._episode.terminal_snapshot()
+            return self._episode.result_snapshot()
 
-    def record_failed(self, terminal: FinalApproachEpisodeTerminal, reason: str) -> None:
+    def record_failed(self, result: GuidanceEpisodeResult, reason: str) -> None:
         """The DOCK_FAILED row: after the reset drained the command evidence."""
-        self._record_failed(terminal.identity, reason)
+        self._record_failed(result.identity, reason)
 
 
-__all__ = ["FinalApproachDockOutcome"]
+__all__ = ["GuidanceDockOutcome"]

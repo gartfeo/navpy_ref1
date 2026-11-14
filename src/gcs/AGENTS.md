@@ -28,7 +28,7 @@ Frontend:
 - Handheld (Termux) deployment: the backend serves the built frontend itself
   when `GCS_FRONTEND_DIST` is set
 - Vehicle video (monitor view, top-right vehicle window): display only,
-  never a final-approach input. Each vehicle's camera advertises its streams
+  never a guidance input. Each vehicle's camera advertises its streams
   over the MAVLink camera protocol; the backend checks each URI against
   `video.allowed_networks` and puts a WHEP URL (port `video.whep_port`) in the
   snapshot's `video_streams`. The browser plays it straight from the

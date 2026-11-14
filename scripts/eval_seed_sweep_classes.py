@@ -43,7 +43,7 @@ MANIFEST_FILE = "input_manifest.json"
 _FILTERED = re.compile(r"forwarding: NAVLINK (\[.*\]) router_filtered at tick \d+")
 #: A missed dock as the gates word it (todo 77's mode).
 _DOCK_MISS = (
-    re.compile(r"final-approach episode reached SNAP without DOCKED"),
+    re.compile(r"guidance episode reached SNAP without DOCKED"),
     re.compile(r"missing coordinate pass reset marker"),
     re.compile(r"(NAV_FAIL|DOCK_FAILED): no_detection"),
     re.compile(r"workflow ticks: no reset marker"),

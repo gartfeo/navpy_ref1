@@ -6,7 +6,7 @@ from collections.abc import Callable
 from enum import Enum, auto
 
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
-from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.skills.confirm.guidance_release_gate import GuidanceReleaseGate
 from navpy.core.flow.nav_state import GeoHoldState, NavPhaseState, NavState
 from navpy.core.skills.confirm.track_recovery import TrackRecovery
 from navpy.core.ports.detect_data import DetectedObject
@@ -28,8 +28,8 @@ class ConfirmedPoiRelease:
         geo_hold: GeoHoldState,
         retry: PoiRetryPolicy,
         recovery: TrackRecovery,
-        release: FinalApproachReleaseGate,
-        final_approach_active: Callable[[], bool],
+        release: GuidanceReleaseGate,
+        guidance_active: Callable[[], bool],
         acquisition_ready: Callable[[], bool] = lambda: True,
         on_release: Callable[[DetectedObject], None] = lambda _poi: None,
     ) -> None:
@@ -38,7 +38,7 @@ class ConfirmedPoiRelease:
         self._retry = retry
         self._recovery = recovery
         self._release = release
-        self._final_approach_active = final_approach_active
+        self._guidance_active = guidance_active
         # HITL step 25: the fresh lock and established orbit, on this tick's detection.
         self._acquisition_ready = acquisition_ready
         # HITL step 23b: told when this confirm releases NAV (the floor release, a mission-state event).
@@ -55,7 +55,7 @@ class ConfirmedPoiRelease:
             return ReleaseOutcome.WAIT
         if (
             not committed
-            and self._final_approach_active()
+            and self._guidance_active()
             and not self._release.is_ready(active)
         ):
             self._phase.request(NavState.CONFIRM)

@@ -5,7 +5,7 @@ NavPy's lines with their ticks on a uniform 20 ms grid, the operator's
 observations of the confirmation (e2-e6) with its polling-schedule evidence
 (the real workflow's, ``approval_runs``), the response sends' NAVLINK
 counts, the decoded message totals (the owner's self-assignment only) and
-an ``ok`` outcome whose terminal tick is the first SNAP line's.
+an ``ok`` outcome whose result tick is the first SNAP line's.
 """
 
 from __future__ import annotations
@@ -72,13 +72,13 @@ def navigation_lines(log_dir: Path, sys_id: int) -> list[str]:
 def slice_records(lines: list[str], sys_id: int) -> list[dict]:
     ticks, k = _ticks(lines, sys_id)
     keys = owner_keys(sys_id)
-    terminal = next(t for t, line in zip(ticks, lines) if "SNAP(VISION-NAV" in line)
+    result = next(t for t, line in zip(ticks, lines) if "SNAP(VISION-NAV" in line)
     serial0, serial1 = serial0_device(sys_id), serial1_device(sys_id)
     records: list[dict] = [{"grid": {"max_frame_gap_us": MAX_GAP_US, "drain_period_us": GRID_US,
                                      "mission_budget_us": 3_600_000_000,
                                      "sitl_ports": [[serial0, serial1]], "boot_budget_us": BOOT_BUDGET_US,
                                      "expected_fleet": [sys_id]}}]
-    for tick in range(1, terminal + 3):
+    for tick in range(1, result + 3):
         record: dict = {"k": tick, "phase": "mission", "t_us": tick * GRID_US}
         if tick in k["operator"]:
             record["operator"] = k["operator"][tick]
@@ -98,9 +98,9 @@ def slice_records(lines: list[str], sys_id: int) -> list[dict]:
     counts[serial1].update(from_sitl=tally(quiet), to_sitl=tally(gcs), routed_out=tally(gcs))
     counts[ROUTER_LINK].update(routed_out=tally(to_backend))
     records.append({"mavlink_counts": counts})
-    records.append({"outcome": "ok", "terminal_tick": terminal, "final_tick": terminal + 2,
-                    "parked_tick": terminal + 3,
-                    "first_snaps": [[sys_id, 1, terminal]]})
+    records.append({"outcome": "ok", "result_tick": result, "final_tick": result + 2,
+                    "parked_tick": result + 3,
+                    "first_snaps": [[sys_id, 1, result]]})
     return records
 
 

@@ -21,7 +21,7 @@ from navpy.core.approach.navigation_mode import (
     NavigationModeBuilder,
     NavigationModeSelector,
     NavigationModeState,
-    NavigationFinalApproachCapabilities,
+    NavigationGuidanceCapabilities,
     RuntimeBuildResult,
 )
 from navpy.core.approach.geo.legacy_navigation_runtime import LegacyNavigationRuntime
@@ -29,8 +29,8 @@ from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
     NavigationSourceDispatchSlot,
 )
-from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
-from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_dock_outcome import GuidanceDockOutcomeService
+from navpy.core.approach.navigation_guidance import GuidanceNavigationService
 from navpy.core.command.navigation_vehicle_commands import NavigationVehicleCommands
 from navpy.core.approach.geo.legacy_destination_resolver import (
     LegacyNavigationState,
@@ -38,9 +38,9 @@ from navpy.core.approach.geo.legacy_destination_resolver import (
     navigation_poi_location,
 )
 from navpy.core.skills.geo_approach.legacy_nav_adjustment import LegacyNavAdjustment
-from navpy.core.approach.geo.legacy_final_approach_command import (
-    LegacyFinalApproachCommand,
-    LegacyFinalApproachCommandPorts,
+from navpy.core.approach.geo.legacy_guidance_command import (
+    LegacyGuidanceCommand,
+    LegacyGuidanceCommandPorts,
 )
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.nav_law import NavLaw
@@ -49,11 +49,11 @@ from navpy.core.approach.nav_law_factory import (
     get_nav_algorithm_spec,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
-from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import ResultObserver
 from navpy.core.approach.vision_nav.runtime_composition import (
-    FinalApproachVehicleActuator,
-    FinalApproachVehicleDiagnosticReader,
-    compose_final_approach_runtime,
+    GuidanceVehicleActuator,
+    GuidanceVehicleDiagnosticReader,
+    compose_guidance_runtime,
 )
 from navpy.plugins.vehicle.ardupilot.pose_streams import (
     resolve_ardupilot_scheduler_rate_hz,
@@ -66,8 +66,8 @@ from navpy.app.approach.law_airspeed import LawAirspeed
 class NavigationComposition:
     lifecycle: NavigationLifecycle
     mode_state: NavigationModeState
-    final_approach: FinalApproachNavigationService
-    dock_outcome: FinalApproachDockOutcomeService
+    guidance: GuidanceNavigationService
+    dock_outcome: GuidanceDockOutcomeService
     legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     bind_source_dispatch: BindSourceDispatch
@@ -90,7 +90,7 @@ def _legacy_runtime_factory(
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         nav = cast(NavLaw, selected_law)
-        command = LegacyFinalApproachCommand(LegacyFinalApproachCommandPorts(
+        command = LegacyGuidanceCommand(LegacyGuidanceCommandPorts(
             vehicle=vehicle,
             geo_ref=geo_ref,
             logger=logger,
@@ -121,20 +121,20 @@ def _vision_runtime_factory(
     navigation_logger: NavigationLogger,
     logger: ILogger,
     wall_period_s: Callable[[float], float],
-    on_terminal: Optional[TerminalObserver],
+    on_result: Optional[ResultObserver],
     law_airspeed: Optional[LawAirspeed] = None,
 ) -> Callable[[NavigationLawLifecycle], RuntimeBuildResult]:
     def build(selected_law: NavigationLawLifecycle) -> RuntimeBuildResult:
         law = cast(VisionNavLaw, selected_law)
-        actuator = FinalApproachVehicleActuator(vehicle.set_attitude)
+        actuator = GuidanceVehicleActuator(vehicle.set_attitude)
         # HITL step 20: no write without an admitted, fresh airspeed source.
         guarded = actuator if law_airspeed is None else law_airspeed.guard(actuator)
-        built = compose_final_approach_runtime(
+        built = compose_guidance_runtime(
             lock=lock,
             slot=command_slot,
             sys_id=vehicle.target_system,
             actuator=guarded,
-            diagnostic_reader=FinalApproachVehicleDiagnosticReader(
+            diagnostic_reader=GuidanceVehicleDiagnosticReader(
                 lambda: vehicle.attitude,
                 lambda: vehicle.location(False),
             ),
@@ -146,7 +146,7 @@ def _vision_runtime_factory(
             aircraft_degrees=geo_ref.degrees,
             navigation_logger=navigation_logger,
             wall_period_s=wall_period_s,
-            on_terminal=on_terminal,
+            on_result=on_result,
             report_stale_hold=lambda check: logger.warning(
                 f"NAV hold stale: {check.describe()}",
                 key="nav",
@@ -156,12 +156,12 @@ def _vision_runtime_factory(
                 key="nav",
             ),
         )
-        final_approach = NavigationFinalApproachCapabilities(
+        guidance = NavigationGuidanceCapabilities(
             status=built.runtime.session,
             confirmation=built.confirmation,
             dock_outcome=built.dock_outcome,
         )
-        return RuntimeBuildResult(runtime=built.runtime, final_approach=final_approach)
+        return RuntimeBuildResult(runtime=built.runtime, guidance=guidance)
 
     return build
 
@@ -174,7 +174,7 @@ def compose_navigation(
     logger: ILogger,
     args: NavigationArgs,
     scheduler_cadence: Optional[SchedulerCadence] = None,
-    on_terminal: Optional[TerminalObserver] = None,
+    on_result: Optional[ResultObserver] = None,
     law_airspeed: Optional[LawAirspeed] = None,
     command_formation: Callable[[], ContextManager[None]] = nullcontext,
     command_pass: Callable[[], ContextManager[None]] = nullcontext,
@@ -221,7 +221,7 @@ def compose_navigation(
         navigation_logger=navigation_logger,
         logger=logger,
         wall_period_s=wall_period,
-        on_terminal=on_terminal,
+        on_result=on_result,
         law_airspeed=law_airspeed,
     )
 
@@ -266,8 +266,8 @@ def compose_navigation(
     return NavigationComposition(
         lifecycle=lifecycle,
         mode_state=mode_state,
-        final_approach=FinalApproachNavigationService(mode_state),
-        dock_outcome=FinalApproachDockOutcomeService(mode_state),
+        guidance=GuidanceNavigationService(mode_state),
+        dock_outcome=GuidanceDockOutcomeService(mode_state),
         legacy_pois=poi_resolver,
         vehicle_commands=NavigationVehicleCommands(vehicle),
         bind_source_dispatch=source_dispatch.bind,

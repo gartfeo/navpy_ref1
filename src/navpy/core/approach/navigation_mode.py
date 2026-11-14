@@ -19,7 +19,7 @@ from navpy.core.approach.nav_law_factory import (
     NavAlgorithmSpec,
     get_nav_algorithm_spec,
 )
-from navpy.core.approach.vision_nav.dock_outcome import FinalApproachDockOutcome
+from navpy.core.approach.vision_nav.dock_outcome import GuidanceDockOutcome
 from navpy.core.approach.vision_nav.runtime_api import (
     VisionNavConfirmation,
     VisionNavStatus,
@@ -27,26 +27,26 @@ from navpy.core.approach.vision_nav.runtime_api import (
 
 
 @dataclass(frozen=True)
-class NavigationFinalApproachCapabilities:
-    """Immutable references to the narrow final-approach operation groups."""
+class NavigationGuidanceCapabilities:
+    """Immutable references to the narrow guidance operation groups."""
 
     status: VisionNavStatus
     confirmation: VisionNavConfirmation
     # How an armed episode ended, for NAV exit (missed_dock.md).
-    dock_outcome: Optional[FinalApproachDockOutcome] = None
+    dock_outcome: Optional[GuidanceDockOutcome] = None
 
 
 @dataclass(frozen=True)
 class RuntimeBuildResult:
     runtime: NavigationRuntime
-    final_approach: Optional[NavigationFinalApproachCapabilities] = None
+    guidance: Optional[NavigationGuidanceCapabilities] = None
 
 
 @dataclass(frozen=True)
 class ActiveNavigationMode:
     spec: NavAlgorithmSpec
     runtime: NavigationRuntime
-    final_approach: Optional[NavigationFinalApproachCapabilities]
+    guidance: Optional[NavigationGuidanceCapabilities]
 
 
 class NavigationModeState:
@@ -108,7 +108,7 @@ class NavigationModeBuilder:
         return ActiveNavigationMode(
             spec=self.spec,
             runtime=built.runtime,
-            final_approach=built.final_approach,
+            guidance=built.guidance,
         )
 
 
@@ -178,6 +178,6 @@ __all__ = [
     "NavigationModeBuilder",
     "NavigationModeSelector",
     "NavigationModeState",
-    "NavigationFinalApproachCapabilities",
+    "NavigationGuidanceCapabilities",
     "RuntimeBuildResult",
 ]

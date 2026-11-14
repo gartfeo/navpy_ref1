@@ -1,4 +1,4 @@
-"""Step 27's runner (hitl_final_approach.md section 9): the contact wiring (link, service, the bridge's pose copy,
+"""Step 27's runner (hitl_guidance.md section 9): the contact wiring (link, service, the bridge's pose copy,
 navpy's --hitl-contact), command mode (navpy a router client, bounded by its drain), the command audit, the host-load
 sampler and the after-run timing check. Fake processes, a real router on loopback UDP, synthetic files."""
 from __future__ import annotations

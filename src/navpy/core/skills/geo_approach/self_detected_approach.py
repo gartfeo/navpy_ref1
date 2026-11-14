@@ -20,7 +20,7 @@ WAITING_CIRCLE_REFERENCE_HEIGHT_M = 0.0
 
 @dataclass(frozen=True)
 class SelfDetectedApproachPorts:
-    final_approach_active: Callable[[], bool]
+    guidance_active: Callable[[], bool]
     detector_is_simulation: Callable[[], bool]
     ground_location: Callable[..., Optional[Location]]
     current_relative: Callable[[], Optional[Location]]
@@ -64,14 +64,14 @@ class SelfDetectedApproach:
         # camera's own estimate centres the circle, and it is not stored
         # where the approach could read it. No sim truth: not the POI's
         # position and not its height.
-        final_approach = self._ports.final_approach_active()
+        guidance = self._ports.guidance_active()
         poi_location = (
             self._vision_centre(poi)
-            if final_approach
+            if guidance
             else self.poi_location(poi)
         )
         if poi_location is None:
-            if final_approach:
+            if guidance:
                 self._logger.warning(
                     "Self-detect orbit skipped: no ground estimate for the POI",
                     key="nav",
@@ -84,7 +84,7 @@ class SelfDetectedApproach:
         )
         if not plan.orbit_radius or plan.orbit_radius <= 0:
             return None
-        if not final_approach:
+        if not guidance:
             self._navigation_task.navigation_poi_location = (
                 self._ports.absolute_location(poi_location)
             )

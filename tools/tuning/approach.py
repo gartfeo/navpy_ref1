@@ -1,4 +1,4 @@
-"""``sitl_driver approach``: one approach run of the HITL chain (hitl_final_approach.md sections 1 and 9, steps 13, 16, 27).
+"""``sitl_driver approach``: one approach run of the HITL chain (hitl_guidance.md sections 1 and 9, steps 13, 16, 27).
 
 Mode pc-sitl, from WSL in the repository root, with the run's private inputs:
 
@@ -16,7 +16,7 @@ sampler -> backing -> router -> board setup (parameters, the bridge, the boot on
 Unreal -> contact service -> navpy (``--hitl-contact``), each on its ready line (the publisher first: Unreal connects
 to it), and counts each role's owners again. Takeoff, the scenario's search lane (approach_lane.py) in AUTO with
 navpy's detection gated to it; navpy only observes (the router's reader: none of its writes to the aircraft reaches the
-board), or with ``--command`` (step 27; needs a timing fit) commands as a router client until its drain; it waits for navpy's terminal record or the
+board), or with ``--command`` (step 27; needs a timing fit) commands as a router client until its drain; it waits for navpy's result record or the
 scenario's observe_s, then stops navpy and closes its router endpoint (navpy_handoff.py) and only then flies RTL; a
 breach of the scenario's floor takes the same path (HeightFloor). A crash or an abort (Ctrl+C, SIGTERM, SIGHUP) runs the
 same idempotent quiesce (approach_quiesce.py) before the board's stop, with no RTL. Every owned process is stopped on
@@ -155,7 +155,7 @@ def _fly(board: Board, group: ProcessGroup, run: dict, quiesce: stop.Quiesce) ->
         flight["ended_by"] = stop.observe(board, group, group.output_path("navpy"), limits["observe_s"],
                                           lambda record: floor.release(f"navpy confirm, task {record['task']}"))
     # quiesce first: navpy stopped, its endpoint closed
-    record = quiesce.run(stop.TERMINAL if flight["ended_by"] == stop.ENDED_BY_TERMINAL else stop.DEADLINE)
+    record = quiesce.run(stop.RESULT if flight["ended_by"] == stop.ENDED_BY_RESULT else stop.DEADLINE)
     if record.get("rtl") != "direct":
         board.set_mode("RTL")
         board.fly_for(END_RTL_S)

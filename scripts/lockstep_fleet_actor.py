@@ -52,7 +52,7 @@ from navpy.sim.lockstep.scheduling_models import scheduling_subset
 from scripts.eval_gcs_demo_command_bounds import command_bounds_from_snapshot
 from scripts.eval_gcs_demo_config import aas_params_for
 from scripts.eval_gcs_demo_constants import (
-    FINAL_APPROACH_ROLL_LIMIT_DEG,
+    GUIDANCE_ROLL_LIMIT_DEG,
     PARAM_HTTP_TIMEOUT_S,
     PARAM_REQUEST_BUDGET_S,
 )
@@ -250,7 +250,7 @@ def setup_script(scenario: DemoScenario, layout: FleetLayout) -> Callable[[Opera
                 snapshot = api.get_json(f"/api/vehicles/{sys_id}/params/named?names={names}"
                                         f"&timeout_s={PARAM_REQUEST_BUDGET_S}", timeout=PARAM_HTTP_TIMEOUT_S)
                 bounds[str(sys_id)] = repr(command_bounds_from_snapshot(
-                    sys_id, snapshot, roll_limit_deg=FINAL_APPROACH_ROLL_LIMIT_DEG))
+                    sys_id, snapshot, roll_limit_deg=GUIDANCE_ROLL_LIMIT_DEG))
                 written = aas_params_for(scenario, sys_id, owner)
                 require_write_results(api.put_json(
                     f"/api/vehicles/{sys_id}/params",

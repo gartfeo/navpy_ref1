@@ -329,10 +329,10 @@ class TestDetectorGeoForwarders(unittest.TestCase):
         self.geo.stop_geo_tracking()
         self.navigation.stop_geo_tracking.assert_called_once()
 
-    def test_final_approach_zoom_freeze_forwards_to_navigation(self):
-        self.navigation.freeze_final_approach_zoom_at_min.return_value = True
-        self.tracking.freeze_final_approach_zoom_at_min()
-        self.navigation.freeze_final_approach_zoom_at_min.assert_called_once_with()
+    def test_guidance_zoom_freeze_forwards_to_navigation(self):
+        self.navigation.freeze_guidance_zoom_at_min.return_value = True
+        self.tracking.freeze_guidance_zoom_at_min()
+        self.navigation.freeze_guidance_zoom_at_min.assert_called_once_with()
 
     def test_no_op_when_navigation_is_none(self):
         from navpy.core.perception.pipeline.real_detector_controls import (
@@ -344,7 +344,7 @@ class TestDetectorGeoForwarders(unittest.TestCase):
         tracking = DetectorTrackingControl(None, Mock())
         geo.start_geo_tracking(self.poi_loc, self.geo_ref)
         geo.update_geo(self.uav_loc, self.uav_att)
-        tracking.freeze_final_approach_zoom_at_min()
+        tracking.freeze_guidance_zoom_at_min()
         self.assertFalse(geo.prepare_geo_acquisition(self.uav_loc, self.uav_att, 0, 15.0))
         geo.stop_geo_tracking()
         self.assertFalse(geo.is_geo_armed)

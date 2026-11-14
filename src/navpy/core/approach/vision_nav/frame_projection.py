@@ -1,4 +1,4 @@
-"""Convert a narrow pixel observation into the primitive final-approach DTO."""
+"""Convert a narrow pixel observation into the primitive guidance DTO."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ from dataclasses import dataclass
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.pixel_observation import VisualDetection
 from navpy.core.perception.visual_ray_projection import (
     observation_camera_ray,
@@ -19,15 +19,15 @@ from navpy.core.kernel.simple_rotation import Rotation
 
 
 @dataclass(frozen=True)
-class FinalApproachProjectionConfig:
+class GuidanceProjectionConfig:
     aircraft_sequence: str
     aircraft_degrees: bool
 
 
-class FinalApproachFrameProjector:
+class GuidanceFrameProjector:
     """Accept only frame-local pixels and immutable camera state."""
 
-    def __init__(self, config: FinalApproachProjectionConfig) -> None:
+    def __init__(self, config: GuidanceProjectionConfig) -> None:
         self._config = config
 
     @staticmethod
@@ -40,7 +40,7 @@ class FinalApproachFrameProjector:
         detection: VisualDetection,
         source_generation: int,
         air_speed_mps: float | None = 25.0,
-    ) -> FinalApproachVisionFrame | None:
+    ) -> GuidanceVisionFrame | None:
         observation = detection.observation
         if observation.pose_is_frame_atomic is not True:
             return None
@@ -89,7 +89,7 @@ class FinalApproachFrameProjector:
         except (TypeError, ValueError):
             return None
         task_id, obj_id = identity
-        return FinalApproachVisionFrame(
+        return GuidanceVisionFrame(
             source_name=source_name,
             source_generation=source_generation,
             task_id=task_id,
@@ -119,7 +119,7 @@ def _identity(detection: VisualDetection) -> tuple[int, int] | None:
 def _control_ray(
     body_ray: np.ndarray,
     attitude: Attitude,
-    config: FinalApproachProjectionConfig,
+    config: GuidanceProjectionConfig,
 ) -> np.ndarray:
     rotation = Rotation.from_euler(
         config.aircraft_sequence,
@@ -138,4 +138,4 @@ def _finite(value: object) -> float:
     return number
 
 
-__all__ = ["FinalApproachFrameProjector", "FinalApproachProjectionConfig"]
+__all__ = ["GuidanceFrameProjector", "GuidanceProjectionConfig"]

@@ -175,7 +175,7 @@ def test_a_router_filtered_navlink_is_known_only_when_the_radio_made_the_frame(t
 
 
 def test_a_missed_dock_is_todo_77_only_with_wind_on_and_only_if_every_error_is_explained(tmp_path):
-    errors = ["final-approach episode reached SNAP without DOCKED", "max roll-command step 61.17deg > 50.00deg"]
+    errors = ["guidance episode reached SNAP without DOCKED", "max roll-command step 61.17deg > 50.00deg"]
     windy = _run(tmp_path, report=_report(["vehicle 2: workflow ticks: no reset marker"], errors), wind=True)
     assert list(classify(windy, 1).known) == ["77"]
     assert known_todos(windy, [], errors + ["approval missing"]) == []

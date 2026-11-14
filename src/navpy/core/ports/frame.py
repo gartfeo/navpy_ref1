@@ -1,4 +1,4 @@
-"""Primitive, immutable input accepted by final approach."""
+"""Primitive, immutable input accepted by guidance."""
 
 from __future__ import annotations
 
@@ -7,7 +7,7 @@ from dataclasses import dataclass
 
 
 @dataclass(frozen=True, slots=True)
-class FinalApproachVisionFrame:
+class GuidanceVisionFrame:
     """One measured frame-local line of sight, with no truth dependencies."""
 
     source_name: str
@@ -34,7 +34,7 @@ class FinalApproachVisionFrame:
             raise ValueError("source_name must not be empty")
         identities = (self.source_generation, self.task_id, self.obj_id)
         if any(type(value) is not int for value in identities):
-            raise ValueError("final-approach frame identities must be exact integers")
+            raise ValueError("guidance frame identities must be exact integers")
         if self.source_generation < 0:
             raise ValueError("source_generation must be non-negative")
         values = self.body_ray + self.control_ray + (
@@ -45,12 +45,12 @@ class FinalApproachVisionFrame:
             self.aircraft_pitch_deg,
         )
         if not all(math.isfinite(value) for value in values):
-            raise ValueError("final-approach frame values must be finite")
+            raise ValueError("guidance frame values must be finite")
         interval = self.interval_timestamp_s
         if type(interval) is not float or math.isinf(interval):
             raise ValueError("interval_timestamp_s must be a finite float or NaN")
         if self.air_speed_mps <= 0.0:
-            raise ValueError("final-approach frame airspeed must be positive")
+            raise ValueError("guidance frame airspeed must be positive")
         self._validate_unit(self.body_ray, "body")
         self._validate_unit(self.control_ray, "control")
 
@@ -80,4 +80,4 @@ class FinalApproachVisionFrame:
             raise ValueError(f"{name} ray must be a unit vector")
 
 
-__all__ = ["FinalApproachVisionFrame"]
+__all__ = ["GuidanceVisionFrame"]

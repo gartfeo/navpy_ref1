@@ -5,7 +5,7 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 
 @dataclass(frozen=True)
@@ -33,7 +33,7 @@ class VerticalRateFilter:
     def reset(self) -> None:
         self._state = None
 
-    def seed(self, frame: FinalApproachVisionFrame) -> None:
+    def seed(self, frame: GuidanceVisionFrame) -> None:
         delta = _vertical_angle(frame)
         self._state = VerticalRateState(
             frame.continuity_key,
@@ -42,7 +42,7 @@ class VerticalRateFilter:
             0.0,
         )
 
-    def plan(self, frame: FinalApproachVisionFrame, tau_s: float | None) -> VerticalRatePlan:
+    def plan(self, frame: GuidanceVisionFrame, tau_s: float | None) -> VerticalRatePlan:
         delta = _vertical_angle(frame)
         previous = self._state
         filtered = 0.0
@@ -75,7 +75,7 @@ class VerticalRateFilter:
         self._state = plan.next_state
 
 
-def _vertical_angle(frame: FinalApproachVisionFrame) -> float:
+def _vertical_angle(frame: GuidanceVisionFrame) -> float:
     return math.atan2(
         frame.control_z,
         math.hypot(frame.control_x, frame.control_y),

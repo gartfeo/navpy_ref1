@@ -58,7 +58,7 @@ def all_have_snap(context: StackContext) -> bool:
     return all(_has_snap(context, sys_id) for sys_id in context.sys_ids)
 
 
-def final_approach_nav_started(context: StackContext, sys_id: int) -> bool:
+def guidance_nav_started(context: StackContext, sys_id: int) -> bool:
     text = _navigation_text(context, sys_id)
     process_start = text.rfind("Heartbeat from system")
     current = text[process_start:] if process_start >= 0 else text
@@ -152,7 +152,7 @@ def approve_requests_until_snap(
         observed_sys_ids.add(request.sys_id)
 
     def before_approve(request: ConfirmationRequest) -> None:
-        if final_approach_nav_started(context, request.sys_id):
+        if guidance_nav_started(context, request.sys_id):
             raise RegressionError(
                 f"vehicle {request.sys_id} entered NAV before delayed operator "
                 f"approval for local task {request.local_task_id}"
@@ -291,6 +291,6 @@ __all__ = [
     "prepare_container_launch",
     "resolve_live_plan",
     "run_mission",
-    "final_approach_nav_started",
+    "guidance_nav_started",
     "trigger_all",
 ]

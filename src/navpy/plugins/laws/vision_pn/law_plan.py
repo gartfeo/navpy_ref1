@@ -1,4 +1,4 @@
-"""Final-approach law plan record and plan-construction helpers."""
+"""Guidance law plan record and plan-construction helpers."""
 
 from __future__ import annotations
 
@@ -6,11 +6,11 @@ from dataclasses import dataclass
 
 from navpy.core.ports.nav_command import NavCommand
 from navpy.plugins.laws.vision_pn.command_anchor import (
-    FinalApproachCommandAnchor,
+    GuidanceCommandAnchor,
     clamped_command,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.core.ports.law_config import FinalApproachLawConfig
+from navpy.core.ports.frame import GuidanceVisionFrame
+from navpy.core.ports.law_config import GuidanceLawConfig
 from navpy.plugins.laws.vision_pn.lateral_rate import LateralRatePlan
 from navpy.plugins.laws.vision_pn.rate_filter import VerticalRatePlan
 
@@ -24,7 +24,7 @@ LATERAL_PN_NAVIGATION_CONSTANT = 4.0
 
 
 @dataclass(frozen=True)
-class FinalApproachPlanOrigin:
+class GuidancePlanOrigin:
     """How one cycle formed its command.
 
     Kept together rather than spread across the plan because they are only
@@ -51,18 +51,18 @@ class FinalApproachPlanOrigin:
 
 
 @dataclass(frozen=True)
-class FinalApproachLawPlan:
+class GuidanceLawPlan:
     command: NavCommand
     raw_roll_deg: float
     raw_pitch_deg: float
     rate: VerticalRatePlan
     lateral_rate: LateralRatePlan
-    next_anchor: FinalApproachCommandAnchor
-    frame: FinalApproachVisionFrame
+    next_anchor: GuidanceCommandAnchor
+    frame: GuidanceVisionFrame
     bootstrapped: bool = False
     lateral_held: bool = False
     reseed: bool = False
-    origin: FinalApproachPlanOrigin = FinalApproachPlanOrigin()
+    origin: GuidancePlanOrigin = GuidancePlanOrigin()
 
     @property
     def within_limits(self) -> bool:
@@ -73,15 +73,15 @@ class FinalApproachLawPlan:
 
 
 def held_plan(
-    frame: FinalApproachVisionFrame,
-    config: FinalApproachLawConfig,
+    frame: GuidanceVisionFrame,
+    config: GuidanceLawConfig,
     rate: VerticalRatePlan,
     lateral_rate: LateralRatePlan,
-    anchor: FinalApproachCommandAnchor,
+    anchor: GuidanceCommandAnchor,
     *,
     bootstrapped: bool = False,
     reason: str = "held",
-) -> FinalApproachLawPlan:
+) -> GuidanceLawPlan:
     """Reissue the anchor's command, clipped by the same limits.
 
     The returned anchor carries the CLAMPED command, never the raw value.
@@ -94,13 +94,13 @@ def held_plan(
     raw_pitch = anchor.cmd_pitch_deg
     raw_roll = anchor.cmd_roll_deg
     command = clamped_command(config, raw_roll, raw_pitch)
-    return FinalApproachLawPlan(
+    return GuidanceLawPlan(
         command,
         raw_roll_deg=raw_roll,
         raw_pitch_deg=raw_pitch,
         rate=rate,
         lateral_rate=lateral_rate,
-        next_anchor=FinalApproachCommandAnchor(
+        next_anchor=GuidanceCommandAnchor(
             anchor.continuity_key,
             anchor.timestamp_s,
             command.cmd_pitch_deg,
@@ -111,7 +111,7 @@ def held_plan(
         frame=frame,
         bootstrapped=bootstrapped,
         lateral_held=True,
-        origin=FinalApproachPlanOrigin(
+        origin=GuidancePlanOrigin(
             reason=reason,
             anchor_cmd_roll_deg=anchor.cmd_roll_deg,
             anchor_cmd_pitch_deg=anchor.cmd_pitch_deg,
@@ -120,12 +120,12 @@ def held_plan(
 
 
 def replace_anchor(
-    plan: FinalApproachLawPlan,
-    anchor: FinalApproachCommandAnchor,
+    plan: GuidanceLawPlan,
+    anchor: GuidanceCommandAnchor,
     *,
     reseed: bool,
-) -> FinalApproachLawPlan:
-    return FinalApproachLawPlan(
+) -> GuidanceLawPlan:
+    return GuidanceLawPlan(
         plan.command,
         plan.raw_roll_deg,
         plan.raw_pitch_deg,
@@ -144,8 +144,8 @@ def replace_anchor(
 
 __all__ = [
     "LATERAL_PN_NAVIGATION_CONSTANT",
-    "FinalApproachLawPlan",
-    "FinalApproachPlanOrigin",
+    "GuidanceLawPlan",
+    "GuidancePlanOrigin",
     "VERTICAL_PN_NAVIGATION_CONSTANT",
     "held_plan",
     "replace_anchor",

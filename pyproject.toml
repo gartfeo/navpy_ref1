@@ -38,7 +38,7 @@ test = ["httpx2>=2.0.0", "pytest-xdist>=3.6.1", "pytest-testmon>=2.3; python_ver
 # HITL only: the whole-dock detector (`--detector-backend rfdetr`, HITL step 23b).
 # Install it only in a HITL venv, never the shared `.venv`; CI does not install it
 # and the tests that need it skip. Install a CUDA torch/torchvision from the
-# PyTorch index first, or pip pulls a CPU-only torch. See hitl_final_approach.md
+# PyTorch index first, or pip pulls a CPU-only torch. See hitl_guidance.md
 # step 23b.
 hitl-rfdetr = ["rfdetr==1.12.0"]
 

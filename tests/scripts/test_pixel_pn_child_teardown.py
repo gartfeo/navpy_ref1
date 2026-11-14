@@ -647,12 +647,12 @@ class _FakeNavigation:
         self._observer = None
         self._started = False
         # Read when the child builds its recording dispatch (dock contact).
-        self.final_approach = SimpleNamespace()
+        self.guidance = SimpleNamespace()
 
     def nav(self, _detection) -> bool:
         return True
 
-    def bind_final_approach_source_dispatch(self, dispatch, observer) -> None:
+    def bind_guidance_source_dispatch(self, dispatch, observer) -> None:
         self._dispatch = dispatch
         self._observer = observer
 

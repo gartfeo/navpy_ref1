@@ -19,7 +19,7 @@ from navpy.core.flow.nav_constants import (
     PEER_APPROACH_DIST,
     PEER_APPROACH_MARGIN_M,
     POI_CLOSE_DIST,
-    FINAL_APPROACH_RECORD_TIMEOUT_S,
+    GUIDANCE_RECORD_TIMEOUT_S,
 )
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
@@ -82,5 +82,5 @@ __all__ = [
     "PEER_APPROACH_DIST",
     "PEER_APPROACH_MARGIN_M",
     "POI_CLOSE_DIST",
-    "FINAL_APPROACH_RECORD_TIMEOUT_S",
+    "GUIDANCE_RECORD_TIMEOUT_S",
 ]

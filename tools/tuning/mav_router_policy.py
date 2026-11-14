@@ -25,7 +25,7 @@ from typing import Iterable, Optional
 
 from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
-# Observation (hitl_final_approach.md step 16): a reader client (navpy while the harness flies the fixed search lane)
+# Observation (hitl_guidance.md step 16): a reader client (navpy while the harness flies the fixed search lane)
 # reaches the board only to read (parameters, the mission, one message, terrain), to report (heartbeats, text, acks,
 # its own camera/gimbal status) or to claim a stream rate (the claims below stay per client). Every other packet is a
 # write to the aircraft (modes, arming, attitude/position targets, missions, parameters, RC, files, any other

@@ -179,7 +179,7 @@ def _create_mock_detector(detections=None, primary_poi=None):
     detector.is_geo_armed = False
     detector.refresh = Mock()
     detector.set_sim_poi = Mock()
-    detector.freeze_final_approach_zoom_at_min = Mock()
+    detector.freeze_guidance_zoom_at_min = Mock()
     detector.start_geo_tracking = Mock()
     detector.stop_geo_tracking = Mock()
     detector.start_tracking = Mock()
@@ -196,15 +196,15 @@ def _create_mock_navigation():
     navigation.algorithm_info = ("l1", 1.0)
     navigation.init = Mock()
     navigation.nav = Mock(return_value=True)
-    navigation.pause_final_approach = Mock()
-    navigation.final_approach = Mock()
-    navigation.final_approach.is_active = False
-    navigation.final_approach.clear_source_discontinuity = Mock()
-    navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-    navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
-    navigation.final_approach.nav_without_detection = Mock(return_value=True)
-    navigation.final_approach.poi_passed_override = Mock(return_value=None)
-    navigation.final_approach.last_measured_lateral_bearing_deg = Mock(return_value=None)
+    navigation.pause_guidance = Mock()
+    navigation.guidance = Mock()
+    navigation.guidance.is_active = False
+    navigation.guidance.clear_source_discontinuity = Mock()
+    navigation.guidance.can_confirm_detection = Mock(return_value=True)
+    navigation.guidance.record_confirmed_detection = Mock(return_value=True)
+    navigation.guidance.nav_without_detection = Mock(return_value=True)
+    navigation.guidance.poi_passed_override = Mock(return_value=None)
+    navigation.guidance.last_measured_lateral_bearing_deg = Mock(return_value=None)
     navigation.legacy_pois = Mock()
     navigation.legacy_pois.locked_distance = Mock(return_value=1000.0)
     navigation.legacy_pois.ground_location = Mock(

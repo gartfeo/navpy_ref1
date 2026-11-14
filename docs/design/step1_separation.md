@@ -29,7 +29,7 @@ core/              the platform, always there, ours
   swarm/           roles, tasks, auction, peers, task actor
   link/            message set and codec between UAVs (NAVLINK messages, registry); not the transport
   perception/      camera -> detection -> tracking orchestration, input checker, geo math, pointing
-  approach/        final-approach engine: ingress, frames, command execution, liveness, hold, reset, logs
+  approach/        guidance engine: ingress, frames, command execution, liveness, hold, reset, logs
 plugins/           swappable organs behind ports; each can become its own repo
   vehicle/ardupilot/  MAVLink adapter: moves, telemetry, mission encoding
   radio/ camera/ gimbal/ detection/ tracking/   one subfolder per implementation

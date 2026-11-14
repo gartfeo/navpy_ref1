@@ -18,7 +18,7 @@ import hashlib
 import pytest
 
 from navpy.sim.lockstep.coordinator_mavlink import ROUTER_LINK
-from navpy.sim.lockstep.coordinator_packets import TERMINALS
+from navpy.sim.lockstep.coordinator_packets import END_STATES
 from navpy.sim.lockstep.coordinator_queues import FIFO_CAP, MAX_BLOCK
 from navpy.sim.lockstep.coordinator_types import CoordinatorFault
 from navpy.sim.lockstep.packet_journal import PacketJournal
@@ -363,8 +363,8 @@ def test_duplicate_emission_and_copy_ids_fail_the_gate(run):
     copied = next(e for e in run.records[0]["packets"] if e[0] == "copy")
     for event in (emitted, copied):
         forged = copy.deepcopy(run.records)
-        terminal = next(e for e in forged[0]["packets"] if e[0] in TERMINALS and e[1] == event[1])
-        forged[0]["packets"] += [copy.deepcopy(event), copy.deepcopy(terminal)]  # A defined twice
+        end_state = next(e for e in forged[0]["packets"] if e[0] in END_STATES and e[1] == event[1])
+        forged[0]["packets"] += [copy.deepcopy(event), copy.deepcopy(end_state)]  # A defined twice
         assert any("already defined" in problem for problem in PacketJournal(forged).problems())
 
 

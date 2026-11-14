@@ -7,9 +7,9 @@ never seen (3-UAV SITL dock-e, UAV 2).
 
 ## Root cause
 Peer geo pointing (gimbal aimed at the dock's reported position until it is
-detected) exists, but is gated on `final_approach.is_active`. That flag means
-"the vision law is configured" (`navigation_final_approach.py:19-21`), true
-from startup, not "the final approach is running". So under the vision law
+detected) exists, but is gated on `guidance.is_active`. That flag means
+"the vision law is configured" (`navigation_guidance.py:19-21`), true
+from startup, not "the guidance is running". So under the vision law
 the peer never aims its camera at the dock. Same mistake in the post-loss
 coordinate fallback.
 
@@ -20,9 +20,9 @@ Gates:
 
 ## Fix
 Replace the config flag with the phase: geo pointing is allowed until NAV
-(final approach) starts, never during it.
+(guidance) starts, never during it.
 - Each gate checks `phase.is_current(NavState.NAV)` instead of
-  `final_approach.is_active`.
+  `guidance.is_active`.
   The composition owners inject `lambda: state.phase.is_current(NavState.NAV)`.
 - Hand-off: detection calls `start_tracking`, which clears the geo session of
   the tracking camera only (`gimbal_detection_lifecycle.py:41-59`); with
@@ -35,21 +35,21 @@ Replace the config flag with the phase: geo pointing is allowed until NAV
   entry if `is_geo_armed` is still true. NAV exit to DETECT/CONFIRM needs
   nothing extra: no session survives NAV entry and none can be armed in NAV.
 - Owner ruling 2026-10-07: GPS is allowed outside the approach. Geo pointing
-  only moves the gimbal; it never feeds the command path or the final-approach
+  only moves the gimbal; it never feeds the command path or the guidance
   inputs. `ideal_360` has no rate tracker, so geo start stays a no-op there.
 
 ## Tests
-- Rewrite `test_final_approach_peer_navigation_never_arms_geo_pointing`
+- Rewrite `test_guidance_peer_navigation_never_arms_geo_pointing`
   (`tests/modules/nav/test_nav_controller.py:8993`): under the vision law the
   peer arms geo pointing at setup; detection clears it; in NAV it is never
   armed or updated. It pinned the config flag where the rule means the phase;
-  the real guarantee (no geo pointing in the final approach) stays pinned.
+  the real guarantee (no geo pointing in the guidance) stays pinned.
 - New mechanism tests: `PeerGeoTick` and the track-recovery fallback under the
   vision law, before NAV (acts) and in NAV (does not).
 - Multi-camera: detection on one source clears geo on all, without moving
   the tracking camera; NAV entry with a leftover geo session stops it, and
   fails if it cannot; RESET → DETECT → NAV re-entry has no geo session.
-- Keep `test_manual_review_poison_proves_final_approach_path_never_uses_poi_geo`
+- Keep `test_manual_review_poison_proves_guidance_path_never_uses_poi_geo`
   unchanged.
 - SITL: d4, two 3-UAV runs where all three dock, including a peer that starts
   inside the circle radius.

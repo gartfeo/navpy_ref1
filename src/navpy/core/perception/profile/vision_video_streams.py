@@ -1,6 +1,6 @@
 """Optional per-camera video streams announced to ground stations.
 
-Operator display only: nothing here feeds navigation or the final-approach
+Operator display only: nothing here feeds navigation or the guidance
 command path (docs/design/gcs_video_streams.md, section 1).
 
 Profile format, per device (sibling of ``camera`` and ``gimbal``)::

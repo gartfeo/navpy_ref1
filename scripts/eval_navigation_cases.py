@@ -1,4 +1,4 @@
-"""Compatibility facade for isolated final approach SITL evaluation."""
+"""Compatibility facade for isolated guidance SITL evaluation."""
 
 from __future__ import annotations
 

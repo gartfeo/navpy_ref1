@@ -162,7 +162,7 @@ class GimbalZoomFacet:
     def set_zoom_size_demand(self, enabled: bool) -> None:
         self._parts.zoom.set_size_demand(enabled)
 
-    def freeze_final_approach_zoom_at_min(self) -> bool:
+    def freeze_guidance_zoom_at_min(self) -> bool:
         return self._parts.zoom.freeze_at_min()
 
 

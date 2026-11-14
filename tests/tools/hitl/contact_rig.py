@@ -13,8 +13,8 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch, FinalApproachTerminal
+from navpy.core.approach.dock_contact_episode import GuidanceDockContact
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch, GuidanceResult
 from navpy.core.kernel.location import Location
 from navpy.plugins.contact import hitl_contact_wire as wire
 from navpy.plugins.contact.hitl_contact_link import ContactLinkConfig
@@ -60,8 +60,8 @@ class Rig:
         self.sensor = HitlDockContactSensor(RUN, KEY, self._to_service, lambda: self.clock[0],
                                             nonce=lambda: next(nonces))
         self.service = ContactService(CONFIG, DOCK, self._to_navpy, self.records.append)
-        self.latch = FinalApproachEpisodeLatch()
-        self.episode = FinalApproachDockContact(
+        self.latch = GuidanceEpisodeLatch()
+        self.episode = GuidanceDockContact(
             self.sensor, lambda: VEHICLE, self._begin, self.latch.latch_docked, Mock())
         self.task = TASK
 
@@ -103,9 +103,9 @@ class Rig:
         return self.latch.docked
 
     @property
-    def terminal(self) -> Optional[FinalApproachTerminal]:
-        snapshot = self.latch.terminal_snapshot()
-        return None if snapshot is None else snapshot.terminal
+    def result(self) -> Optional[GuidanceResult]:
+        snapshot = self.latch.result_snapshot()
+        return None if snapshot is None else snapshot.outcome
 
     def last_contact(self) -> dict[str, Any]:
         return wire.decode(self.to_navpy[-1], KEY, frozenset({wire.KIND_CONTACT}))

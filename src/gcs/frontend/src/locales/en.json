@@ -322,7 +322,7 @@
     },
     "aas": {
       "sections": {
-        "finalApproach": "Final Approach",
+        "guidance": "Guidance",
         "control": "Control",
         "logging": "Logging",
         "confirmation": "Confirmation",
@@ -766,7 +766,7 @@
     "ccChecking": "Companion link — verifying…",
     "ccDown": "Companion computer not connected",
     "swarmBusy": "BUSY",
-    "swarmBusyTitle": "Busy with another UAV's task or a final approach: not bidding for tasks",
+    "swarmBusyTitle": "Busy with another UAV's task or in guidance: not bidding for tasks",
     "swarmUnknown": "UNKNOWN",
     "swarmUnknownTitle": "No recent swarm heartbeat from the companion: state unknown",
     "noUavsConnected": "No UAVs connected",
@@ -1242,7 +1242,7 @@
       "navigation_rejected": "navigation rejected",
       "source_command_stale": "commands went stale",
       "discontinuity_source_missing": "vision source lost",
-      "final_approach_record_unavailable": "approach record unavailable",
+      "guidance_record_unavailable": "approach record unavailable",
       "source_event_active_poi_missing": "POI missing",
       "source_event_pump": "vision source failed",
       "internal_error": "NavPy internal error",

@@ -104,7 +104,7 @@ armed false, GUIDED.
 | Offerer d1 confirmation request appears and is approved | pass | idx 590 request, idx 596 image, idx 680 approve; matches report.json round 777773228:21 and the log "POI 2 confirmed by ground station" (UAV 1 20:25:46.429) |
 | d2 offer shown, UAV 2 assigned as helper | pass | idx 586 offer is task 3 at 40.288498, 44.473705, equal to fleet_docks.json d2 (40.288499, 44.4737067). idx 587 to 589 give waiting then assigned, then approaching at idx 591. Log: UAV 1 "Task offered: task_id=3 obj_id=1", UAV 2 "Task 3 assigned by owner 1" |
 | UAV 2 and UAV 3 requests appear and are approved | pass | idx 601 and 689 (UAV 2), idx 800 and 881 (UAV 3), each with an image before the decision, each matching its report.json round uid |
-| Final approach and terminal state | pass with a gap | Every UAV ends disarmed (armed false) and the card goes idle after disarm_after_guided (idx 694, 703, 893). The UI has no DOCKED state, see below. Docked evidence comes from the navigation logs only |
+| Guidance and end state | pass with a gap | Every UAV ends disarmed (armed false) and the card goes idle after disarm_after_guided (idx 694, 703, 893). The UI has no DOCKED state, see below. Docked evidence comes from the navigation logs only |
 | No home dock shown as offered | pass | The trace holds exactly one available_task_request (idx 586, d2). UAV 3's confirm request is its own task 2 with no offer |
 | No UAV at the wrong dock, no request that never clears | pass | Each confirm card was cleared by disarm_after_guided; the final replay state is empty. Docks per log: d1, d2, home-west |
 | No stuck, wrong or missing state | fail (UI gaps, not flight) | See findings 1 to 4 |
@@ -123,7 +123,7 @@ armed false, GUIDED.
 3. The confirm card carries no location. All three requests have `lat: 0, lon: 0, alt: 0` (idx 590, 601, 800),
    so TaskConfirmCard.jsx (lines 99 and 154) renders "0.000000, 0.000000" with a maps link to 0,0. This follows the
    dock location rule (no waypoint dock info before detection), but the operator sees a null-island coordinate.
-4. No docked state. Nothing on the WebSocket says docked. The only terminal signals are armed false and the
+4. No docked state. Nothing on the WebSocket says docked. The only end signals are armed false and the
    disarm_after_guided event, which show as "Idle". By your instruction this is not a pass or fail of the flight.
 5. The WAITING state is real but not visible. UAV 2 is "waiting" only between idx 587 and 589, 10 ms of wall time
    (no telemetry frame between them). It will not be seen by an operator.

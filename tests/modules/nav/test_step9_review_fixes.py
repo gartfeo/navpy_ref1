@@ -5,10 +5,10 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
+from navpy.core.approach.dock_contact_episode import GuidanceDockContact
 from navpy.core.approach.dock_episode_end import HELD_REASON, dock_episode_end
 from navpy.core.approach.nav_exit_cleanup import NavExitCleanup, NavExitCleanupPorts
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
 from navpy.core.flow.navigation_decision import ApproachOutcome
 from navpy.core.ports.flight_mode import FlightMode
 from navpy.sim.world.closest_approach_tracker import _outcome
@@ -242,23 +242,23 @@ def test_r2_4_a_fresh_entry_that_raises_after_arming_ends_its_partial_episode():
 
 
 def test_r4_the_held_episode_is_reported_aborted_for_the_hold_never_missed(monkeypatch):
-    """The real dock contact, episode end and terminal latch; the sensor scores what it receives with the sim
+    """The real dock contact, episode end and result latch; the sensor scores what it receives with the sim
     record's own outcome rule, on a pass that went by the dock."""
     import navpy.core.approach.dock_contact_episode as episode_module
 
     monkeypatch.setattr(episode_module, "get_poi_task_id", lambda _poi: 3)
-    latch = FinalApproachEpisodeLatch()
+    latch = GuidanceEpisodeLatch()
     received = []
     sensor = Mock(disarm=Mock(side_effect=lambda end: received.append(_outcome(end, passed=True))))
-    contact = FinalApproachDockContact(
+    contact = GuidanceDockContact(
         sensor, lambda: 1, lambda identity, source_s: latch.begin(identity) or True, Mock(), Mock(),
-        ending=lambda identity, docked: dock_episode_end(identity, docked, latch.terminal_snapshot(), False),
+        ending=lambda identity, docked: dock_episode_end(identity, docked, latch.result_snapshot(), False),
     )
     poi = Mock()
     poi.identity.obj_id = 7
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
-            disarm_dock_contact=contact.disarm, close_final_approach_source=Mock(), navigation_reset=Mock(),
+            disarm_dock_contact=contact.disarm, close_guidance_source=Mock(), navigation_reset=Mock(),
             detector_stop=Mock(), disarm_held_dock_contact=contact.disarm_held,
         ),
         Mock(), Mock(),

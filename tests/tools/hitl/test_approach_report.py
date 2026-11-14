@@ -81,7 +81,7 @@ def make_run(root: Path, index: int, seed: int | None = None, *, record_extra: d
            "orphans": [], "scene": {"reproduced": True, "scene_hash": scenario["scene_hash"]},
            "board": {"link_health": {"ok": True}},
            "observation": {"ok": True, "authority": authority},
-           "outcome": {"outcome": "docked", "ended_by": stop.ENDED_BY_TERMINAL,
+           "outcome": {"outcome": "docked", "ended_by": stop.ENDED_BY_RESULT,
                        "navpy_record": {"task": "t-1", "dock": 7, "episode": 3}, "problems": []},
            "airspeed": {"problems": []}, "sources": {"ok": True, "problems": []},
            "owners": {phase: {"ok": True, "problems": []} for phase in ("preflight", "ready", "end")},
@@ -234,13 +234,13 @@ def test_a_contact_for_another_episode_than_navpys_docked_never_counts(tmp_path)
                   {"event": "contact", "arm_id": "a2", "board_time_us": CONTACT_US}]
         (run_dir / contact.EVIDENCE_FILE).write_text("".join(json.dumps(e) + "\n" for e in events), "utf-8")
     problems = failed(make_run(tmp_path, 1, edit=edit))["contact"]
-    assert any("is not navpy's terminal episode" in p for p in problems)
+    assert any("is not navpy's result episode" in p for p in problems)
 
 
-def test_the_runners_own_terminal_outcome_counts_as_docked():
-    """The runner's outcome() for navpy's terminal record that ended the observation (Codex round 1, P1)."""
-    record = {"trigger": "terminal", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
-    run = {"outcome": stop.outcome([record], stop.ENDED_BY_TERMINAL)}
+def test_the_runners_own_result_outcome_counts_as_docked():
+    """The runner's outcome() for navpy's result record that ended the observation (Codex round 1, P1)."""
+    record = {"trigger": "result", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
+    run = {"outcome": stop.outcome([record], stop.ENDED_BY_RESULT)}
     assert checks.docked_check(run, Path(".")) == []
     assert checks.docked_check({"outcome": stop.outcome([record], stop.ENDED_BY_DEADLINE)}, Path("."))
 

@@ -1,4 +1,4 @@
-"""Scores of the encoded capture's live check; hitl_final_approach.md section 9, stage 1 step 9."""
+"""Scores of the encoded capture's live check; hitl_guidance.md section 9, stage 1 step 9."""
 
 from __future__ import annotations
 

@@ -11,7 +11,7 @@ lock, so a hung sender cannot block it. A write admitted before close() is in fl
 serializes writes); none is admitted after.
 
 A command states its generation with ``formed_in(generation)`` on the thread that forms and sends it. A send with no
-stated generation is judged by open/closed alone. Unlike the HITL LinkFence (app/terminal_handoff.py), which drops
+stated generation is judged by open/closed alone. Unlike the HITL LinkFence (app/result_handoff.py), which drops
 every write for good, this fence drops only navigation commands and can reopen with a new generation.
 """
 

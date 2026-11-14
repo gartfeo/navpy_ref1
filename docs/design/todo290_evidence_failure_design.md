@@ -6,7 +6,7 @@ separately.
 
 ## Before this change
 
-- Final-approach evidence (compact/debug rows, DOCKED rows) is written off the command
+- Guidance evidence (compact/debug rows, DOCKED rows) is written off the command
   thread by one FIFO worker (`core/approach/navigation_postprocess_dispatcher.py`,
   `logs/navigation_stream_worker.py`). The command path never waits on it.
 - The first failure stops the worker for good: it refuses every later job. The failure is

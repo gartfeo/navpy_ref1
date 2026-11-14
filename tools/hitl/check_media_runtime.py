@@ -1,4 +1,4 @@
-"""Media runtime check of a HITL host (hitl_final_approach.md section 9, stage 1 step 7).
+"""Media runtime check of a HITL host (hitl_guidance.md section 9, stage 1 step 7).
 
 Checks that this Python loads the pinned GStreamer and its bindings from the pinned distro packages, that the elements
 the encoded video loop needs (steps 8, 9) exist there and can be created, and that the selected encoder and decoder

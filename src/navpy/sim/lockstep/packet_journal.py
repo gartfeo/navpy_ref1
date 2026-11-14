@@ -4,7 +4,7 @@ The checks the run gate needs from ``coordinator_packets``'s records
 (``lockstep_fleet.md``, Evidence; the gates themselves are step 10g):
 
 - every packet id is defined once (one ``emitted`` or ``copy``), has
-  exactly one terminal disposition, and only a defined id has any;
+  exactly one end state, and only a defined id has any;
 - a delivery to a participant names a member ``[ordinal, generation]``
   that ``TICK k`` went to (the tick record's ``members``, which on a routed
   fleet carry the generation): bytes for an unadmitted or retired receiver,
@@ -23,7 +23,7 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from navpy.sim.lockstep.coordinator_packets import TERMINALS
+from navpy.sim.lockstep.coordinator_packets import END_STATES
 
 Id = tuple[Any, ...]
 
@@ -55,7 +55,7 @@ class PacketJournal:
         problems = list(self._problems)
         for packet_id, packet in self._packets.items():
             if len(packet.ends) != 1:
-                problems.append(f"{list(packet_id)} has {len(packet.ends)} terminal dispositions")
+                problems.append(f"{list(packet_id)} has {len(packet.ends)} end states")
         return problems
 
     def disposition(self, packet_id: Id) -> list[Any]:
@@ -90,7 +90,7 @@ class PacketJournal:
                 self._packets[packet_id] = _Packet(k, parent.length, tuple(event[2]))
             elif kind == "admitted" and packet_id in self._packets:
                 self._packets[packet_id].admitted += event[2]
-            elif kind in TERMINALS:
+            elif kind in END_STATES:
                 self._end(k, packet_id, event)
             else:
                 self._problems.append(f"tick {k}: {kind} for an unknown packet {list(packet_id)}")

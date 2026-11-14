@@ -1,4 +1,4 @@
-"""Exactly one owner of each approach role (hitl_final_approach.md section 9, stage 1 step 17).
+"""Exactly one owner of each approach role (hitl_guidance.md section 9, stage 1 step 17).
 
 A role's owner is whoever holds its footprint on this PC, in WSL or on Windows: its ports, and the programs that
 play it (navpy's and aas-hitl's). The runner's own role whose process tree holds a claim owns it; any other holder is

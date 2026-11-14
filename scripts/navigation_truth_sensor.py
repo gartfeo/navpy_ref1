@@ -8,7 +8,7 @@ view. If the law misses here, the law is wrong.
 WHAT THE LAW IS ALLOWED TO SEE
 ------------------------------
 Simulator truth is used to work out WHERE THE POI APPEARS, and is then
-discarded. What comes out is a FinalApproachVisionFrame: two UNIT rays plus the
+discarded. What comes out is a GuidanceVisionFrame: two UNIT rays plus the
 aircraft's own pitch, roll, airspeed and yaw rate. A unit ray carries direction
 and nothing else, so no range, no POI position and no altitude can travel
 inside it -- the law cannot recover them from what it is handed.
@@ -36,11 +36,11 @@ import math
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.kernel.euler_utils import get_euler_by_sequence
 from navpy.core.kernel.simple_rotation import Rotation
 
-# Matches every other construction of FinalApproachProjectionConfig in the tree
+# Matches every other construction of GuidanceProjectionConfig in the tree
 # (scripts/vision_static_point_mass_run.py:55, tests/.../vision_nav_camera_loop.py:54).
 AIRCRAFT_SEQUENCE = "ZYX"
 
@@ -88,7 +88,7 @@ def poi_offset_ned_m(
     """Vector from the aircraft to the POI, in local NED metres.
 
     A local tangent plane, not a full geodesic. Over the few kilometres a
-    final-approach scoring interval covers, the curvature error is far below the metre the
+    guidance scoring interval covers, the curvature error is far below the metre the
     score is quoted in; over hundreds of kilometres it would not be, which is
     why the radii are evaluated at the AIRCRAFT's latitude rather than assuming
     a sphere.
@@ -157,7 +157,7 @@ def build_frame(
     task_id: int = 1,
     obj_id: int = 1,
     source_name: str = "truth_los",
-) -> FinalApproachVisionFrame:
+) -> GuidanceVisionFrame:
     """One frame-local line of sight, as an ideal body-fixed camera would see it.
 
     `offset_ned_m` may be any length; only its direction survives, which is the
@@ -205,7 +205,7 @@ def build_frame(
     control_ray = _unit(
         _rotation(reported_pitch, 0.0, reported_roll) @ body_ray
     )
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         source_name=source_name,
         source_generation=source_generation,
         task_id=task_id,

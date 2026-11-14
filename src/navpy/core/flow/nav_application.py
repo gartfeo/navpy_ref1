@@ -34,13 +34,13 @@ class NavShutdown:
 
     def __init__(
         self,
-        close_final_approach_source: Callable[[], None],
+        close_guidance_source: Callable[[], None],
         navigation_reset: Callable[[], object],
         navigation_task_reset: NavigationTaskResetTransaction,
         network: NavNetworkRuntime,
         logger: ILogger,
     ) -> None:
-        self._close_final_approach_source = close_final_approach_source
+        self._close_guidance_source = close_guidance_source
         self._navigation_reset = navigation_reset
         self._navigation_task_reset = navigation_task_reset
         self._network = network
@@ -51,7 +51,7 @@ class NavShutdown:
         # navigation task, and network resources until loop_stop returns.
         loop_stop()
         try:
-            self._close_final_approach_source()
+            self._close_guidance_source()
         except Exception as source_error:
             errors = [source_error]
             try:

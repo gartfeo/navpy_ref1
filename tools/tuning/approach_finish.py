@@ -1,4 +1,4 @@
-"""The approach runner's evidence after every stop (hitl_final_approach.md section 9, steps 13 and 27).
+"""The approach runner's evidence after every stop (hitl_guidance.md section 9, steps 13 and 27).
 
 The board's DataFlash logs go where the link-health gate reads them; the manifest names every file of the run with its
 digest and producers; the offline timing-validity check (tools/hitl/check_integration_timing.py ``check``) runs on the

@@ -19,7 +19,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.eval_gcs_demo_constants import (
-    FINAL_APPROACH_ROLL_LIMIT_DEG,
+    GUIDANCE_ROLL_LIMIT_DEG,
     ROOT,
     SIM_SPEEDUP,
 )
@@ -66,7 +66,7 @@ SITL_DEFAULT_OVERRIDES: Mapping[str, float] = {
     "RC6_OPTION": 16.0,
     "RC8_OPTION": 153.0,
     "RLL2SRV_RMAX": 75.0, "RLL2SRV_TCONST": 0.2875,
-    "ROLL_LIMIT_DEG": FINAL_APPROACH_ROLL_LIMIT_DEG,
+    "ROLL_LIMIT_DEG": GUIDANCE_ROLL_LIMIT_DEG,
     # Scripting debug output shifts the MAVLink sequence; stated, not inherited.
     "SCR_DEBUG_OPTS": 0.0,
     "SERVO5_FUNCTION": 94.0,

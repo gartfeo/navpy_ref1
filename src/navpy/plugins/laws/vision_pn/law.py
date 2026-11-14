@@ -1,11 +1,11 @@
-"""Minimal frame-local final approach law."""
+"""Minimal frame-local guidance law."""
 
 from __future__ import annotations
 
 import math
 
 from navpy.plugins.laws.vision_pn.command_anchor import (
-    FinalApproachCommandAnchor,
+    GuidanceCommandAnchor,
     advanced_anchor,
     bootstrap_anchor,
     clamped_anchor,
@@ -14,12 +14,12 @@ from navpy.plugins.laws.vision_pn.command_anchor import (
     frame_elevation,
     is_outlier,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
-from navpy.core.ports.law_config import FinalApproachLawConfigProvider
+from navpy.core.ports.frame import GuidanceVisionFrame
+from navpy.core.ports.law_config import GuidanceLawConfigProvider
 from navpy.plugins.laws.vision_pn.law_plan import (
     LATERAL_PN_NAVIGATION_CONSTANT,
-    FinalApproachLawPlan,
-    FinalApproachPlanOrigin,
+    GuidanceLawPlan,
+    GuidancePlanOrigin,
     VERTICAL_PN_NAVIGATION_CONSTANT,
     held_plan,
     replace_anchor,
@@ -61,13 +61,13 @@ class VisionNavLaw:
 
     def __init__(
         self,
-        config_provider: FinalApproachLawConfigProvider,
+        config_provider: GuidanceLawConfigProvider,
     ) -> None:
         self._config_provider = config_provider
         self._config = config_provider.read()
         self._rates = VerticalRateFilter()
         self._lateral_rates = LateralRateFilter()
-        self._anchor: FinalApproachCommandAnchor | None = None
+        self._anchor: GuidanceCommandAnchor | None = None
 
     def reset(self) -> None:
         self._config = self._config_provider.read()
@@ -94,7 +94,7 @@ class VisionNavLaw:
             return 0.0, 0.0
         return self._config.pitch_min_deg, self._config.pitch_max_deg
 
-    def seed(self, frame: FinalApproachVisionFrame, roll_deg: float = 0.0) -> None:
+    def seed(self, frame: GuidanceVisionFrame, roll_deg: float = 0.0) -> None:
         self._rates.seed(frame)
         self._lateral_rates.seed(frame)
         # `confirmation.py:47-56` seeds WITHOUT issuing a command, so this
@@ -114,13 +114,13 @@ class VisionNavLaw:
         # Aircraft roll is not command state. ArduPilot owns attitude response.
         del roll_deg
 
-    def preview(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
+    def preview(self, frame: GuidanceVisionFrame) -> GuidanceLawPlan | None:
         return self._plan(frame)
 
-    def plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
+    def plan(self, frame: GuidanceVisionFrame) -> GuidanceLawPlan | None:
         return self._plan(frame)
 
-    def _plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None:
+    def _plan(self, frame: GuidanceVisionFrame) -> GuidanceLawPlan | None:
         """Compute a command without mutating any state.
 
         `preview` and `plan` share this body deliberately.  `confirmation.py`
@@ -191,13 +191,13 @@ class VisionNavLaw:
                 )
             )
         command = clamped_command(config, raw_roll, raw_pitch)
-        return FinalApproachLawPlan(
+        return GuidanceLawPlan(
             command,
             raw_roll,
             raw_pitch,
             rate,
             lateral_rate,
-            FinalApproachCommandAnchor(
+            GuidanceCommandAnchor(
                 frame.continuity_key,
                 frame.rate_time_s,
                 # Conditional integration: the CLAMPED command becomes the next
@@ -212,7 +212,7 @@ class VisionNavLaw:
             frame,
             lateral_held=lateral_held,
             # A roll-only hold is NOT the same event as a whole-command hold.
-            origin=FinalApproachPlanOrigin(
+            origin=GuidancePlanOrigin(
                 reason="lateral_held" if lateral_held else "normal",
                 anchor_cmd_roll_deg=anchor.cmd_roll_deg,
                 anchor_cmd_pitch_deg=anchor.cmd_pitch_deg,
@@ -222,14 +222,14 @@ class VisionNavLaw:
 
     def _usable_anchor(
         self,
-        frame: FinalApproachVisionFrame,
-    ) -> FinalApproachCommandAnchor | None:
+        frame: GuidanceVisionFrame,
+    ) -> GuidanceCommandAnchor | None:
         anchor = self._anchor
         if anchor is None or anchor.continuity_key != frame.continuity_key:
             return None
         return anchor
 
-    def commit(self, plan: FinalApproachLawPlan) -> None:
+    def commit(self, plan: GuidanceLawPlan) -> None:
         if plan.reseed:
             self._rates.seed(plan.frame)
             self._lateral_rates.seed(plan.frame)
@@ -239,7 +239,7 @@ class VisionNavLaw:
         self._anchor = plan.next_anchor
 
 
-def _lateral_is_ill_conditioned(frame: FinalApproachVisionFrame) -> bool:
+def _lateral_is_ill_conditioned(frame: GuidanceVisionFrame) -> bool:
     horizontal_norm = math.hypot(frame.control_x, frame.control_y)
     return (
         horizontal_norm < STEEP_LOS_HORIZONTAL_MIN

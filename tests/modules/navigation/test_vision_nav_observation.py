@@ -5,10 +5,10 @@ import numpy as np
 import pytest
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.ports.pixel_observation import PixelProjectionKind
 from navpy.core.ports.gimbal_abc import GimbalData
@@ -49,10 +49,10 @@ def _poi(**changes):
 
 
 def _projector():
-    return FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
+    return GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True))
 
 
-def test_final_approach_frame_has_exact_primitive_schema_and_is_frozen_slotted():
+def test_guidance_frame_has_exact_primitive_schema_and_is_frozen_slotted():
     frame = _projector().project(_poi(), 3)
     assert frame is not None
     assert [field.name for field in fields(frame)] == [
@@ -68,9 +68,9 @@ def test_final_approach_frame_has_exact_primitive_schema_and_is_frozen_slotted()
 
 
 @pytest.mark.parametrize("value", [True, 1.0, "1"])
-def test_final_approach_frame_rejects_non_exact_integer_identity(value):
+def test_guidance_frame_rejects_non_exact_integer_identity(value):
     with pytest.raises(ValueError):
-        FinalApproachVisionFrame(
+        GuidanceVisionFrame(
             "cam", value, 1, 2, 1.0,
             1.0, 0.0, 0.0, 1.0, 0.0, 0.0,
         )

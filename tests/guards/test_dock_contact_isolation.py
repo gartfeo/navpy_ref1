@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from navpy.core.ports.dock_contact import DockContactEvent
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 ROOT = Path(__file__).resolve().parents[2]
 SRC = ROOT / "src/navpy"
@@ -37,7 +37,7 @@ CONTACT_VALUE_READERS = frozenset({
     # The DOCKED state line, after the command fence (docked_state.md).
     "src/navpy/core/flow/nav_transition.py",
 })
-# The final-approach command path: frames, projection, admission, the law
+# The guidance command path: frames, projection, admission, the law
 # and every file that can reach the actuator.
 COMMAND_PATH = (
     "src/navpy/core/ports/frame.py",
@@ -87,7 +87,7 @@ def test_the_event_carries_its_values_under_the_guarded_names():
 
 
 def test_frames_carry_no_contact_dock_or_distance_field():
-    names = {field.name for field in fields(FinalApproachVisionFrame)}
+    names = {field.name for field in fields(GuidanceVisionFrame)}
     assert not {
         name for name in names
         if any(word in name for word in ("dock", "contact", "closest", "dist"))
@@ -119,9 +119,9 @@ def test_contact_values_are_read_only_by_evidence_and_the_producer():
 
 
 def test_command_path_never_reads_the_docked_state_gate():
-    """The DOCKED state's contact and the failed-dock terminal (missed_dock.md)
+    """The DOCKED state's contact and the failed-dock result (missed_dock.md)
     are read after the fence, never a command input."""
-    gate = {"own_dock_contact", "dock_terminal", "dock_outcome", "terminal_snapshot"}
+    gate = {"own_dock_contact", "dock_result", "dock_outcome", "result_snapshot"}
     hits = []
     for path in _command_path_files():
         hits += [

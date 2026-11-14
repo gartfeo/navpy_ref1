@@ -1,6 +1,6 @@
 """Navigation-feasibility orbit radius (R_nav_min).
 
-The closest standoff from which the final-approach NAV descent can still
+The closest standoff from which the guidance NAV descent can still
 reach the selected POI geometrically. This is an approach constraint;
 approach accuracy does not establish a mission outcome (e.g. docking, cargo receipt, coverage). Two binding
 constraints, whichever dominates:

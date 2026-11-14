@@ -26,7 +26,7 @@ from navpy.products.delivery.poi_status_decision import (
     PoiSelectionPorts,
     ConfirmationStatusDecision,
 )
-from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.skills.confirm.guidance_release_gate import GuidanceReleaseGate
 from navpy.core.swarm.peer_task_priority import PeerTaskPriority
 from navpy.core.swarm.peer_task_reask import PeerTaskReask
 from navpy.core.flow.nav_state import NavState
@@ -43,7 +43,7 @@ def _compose_poi_status(
     reset: ResetWorkflows,
     navigation: NavCapabilities,
     tracking: TrackRecoveryWorkflows,
-    release: FinalApproachReleaseGate,
+    release: GuidanceReleaseGate,
     peer_task: PeerTaskPriority,
     peer_reask: PeerTaskReask,
     acquisition: AcquisitionGate,
@@ -57,7 +57,7 @@ def _compose_poi_status(
         observation.status,
         PoiPresenceReview(
             PoiPresencePorts(
-                final_approach_running=lambda: state.phase.is_current(NavState.NAV),
+                guidance_running=lambda: state.phase.is_current(NavState.NAV),
                 absolute_location=approach.commands.absolute_location,
             ),
             state.geo_hold,
@@ -71,7 +71,7 @@ def _compose_poi_status(
             observation.retry,
             tracking.recovery,
             release,
-            lambda: navigation.final_approach.is_active,
+            lambda: navigation.guidance.is_active,
             lambda: acquisition.ready(observation.source.find_active_poi_detection()),
             acquisition.released,
         ),

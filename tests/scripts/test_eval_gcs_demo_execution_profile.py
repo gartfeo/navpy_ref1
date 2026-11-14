@@ -11,8 +11,8 @@ from scripts import eval_gcs_demo_analysis as analysis
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
     SNAP_WITHOUT_DOCKED,
-    parse_final_approach_command_episodes,
-    parse_final_approach_episodes,
+    parse_guidance_command_episodes,
+    parse_guidance_episodes,
 )
 from scripts.eval_gcs_demo_fleet_gates import certified_lockstep_gate_errors
 from scripts.eval_gcs_demo_gate_profiles import (
@@ -52,12 +52,12 @@ def _drop_docked(log_dir: Path, sys_id: int) -> None:
                              if "EVENT:DOCKED" not in line), encoding="utf-8")
 
 
-def _mark_terminal_miss(log_dir: Path, sys_id: int, *, late_s: float = 0.0) -> None:
+def _mark_result_miss(log_dir: Path, sys_id: int, *, late_s: float = 0.0) -> None:
     """The runtime's miss format: the last (unissued) command row has
     missed=True; ``late_s`` delays it after the previous row."""
     debug = log_dir / f"uav_{sys_id}_navigation_debug.csv"
     rows = debug.read_text(encoding="utf-8").splitlines(True)
-    last = max(i for i, row in enumerate(rows) if "EVENT:FINAL_APPROACH_CMD" in row)
+    last = max(i for i, row in enumerate(rows) if "EVENT:GUIDANCE_CMD" in row)
     assert "issued=False" in rows[last] and "missed=False" in rows[last], rows[last]
     row = rows[last].replace("missed=False", "missed=True")
     if late_s:
@@ -143,13 +143,13 @@ def test_a_certified_lockstep_run_analyzes_its_vehicles_on_the_resolved_profile(
 def test_the_parser_flags_an_undocked_episode_and_the_strict_parser_still_rejects_it(tmp_path):
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4)
     debug = tmp_path / "uav_1_navigation_debug.csv"
-    [docked] = parse_final_approach_episodes(debug, vehicle_id=1)
+    [docked] = parse_guidance_episodes(debug, vehicle_id=1)
     assert docked.docked is True and docked.commands
     _drop_docked(tmp_path, 1)
-    [undocked] = parse_final_approach_episodes(debug, vehicle_id=1)
+    [undocked] = parse_guidance_episodes(debug, vehicle_id=1)
     assert undocked.docked is False and undocked.commands == docked.commands
     with pytest.raises(ValueError, match=SNAP_WITHOUT_DOCKED):
-        parse_final_approach_command_episodes(debug, vehicle_id=1)
+        parse_guidance_command_episodes(debug, vehicle_id=1)
 
 
 def test_a_missed_dock_is_its_own_gate_and_hides_no_other_check(tmp_path):
@@ -158,11 +158,11 @@ def test_a_missed_dock_is_its_own_gate_and_hides_no_other_check(tmp_path):
     # 1x observations where the wall profile expects 10x: a cadence failure.
     _write_episode(tmp_path, 1, BAD_ROLLS, snap_m=float("nan"), wall_step_s=0.1)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1)
+    _mark_result_miss(tmp_path, 1)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert report.passed is False
     assert SNAP_WITHOUT_DOCKED in report.errors
-    assert not any("invalid final-approach evidence" in e for e in report.errors), report.errors
+    assert not any("invalid guidance evidence" in e for e in report.errors), report.errors
     assert any("roll-command step" in e for e in report.errors), report.errors
     assert report.metrics.achieved_roll_reversals is not None  # the achieved-roll gate ran
     assert any("truth SNAP distance is non-finite" in e for e in report.errors), report.errors
@@ -175,18 +175,18 @@ def test_an_undocked_episode_still_fails_the_achieved_roll_gate(tmp_path):
     weave = [20.0 if i % 2 else -20.0 for i in range(len(ROLLS))]
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4, achieved_rolls=weave)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1)
+    _mark_result_miss(tmp_path, 1)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert SNAP_WITHOUT_DOCKED in report.errors
     assert report.metrics.achieved_roll_reversals == len(ROLLS) - 1
     assert any("significant achieved-roll reversals" in e for e in report.errors), report.errors
 
 
-def test_a_late_terminal_miss_row_keeps_its_cadence_gap(tmp_path):
+def test_a_late_result_miss_row_keeps_its_cadence_gap(tmp_path):
     """The miss row stays in the cadence: a gap before it is still a failure."""
     _write_episode(tmp_path, 1, ROLLS, snap_m=0.4)
     _drop_docked(tmp_path, 1)
-    _mark_terminal_miss(tmp_path, 1, late_s=0.6)
+    _mark_result_miss(tmp_path, 1, late_s=0.6)
     report = analysis.analyze_vehicle(tmp_path, 1, "owner", approval_count=1)
     assert SNAP_WITHOUT_DOCKED in report.errors
     assert any("max observation gap" in e for e in report.errors), report.errors

@@ -17,7 +17,7 @@ from unittest.mock import Mock
 import pytest
 
 from navpy.core.approach.dock_contact_episode import (
-    FinalApproachDockContact,
+    GuidanceDockContact,
     with_dock_evidence_cut,
 )
 from navpy.core.approach.logs.navigation_snap_geometry import (
@@ -25,8 +25,8 @@ from navpy.core.approach.logs.navigation_snap_geometry import (
     closest_point_components_on_segment,
 )
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeLatch,
-    FinalApproachTerminal,
+    GuidanceEpisodeLatch,
+    GuidanceResult,
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
@@ -547,7 +547,7 @@ def _lifecycle(*, latch=True):
         latched.append(event)
         return latch
 
-    lifecycle = FinalApproachDockContact(
+    lifecycle = GuidanceDockContact(
         sensor, lambda: 7, lambda _identity, _s: True, latch_docked, Mock(),
     )
     poi = SimpleNamespace(identity=SimpleNamespace(obj_id=1, task_id=3))
@@ -578,7 +578,7 @@ def test_a_refused_latch_with_nothing_latched_reports_aborted():
 @pytest.mark.parametrize("end", ["disarm", "rearm"])
 def test_a_contact_held_past_the_episode_end_is_aborted_and_unlatched(end):
     """The sensor saw contact, but its callback reaches the lifecycle only
-    after NAV exit (or re-arm) detached the episode: no terminal latched."""
+    after NAV exit (or re-arm) detached the episode: no result latched."""
     lifecycle, sensor, reports, latched, poi = _lifecycle()
     held = []
     sensor._on_docked = held.append  # hold the callback between the two locks
@@ -672,7 +672,7 @@ def test_the_lifecycle_passes_how_nav_left_the_episode():
         ended.append((identity, docked))
         return DockEpisodeEnd(abort_reason="cancelled")
 
-    lifecycle = FinalApproachDockContact(
+    lifecycle = GuidanceDockContact(
         sensor, lambda: 7, lambda _identity, _s: True, lambda _e: True, Mock(),
         ending=ending,
     )
@@ -694,7 +694,7 @@ def test_a_failing_ending_falls_back_and_never_breaks_nav_exit():
     def ending(_identity, _docked):
         raise RuntimeError("no mode session")
 
-    lifecycle = FinalApproachDockContact(
+    lifecycle = GuidanceDockContact(
         sensor, lambda: 7, lambda _identity, _s: True, lambda _e: True, logger,
         ending=ending,
     )
@@ -941,7 +941,7 @@ def test_a_handoff_that_blocks_while_samples_arrive_leaves_them_excluded():
     _fly(sensor, points[:7])  # the dock ahead, still closing
     stored = []
 
-    def handoff(_terminal, _identity):
+    def handoff(_result, _identity):
         stored.append(sensor._evidence_end)  # the cut ran first
         # The opening segment and the lower minimum arrive on another thread.
         feeder = threading.Thread(
@@ -950,7 +950,7 @@ def test_a_handoff_that_blocks_while_samples_arrive_leaves_them_excluded():
         feeder.start()
         feeder.join()
 
-    latch = FinalApproachEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
+    latch = GuidanceEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
     latch.begin(IDENTITY)
     assert latch.latch_failure("no_detection")
     sensor.disarm(FAILED)
@@ -964,30 +964,30 @@ def test_a_cut_that_raises_never_reaches_the_latch(caplog):
     sensor = Mock()
     sensor.end_evidence.side_effect = RuntimeError("cut down")
     handoff = Mock()
-    latch = FinalApproachEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
+    latch = GuidanceEpisodeLatch(with_dock_evidence_cut(sensor, handoff))
     latch.begin(IDENTITY)
     assert latch.latch_failure("no_detection")
     assert latch.commands_ended  # the caller retires commands next
-    handoff.assert_called_once_with(FinalApproachTerminal.FAILED, IDENTITY)
+    handoff.assert_called_once_with(GuidanceResult.FAILED, IDENTITY)
     assert "dock evidence cut failed" in caplog.text
 
 
 @pytest.mark.parametrize(
-    "terminal, cut",
+    "result, cut",
     [
-        (FinalApproachTerminal.FAILED, True),
-        (FinalApproachTerminal.MISSED, True),
-        (FinalApproachTerminal.DOCKED, False),
+        (GuidanceResult.FAILED, True),
+        (GuidanceResult.MISSED, True),
+        (GuidanceResult.DOCKED, False),
     ],
 )
-def test_the_composed_observer_cuts_first_and_only_for_navs_own_end(terminal, cut):
+def test_the_composed_observer_cuts_first_and_only_for_navs_own_end(result, cut):
     calls = []
     sensor = SimpleNamespace(end_evidence=lambda identity: calls.append(("cut", identity)))
     observer = with_dock_evidence_cut(
         sensor, lambda kind, identity: calls.append(("handoff", kind, identity)),
     )
-    observer(terminal, IDENTITY)
-    assert calls == [("cut", IDENTITY)] * cut + [("handoff", terminal, IDENTITY)]
+    observer(result, IDENTITY)
+    assert calls == [("cut", IDENTITY)] * cut + [("handoff", result, IDENTITY)]
 
 
 def test_without_a_sensor_or_an_armed_identity_nothing_is_cut():
@@ -995,5 +995,5 @@ def test_without_a_sensor_or_an_armed_identity_nothing_is_cut():
     assert with_dock_evidence_cut(None, handoff) is handoff
     assert with_dock_evidence_cut(None, None) is None
     sensor = Mock()
-    with_dock_evidence_cut(sensor, None)(FinalApproachTerminal.FAILED, None)
+    with_dock_evidence_cut(sensor, None)(GuidanceResult.FAILED, None)
     sensor.end_evidence.assert_not_called()

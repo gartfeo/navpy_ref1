@@ -15,7 +15,7 @@ from navpy.core.flow.navigation_zoom import ZoomController
 class NavEntryPorts:
     request_guided: Callable[[], None]
     navigation_init: Callable[[], None]
-    final_approach_active: Callable[[], bool]
+    guidance_active: Callable[[], bool]
     arm_dock_contact: Callable[[], None]
     stop_geo_tracking: Callable[[], None]
     is_geo_armed: Callable[[], bool]
@@ -42,22 +42,22 @@ class NavEntry:
     def run(self) -> None:
         self._ports.entry_started()
         self._navigation_task.nav_mode_observed = False
-        self._navigation_task.final_approach_navigation_active = False
-        self._navigation_task.final_approach_nav_completed = False
+        self._navigation_task.guidance_navigation_active = False
+        self._navigation_task.guidance_nav_completed = False
         # Geo pointing is allowed only before NAV: fence every camera here.
         self._ports.stop_geo_tracking()
         if self._ports.is_geo_armed():
             raise RuntimeError("NAV entry: geo pointing still armed after stop")
         if (
-            self._ports.final_approach_active()
-            and not self._zoom.freeze_final_approach_wide()
+            self._ports.guidance_active()
+            and not self._zoom.freeze_guidance_wide()
         ):
-            raise RuntimeError("final approach requires minimum zoom")
+            raise RuntimeError("guidance requires minimum zoom")
         self._ports.request_guided()
         self._ports.navigation_init()
         # After navigation_init (reset_phase), so it arms the new episode.
         self._ports.arm_dock_contact()
-        if not self._ports.final_approach_active():
+        if not self._ports.guidance_active():
             self._zoom.set_recognition_demand(False)
         self._logger.info(
             "INIT: NAV MODE",

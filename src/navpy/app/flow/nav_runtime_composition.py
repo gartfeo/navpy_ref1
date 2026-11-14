@@ -1,4 +1,4 @@
-"""Compose final-approach NAV dispatch and the navigation application runtime."""
+"""Compose guidance NAV dispatch and the navigation application runtime."""
 
 from __future__ import annotations
 
@@ -48,10 +48,10 @@ from navpy.core.flow.navigation_transition_handler import (
     NavigationTransitionHandler,
     TransitionPorts,
 )
-from navpy.core.approach.final_approach_nav_workflow import FinalApproachNavWorkflow
+from navpy.core.approach.guidance_nav_workflow import GuidanceNavWorkflow
 from navpy.core.approach.dock_contact_episode import (
     EpisodeEnding,
-    FinalApproachDockContact,
+    GuidanceDockContact,
 )
 from navpy.core.approach.dock_episode_end import dock_episode_end
 from navpy.core.ports.dock_contact import (
@@ -75,7 +75,7 @@ def _dock_episode_ending(
         return dock_episode_end(
             identity,
             docked,
-            navigation.dock_outcome.terminal(),
+            navigation.dock_outcome.result(),
             status is ConfirmationStatus.REJECTED,
         )
 
@@ -108,19 +108,19 @@ def compose_nav_application(
     confirmation: ConfirmationWorkflows,
     decision: DecisionWorkflows,
     navigation: NavCapabilities,
-    final_approach_nav: FinalApproachNavWorkflow,
+    guidance_nav: GuidanceNavWorkflow,
     dock_contact_sensor: Optional[DockContactSensor] = None,
     recovery_link: Optional[NavRecoveryLink] = None,
 ) -> NavApplication:
     loop: Optional[NavigationLoop] = None
-    dock_contact = FinalApproachDockContact(
+    dock_contact = GuidanceDockContact(
         dock_contact_sensor,
         lambda: vehicle.target_system,
-        navigation.final_approach.begin_dock_episode,
-        navigation.final_approach.latch_docked,
+        navigation.guidance.begin_dock_episode,
+        navigation.guidance.latch_docked,
         logger,
         source_now_s=lambda: attitude_boot_s(vehicle),
-        end_episode=navigation.final_approach.end_dock_episode,
+        end_episode=navigation.guidance.end_dock_episode,
         ending=_dock_episode_ending(navigation, poi),
     )
     outcome = NavOutcomeLatch()
@@ -129,7 +129,7 @@ def compose_nav_application(
             NavEntryPorts(
                 request_guided=lambda: request_guided_owned(state, approach),
                 navigation_init=navigation.init,
-                final_approach_active=lambda: navigation.final_approach.is_active,
+                guidance_active=lambda: navigation.guidance.is_active,
                 arm_dock_contact=lambda: dock_contact.arm(
                     poi.confirmation_manager.active_poi
                 ),
@@ -145,7 +145,7 @@ def compose_nav_application(
         NavExitCleanup(
             NavExitCleanupPorts(
                 disarm_dock_contact=dock_contact.disarm,
-                close_final_approach_source=final_approach_nav.close_source_admission,
+                close_guidance_source=guidance_nav.close_source_admission,
                 navigation_reset=navigation.reset,
                 detector_stop=detection.tracking_commands.stop_tracking,
                 dock_outcome=navigation.dock_outcome,
@@ -189,7 +189,7 @@ def compose_nav_application(
             NavState.ONHOLD: navigation.pause,
             NavState.DETECT: detect_action.act,
             NavState.CONFIRM: confirmation.confirmation_action.act,
-            NavState.NAV: final_approach_nav.act_nav,
+            NavState.NAV: guidance_nav.act_nav,
             NavState.RESET: navigation.pause,
             NavState.RECOVERY: decision.recovery.act,
             NavState.DOCKED: navigation.pause,
@@ -213,7 +213,7 @@ def compose_nav_application(
     loop = NavigationLoop(cycle, state.clock, logger, on_period=recovery_period(recovery, sample))
     watchdog = nav_watchdog(recovery_link, loop.progress, recovery, sample, logger)
     shutdown = NavShutdown(
-        final_approach_nav.close_source_admission,
+        guidance_nav.close_source_admission,
         navigation.reset,
         confirmation.reset.reset,
         observation.network,

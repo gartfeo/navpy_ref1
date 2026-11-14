@@ -31,7 +31,7 @@ Mechanism (UAV 2, task 1, obj 3; CSV wall times, not the cached log times):
   frame reached the NAV ingress: later observations still carry frame 1004.944
   ("duplicate", `..._observation_uav_2_navpy.csv`).
 - The held command (`vision_nav/command_hold.py:142`) checks
-  `FinalApproachCommandFreshness.is_fresh` (`command_freshness.py:29`): source
+  `GuidanceCommandFreshness.is_fresh` (`command_freshness.py:29`): source
   age <= 1.0 s **and** receipt age <= 1.0 s / speedup of wall time, counted
   from the frame's pose receipt. Frame 1004.944's pose arrived at wall 105.9422
   (`..._attitude_arrival_uav_2_navpy.csv`); its 100 ms receipt budget ended at
@@ -39,7 +39,7 @@ Mechanism (UAV 2, task 1, obj 3; CSV wall times, not the cached log times):
   1005.904). So, as reconstructed (the shared latch does not record which
   check failed), the **receipt** check failed: the hold failed, the liveness
   latch set, and the NAV tick logged `source_command_stale`
-  (`final_approach_nav_workflow.py:120-125`). The pump's own timeout logs
+  (`guidance_nav_workflow.py:120-125`). The pump's own timeout logs
   another reason (`source_receipt_timeout`).
 - The frames that did reach NAV were 3.7-52.0 ms (median 40.0) past their
   pose acceptance on UAV 2, and 14.1-56.8 ms (median 32.0) on UAV 3. In a
@@ -375,7 +375,7 @@ Stop with `gcs_stop.py`.
 **Checking a hand run** (ready plan step 2): `python scripts\delivery_demo_check.py`
 prints what happened in the newest run under this checkout's `.logs\delivery-demo`,
 or in a run folder named on the command line:
-- the approaches and each one's outcome, from `parse_final_approach_outcomes`;
+- the approaches and each one's outcome, from `parse_guidance_outcomes`;
 - the commit and inputs, the backend's CPU share and `/launch` lines, the
   timeline's rejected, timed-out and failed counts, and the MAVLink record's
   status file;

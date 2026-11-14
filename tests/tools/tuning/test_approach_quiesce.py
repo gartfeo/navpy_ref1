@@ -1,4 +1,4 @@
-"""The run's quiesce (hitl_final_approach.md section 9, step 16): one idempotent step for terminal, deadline, crash
+"""The run's quiesce (hitl_guidance.md section 9, step 16): one idempotent step for result, deadline, crash
 and abort, at the board boundary (the real router with navpy as its reader, the real barrier, the router's write
 log), with late queues and reconnects; navpy's own quiesce when it is stopped without an outcome; the runner's exit
 paths; and the rule that a deadline never yields DOCKED."""
@@ -15,10 +15,10 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
 from navpy.app.router_barrier import BarrierResult, RouterBarrier
 from navpy.app.runtime_resources import RuntimeResourceStack
-from navpy.app.terminal_handoff import (TRIGGER_SHUTDOWN, TRIGGER_STOP, LinkFence, TerminalHandoff, own_quiesce,
-                                        print_terminal_record)
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachTerminal as Terminal
-from tests.modules.navigation.test_terminal_handoff import IDENTITY, RecordingGimbal, ScriptedBarrier
+from navpy.app.result_handoff import (TRIGGER_SHUTDOWN, TRIGGER_STOP, LinkFence, ResultHandoff, own_quiesce,
+                                        print_result_record)
+from navpy.core.approach.vision_nav.episode_latch import GuidanceResult as Result
+from tests.modules.navigation.test_result_handoff import IDENTITY, RecordingGimbal, ScriptedBarrier
 from tests.tools.tuning import test_approach_runner as runner_rig
 from tests.tools.tuning.test_mav_router import (NAVPY, RUNNER, GatedBoard, UdpClient, heartbeat, receivers_current,
                                                 wait_until)
@@ -124,7 +124,7 @@ def handoff_for(rig: dict, case: str, events: list) -> NavpyHandoff:
             navpy.send(heartbeat())
             navpy.send(ATTITUDE_TARGET)
             return {"stop": "requested", "returncode": 0}
-        if case == "terminal":
+        if case == "result":
             return {"stop": "requested", "returncode": 0}
         return {"stop": "already exited", "returncode": -9}         # crash, abort: navpy is gone, its packets not
 
@@ -132,18 +132,18 @@ def handoff_for(rig: dict, case: str, events: list) -> NavpyHandoff:
                         lambda: pytest.fail("the router answered"), lambda: pytest.fail("the router answered"))
 
 
-REASONS = {"terminal": stop.TERMINAL, "deadline": stop.DEADLINE, "crash": stop.CRASH, "abort": stop.ABORT}
+REASONS = {"result": stop.RESULT, "deadline": stop.DEADLINE, "crash": stop.CRASH, "abort": stop.ABORT}
 
 
 @pytest.mark.parametrize("case", list(REASONS))
 def test_no_navpy_write_reaches_the_board_after_the_drain_ack_in_any_fault_case(boundary, case):
     rig, events, records = boundary, [], []
     late_queue(rig)
-    if case == "terminal":                         # navpy's own handoff closes first; the runner's close repeats it
+    if case == "result":                         # navpy's own handoff closes first; the runner's close repeats it
         fence = LinkFence()
-        navpy_handoff = TerminalHandoff(fence, RouterBarrier(control(rig["router"]), "navpy"),
+        navpy_handoff = ResultHandoff(fence, RouterBarrier(control(rig["router"]), "navpy"),
                                         publish=records.append)
-        navpy_handoff.on_terminal(Terminal.DOCKED, IDENTITY)
+        navpy_handoff.on_result(Result.DOCKED, IDENTITY)
         timer = released_after(rig["board"])
         assert navpy_handoff.join(WAIT_S)
     else:
@@ -152,7 +152,7 @@ def test_no_navpy_write_reaches_the_board_after_the_drain_ack_in_any_fault_case(
     record = quiesce.run(REASONS[case])
     timer.join()
     assert record["barrier"]["ok"] and "failed" not in record
-    assert record["barrier"]["ack"]["already_closed"] is (case == "terminal")
+    assert record["barrier"]["ack"]["already_closed"] is (case == "result")
     turned_away = refused(rig)
     navpy_reconnects(rig)
     board_reconnects(rig)
@@ -206,24 +206,24 @@ def test_the_runners_last_quiesce_needs_a_started_navpy(tmp_path):
 
 
 # ---- the outcome: a deadline never yields DOCKED ------------------------------------------------------
-DOCKED = {"trigger": "terminal", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
+DOCKED = {"trigger": "result", "outcome": "docked", "barrier": "acked", "gimbal_stop": "sent"}
 STOPPED = {"trigger": "stop", "outcome": None, "barrier": "acked", "gimbal_stop": "sent"}
 
 
-def test_only_a_terminal_record_that_ended_the_observation_gives_the_outcome():
-    assert stop.outcome([DOCKED], stop.ENDED_BY_TERMINAL)["outcome"] == "docked"
+def test_only_a_result_record_that_ended_the_observation_gives_the_outcome():
+    assert stop.outcome([DOCKED], stop.ENDED_BY_RESULT)["outcome"] == "docked"
     assert stop.outcome([DOCKED], stop.ENDED_BY_DEADLINE)["outcome"] is None      # printed after the deadline
     assert stop.outcome([STOPPED], stop.ENDED_BY_DEADLINE)["outcome"] is None
-    assert stop.outcome([STOPPED], stop.ENDED_BY_TERMINAL)["outcome"] is None
+    assert stop.outcome([STOPPED], stop.ENDED_BY_RESULT)["outcome"] is None
     assert stop.outcome([], None)["outcome"] is None                               # a crash before any record
     assert stop.outcome([DOCKED], None)["outcome"] is None                         # the flight raised
 
 
 def test_navpys_failed_barrier_or_gimbal_stop_is_a_problem():
     result = stop.outcome([{**DOCKED, "barrier": "failed", "barrier_error": "no ack", "gimbal_stop": "timeout"}],
-                          stop.ENDED_BY_TERMINAL)
+                          stop.ENDED_BY_RESULT)
     assert result["problems"] == ["navpy's own barrier failed: no ack", "navpy's gimbal stop: timeout"]
-    assert stop.outcome([{**DOCKED, "gimbal_stop": "no_gimbal"}], stop.ENDED_BY_TERMINAL)["problems"] == []
+    assert stop.outcome([{**DOCKED, "gimbal_stop": "no_gimbal"}], stop.ENDED_BY_RESULT)["problems"] == []
 
 
 class ObservedBoard:
@@ -239,15 +239,15 @@ class ObservedBoard:
         self.clock[0] += timeout
 
 
-RECORD_LINE = "NAVPY_TERMINAL_V1 " + json.dumps(DOCKED)
+RECORD_LINE = "NAVPY_RESULT_V1 " + json.dumps(DOCKED)
 
 
 @pytest.mark.parametrize("writes, ended_by", [
-    ({2: RECORD_LINE + "\n"}, stop.ENDED_BY_TERMINAL),                      # read before the deadline
+    ({2: RECORD_LINE + "\n"}, stop.ENDED_BY_RESULT),                      # read before the deadline
     ({3: RECORD_LINE + "\n"}, stop.ENDED_BY_DEADLINE),                      # printed during the last wait
     ({2: RECORD_LINE[:30], 3: RECORD_LINE[30:] + "\n"}, stop.ENDED_BY_DEADLINE),   # ended only after the deadline
-    ({1: RECORD_LINE[:30], 2: RECORD_LINE[30:] + "\n"}, stop.ENDED_BY_TERMINAL),   # split across two reads
-    ({2: "NAVPY_TERMINAL_V1 {not json\n"}, stop.ENDED_BY_DEADLINE),         # a marker is not a record
+    ({1: RECORD_LINE[:30], 2: RECORD_LINE[30:] + "\n"}, stop.ENDED_BY_RESULT),   # split across two reads
+    ({2: "NAVPY_RESULT_V1 {not json\n"}, stop.ENDED_BY_DEADLINE),         # a marker is not a record
 ])
 def test_only_a_complete_record_read_before_the_deadline_ends_the_observation(tmp_path, monkeypatch, writes, ended_by):
     clock = [100.0]
@@ -256,11 +256,11 @@ def test_only_a_complete_record_read_before_the_deadline_ends_the_observation(tm
     out.write_text("", encoding="utf-8")
     board = ObservedBoard(clock, out, writes)
     group = type("Group", (), {"check": lambda self: None})()
-    assert stop.observe(board, group, out, 3 * stop.TERMINAL_POLL_S - 0.5) == ended_by
+    assert stop.observe(board, group, out, 3 * stop.RESULT_POLL_S - 0.5) == ended_by
 
 
 def test_navpys_records_are_read_from_its_output(tmp_path, capsys):
-    print_terminal_record(STOPPED)
+    print_result_record(STOPPED)
     out = tmp_path / "navpy.out"
     out.write_text("starting\n" + capsys.readouterr().out + "NAVPY_STOPPED_V1\n", encoding="utf-8")
     assert stop.navpy_records(out) == [STOPPED]
@@ -268,10 +268,10 @@ def test_navpys_records_are_read_from_its_output(tmp_path, capsys):
 
 
 # ---- navpy's own quiesce when stopped without an outcome ------------------------------------------------
-def scripted(events: list, result: BarrierResult | None = None) -> tuple[TerminalHandoff, ScriptedBarrier]:
+def scripted(events: list, result: BarrierResult | None = None) -> tuple[ResultHandoff, ScriptedBarrier]:
     fence = LinkFence()
     barrier = ScriptedBarrier(events, fence, result or BarrierResult({"op": "closed", "client": "navpy"}))
-    return TerminalHandoff(fence, barrier, publish=lambda record: events.append(("record", record))), barrier
+    return ResultHandoff(fence, barrier, publish=lambda record: events.append(("record", record))), barrier
 
 
 def test_a_stop_quiesces_without_an_outcome_and_a_later_docked_is_never_reported():
@@ -280,7 +280,7 @@ def test_a_stop_quiesces_without_an_outcome_and_a_later_docked_is_never_reported
     gimbal = handoff.gimbal_fence.wrap(lambda **_: RecordingGimbal(events))(server_ip=LOOPBACK, port=1)
     barrier.release.set()
     handoff.quiesce(TRIGGER_STOP)
-    handoff.on_terminal(Terminal.DOCKED, IDENTITY)         # latched after the deadline's stop
+    handoff.on_result(Result.DOCKED, IDENTITY)         # latched after the deadline's stop
     assert handoff.join(WAIT_S)
     records = [e[1] for e in events if e[0] == "record"]
     assert len(records) == 1 and records[0]["trigger"] == "stop" and records[0]["outcome"] is None
@@ -292,14 +292,14 @@ def test_a_stop_quiesces_without_an_outcome_and_a_later_docked_is_never_reported
     assert [e for e in events if e[0] == "gimbal"] == [("gimbal", 0x07), ("gimbal", 0x05)]
 
 
-def test_a_terminal_outcome_before_the_stop_keeps_its_record():
+def test_a_result_outcome_before_the_stop_keeps_its_record():
     events: list = []
     handoff, barrier = scripted(events)
     barrier.release.set()
-    handoff.on_terminal(Terminal.MISSED, IDENTITY)
+    handoff.on_result(Result.MISSED, IDENTITY)
     assert handoff.finish(TRIGGER_STOP)
     records = [e[1] for e in events if e[0] == "record"]
-    assert [(r["trigger"], r["outcome"]) for r in records] == [("terminal", "missed")]
+    assert [(r["trigger"], r["outcome"]) for r in records] == [("result", "missed")]
 
 
 def test_finish_reports_a_record_that_is_not_out_in_time():
@@ -356,7 +356,7 @@ def test_navpys_start_failing_at_any_point_quiesces_before_any_component_stops(m
     foundation = SimpleNamespace(vehicle=MagicMock(), vision_args=object(), logger=MagicMock(), zc_util=None,
                                  navigation_args=object(), scheduler_cadence=None, network=MagicMock(),
                                  vehicle_close_gate=SimpleNamespace(stop_vision=lambda stop, _q: stop()),
-                                 terminal_handoff=handoff, camera_frames=None, recovery_link=None)
+                                 result_handoff=handoff, camera_frames=None, recovery_link=None)
     for name, value in [("VisionController", lambda *_a, **_k: vision), ("MissionPlanner", lambda *_a: object()),
                         ("MissionPlannerArgs", lambda _a: object()), ("NavArgs", lambda *_a: object()),
                         ("Navigation", lambda *_a, **_k: SimpleNamespace(start=start, stop=stops("navigation"))),
@@ -392,7 +392,7 @@ def test_a_stop_during_the_vehicle_build_quiesces_before_the_vehicle_closes(monk
     for name, value in [("stop_hooks", lambda *_a: {"stop_requested": lambda: stopped["now"],
                                                      "acknowledge_stop": lambda: events.append(("ack",))}),
                         ("ConnArgs", lambda _a: SimpleNamespace(source_system=1)), ("LoggerArgs", lambda _a: object()),
-                        ("initialize_logger", lambda *_a: MagicMock()), ("build_terminal_handoff", lambda _a: handoff),
+                        ("initialize_logger", lambda *_a: MagicMock()), ("build_result_handoff", lambda _a: handoff),
                         ("open_vehicle_bus", lambda *_a: object()), ("create_vehicle", create_vehicle),
                         ("create_network", MagicMock(side_effect=AssertionError("built past the stop")))]:
         monkeypatch.setattr(composition, name, value)
@@ -418,7 +418,7 @@ def test_a_failed_vehicle_build_still_quiesces_and_publishes(monkeypatch):
         raise TimeoutError("no heartbeat")
 
     for name, value in [("ConnArgs", lambda _a: SimpleNamespace(source_system=1)), ("LoggerArgs", lambda _a: object()),
-                        ("initialize_logger", lambda *_a: MagicMock()), ("build_terminal_handoff", lambda _a: handoff),
+                        ("initialize_logger", lambda *_a: MagicMock()), ("build_result_handoff", lambda _a: handoff),
                         ("open_vehicle_bus", lambda *_a: object()), ("create_vehicle", create_vehicle)]:
         monkeypatch.setattr(composition, name, value)
     monkeypatch.setattr(composition.GroundStationLoggerNetwork, "create", MagicMock())
@@ -437,7 +437,7 @@ def test_a_handoff_that_raises_is_not_a_published_record():
         def close_endpoint(self):
             raise OSError("no socket")
 
-    handoff = TerminalHandoff(fence, Raising(events, fence, BarrierResult({})), publish=events.append)
+    handoff = ResultHandoff(fence, Raising(events, fence, BarrierResult({})), publish=events.append)
     assert handoff.finish(TRIGGER_SHUTDOWN, timeout_s=WAIT_S) is False
     assert events == [] and fence.closed
 

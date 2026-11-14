@@ -3,7 +3,7 @@
 ## Project purpose — read before interpreting old context
 
 NavPy develops cooperative UAV swarm technology: autonomous navigation, fleet
-coordination and vision-based final approach for multi-UAV missions. The swarm
+coordination and vision-based guidance for multi-UAV missions. The swarm
 core is the product; it is generic, mission-agnostic and for civilian use, and
 mission functions are plug-and-play modules on top of it. Module families
 include:
@@ -36,8 +36,9 @@ Use these terms in docs, code and UI; keep existing API/parameter names.
 - **Dock** — a general-purpose 360-degree net on a stationary or moving
   platform; one detector class, `dock`. Never "parking net", "park net" or
   "landing net".
-- **Final approach** (engineering) = **parking navigation** (product) — the
-  vision-based approach to the POI.
+- **Guidance** — closed-loop steering of a UAV toward a reference: the POI
+  (delivery or pickup), a moving platform, or a path. Guidance to a POI is
+  **parking navigation** in product language.
 - **Home hub** — the delivery module's return hub (formerly "default delivery
   hub"; API and parameter names such as `default_delivery_hub` keep the old name).
 - **Detector** — the real detector defaults to a ChArUco board detector; the
@@ -45,12 +46,12 @@ Use these terms in docs, code and UI; keep existing API/parameter names.
 
 ## Pure Vision Approach Constraint
 
-For vision-based final approach work, the navigation command path must not use
+For vision-based guidance work, the navigation command path must not use
 aircraft compass-derived yaw/heading. Compass yaw can carry large bias and
 would contaminate navigation-quality isolation. Treat aircraft yaw/heading as
 allowed only for logs, operator display, or certification/scoring diagnostics;
 do not use it to build LOS for navigation, refresh predictions, compute
-lateral/vertical commands, or decide final-approach completion state. Gimbal/camera yaw
+lateral/vertical commands, or decide guidance completion state. Gimbal/camera yaw
 readback is a different source: roll-yaw-pitch readback from the gimbal/camera
 is allowed as camera-state only, so measured pixels can be converted into a
 frame-local visual ray. Allowed command inputs remain frame-local vision
@@ -58,7 +59,7 @@ LOS/pixels/rates, gimbal/camera roll-yaw-pitch readback as camera-state only,
 pitch/roll aircraft attitude, airspeed, wind, and previous command state, with
 no dock geo/env truth, direct range, bbox-height, dock height, ground speed,
 altitude-derived vertical state, or sim-truth dependency. Do not project
-world-frame wind direction into the command frame for final-approach navigation
+world-frame wind direction into the command frame for guidance navigation
 through hidden aircraft compass yaw.
 
 `ideal_360` is a simulator-only sensor upper bound: it must keep the camera

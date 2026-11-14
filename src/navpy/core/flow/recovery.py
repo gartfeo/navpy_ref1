@@ -16,7 +16,7 @@ from navpy.core.flow.nav_status import NavigationStatusReporter
 
 @dataclass(frozen=True)
 class RecoveryPorts:
-    final_approach_active: Callable[[], bool]
+    guidance_active: Callable[[], bool]
     detector_stop: Callable[[], None]
     current_relative: Callable[[], Optional[Location]]
     pause_navigation: Callable[[], None]
@@ -48,10 +48,10 @@ class RecoveryAction:
         if self._phase.current == NavState.DOCKED:
             return self._leave_docked()
         if (
-            self._ports.final_approach_active()
+            self._ports.guidance_active()
             and not self._post_dock_climb.active
         ):
-            return self._advance_final_approach()
+            return self._advance_guidance()
         if self._phase.current == NavState.RESET:
             self._ports.detector_stop()
             altitude = self._altitude()
@@ -96,7 +96,7 @@ class RecoveryAction:
         pitch = math.radians(2 * self._ports.max_pitch_deg())
         self._ports.set_attitude(0, pitch, 0, 1.0)
 
-    def _advance_final_approach(self) -> bool:
+    def _advance_guidance(self) -> bool:
         if self._phase.current == NavState.RESET:
             self._ports.detector_stop()
             self._phase.request(NavState.DETECT)

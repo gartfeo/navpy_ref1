@@ -1,4 +1,4 @@
-"""Eligible airspeed (hitl_final_approach.md section 9, step 20).
+"""Eligible airspeed (hitl_guidance.md section 9, step 20).
 
 The source (plugins/vehicle/ardupilot/airspeed_eligibility.py) admits only the own autopilot's selected pitot
 sensor after an accepted 20 Hz claim, the pinned parameters and 60 healthy seconds at 18 Hz or more; any fault after

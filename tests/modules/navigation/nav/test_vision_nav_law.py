@@ -2,10 +2,10 @@ import math
 
 import pytest
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.command_anchor import (
     PITCH_CEILING_DEG,
@@ -16,8 +16,8 @@ from navpy.plugins.laws.vision_pn.law import (
     VERTICAL_RATE_FILTER_TAU_S,
     VisionNavLaw,
 )
-from navpy.plugins.vehicle.ardupilot.final_approach_airframe_config import (
-    VehicleFinalApproachLawConfigProvider,
+from navpy.plugins.vehicle.ardupilot.guidance_airframe_config import (
+    VehicleGuidanceLawConfigProvider,
 )
 
 
@@ -31,7 +31,7 @@ def _frame(
     yaw_rate=0.0,
     pitch=0.0,
 ):
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         "cam", 0, 7, 9, ts, *body, *control, roll, airspeed, yaw_rate, pitch
     )
 
@@ -44,8 +44,8 @@ def _unit(angle_y_deg=0.0, angle_z_deg=0.0):
 
 
 def _law(tau=0.5, throttle=None):
-    return VisionNavLaw(FixedFinalApproachLawConfigProvider(
-        FinalApproachLawConfig(-55.0, 25.0, 45.0, tau, throttle)
+    return VisionNavLaw(FixedGuidanceLawConfigProvider(
+        GuidanceLawConfig(-55.0, 25.0, 45.0, tau, throttle)
     ))
 
 
@@ -103,7 +103,7 @@ def test_preview_before_seed_yields_a_flyable_plan_and_does_not_advance():
 
 
 def test_seed_without_issuing_a_command_still_anchors_a_clamped_value():
-    # record_final_approach_confirmed_detection seeds the law WITHOUT issuing a
+    # record_guidance_confirmed_detection seeds the law WITHOUT issuing a
     # command, so the seeded anchor is what the first real command integrates
     # from. Seeding at -80 deg against a -55 deg limit previously left the raw
     # -80 in the anchor, and the first issued command came out -44.601249.
@@ -353,7 +353,7 @@ def test_the_tighter_of_autopilot_limit_and_law_cap_clips_the_command():
     ("configured_throttle", "trim_throttle"),
     [(150.0, 40.0), (None, 150.0)],
 )
-def test_final_approach_throttle_is_clamped_to_the_mavlink_fraction_range(
+def test_guidance_throttle_is_clamped_to_the_mavlink_fraction_range(
     configured_throttle,
     trim_throttle,
 ):
@@ -370,8 +370,8 @@ def test_final_approach_throttle_is_clamped_to_the_mavlink_fraction_range(
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"final_approach_throttle": configured_throttle})()
-    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
+    args = type("Args", (), {"guidance_throttle": configured_throttle})()
+    law = VisionNavLaw(VehicleGuidanceLawConfigProvider(Vehicle(), args))
 
     assert law.preview(_frame()).command.cmd_thr == 1.0
 
@@ -427,8 +427,8 @@ def test_actual_parameter_absence_never_defaults_tau_or_throttle():
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"final_approach_throttle": None})()
-    config = VehicleFinalApproachLawConfigProvider(Vehicle(), args).read()
+    args = type("Args", (), {"guidance_throttle": None})()
+    config = VehicleGuidanceLawConfigProvider(Vehicle(), args).read()
     assert config is not None
     assert config.pitch_time_constant_s is None
     assert config.throttle is None
@@ -446,7 +446,7 @@ def test_actual_parameter_absence_never_defaults_tau_or_throttle():
         {"ROLL_LIMIT_DEG": -1.0},
     ],
 )
-def test_invalid_actual_limits_make_final_approach_config_unavailable(updates):
+def test_invalid_actual_limits_make_guidance_config_unavailable(updates):
     params = {
         "PTCH_LIM_MIN_DEG": -35.0,
         "PTCH_LIM_MAX_DEG": 18.0,
@@ -458,9 +458,9 @@ def test_invalid_actual_limits_make_final_approach_config_unavailable(updates):
         (),
         {"get_parameter": lambda self, name, quiet=False: params.get(name)},
     )()
-    args = type("Args", (), {"final_approach_throttle": None})()
+    args = type("Args", (), {"guidance_throttle": None})()
 
-    assert VehicleFinalApproachLawConfigProvider(vehicle, args).read() is None
+    assert VehicleGuidanceLawConfigProvider(vehicle, args).read() is None
 
 
 def test_raw_autopilot_limits_are_the_exact_clipping_authority():
@@ -482,8 +482,8 @@ def test_raw_autopilot_limits_are_the_exact_clipping_authority():
             assert quiet is True
             return self.params.get(name)
 
-    args = type("Args", (), {"final_approach_throttle": None})()
-    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(Vehicle(), args))
+    args = type("Args", (), {"guidance_throttle": None})()
+    law = VisionNavLaw(VehicleGuidanceLawConfigProvider(Vehicle(), args))
     seed = _frame(ts=0.9, control=_unit(angle_z_deg=10.0), pitch=-30.0)
     law.seed(seed)
     law.commit(law.plan(seed))
@@ -519,8 +519,8 @@ def test_config_provider_refreshes_actual_parameters_on_law_reset():
             return self.params.get(name)
 
     vehicle = Vehicle()
-    args = type("Args", (), {"final_approach_throttle": None})()
-    law = VisionNavLaw(VehicleFinalApproachLawConfigProvider(vehicle, args))
+    args = type("Args", (), {"guidance_throttle": None})()
+    law = VisionNavLaw(VehicleGuidanceLawConfigProvider(vehicle, args))
     assert law.preview(_frame()).command.cmd_thr == 0.25
     vehicle.params["PTCH_LIM_MIN_DEG"] = None
     law.reset()

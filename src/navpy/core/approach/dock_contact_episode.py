@@ -14,8 +14,8 @@ from typing import Optional
 
 from navpy.core.approach.dock_episode_end import HELD_REASON
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachTerminal,
-    TerminalObserver,
+    GuidanceResult,
+    ResultObserver,
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.config.logger_args import LogStatusDest
@@ -41,8 +41,8 @@ def _docked_only(_identity: DockContactIdentity, docked: bool) -> DockEpisodeEnd
 
 def with_dock_evidence_cut(
     sensor: Optional[DockContactSensor],
-    then: Optional[TerminalObserver],
-) -> Optional[TerminalObserver]:
+    then: Optional[ResultObserver],
+) -> Optional[ResultObserver]:
     """Display only: NAV's FAILED or MISSED latch stops the sim record's
     evidence (gcs_sim_closest_approach.md), before ``then`` runs.
 
@@ -52,23 +52,23 @@ def with_dock_evidence_cut(
     if sensor is None:
         return then
 
-    def on_terminal(
-        terminal: FinalApproachTerminal,
+    def on_result(
+        result: GuidanceResult,
         identity: Optional[DockContactIdentity],
     ) -> None:
-        if identity is not None and terminal is not FinalApproachTerminal.DOCKED:
+        if identity is not None and result is not GuidanceResult.DOCKED:
             try:
                 sensor.end_evidence(identity)
             except Exception:  # noqa: BLE001 - display evidence only
                 _LOG.exception("dock evidence cut failed")
         if then is not None:
-            then(terminal, identity)
+            then(result, identity)
 
-    return on_terminal
+    return on_result
 
 
 
-class FinalApproachDockContact:
+class GuidanceDockContact:
     def __init__(
         self,
         sensor: Optional[DockContactSensor],
@@ -135,7 +135,7 @@ class FinalApproachDockContact:
 
     def disarm_held(self) -> Optional[DockContactEvent]:
         """NAV recovery's hold ends the episode (nav_held_approach.py): reported as aborted for the hold, never from
-        the terminal the episode latched while its commands were fenced, so never a miss or a failure."""
+        the result the episode latched while its commands were fenced, so never a miss or a failure."""
         return self._disarm(lambda armed, docked: DockEpisodeEnd(
             docked=docked, abort_reason=None if docked else HELD_REASON,
         ))
@@ -178,4 +178,4 @@ class FinalApproachDockContact:
         )
 
 
-__all__ = ["EpisodeEnding", "FinalApproachDockContact", "with_dock_evidence_cut"]
+__all__ = ["EpisodeEnding", "GuidanceDockContact", "with_dock_evidence_cut"]

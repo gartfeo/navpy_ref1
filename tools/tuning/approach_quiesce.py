@@ -1,16 +1,16 @@
-"""Observation and shutdown of one approach run (hitl_final_approach.md section 9, step 16).
+"""Observation and shutdown of one approach run (hitl_guidance.md section 9, step 16).
 
 Observation: navpy is the router's reader client (mav_router.py --reader): while the harness flies the fixed search
 lane, navpy may read and report but none of its writes to the aircraft reaches the board (observation_allowed).
 
-Quiesce: one idempotent step, the same for every end of the run: navpy's terminal record, the scenario's deadline,
+Quiesce: one idempotent step, the same for every end of the run: navpy's result record, the scenario's deadline,
 a crash (a role exited, a runner error), an abort (Ctrl+C, SIGTERM) and a floor breach. Its first call stops navpy
 and closes navpy's router endpoint (NavpyHandoff, navpy_handoff.py); later calls return the same record and only add
 their reason. The runner quiesces before any RTL of its own and before the board's stop.
 
 After the run, audit() reads the router's write log at the board boundary: navpy's writes outside the observation
 allow list, and navpy's writes after the first drain ack (navpy's own barrier or the runner's), must both be 0.
-outcome() takes the outcome only from a navpy terminal record the runner saw before its deadline; a deadline, a
+outcome() takes the outcome only from a navpy result record the runner saw before its deadline; a deadline, a
 stop or a crash never yields DOCKED.
 """
 from __future__ import annotations
@@ -25,7 +25,7 @@ from pymavlink.dialects.v20 import ardupilotmega as mavlink2
 
 from navpy.app.flow.confirm_record import parse_confirm_record
 from navpy.app.router_barrier import RouterBarrier
-from navpy.app.terminal_handoff import TRIGGER_TERMINAL, parse_terminal_record
+from navpy.app.result_handoff import TRIGGER_RESULT, parse_result_record
 from tools.tuning import approach_chain as chain
 from tools.tuning.approach_procs import ProcessGroup
 from tools.tuning.board import DEFAULT_BAUD
@@ -33,18 +33,18 @@ from tools.tuning.mav_router_policy import COMMAND_MESSAGES, OBSERVATION_COMMAND
 from tools.tuning.navpy_handoff import NavpyHandoff, direct_rtl, end_process, stop_navpy
 from tools.tuning.vehicle import Vehicle
 
-TERMINAL_POLL_S = 1.0           # one HEARTBEAT wait per check of navpy's output and the owned processes
+RESULT_POLL_S = 1.0           # one HEARTBEAT wait per check of navpy's output and the owned processes
 NAVPY = "navpy"
-ENDED_BY_TERMINAL, ENDED_BY_DEADLINE = "terminal record", "deadline"
+ENDED_BY_RESULT, ENDED_BY_DEADLINE = "result record", "deadline"
 # The reasons a quiesce is asked for (the first one is the run's; EXIT is the runner's last, always a repeat after a
 # clean flight).
-TERMINAL, DEADLINE, CRASH, ABORT, FLOOR, EXIT = "terminal", "deadline", "crash", "abort", "floor", "exit"
+RESULT, DEADLINE, CRASH, ABORT, FLOOR, EXIT = "result", "deadline", "crash", "abort", "floor", "exit"
 GIMBAL_STOP_OK = ("sent", "no_gimbal")
 _ALLOWED_IDS = frozenset(cls.id for cls in mavlink2.mavlink_map.values() if cls.msgname in OBSERVATION_MESSAGES)
 _COMMAND_IDS = frozenset(cls.id for cls in mavlink2.mavlink_map.values() if cls.msgname in COMMAND_MESSAGES)
 
 
-# SIGHUP (POSIX: the WSL session or terminal went away) would otherwise end the runner at once, with no stop at all.
+# SIGHUP (POSIX: the WSL session or console went away) would otherwise end the runner at once, with no stop at all.
 ABORT_SIGNALS = tuple(getattr(signal, name) for name in ("SIGTERM", "SIGHUP") if hasattr(signal, name))
 
 
@@ -141,37 +141,37 @@ class Quiesce:
 
 def observe(board: Vehicle, group: ProcessGroup, navpy_out: Path, seconds: float,
             on_confirm: Optional[Callable[[dict], None]] = None) -> str:
-    """Drain the link (the floor's hook sees every position) until the deadline, or until navpy's complete terminal
+    """Drain the link (the floor's hook sees every position) until the deadline, or until navpy's complete result
     record is read before it: a record read after the deadline, or a line not yet ended, never ends the observation.
     Each complete confirm record (navpy's confirm releasing NAV, step 23b) goes to on_confirm (the floor's release)."""
     deadline, partial = time.monotonic() + seconds, ""
     with open(navpy_out, encoding="utf-8", errors="replace") as out:
         while time.monotonic() < deadline:
-            board.wait_message("HEARTBEAT", TERMINAL_POLL_S)
+            board.wait_message("HEARTBEAT", RESULT_POLL_S)
             group.check()
             lines = (partial + out.read()).split("\n")
             partial = lines.pop()
             for confirm in filter(None, map(parse_confirm_record, lines)):
                 if on_confirm is not None:
                     on_confirm(confirm)
-            if any(parse_terminal_record(line) for line in lines) and time.monotonic() < deadline:
-                return ENDED_BY_TERMINAL
+            if any(parse_result_record(line) for line in lines) and time.monotonic() < deadline:
+                return ENDED_BY_RESULT
     return ENDED_BY_DEADLINE
 
 
 def navpy_records(navpy_out: Path) -> list[dict]:
-    """Every NAVPY_TERMINAL_V1 record navpy printed (at most one: its handoff runs once)."""
+    """Every NAVPY_RESULT_V1 record navpy printed (at most one: its handoff runs once)."""
     if not navpy_out.exists():
         return []
     lines = navpy_out.read_text(encoding="utf-8", errors="replace").splitlines()
-    return [record for record in map(parse_terminal_record, lines) if record is not None]
+    return [record for record in map(parse_result_record, lines) if record is not None]
 
 
 def outcome(records: list[dict], ended_by: Optional[str]) -> dict:
-    """The run's outcome: navpy's terminal outcome only when its record ended the observation; else None."""
+    """The run's outcome: navpy's result only when its record ended the observation; else None."""
     first = records[0] if records else None
-    counted = (first is not None and ended_by == ENDED_BY_TERMINAL and first.get("trigger", TRIGGER_TERMINAL)
-               == TRIGGER_TERMINAL)
+    counted = (first is not None and ended_by == ENDED_BY_RESULT and first.get("trigger", TRIGGER_RESULT)
+               == TRIGGER_RESULT)
     problems = []
     if first is not None and first.get("barrier") != "acked":
         problems.append(f"navpy's own barrier failed: {first.get('barrier_error')}")

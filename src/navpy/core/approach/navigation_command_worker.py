@@ -158,7 +158,7 @@ class NavigationCommandWorker:
                             raised = False
                         except Exception as exc:
                             ports.logger.error(
-                                f"Error in final-approach loop: {exc}", exc
+                                f"Error in guidance loop: {exc}", exc
                             )
                         finally:
                             # The object execute_work RETURNED, digested
@@ -169,21 +169,21 @@ class NavigationCommandWorker:
                             # Capture the immutable evidence closure before the
                             # lease is released, but execute it only after leaving
                             # the runtime session.  Attempt both operations even
-                            # if one cleanup fails so a final-approach postprocess fence
+                            # if one cleanup fails so a guidance postprocess fence
                             # cannot be stranded by a lease-release error.
                             try:
                                 postprocess_job = runtime.postprocess_job(work)
                             except Exception as exc:
                                 with suppress(Exception):
                                     ports.logger.error(
-                                        f"Error preparing final-approach postprocess: {exc}", exc,
+                                        f"Error preparing guidance postprocess: {exc}", exc,
                                     )
                             try:
                                 runtime.finish_work(work)
                             except Exception as exc:
                                 with suppress(Exception):
                                     ports.logger.error(
-                                        f"Error finishing final-approach work: {exc}", exc,
+                                        f"Error finishing guidance work: {exc}", exc,
                                     )
                     continuing_work = (
                         runtime.has_command_pending_or_in_flight()
@@ -194,7 +194,7 @@ class NavigationCommandWorker:
                         ports.postprocess_submit(postprocess_job)
                     except Exception as exc:
                         ports.logger.error(
-                            f"Error in final-approach postprocess: {exc}",
+                            f"Error in guidance postprocess: {exc}",
                             exc,
                         )
 
@@ -209,7 +209,7 @@ class NavigationCommandWorker:
                         source_work_taken = bool(ports.source_dispatch())
                     except Exception as exc:
                         ports.logger.error(
-                            f"Error dispatching final-approach source: {exc}",
+                            f"Error dispatching guidance source: {exc}",
                             exc,
                         )
 

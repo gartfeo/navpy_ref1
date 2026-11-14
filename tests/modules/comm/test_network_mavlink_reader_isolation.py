@@ -4,7 +4,7 @@ Todo 31: the GCS confirm response for a dock reached NetworkMavlink on the
 vehicle reader thread while the confirmation round's image send held the
 round's outbound fence (thumbnail, 132 chunks paced 5 ms apart, artifacts).
 The response handler waited for the fence, so the reader read nothing for
-0.56-0.71 s wall (5-7 s aircraft time at 10x). Final approach then started on
+0.56-0.71 s wall (5-7 s aircraft time at 10x). Guidance then started on
 that buffered backlog, aircraft time ran ahead of the camera frames, and the
 command failed ``source_command_stale``.
 """

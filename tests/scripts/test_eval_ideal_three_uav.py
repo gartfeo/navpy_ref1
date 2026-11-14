@@ -427,7 +427,7 @@ def test_ideal_analysis_accepts_isolated_fixed_grid_phase_compression(tmp_path):
     assert report.passed is True, owner.errors
 
 
-def test_ideal_analysis_binds_audited_approval_to_final_approach_poi(tmp_path):
+def test_ideal_analysis_binds_audited_approval_to_guidance_poi(tmp_path):
     approvals = _write_ideal_run(tmp_path)
     approvals[1]["task_id"] = 99
 
@@ -504,8 +504,8 @@ def test_ideal_analysis_fails_slow_active_command_cadence(tmp_path):
     ("stream", "expected_error"),
     [
         ("detector_pose", "ideal frame maximum source gap"),
-        ("observation", "final-approach observation maximum source gap"),
-        ("worker", "fresh final-approach command maximum source gap"),
+        ("observation", "guidance observation maximum source gap"),
+        ("worker", "fresh guidance command maximum source gap"),
     ],
 )
 def test_ideal_analysis_rejects_ten_second_source_stage_gaps(
@@ -572,7 +572,7 @@ def test_ideal_analysis_requires_ten_fresh_observations(tmp_path):
 
     vehicle = next(item for item in report.vehicles if item.sys_id == 4)
     assert report.passed is False
-    assert any("fresh final-approach observations 1 < 10" in error for error in vehicle.errors)
+    assert any("fresh guidance observations 1 < 10" in error for error in vehicle.errors)
 
 
 def test_ideal_analysis_rejects_zero_command_wall_gaps(tmp_path):

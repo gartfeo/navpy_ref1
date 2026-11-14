@@ -2,7 +2,7 @@ import math
 
 import pytest
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.visual_pass import (
     PASS_ARM_MAX_OFF_NOSE_DEG,
     VisualPassDetector,
@@ -10,7 +10,7 @@ from navpy.core.approach.vision_nav.visual_pass import (
 
 
 def _frame(ts, body_x):
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         "cam", 0, 1, 2, ts,
         body_x, 0.0, 0.0 if body_x else 1.0,
         body_x, 0.0, 0.0 if body_x else 1.0,
@@ -55,18 +55,18 @@ def test_intervening_forward_clears_pending_aft_evidence():
 # --- a6: arm only when the dock is clearly ahead ---------------------------
 
 
-def _los(ts: float, off_nose_deg: float) -> FinalApproachVisionFrame:
+def _los(ts: float, off_nose_deg: float) -> GuidanceVisionFrame:
     """Unit LOS `off_nose_deg` from the nose, in the body x-y plane."""
     angle = math.radians(off_nose_deg)
     x, y = math.cos(angle), math.sin(angle)
-    return FinalApproachVisionFrame(
+    return GuidanceVisionFrame(
         "cam", 0, 1, 2, ts,
         x, y, 0.0,
         x, y, 0.0,
     )
 
 
-def _run(detector: VisualPassDetector, *frames: FinalApproachVisionFrame) -> list[bool]:
+def _run(detector: VisualPassDetector, *frames: GuidanceVisionFrame) -> list[bool]:
     suppressed = []
     for frame in frames:
         plan = detector.plan(frame)

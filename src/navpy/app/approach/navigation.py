@@ -17,7 +17,7 @@ from navpy.core.approach.navigation_command_worker import (
     CommandLoopObserver,
 )
 from navpy.core.approach.navigation_source_dispatch import SourceDispatch
-from navpy.core.approach.vision_nav.episode_latch import TerminalObserver
+from navpy.core.approach.vision_nav.episode_latch import ResultObserver
 from navpy.core.skills.geo_approach.mission_planner import MissionPlanner
 from navpy.core.ports.vehicle_contract import IVehicle
 from navpy.app.approach.law_airspeed import LawAirspeed
@@ -36,7 +36,7 @@ class Navigation:
         logger: ILogger,
         args: NavigationArgs,
         scheduler_cadence: Optional[SchedulerCadence] = None,
-        on_terminal: Optional[TerminalObserver] = None,
+        on_result: Optional[ResultObserver] = None,
         law_airspeed: Optional[LawAirspeed] = None,
         command_formation: Callable[[], ContextManager[None]] = nullcontext,
         command_pass: Callable[[], ContextManager[None]] = nullcontext,
@@ -53,14 +53,14 @@ class Navigation:
             logger,
             args,
             scheduler_cadence,
-            on_terminal,
+            on_result,
             law_airspeed,
             command_formation,
             command_pass,
         )
         self._lifecycle = composition.lifecycle
         self._mode_state = composition.mode_state
-        self.final_approach = composition.final_approach
+        self.guidance = composition.guidance
         self.dock_outcome = composition.dock_outcome
         self.legacy_pois = composition.legacy_pois
         self.vehicle_commands = composition.vehicle_commands
@@ -78,7 +78,7 @@ class Navigation:
     def stop(self) -> None:
         self._lifecycle.stop()
 
-    def pause_final_approach(self) -> None:
+    def pause_guidance(self) -> None:
         self._lifecycle.pause()
 
     def raise_if_failed(self) -> None:
@@ -88,12 +88,12 @@ class Navigation:
         with self._mode_state.runtime_session() as runtime:
             return runtime.nav(detect_data)
 
-    def bind_final_approach_source_dispatch(
+    def bind_guidance_source_dispatch(
         self,
         callback: SourceDispatch,
         observer: CommandLoopObserver | None = None,
     ) -> None:
-        """Publish the final-approach source's dispatch, and its observer if it
+        """Publish the guidance source's dispatch, and its observer if it
         has one. The observer is record-only; nothing reads it back."""
         self._bind_source_dispatch(callback, observer)
 

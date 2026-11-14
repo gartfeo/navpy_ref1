@@ -115,7 +115,7 @@ the GCS also sets each vehicle's rally table (`src/gcs/backend/routes/mission_ra
 So every RTL circles the DDH: NavPy's recovery escalation, the Lua
 `nav_watchdog.lua` RTL, and ArduPilot's own failsafes (radio, GCS, battery,
 geofence), since all of them use the same RTL. Nothing in RTL parks the UAV:
-parking in the hub's dock net needs NavPy's vision-guided final approach.
+parking in the hub's dock net needs NavPy's vision guidance.
 
 Owner rulings, 2026-11-09, on who uses RTL and who parks:
 
@@ -214,7 +214,7 @@ from the heartbeat and reports failure instead of "restarted".
 - **Existing approach bounds stay.** The 1 s command freshness and hold
   expiry are not extended to fit a recovery timer.
 - **Pure vision constraint holds.** Recovery may read mode, armed state and
-  mission state. It ends the final-approach command generation before any
+  mission state. It ends the guidance command generation before any
   mission recovery, never feeds the approach law, and never routes an active
   approach through `recovery.py`'s altitude branch.
 
@@ -635,7 +635,7 @@ merges before step 4, which builds on its deadline fix.
      vehicle's `recoveries`):
      - `invalid`: the evidence is missing or incomplete: a missing file
        (the recovery journal included), the evidence-writer or
-       recovery-journal failure marker, unreadable final-approach evidence or
+       recovery-journal failure marker, unreadable guidance evidence or
        journal, or a lockstep analysis that raised. Not scored, never a pass.
      - `failed`: a product gate failed, or a run without scheduled faults
        recovered (the clean-run gate, "unexpected recovery in a clean run").
@@ -764,8 +764,8 @@ merges before step 4, which builds on its deadline fix.
       succeeds; one that raises is retried at the next decision, unless the
       operator selected a mode meanwhile.
    4. The held episode's dock contact ends as aborted for the hold
-      (`HELD_REASON`, `FinalApproachDockContact.disarm_held`), never from
-      the terminal latched while fenced, so the sim record never shows it
+      (`HELD_REASON`, `GuidanceDockContact.disarm_held`), never from
+      the result latched while fenced, so the sim record never shows it
       as missed.
 
    Codex round 2 on the step 9 fixes, fixed with one resume grant instead of

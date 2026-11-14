@@ -10,14 +10,14 @@ import pytest
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.approach.vision_nav.confirmation import (
-    FinalApproachConfirmation, FinalApproachConfirmationPorts,
+    GuidanceConfirmation, GuidanceConfirmationPorts,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector, FinalApproachProjectionConfig,
+    GuidanceFrameProjector, GuidanceProjectionConfig,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider, FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider, GuidanceLawConfig,
 )
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.ports.gimbal_abc import GimbalData
@@ -121,18 +121,18 @@ def _render_associated_frame(body_rates, compass_yaw):
 
 
 def _confirmation():
-    return FinalApproachConfirmation(FinalApproachConfirmationPorts(
+    return GuidanceConfirmation(GuidanceConfirmationPorts(
         lock=threading.RLock(),
-        projector=FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True)),
+        projector=GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True)),
         epochs=SourceEpochLedger(),
-        law=VisionNavLaw(FixedFinalApproachLawConfigProvider(
-            FinalApproachLawConfig(-55.0, 20.0, 45.0, None, 0.0),
+        law=VisionNavLaw(FixedGuidanceLawConfigProvider(
+            GuidanceLawConfig(-55.0, 20.0, 45.0, None, 0.0),
         )),
     ))
 
 
 @pytest.mark.parametrize("compass_yaw", [0.0, 137.0])
-def test_ideal_source_retains_frame_gyros_for_final_approach_confirmation(compass_yaw):
+def test_ideal_source_retains_frame_gyros_for_guidance_confirmation(compass_yaw):
     pose, detection = _render_associated_frame([0.1, 0.2, 0.3], compass_yaw)
     # The real confirmation gate previously refused every ideal source frame.
     confirmation = _confirmation()
@@ -141,7 +141,7 @@ def test_ideal_source_retains_frame_gyros_for_final_approach_confirmation(compas
     assert pose.body_rates_rad_s == (0.1, 0.2, 0.3)
     expected = (0.2 * math.sin(math.radians(10)) + 0.3 * math.cos(math.radians(10))) / math.cos(math.radians(2))
     assert detection.pixel.aircraft_yaw_rate_rad_s == pytest.approx(expected)
-    assert confirmation.record_final_approach_confirmed_detection(detection)
+    assert confirmation.record_guidance_confirmed_detection(detection)
 
 
 def test_ideal_source_without_frame_gyros_remains_unconfirmable():

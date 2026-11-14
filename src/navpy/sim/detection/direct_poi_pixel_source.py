@@ -5,7 +5,7 @@ WHY THE POSE COMES FROM SIM_STATE AND NOT FROM ATTITUDE
 Synthesizing the POI pixel means rotating the POI vector into the body
 frame, and that rotation needs a yaw. Taking it from the ATTITUDE message is
 wrong here: ATTITUDE carries the vehicle's compass-derived ESTIMATE, and this
-project forbids compass yaw in the final-approach command path precisely because its
+project forbids compass yaw in the guidance command path precisely because its
 bias is indistinguishable from a navigation error. A biased yaw rotates the
 synthesized line of sight by that same bias, so the contamination survives into
 the ray even though the law never reads yaw itself -- a 15 degree yaw shift

@@ -132,7 +132,7 @@ def _create_mock_detector(
     detector.is_geo_armed = False
     detector.refresh = Mock()
     detector.set_sim_poi = Mock()
-    detector.freeze_final_approach_zoom_at_min = Mock()
+    detector.freeze_guidance_zoom_at_min = Mock()
 
     # Wire is_geo_armed to the geo lifecycle the way the real chain behaves
     # (GimbalNavigation._geo_poi drives is_geo_armed): a successful
@@ -183,16 +183,16 @@ def _create_mock_navigation():
     navigation.algorithm_info = ("l1", 1.0)
     navigation.init = Mock()
     navigation.nav = Mock(return_value=True)
-    navigation.pause_final_approach = Mock()
-    navigation.final_approach = Mock()
-    navigation.final_approach.is_active = False
-    navigation.final_approach.clear_source_discontinuity = Mock()
-    navigation.final_approach.invalidate_pending_source_work = Mock()
-    navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-    navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
-    navigation.final_approach.nav_without_detection = Mock(return_value=True)
-    navigation.final_approach.poi_passed_override = Mock(return_value=None)
-    navigation.final_approach.last_measured_lateral_bearing_deg = Mock(return_value=None)
+    navigation.pause_guidance = Mock()
+    navigation.guidance = Mock()
+    navigation.guidance.is_active = False
+    navigation.guidance.clear_source_discontinuity = Mock()
+    navigation.guidance.invalidate_pending_source_work = Mock()
+    navigation.guidance.can_confirm_detection = Mock(return_value=True)
+    navigation.guidance.record_confirmed_detection = Mock(return_value=True)
+    navigation.guidance.nav_without_detection = Mock(return_value=True)
+    navigation.guidance.poi_passed_override = Mock(return_value=None)
+    navigation.guidance.last_measured_lateral_bearing_deg = Mock(return_value=None)
     navigation.legacy_pois = Mock()
     navigation.legacy_pois.locked_distance = Mock(return_value=1000.0)
     navigation.legacy_pois.ground_location = Mock(
@@ -401,7 +401,7 @@ class TestNavControllerInit(unittest.TestCase):
         )
 
         self.assertEqual(set(vars(controller)), {"_application"})
-        navigation.bind_final_approach_source_dispatch.assert_called_once()
+        navigation.bind_guidance_source_dispatch.assert_called_once()
 
     def test_init_state_is_onhold(self):
         """NavController starts in ONHOLD state."""
@@ -597,7 +597,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
 
         self.assertEqual(controller.phase.current, NavState.NAV)
 
-    def test_decide_confirmed_final_approach_poi_waits_for_fresh_detection(self):
+    def test_decide_confirmed_guidance_poi_waits_for_fresh_detection(self):
         """A delayed operator approval must not launch NAV on stale vision.
 
         This is the mechanism from GCS run 213125: the POI disappeared
@@ -606,9 +606,9 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         """
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=5)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=True)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
 
         poi = _create_detected_poi(obj_id=1)
@@ -620,13 +620,13 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.decision.decide()
 
         self.assertEqual(controller.phase.current, NavState.CONFIRM)
-        navigation.final_approach.can_confirm_detection.assert_not_called()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         vehicle.set_parameter.assert_not_called()
         navigation.vehicle_commands.peer_poi.assert_not_called()
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
 
-    def test_decide_confirmed_final_approach_poi_rejects_source_cache_without_event(self):
+    def test_decide_confirmed_guidance_poi_rejects_source_cache_without_event(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=5)
         poi = _create_detected_poi(obj_id=1, task_id=11)
         detector = _create_mock_detector(
@@ -636,8 +636,8 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         detector.has_source_driven_detection_events = True
         detector.drain_detection_events.return_value = []
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=vehicle,
             detector=detector,
@@ -654,11 +654,11 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.actions.act()
 
         self.assertEqual(controller.phase.current, NavState.CONFIRM)
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         navigation.nav.assert_not_called()
         vehicle.set_mode.assert_not_called()
 
-    def test_decide_confirmed_final_approach_poi_accepts_fresh_tracked_orbit_frame(self):
+    def test_decide_confirmed_guidance_poi_accepts_fresh_tracked_orbit_frame(self):
         """A fresh visual releases an approved orbit even if preview is limited.
 
         During a human review the aircraft continues around the POI, so a
@@ -675,9 +675,9 @@ class TestNavControllerStateTransitions(unittest.TestCase):
             _source_event([poi], primary_poi=poi)
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=False)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=False)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation,
         )
@@ -690,10 +690,10 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.decision.decide()
 
         self.assertEqual(controller.phase.current, NavState.NAV)
-        navigation.final_approach.can_confirm_detection.assert_not_called()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
 
-    def test_decide_confirmed_final_approach_poi_rejects_stale_source_event(self):
+    def test_decide_confirmed_guidance_poi_rejects_stale_source_event(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=5)
         poi = _stamp_fresh_source_poi(
             _create_detected_poi(obj_id=1, task_id=11)
@@ -712,7 +712,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
             _source_event([poi], primary_poi=poi)
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(
             vehicle=vehicle,
             detector=detector,
@@ -729,7 +729,7 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.actions.act()
 
         self.assertEqual(controller.phase.current, NavState.CONFIRM)
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         navigation.nav.assert_not_called()
         vehicle.set_mode.assert_not_called()
 
@@ -762,8 +762,8 @@ class TestNavControllerStateTransitions(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=5)
         controller = _create_controller(
             vehicle=vehicle,
@@ -782,16 +782,16 @@ class TestNavControllerStateTransitions(unittest.TestCase):
         controller.actions.act()
 
         self.assertEqual(controller.phase.current, NavState.NAV)
-        navigation.final_approach.record_confirmed_detection.assert_called_once_with(
+        navigation.guidance.record_confirmed_detection.assert_called_once_with(
             latest
         )
         navigation.nav.assert_called_once_with(latest)
 
     def test_coordinate_pass_does_not_reset_while_confirmation_is_pending(self):
-        """Pass/reset state starts only after final-approach NAV is active."""
+        """Pass/reset state starts only after guidance NAV is active."""
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=5)
         navigation = _create_mock_navigation()
-        navigation.final_approach.poi_passed_override = Mock(return_value=None)
+        navigation.guidance.poi_passed_override = Mock(return_value=None)
         navigation.legacy_pois.locked_distance = Mock(side_effect=[30.0, 40.0])
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         poi = _create_detected_poi(obj_id=1)
@@ -1275,7 +1275,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation,
         )
@@ -1300,10 +1300,10 @@ class TestNavControllerGeoHold(unittest.TestCase):
 
     def test_geo_hold_never_activates_in_nav(self):
         """A geo is present and the loss hold has elapsed, but NAV (the
-        final approach) is running: the camera is never geo-pointed."""
+        guidance) is running: the camera is never geo-pointed."""
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(detector=detector, navigation=navigation)
 
         poi = _create_detected_poi(obj_id=1)
@@ -1350,7 +1350,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
     def _vision_law_own_geo_controller(self):
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5),
             detector=detector,
@@ -1501,7 +1501,7 @@ class TestNavControllerGeoHold(unittest.TestCase):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO, next_wp=5)
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = False
+        navigation.guidance.is_active = False
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation,
         )
@@ -2413,7 +2413,7 @@ class TestNavControllerActDetect(unittest.TestCase):
 class TestNavControllerActConfirm(unittest.TestCase):
     """Tests for _act_confirm behavior."""
 
-    def test_final_approach_local_gate_still_requests_operator_confirmation(self):
+    def test_guidance_local_gate_still_requests_operator_confirmation(self):
         from navpy.core.skills.acquire.approach_strategy import ApproachKind
 
         frame = np.zeros((480, 640, 3), dtype=np.uint8)
@@ -2424,9 +2424,9 @@ class TestNavControllerActConfirm(unittest.TestCase):
         )
         detector = _create_mock_detector(detections=[poi])
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=True)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = create_nav_test_rig(
             _create_mock_vehicle(), detector, navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.ORBIT,
@@ -2444,10 +2444,10 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
         controller.confirmation_action.act()
 
-        navigation.final_approach.can_confirm_detection.assert_called_once_with(poi)
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_called_once_with(poi)
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         controller.confirmation_manager.review.assert_called_once_with([poi])
-        detector.freeze_final_approach_zoom_at_min.assert_called_once_with()
+        detector.freeze_guidance_zoom_at_min.assert_called_once_with()
         navigation.vehicle_commands.peer_poi.assert_not_called()
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
         self.assertEqual(
@@ -2455,8 +2455,8 @@ class TestNavControllerActConfirm(unittest.TestCase):
             ConfirmationStatus.CONFIRMING,
         )
 
-    def test_final_approach_operator_review_waits_for_recognition_image_while_approaching(self):
-        """Final-approach review must not send the 3 px image seen in run 213125.
+    def test_guidance_operator_review_waits_for_recognition_image_while_approaching(self):
+        """Guidance review must not send the 3 px image seen in run 213125.
 
         While recognition zoom is converging, the fixed-wing vehicle must keep
         flying its existing approach. Replacing a POI-centred orbit with a
@@ -2485,9 +2485,9 @@ class TestNavControllerActConfirm(unittest.TestCase):
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=90.0)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=True)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         vision_profile = {
             "detector": {
                 "dock_presets": {"dock": {"min_pixel_size": 48.0}},
@@ -2509,8 +2509,8 @@ class TestNavControllerActConfirm(unittest.TestCase):
 
         controller.confirmation_action.act()
 
-        navigation.final_approach.can_confirm_detection.assert_called_once_with(poi)
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_called_once_with(poi)
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         controller.confirmation_manager.review.assert_not_called()
         navigation.vehicle_commands.peer_poi.assert_not_called()
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
@@ -2603,21 +2603,21 @@ class TestNavControllerActConfirm(unittest.TestCase):
         controller.confirmation_manager.review.assert_not_called()
         navigation.vehicle_commands.peer_poi_loiter.assert_not_called()
 
-    def test_final_approach_manual_frameless_source_reviews_without_final_approach_record(self):
-        """Final-approach MANUAL keeps its deferred record when the frame is waived.
+    def test_guidance_manual_frameless_source_reviews_without_guidance_record(self):
+        """Guidance MANUAL keeps its deferred record when the frame is waived.
 
-        The frame waiver only removes the image wait. The final-approach observation
+        The frame waiver only removes the image wait. The guidance observation
         and wind freeze stay deferred to the dive-commit at NAV entry, so
-        record_final_approach_confirmed_detection must not fire here.
+        record_guidance_confirmed_detection must not fire here.
         """
         poi = _create_detected_poi(
             obj_id=1, detection_frame=None, supports_confirmation_frame=False,
         )
         detector = _create_mock_detector(detections=[poi])
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=True)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=True)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = _create_controller(
             detector=detector, navigation=navigation,
             args=_create_mock_args(auto_confirm=False),
@@ -2630,7 +2630,7 @@ class TestNavControllerActConfirm(unittest.TestCase):
         controller.confirmation_action.act()
 
         controller.confirmation_manager.review.assert_called_once_with([poi])
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
 
     def test_act_confirm_requests_confirmation_with_frame(self):
         """_act_confirm requests confirmation when frame available."""
@@ -3553,7 +3553,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once()
 
@@ -3576,7 +3576,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(second)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(second)
 
@@ -3597,18 +3597,18 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(second)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.phase.current = NavState.NAV
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
         self.assertEqual(len(controller.detections.pending_events), 1)
 
         vehicle.get_mode = FlightMode.GUIDED
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(second)
         self.assertEqual(controller.detections.pending_events, [])
@@ -3633,14 +3633,14 @@ class TestNavControllerActNav(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         call_order = []
-        navigation.final_approach.clear_source_discontinuity = Mock(
+        navigation.guidance.clear_source_discontinuity = Mock(
             side_effect=lambda sources: call_order.append(
                 f"clear:{','.join(sources)}"
             )
         )
-        navigation.final_approach.record_confirmed_detection = Mock(
+        navigation.guidance.record_confirmed_detection = Mock(
             side_effect=lambda poi: call_order.append(
                 "record_first" if poi is first else "record_second"
             ) or True
@@ -3656,20 +3656,20 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(second)
-        controller.final_approach.confirmed_recorded = False
+        controller.guidance.confirmed_recorded = False
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertEqual(
             call_order,
             ["clear:gimbal_0", "record_second", "nav_second"],
         )
-        self.assertTrue(controller.final_approach.confirmed_recorded)
+        self.assertTrue(controller.guidance.confirmed_recorded)
         self.assertEqual(controller.detections.pending_events, [])
         self.assertFalse(controller.navigation_failures.failed)
-        controller.final_approach_nav.close_source_admission()
+        controller.guidance_nav.close_source_admission()
 
     def test_manual_source_commit_ignores_superseded_seed_event(self):
         old = _create_detected_poi(obj_id=1, task_id=11)
@@ -3683,8 +3683,8 @@ class TestNavControllerActNav(unittest.TestCase):
             _source_event([fresh], primary_poi=fresh),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.record_confirmed_detection = Mock(
+        navigation.guidance.is_active = True
+        navigation.guidance.record_confirmed_detection = Mock(
             side_effect=lambda candidate: candidate is fresh
         )
         controller = _create_controller(
@@ -3696,17 +3696,17 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertEqual(
-            navigation.final_approach.record_confirmed_detection.call_args_list,
+            navigation.guidance.record_confirmed_detection.call_args_list,
             [call(fresh)],
         )
         navigation.nav.assert_called_once_with(fresh)
-        self.assertTrue(controller.final_approach.confirmed_recorded)
+        self.assertTrue(controller.guidance.confirmed_recorded)
         self.assertEqual(controller.detections.pending_events, [])
         self.assertFalse(controller.navigation_failures.failed)
-        controller.final_approach_nav.close_source_admission()
+        controller.guidance_nav.close_source_admission()
 
     def test_act_nav_coalesces_coordinator_child_events_to_newest(self):
         first = _create_detected_poi(obj_id=7)
@@ -3735,7 +3735,7 @@ class TestNavControllerActNav(unittest.TestCase):
             controller.detections.primary_poi,
         )
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(second)
         self.assertEqual(first.identity.task_id, second.identity.task_id)
@@ -3759,18 +3759,18 @@ class TestNavControllerActNav(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.nav_without_detection = Mock(return_value=True)
+        navigation.guidance.nav_without_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=detector,
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
         self.assertTrue(controller.navigation_failures.failed)
@@ -3796,7 +3796,7 @@ class TestNavControllerActNav(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.nav_without_detection = Mock(return_value=True)
+        navigation.guidance.nav_without_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=detector,
@@ -3806,10 +3806,10 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(poi)
-        navigation.final_approach.nav_without_detection.assert_not_called()
+        navigation.guidance.nav_without_detection.assert_not_called()
 
     def test_act_nav_preserves_skipped_discontinuity_for_newest_event(self):
         poi = _create_detected_poi(obj_id=1, task_id=11)
@@ -3838,17 +3838,17 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
-        navigation.final_approach.clear_source_discontinuity.assert_called_once_with(
+        navigation.guidance.clear_source_discontinuity.assert_called_once_with(
             ("gimbal_0",)
         )
         navigation.nav.assert_called_once_with(poi)
-        navigation.final_approach.nav_without_detection.assert_not_called()
+        navigation.guidance.nav_without_detection.assert_not_called()
         self.assertIs(navigation.nav.call_args.args[0], poi)
         self.assertEqual(newest.source_timestamp_s, 20.02)
 
@@ -3871,7 +3871,7 @@ class TestNavControllerActNav(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=detector,
@@ -3881,12 +3881,12 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         navigation.nav.assert_not_called()
-        navigation.final_approach.nav_without_detection.assert_not_called()
-        self.assertFalse(controller.final_approach.confirmed_recorded)
+        navigation.guidance.nav_without_detection.assert_not_called()
+        self.assertFalse(controller.guidance.confirmed_recorded)
         self.assertEqual(controller.detections.pending_events, [])
 
     def test_act_nav_resets_visual_history_after_event_overload(self):
@@ -3915,9 +3915,9 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
-        navigation.final_approach.clear_source_discontinuity.assert_called_once_with(
+        navigation.guidance.clear_source_discontinuity.assert_called_once_with(
             ("gimbal_0",)
         )
         navigation.nav.assert_called_once_with(poi)
@@ -3971,8 +3971,8 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(newest)
-        controller.final_approach.confirmed_recorded = True
-        navigation.final_approach.clear_source_discontinuity.side_effect = (
+        controller.guidance.confirmed_recorded = True
+        navigation.guidance.clear_source_discontinuity.side_effect = (
             lambda names: order.append((
                 "clear",
                 names,
@@ -3982,7 +3982,7 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertEqual(
             order,
@@ -4007,7 +4007,7 @@ class TestNavControllerActNav(unittest.TestCase):
         detector.has_source_driven_detection_events = True
         detector.drain_detection_events.return_value = [event]
         navigation = _create_mock_navigation()
-        navigation.final_approach.clear_source_discontinuity.side_effect = RuntimeError(
+        navigation.guidance.clear_source_discontinuity.side_effect = RuntimeError(
             "epoch clear failed"
         )
         controller = _create_controller(
@@ -4016,12 +4016,12 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
         with self.assertRaisesRegex(RuntimeError, "epoch clear failed"):
-            controller.final_approach_nav.act_nav()
+            controller.guidance_nav.act_nav()
 
         self.assertEqual(controller.detections.pending_events, [event])
         navigation.nav.assert_not_called()
@@ -4054,8 +4054,8 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
-        navigation.final_approach.clear_source_discontinuity.side_effect = (
+        controller.guidance.confirmed_recorded = True
+        navigation.guidance.clear_source_discontinuity.side_effect = (
             lambda _names: controller.detections.replace(
                 [next_poi],
                 next_poi,
@@ -4066,7 +4066,7 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(poi)
         self.assertEqual(controller.detections.pending_events, [next_event])
@@ -4099,8 +4099,8 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
-        navigation.final_approach.clear_source_discontinuity.side_effect = (
+        controller.guidance.confirmed_recorded = True
+        navigation.guidance.clear_source_discontinuity.side_effect = (
             lambda _names: controller.detections.replace(
                 [replacement],
                 replacement,
@@ -4111,7 +4111,7 @@ class TestNavControllerActNav(unittest.TestCase):
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
         self.assertEqual(
@@ -4138,15 +4138,15 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_failures.failed)
         self.assertEqual(controller.detections.pending_events, [])
-        navigation.final_approach.clear_source_discontinuity.assert_not_called()
+        navigation.guidance.clear_source_discontinuity.assert_not_called()
         navigation.nav.assert_not_called()
 
     def test_act_nav_mixed_coordinator_keeps_polling_active_poi(self):
@@ -4187,7 +4187,7 @@ class TestNavControllerActNav(unittest.TestCase):
         )
         controller.confirmation_manager.set_active_poi(active)
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_called_once_with(polling_poi)
         source.get_detect_data.assert_called_once()
@@ -4217,7 +4217,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.phase.current = NavState.NAV
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         polling.get_detect_data.assert_called_once()
         self.assertEqual(controller.detections.detected_pois, [polling_poi])
@@ -4238,22 +4238,22 @@ class TestNavControllerActNav(unittest.TestCase):
         ]
         coordinator = DetectionCoordinator([source, polling], Mock())
         navigation = _create_mock_navigation()
-        navigation.final_approach.nav_without_detection = Mock(return_value=True)
+        navigation.guidance.nav_without_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=coordinator,
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(polling_poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.phase.current = NavState.NAV
         controller.clock.source_fallback_s = Mock(return_value=42.0)
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
         navigation.nav.reset_mock()
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertEqual(polling.get_detect_data.call_count, 2)
         navigation.nav.assert_not_called()
@@ -4286,12 +4286,12 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(polling_poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.phase.current = NavState.NAV
 
         for _ in range(5):
             controller.sensor.sense()
-            controller.final_approach_nav.act_nav()
+            controller.guidance_nav.act_nav()
             self.assertEqual(controller.detections.pending_events, [])
 
         self.assertEqual(navigation.nav.call_count, 5)
@@ -4321,15 +4321,15 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
 
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
         self.assertFalse(controller.navigation_failures.failed)
 
         receipt_now_s[0] = 1001.25
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertFalse(controller.navigation_failures.failed)
         navigation.nav.assert_not_called()
@@ -4348,26 +4348,26 @@ class TestNavControllerActNav(unittest.TestCase):
             ),
         ]
         navigation = _create_mock_navigation()
-        navigation.final_approach.nav_without_detection = Mock(return_value=True)
+        navigation.guidance.nav_without_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=detector,
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.phase.current = NavState.NAV
         receipt_now_s = [1000.5]
         controller.clock.source_fallback_s = lambda: receipt_now_s[0]
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_failures.failed)
 
         detector.drain_detection_events.return_value = []
         receipt_now_s[0] = 1001.25
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_failures.failed)
 
@@ -4441,8 +4441,8 @@ class TestNavControllerActNav(unittest.TestCase):
         detector = _create_mock_detector(detections=[poi])
         detector.has_source_driven_detection_events = True
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=True)
+        navigation.guidance.is_active = True
+        navigation.guidance.record_confirmed_detection = Mock(return_value=True)
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
             detector=detector,
@@ -4452,10 +4452,10 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
 
     def test_act_nav_does_not_synthesize_gap_without_source_event(self):
         poi = _create_detected_poi(obj_id=1, task_id=11)
@@ -4470,14 +4470,14 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
-        navigation.final_approach.nav_without_detection.assert_not_called()
+        navigation.guidance.nav_without_detection.assert_not_called()
 
     def test_act_nav_fails_closed_on_untimestamped_source_gap(self):
         poi = _create_detected_poi(obj_id=1, task_id=11)
@@ -4494,18 +4494,18 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
         controller.clock.source_fallback_s = Mock(
             side_effect=AssertionError("must not substitute controller time"),
         )
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_failures.failed)
         navigation.nav.assert_not_called()
-        navigation.final_approach.nav_without_detection.assert_not_called()
+        navigation.guidance.nav_without_detection.assert_not_called()
         controller.clock.source_fallback_s.assert_not_called()
         self.assertEqual(controller.detections.pending_events, [])
 
@@ -4526,16 +4526,16 @@ class TestNavControllerActNav(unittest.TestCase):
             navigation=navigation,
         )
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = True
+        controller.guidance.confirmed_recorded = True
 
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
         with self.assertRaisesRegex(RuntimeError, "callback failed"):
-            controller.final_approach_nav.act_nav()
+            controller.guidance_nav.act_nav()
 
         self.assertEqual(controller.detections.pending_events, [])
         navigation.nav.side_effect = None
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
         navigation.nav.assert_called_once_with(poi)
 
     def test_act_nav_sets_failure_flag_on_failure(self):
@@ -4554,7 +4554,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_failures.failed)
 
@@ -4573,14 +4573,14 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         vehicle.set_mode.assert_called_with(FlightMode.GUIDED)
         navigation.nav.assert_not_called()
         self.assertFalse(controller.navigation_task.nav_mode_observed)
 
     def test_act_nav_marks_navigation_task_started_when_guided_observed(self):
-        """_act_nav can issue the first final-approach command (already GUIDED)
+        """_act_nav can issue the first guidance command (already GUIDED)
         before the next _decide tick; it must mark the navigation task as running so
         a subsequent abort still logs the SNAP + performs the one-shot disarm."""
         poi = _create_detected_poi(obj_id=1)
@@ -4592,12 +4592,12 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        self.assertFalse(controller.navigation_task.final_approach_navigation_active)
+        self.assertFalse(controller.navigation_task.guidance_navigation_active)
 
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         self.assertTrue(controller.navigation_task.nav_mode_observed)
-        self.assertTrue(controller.navigation_task.final_approach_navigation_active)
+        self.assertTrue(controller.navigation_task.guidance_navigation_active)
 
     def test_act_nav_waits_when_no_detection(self):
         """_act_nav waits when POI not in current detections."""
@@ -4609,7 +4609,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller.confirmation_manager.set_active_poi(poi)
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         # Should not call nav
         navigation.nav.assert_not_called()
@@ -4622,7 +4622,7 @@ class TestNavControllerActNav(unittest.TestCase):
         controller = _create_controller(navigation=navigation)
 
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         navigation.nav.assert_not_called()
 
@@ -4644,7 +4644,7 @@ class TestNavControllerActReset(unittest.TestCase):
         controller.phase.previous = NavState.RESET
         controller.actions.act()
 
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
 
     def test_act_reset_enter_clears_state(self):
         """Entering RESET calls _enter_reset (clear state + logger refresh)."""
@@ -4680,7 +4680,7 @@ class TestNavControllerActOnhold(unittest.TestCase):
         controller.phase.current = NavState.ONHOLD
         controller.actions.act()
 
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
 
 
 # =============================================================================
@@ -5099,7 +5099,7 @@ class TestNavControllerPassDetection(unittest.TestCase):
         self.assertTrue(controller.mission_pass.passed_poi())
 
     def test_passed_poi_wp_prefers_nav_state_coordinate(self):
-        """Exact assigned/orbit GPS owns pass/reset, not final-approach visual geo."""
+        """Exact assigned/orbit GPS owns pass/reset, not guidance visual geo."""
         navigation = _create_mock_navigation()
         navigation.legacy_pois.locked_distance.return_value = None
         vehicle = _create_mock_vehicle()
@@ -5124,8 +5124,8 @@ class TestNavControllerPassDetection(unittest.TestCase):
     def test_vision_nav_pass_override_blocks_all_coordinate_fallbacks(self):
         """Pure-vision completion is owned only by the visual runtime latch."""
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.poi_passed_override = Mock(side_effect=[False, True])
+        navigation.guidance.is_active = True
+        navigation.guidance.poi_passed_override = Mock(side_effect=[False, True])
         navigation.legacy_pois.locked_distance = Mock(
             side_effect=AssertionError("locked range entered pure-vision pass path")
         )
@@ -5176,13 +5176,13 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
         self.assertTrue(controller.navigation_task.peer_navigation)
 
-    def test_final_approach_gimbal_orbit_uses_demo_standoff_for_dock(self):
-        """SIYI final-approach owner/peers use the same verified 300 m orbit."""
+    def test_guidance_gimbal_orbit_uses_demo_standoff_for_dock(self):
+        """SIYI guidance owner/peers use the same verified 300 m orbit."""
         from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         vehicle = _create_mock_vehicle()
         vehicle.lim_roll = 45.0
         vehicle.min_pitch = -40.0
@@ -5212,13 +5212,13 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
 
         self.assertEqual(plan.orbit_radius, MIN_APPROACH_STANDOFF_M)
 
-    def test_final_approach_gimbal_orbit_uses_relative_height_for_air_pois(self):
+    def test_guidance_gimbal_orbit_uses_relative_height_for_air_pois(self):
         """Co-altitude absolute POIs must not turn AMSL into AGL."""
         from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         vehicle = _create_mock_vehicle()
         vehicle.home_location = Location(
             40.0, 44.0, 1000.0, is_absolute=True,
@@ -5415,7 +5415,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertEqual(controller.navigation_task.orbit_radius_m, 300.0)
         self.assertIsNone(controller.loiter_radius.original)
 
-    def _final_approach_orbit_rig(self, ground):
+    def _guidance_orbit_rig(self, ground):
         from navpy.core.skills.acquire.approach_strategy import (
             ApproachKind, ApproachPlan,
         )
@@ -5426,7 +5426,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         navigation.legacy_pois.ground_location = Mock(return_value=ground)
         logger = Mock()
         controller = create_nav_test_rig(
@@ -5444,7 +5444,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         ))
         return controller, navigation, logger, poi
 
-    def test_final_approach_self_detect_circles_the_ground_estimate(self):
+    def test_guidance_self_detect_circles_the_ground_estimate(self):
         """The UAV circles its own POI until confirmed (owner, 2026-10-07).
 
         Behaviour change: it used to keep flying AUTO, turn away and lose the
@@ -5453,7 +5453,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         estimate is not stored where the approach could read it.
         """
         ground = Location(40.002, -74.002, 95.0, is_absolute=True)
-        controller, navigation, _, poi = self._final_approach_orbit_rig(ground)
+        controller, navigation, _, poi = self._guidance_orbit_rig(ground)
 
         controller.navigation_task_action.start(poi)
 
@@ -5467,8 +5467,8 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         self.assertEqual(controller.navigation_task.orbit_radius_m, 300.0)
         self.assertIsNone(controller.navigation_task.navigation_poi_location)
 
-    def test_final_approach_self_detect_without_ground_estimate_does_not_circle(self):
-        controller, navigation, logger, poi = self._final_approach_orbit_rig(None)
+    def test_guidance_self_detect_without_ground_estimate_does_not_circle(self):
+        controller, navigation, logger, poi = self._guidance_orbit_rig(None)
 
         controller.navigation_task_action.start(poi)
 
@@ -5489,7 +5489,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = create_nav_test_rig(
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.OFFSET,
@@ -5520,11 +5520,11 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         # Terrain off: geo-ref localization is unavailable.
         navigation.legacy_pois.ground_location = Mock(return_value=None)
         # Pass ownership stays with NavController (vision-nav law).
-        navigation.final_approach.poi_passed_override = Mock(return_value=False)
+        navigation.guidance.poi_passed_override = Mock(return_value=False)
         controller = create_nav_test_rig(
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.OFFSET,
@@ -5573,7 +5573,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         detector = _create_mock_detector()
         detector.is_simulation = False
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         navigation.legacy_pois.ground_location = Mock(return_value=geo_loc)
         controller = create_nav_test_rig(
             vehicle, detector, navigation,
@@ -5605,7 +5605,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         detector = _create_mock_detector()
         detector.is_simulation = False
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         navigation.legacy_pois.ground_location = Mock(return_value=None)
         logger = Mock()
         controller = create_nav_test_rig(
@@ -5643,7 +5643,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         detector = _create_mock_detector()
         detector.is_simulation = False
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         navigation.legacy_pois.ground_location = Mock(side_effect=localize)
         logger = Mock()
         controller = create_nav_test_rig(
@@ -5690,7 +5690,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
         vehicle = _create_mock_vehicle()
         vehicle.get_parameter = Mock(return_value=80.0)
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = False  # legacy PN/PID
+        navigation.guidance.is_active = False  # legacy PN/PID
         controller = create_nav_test_rig(
             vehicle, _create_mock_detector(), navigation,
             _create_mock_args(), Mock(), approach_kind=ApproachKind.OFFSET,
@@ -5838,7 +5838,7 @@ class TestNavControllerPeerNavigation(unittest.TestCase):
             side_effect=AssertionError("peer geo entered pure navigation task gate")
         )
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         poi = _create_detected_poi(obj_id=42)
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         controller.navigation_task.peer_navigation = True
@@ -6783,7 +6783,7 @@ class TestNavControllerReset(unittest.TestCase):
             side_effect=AssertionError("altitude entered pure-vision reset path")
         )
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
         controller.phase.current = NavState.RESET
 
@@ -7064,7 +7064,7 @@ class TestNavControllerIntegration(unittest.TestCase):
         self.assertEqual(controller.phase.current, NavState.NAV)
 
         vehicle.get_mode = FlightMode.GUIDED
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
         navigation.nav.assert_called()
 
     def test_full_flow_reject_and_restart_navigation_task(self):
@@ -7157,7 +7157,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
         controller.phase.current = NavState.NAV
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         # Should wait, not crash
         navigation.nav.assert_not_called()
@@ -7216,7 +7216,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
         controller.phase.current = NavState.NAV
 
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         # Flag set, not state
         self.assertTrue(controller.navigation_failures.failed)
@@ -7244,7 +7244,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
         controller.phase.current = NavState.NAV
         controller.pass_tracker.close_observed = True
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
         self.assertTrue(controller.navigation_failures.failed)
         return controller
 
@@ -7258,7 +7258,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
         at 3-7 m, all three vehicles reset without the pass marker).
         """
         navigation = _create_mock_navigation()
-        navigation.final_approach.last_measured_lateral_bearing_deg.return_value = 167.0
+        navigation.guidance.last_measured_lateral_bearing_deg.return_value = 167.0
         logger = Mock()
         controller = self._basin_gap_failure_controller(navigation, logger)
 
@@ -7278,7 +7278,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
     def test_navigation_gap_failure_inside_basin_with_receding_gps_is_a_pass(self):
         """Basin + at least one receding GPS pair = pass even without bearing."""
         navigation = _create_mock_navigation()
-        navigation.final_approach.last_measured_lateral_bearing_deg.return_value = None
+        navigation.guidance.last_measured_lateral_bearing_deg.return_value = None
         logger = Mock()
         controller = self._basin_gap_failure_controller(navigation, logger)
         controller.pass_tracker.increase_count = 1
@@ -7293,7 +7293,7 @@ class TestNavControllerEdgeCases(unittest.TestCase):
         must stay a failure reset — review finding F2: it must not end a
         one-shot mission as a successful pass."""
         navigation = _create_mock_navigation()
-        navigation.final_approach.last_measured_lateral_bearing_deg.return_value = 4.0
+        navigation.guidance.last_measured_lateral_bearing_deg.return_value = 4.0
         logger = Mock()
         controller = self._basin_gap_failure_controller(navigation, logger)
 
@@ -7322,8 +7322,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         vehicle.disarm = Mock()
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
-        controller.navigation_task.final_approach_navigation_active = True  # navigation actually ran
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True  # navigation actually ran
+        controller.navigation_task.guidance_nav_completed = True
 
         controller.nav_transition.exit()
 
@@ -7336,8 +7336,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
         controller.phase.current = NavState.RESET
-        controller.navigation_task.final_approach_navigation_active = True
-        controller.navigation_task.final_approach_nav_completed = False
+        controller.navigation_task.guidance_navigation_active = True
+        controller.navigation_task.guidance_nav_completed = False
 
         controller.nav_transition.exit()
 
@@ -7356,8 +7356,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         logger = Mock()
         controller = _create_controller(
             vehicle=vehicle, args=args, logger=logger)
-        controller.navigation_task.final_approach_navigation_active = True  # navigation actually ran
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True  # navigation actually ran
+        controller.navigation_task.guidance_nav_completed = True
 
         outcome = controller.nav_transition.exit()
 
@@ -7469,8 +7469,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
         controller.phase.current = NavState.NAV
-        controller.navigation_task.final_approach_navigation_active = True
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True
+        controller.navigation_task.guidance_nav_completed = True
 
         outcome = controller.nav_transition.exit()
 
@@ -7493,8 +7493,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         )
         controller.phase.previous = NavState.NAV
         controller.phase.current = NavState.RESET
-        controller.navigation_task.final_approach_navigation_active = True
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True
+        controller.navigation_task.guidance_nav_completed = True
 
         controller.actions.act()
 
@@ -7504,7 +7504,7 @@ class TestNavControllerOneShot(unittest.TestCase):
         controller.state_reset.clear.assert_called_once_with()
         controller.resource_reset.clear.assert_called_once_with()
         controller.network.task_actor.start.assert_not_called()
-        navigation.pause_final_approach.assert_called_once_with()
+        navigation.pause_guidance.assert_called_once_with()
 
     def test_oneshot_redirect_is_not_committed_when_nav_exit_fails(self):
         vehicle = _create_mock_vehicle()
@@ -7519,8 +7519,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         self.assertFalse(controller.speedup.apply())
         controller.phase.previous = NavState.NAV
         controller.phase.current = NavState.RESET
-        controller.navigation_task.final_approach_navigation_active = True
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True
+        controller.navigation_task.guidance_nav_completed = True
 
         with self.assertRaises(ExceptionGroup):
             controller.actions.act()
@@ -7543,7 +7543,7 @@ class TestNavControllerOneShot(unittest.TestCase):
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
         controller.phase.current = NavState.DETECT
-        controller.navigation_task.final_approach_navigation_active = False  # never reached GUIDED
+        controller.navigation_task.guidance_navigation_active = False  # never reached GUIDED
 
         controller.nav_transition.exit()
 
@@ -7560,7 +7560,7 @@ class TestNavControllerOneShot(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, args=args, navigation=navigation, logger=logger
         )
-        controller.navigation_task.final_approach_navigation_active = True
+        controller.navigation_task.guidance_navigation_active = True
 
         controller.nav_transition.exit()
 
@@ -7576,7 +7576,7 @@ class TestNavControllerOneShot(unittest.TestCase):
         logger = Mock()
         controller = _create_controller(
             vehicle=vehicle, navigation=navigation, logger=logger)
-        controller.navigation_task.final_approach_navigation_active = False
+        controller.navigation_task.guidance_navigation_active = False
 
         controller.nav_transition.exit()
 
@@ -7601,8 +7601,8 @@ class TestNavControllerOneShot(unittest.TestCase):
         vehicle.disarm = Mock()
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
-        controller.navigation_task.final_approach_navigation_active = True
-        controller.navigation_task.final_approach_nav_completed = True
+        controller.navigation_task.guidance_navigation_active = True
+        controller.navigation_task.guidance_nav_completed = True
         controller.navigation_task.peer_navigation = True
         controller.mission.default_delivery_hub_active = True
 
@@ -7617,7 +7617,7 @@ class TestNavControllerOneShot(unittest.TestCase):
         vehicle.disarm = Mock()
         args = _create_mock_args(is_oneshot=True)
         controller = _create_controller(vehicle=vehicle, args=args)
-        controller.navigation_task.final_approach_navigation_active = True
+        controller.navigation_task.guidance_navigation_active = True
         controller.loop.stop_event.set()
 
         controller.nav_transition.exit()
@@ -7806,7 +7806,7 @@ def _commit(controller, state):
 
 class TestNavControllerPeerTaskPriority(unittest.TestCase):
     """An assigned peer task outranks an own POI not yet approached and the
-    DDH return; one final approach per flight."""
+    DDH return; one guidance per flight."""
 
     # Owner ruling 2026-10-08: the own POI is dropped, never offered. It may
     # be the assigned dock itself (task ids are numbered per UAV), and
@@ -7920,7 +7920,7 @@ class TestNavControllerPeerTaskPriority(unittest.TestCase):
             pytest_approx(40.001),
         )
 
-    def test_peer_task_does_not_preempt_an_own_final_approach(self):
+    def test_peer_task_does_not_preempt_an_own_guidance(self):
         controller = _create_controller(
             vehicle=_create_mock_vehicle(mode=FlightMode.GUIDED),
         )
@@ -8201,7 +8201,7 @@ class TestNavControllerSwarmDispatchSafety(unittest.TestCase):
         controller.detections.detected_pois = [t1, t2]
 
         controller.phase.current = NavState.NAV
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         # P2 should be submitted to the off-loop peer worker. The NAV call
         # itself must never invoke TaskActor/network I/O.
@@ -8343,8 +8343,8 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
 
         task_actor.clear_selected_poi.assert_called_once_with()
 
-    def test_rejection_pauses_the_final_approach_loop(self):
-        """Rejection pauses the navigation final-approach loop."""
+    def test_rejection_pauses_the_guidance_loop(self):
+        """Rejection pauses the navigation guidance loop."""
         vehicle = _create_mock_vehicle(mode=FlightMode.GUIDED, next_wp=7)
         navigation = _create_mock_navigation()
         controller = _create_controller(vehicle=vehicle, navigation=navigation)
@@ -8356,7 +8356,7 @@ class TestResumeAutoMissionAfterRejection(unittest.TestCase):
 
         controller.decision.decide()
 
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
 
     def test_rejection_resets_pass_detector(self):
         """Rejection resets the pass detector state."""
@@ -8715,7 +8715,7 @@ class TestNavControllerRecovery(unittest.TestCase):
 
         self.assertEqual(controller.phase.current, NavState.RESET)
         vehicle.set_attitude.assert_not_called()
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
 
     def test_decide_recovery_below_min_alt_from_nav(self):
         """NAV → RECOVERY when alt < min_alt."""
@@ -8779,13 +8779,13 @@ class TestNavControllerRecovery(unittest.TestCase):
         vehicle.set_attitude.assert_called_once_with(0, expected_pitch, 0, 1.0)
 
     def test_act_recovery_pauses_navigation(self):
-        """_act_recovery pauses the final-approach loop."""
+        """_act_recovery pauses the guidance loop."""
         navigation = _create_mock_navigation()
         controller = _create_controller(navigation=navigation)
 
         controller.recovery.act()
 
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
 
     def test_recovery_to_detect_sets_auto_and_restarts(self):
         """RECOVERY → DETECT triggers return_to_search."""
@@ -8805,7 +8805,7 @@ class TestNavControllerRecovery(unittest.TestCase):
 
         controller.recovery.enter()
 
-        navigation.pause_final_approach.assert_called()
+        navigation.pause_guidance.assert_called()
         recovery_logged = any("RECOVERY" in str(call) for call in logger.info.call_args_list)
         self.assertTrue(recovery_logged)
 
@@ -8860,11 +8860,11 @@ class TestNavControllerOnStateChange(unittest.TestCase):
 
         detector.set_zoom_size_demand.assert_called_once_with(False)
 
-    def test_final_approach_enter_nav_freezes_zoom_at_min(self):
+    def test_guidance_enter_nav_freezes_zoom_at_min(self):
         vehicle = _create_mock_vehicle(mode=FlightMode.AUTO)
         detector = _create_mock_detector()
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
+        navigation.guidance.is_active = True
         controller = _create_controller(
             vehicle=vehicle,
             detector=detector,
@@ -8873,7 +8873,7 @@ class TestNavControllerOnStateChange(unittest.TestCase):
 
         controller.transitions.on_change(NavState.DETECT, NavState.NAV)
 
-        detector.freeze_final_approach_zoom_at_min.assert_called_once_with()
+        detector.freeze_guidance_zoom_at_min.assert_called_once_with()
         detector.set_zoom_size_demand.assert_not_called()
 
     def test_set_recognition_zoom_demand_helper(self):
@@ -9147,11 +9147,11 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
             cached, self.navigation.legacy_pois.geo_ref,
         )
 
-    def test_final_approach_peer_geo_points_until_detection_never_in_nav(self):
+    def test_guidance_peer_geo_points_until_detection_never_in_nav(self):
         """Under the vision law the peer aims its camera at the task
         location from setup until detection; in NAV nothing arms or
         updates geo pointing."""
-        self.navigation.final_approach.is_active = True
+        self.navigation.guidance.is_active = True
         task_location = Location(40.5, -74.5, 900.0, is_absolute=True)
 
         self._arm_peer_orbit(lat=40.5, lng=-74.5, alt=900.0)
@@ -9239,7 +9239,7 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
     def test_reset_detect_nav_reentry_has_no_geo_session(self):
         """RESET -> DETECT -> NAV: the re-armed peer geo session is handed
         off at detection and fenced at NAV entry."""
-        self.navigation.final_approach.is_active = True
+        self.navigation.guidance.is_active = True
         self._arm_peer_orbit()
         self.controller.reset.clear()
         self.assertFalse(self.detector.is_geo_armed)
@@ -9675,13 +9675,13 @@ class TestNavControllerPeerGeoPointing(unittest.TestCase):
 
 class TestNavControllerVisionNavConfirm(unittest.TestCase):
     """Part B: vision-nav confirm honors the Auto/Manual switch, and the
-    final-approach record + wind freeze happen at the right moment for each mode."""
+    guidance record + wind freeze happen at the right moment for each mode."""
 
     def _vt_navigation(self, can_confirm=True, record=True):
         navigation = _create_mock_navigation()
-        navigation.final_approach.is_active = True
-        navigation.final_approach.can_confirm_detection = Mock(return_value=can_confirm)
-        navigation.final_approach.record_confirmed_detection = Mock(return_value=record)
+        navigation.guidance.is_active = True
+        navigation.guidance.can_confirm_detection = Mock(return_value=can_confirm)
+        navigation.guidance.record_confirmed_detection = Mock(return_value=record)
         return navigation
 
     def _confirm_controller(self, auto_confirm, can_confirm=True, record=True,
@@ -9713,11 +9713,11 @@ class TestNavControllerVisionNavConfirm(unittest.TestCase):
         controller, navigation, _ = self._confirm_controller(auto_confirm=True)
         controller.confirmation_action.act()
 
-        navigation.final_approach.can_confirm_detection.assert_called_once()
-        navigation.final_approach.record_confirmed_detection.assert_called_once()
+        navigation.guidance.can_confirm_detection.assert_called_once()
+        navigation.guidance.record_confirmed_detection.assert_called_once()
         controller.review.confirm_local.assert_called_once()
         controller.review.request_operator_review.assert_not_called()
-        self.assertTrue(controller.final_approach.confirmed_recorded)
+        self.assertTrue(controller.guidance.confirmed_recorded)
 
     def test_manual_requests_confirmation_and_defers_record(self):
         controller, navigation, _ = self._confirm_controller(
@@ -9726,27 +9726,27 @@ class TestNavControllerVisionNavConfirm(unittest.TestCase):
 
         # Flyability gate still runs, but the record/wind-freeze is deferred and
         # the operator confirmation request is sent instead of a local commit.
-        navigation.final_approach.can_confirm_detection.assert_called_once()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_called_once()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         controller.review.request_operator_review.assert_called_once()
         controller.review.confirm_local.assert_not_called()
-        self.assertFalse(controller.final_approach.confirmed_recorded)
+        self.assertFalse(controller.guidance.confirmed_recorded)
 
-    def test_manual_review_poison_proves_final_approach_path_never_uses_poi_geo(self):
-        """Default OFFSET final-approach review uses neither POI nor vehicle geo."""
+    def test_manual_review_poison_proves_guidance_path_never_uses_poi_geo(self):
+        """Default OFFSET guidance review uses neither POI nor vehicle geo."""
         vehicle = _create_mock_vehicle()
         vehicle.location = Mock(
-            side_effect=AssertionError("vehicle geo entered final-approach review"),
+            side_effect=AssertionError("vehicle geo entered guidance review"),
         )
         navigation = self._vt_navigation()
         navigation.legacy_pois.ground_location = Mock(
-            side_effect=AssertionError("legacy POI geo entered final-approach review"),
+            side_effect=AssertionError("legacy POI geo entered guidance review"),
         )
         navigation.vehicle_commands.peer_poi = Mock(
-            side_effect=AssertionError("final-approach review commanded a geo POI"),
+            side_effect=AssertionError("guidance review commanded a geo POI"),
         )
         navigation.vehicle_commands.peer_poi_loiter = Mock(
-            side_effect=AssertionError("final-approach review commanded a geo hold"),
+            side_effect=AssertionError("guidance review commanded a geo hold"),
         )
         controller = _create_controller(
             vehicle=vehicle,
@@ -9759,7 +9759,7 @@ class TestNavControllerVisionNavConfirm(unittest.TestCase):
         with patch.object(
             type(poi),
             "set_p_t_g_loc",
-            side_effect=AssertionError("final-approach review mutated POI geo"),
+            side_effect=AssertionError("guidance review mutated POI geo"),
         ) as set_poi_geo:
             controller.review.request_operator_review(poi)
 
@@ -9779,21 +9779,21 @@ class TestNavControllerVisionNavConfirm(unittest.TestCase):
         controller, navigation, _ = self._confirm_controller(auto_confirm=False)
         controller.confirmation_action.act()
 
-        navigation.final_approach.can_confirm_detection.assert_called_once()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.can_confirm_detection.assert_called_once()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         controller.review.request_operator_review.assert_not_called()
         controller.review.confirm_local.assert_not_called()
-        self.assertFalse(controller.final_approach.confirmed_recorded)
+        self.assertFalse(controller.guidance.confirmed_recorded)
 
     def test_confirm_gate_blocks_both_modes_when_not_flyable(self):
         for auto in (True, False):
             controller, navigation, _ = self._confirm_controller(
                 auto_confirm=auto, can_confirm=False)
             controller.confirmation_action.act()
-            navigation.final_approach.record_confirmed_detection.assert_not_called()
+            navigation.guidance.record_confirmed_detection.assert_not_called()
             controller.review.confirm_local.assert_not_called()
             controller.review.request_operator_review.assert_not_called()
-            self.assertFalse(controller.final_approach.confirmed_recorded)
+            self.assertFalse(controller.guidance.confirmed_recorded)
 
     def _nav_controller(self, record=True, already_recorded=False):
         poi = _create_detected_poi(obj_id=1)
@@ -9804,57 +9804,57 @@ class TestNavControllerVisionNavConfirm(unittest.TestCase):
         controller = _create_controller(
             vehicle=vehicle, detector=detector, navigation=navigation, args=args)
         controller.confirmation_manager.set_active_poi(poi)
-        controller.final_approach.confirmed_recorded = already_recorded
+        controller.guidance.confirmed_recorded = already_recorded
         controller.sensor.sense()
         controller.phase.current = NavState.NAV
         return controller, navigation, poi
 
     def test_manual_records_once_at_nav_entry(self):
         controller, navigation, _ = self._nav_controller(already_recorded=False)
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
-        # Dive-commit records the final-approach observation + freezes wind, then navigates.
-        navigation.final_approach.record_confirmed_detection.assert_called_once()
-        self.assertTrue(controller.final_approach.confirmed_recorded)
+        # Dive-commit records the guidance observation + freezes wind, then navigates.
+        navigation.guidance.record_confirmed_detection.assert_called_once()
+        self.assertTrue(controller.guidance.confirmed_recorded)
         navigation.nav.assert_called_once()
 
         # Subsequent ticks must not re-record.
-        navigation.final_approach.record_confirmed_detection.reset_mock()
+        navigation.guidance.record_confirmed_detection.reset_mock()
         controller.sensor.sense()
-        controller.final_approach_nav.act_nav()
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        controller.guidance_nav.act_nav()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
 
     def test_auto_does_not_re_record_at_nav(self):
         controller, navigation, _ = self._nav_controller(already_recorded=True)
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
-        navigation.final_approach.record_confirmed_detection.assert_not_called()
+        navigation.guidance.record_confirmed_detection.assert_not_called()
         navigation.nav.assert_called_once()
 
     def test_nav_waits_when_deferred_record_unavailable(self):
         controller, navigation, _ = self._nav_controller(
             record=False, already_recorded=False)
-        controller.final_approach_nav.act_nav()
+        controller.guidance_nav.act_nav()
 
         # Record failed this tick → do not navigate yet, stay unrecorded, retry next.
-        navigation.final_approach.record_confirmed_detection.assert_called_once()
-        self.assertFalse(controller.final_approach.confirmed_recorded)
+        navigation.guidance.record_confirmed_detection.assert_called_once()
+        self.assertFalse(controller.guidance.confirmed_recorded)
         navigation.nav.assert_not_called()
         # Timer started for the bounded wait.
-        self.assertIsNotNone(controller.final_approach.deferred_record_started_at)
+        self.assertIsNotNone(controller.guidance.deferred_record_started_at)
 
     def test_nav_aborts_when_deferred_record_stays_unavailable(self):
         controller, navigation, _ = self._nav_controller(
             record=False, already_recorded=False)
         # Simulate the bound elapsing: first attempt was long ago.
-        controller.final_approach.deferred_record_started_at = controller.clock.decision_s() - 999.0
-        controller.final_approach_nav.act_nav()
+        controller.guidance.deferred_record_started_at = controller.clock.decision_s() - 999.0
+        controller.guidance_nav.act_nav()
 
         # Bounded out → abort via navigation failure instead of loitering forever
-        # in GUIDED with no final-approach command.
+        # in GUIDED with no guidance command.
         self.assertTrue(controller.navigation_failures.failed)
         navigation.nav.assert_not_called()
-        self.assertFalse(controller.final_approach.confirmed_recorded)
+        self.assertFalse(controller.guidance.confirmed_recorded)
 
 
 if __name__ == '__main__':

@@ -12,12 +12,12 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from navpy.core.approach.navigation_final_approach import (
-    FinalApproachNavigationService,
+from navpy.core.approach.navigation_guidance import (
+    GuidanceNavigationService,
 )
 from navpy.core.approach.navigation_mode import (
     ActiveNavigationMode,
-    NavigationFinalApproachCapabilities,
+    NavigationGuidanceCapabilities,
     NavigationModeState,
 )
 from navpy.core.kernel.location import Location
@@ -59,13 +59,13 @@ def _service():
         ActiveNavigationMode(
             spec=Mock(),
             runtime=runtime,
-            final_approach=NavigationFinalApproachCapabilities(
+            guidance=NavigationGuidanceCapabilities(
                 status=runtime.session, confirmation=Mock(),
             ),
         ),
         expected_previous=None,
     )
-    return FinalApproachNavigationService(mode_state)
+    return GuidanceNavigationService(mode_state)
 
 
 def test_harness_completes_on_contact_with_its_poi():
@@ -100,11 +100,11 @@ def test_harness_flying_past_the_net_never_completes():
 
 
 def test_recording_dispatch_arms_once_after_the_first_recorded_frame():
-    final_approach = Mock()
-    final_approach.record_confirmed_detection.side_effect = [False, True]
+    guidance = Mock()
+    guidance.record_confirmed_detection.side_effect = [False, True]
     nav = Mock(return_value=True)
     contact = Mock()
-    dispatch = recording_dispatch(final_approach, nav, contact)
+    dispatch = recording_dispatch(guidance, nav, contact)
     first, second, third = (make_detected_poi(obj_id=2, task_id=1) for _ in range(3))
 
     assert dispatch(first) is False
@@ -113,7 +113,7 @@ def test_recording_dispatch_arms_once_after_the_first_recorded_frame():
     assert dispatch(third) is True
 
     contact.arm.assert_called_once_with(second)
-    assert final_approach.record_confirmed_detection.call_count == 2
+    assert guidance.record_confirmed_detection.call_count == 2
     assert nav.call_count == 2
 
 

@@ -11,7 +11,7 @@ every approved v4 decision; "Changes from v4" lists each change with its reason.
 - Owner ruling 2026-10-12: safety work comes after the demo; ArduPlane's own safety is enough until then. Today's
   holds stay in core. This step adds no safety work.
 - Owner order 2026-10-16: finish delivery (done on main), move the logic into products (this doc), then plan pickup.
-- Owner ruling 2026-10-18 (todo 74): a missed final approach is a failed dock and ends like DOCKED; it never goes
+- Owner ruling 2026-10-18 (todo 74): a missed guidance is a failed dock and ends like DOCKED; it never goes
   back to search.
 - Line numbers are on main `77abb63`. Paths are under `src/navpy/` unless they start with `tests/`, `scripts/`,
   `docs/` or `src/gcs/`. App files are in `app/flow/` unless a path says otherwise. Built: c2-c9 are on main (status under "Commits").
@@ -59,7 +59,7 @@ Each change is forced by code added since `f744062`, or by a v4 statement that i
    product (glossary), so the state, the contact latch, the failed-dock end, the post-dock climb (`rec:117-130`),
    the swarm "docked = busy" flag and the one-shot DOCKED hold (`nd:239-242`) are platform. The failed-dock end
    reads no product state: only the requested state, the GUIDED session, the cleanup errors, the contact and the
-   episode terminal (`nx:69-80`). Only the AUTO restart is delivery's: it is wired at three pairs, RESET, RECOVERY
+   episode result (`nx:69-80`). Only the AUTO restart is delivery's: it is wired at three pairs, RESET, RECOVERY
    and DOCKED → DETECT (`nth:67-69`), not two. c6 renames all three.
    One coupling: core reads the flow's RESET request at NAV exit as "the approach ended" and alone picks DOCKED or
    RESET (`nx:69-89`). Delivery maps FAILED and PASSED to RESET (`nd:160,204`), so its behaviour does not change.
@@ -102,7 +102,7 @@ Each change is forced by code added since `f744062`, or by a v4 statement that i
 10. **More words for the guard.** New hits since v4: `dr:3-7,14,56,64` (moved in c8a), `sda:52`,
     `core/flow/nav_constants.py:19`, `core/approach/vision_nav/command_hold.py:29,32` and
     `core/kernel/logging/pose_cadence_streams.py:27` (was `pose_cadence_debug.py:38`). `command_hold.py:32` names the
-    design file `final_approach_delivery_fix`, so it gets an exact allow row; the rest are reworded.
+    design file `guidance_delivery_fix`, so it gets an exact allow row; the rest are reworded.
 11. **Corrections.** "Six NavStates" is now seven. The swarm eval markers moved to
     `scripts/eval_gcs_demo_role_gates.py:16,19` and `scripts/eval_gcs_demo_fleet_gates.py:56`. All counts and line
     numbers are re-measured (see "Guards and tests").
@@ -178,7 +178,7 @@ Core still picks these states:
 - **ONHOLD after a one-shot finish** when neither a contact nor a failed dock ends the approach: core redirects
   (`nx:90-95`) and holds (`rec:80-84,132-137`);
 - **DOCKED** at a NAV exit of a RESET request with own-dock contact, or with an armed sim episode's FAILED or MISSED
-  terminal, reported as "STATE DOCK_FAILED" and a `DOCK_FAILED` row (`nx:68-102,105-122,138-142`); a one-shot DOCKED
+  result, reported as "STATE DOCK_FAILED" and a `DOCK_FAILED` row (`nx:68-102,105-122,138-142`); a one-shot DOCKED
   stays final (`nd:239-242`); a cyclic DOCKED climbs, then DETECT (`rec:117-130`);
 - **RECOVERY** at the altitude floor;
 - **DETECT** after RESET or RECOVERY;
@@ -363,11 +363,11 @@ Unchanged from v4, except that the record holds ten calls.
   `AAS_NAV_ONESHOT` in `NavArgs`. Roadmap R19 lists the sortie-done latch as platform (`roadmap.md:52`;
   `docs/design/architecture_split.md:171`).
 - **The failed-dock end** (`missed_dock.md`): the reasoned episode latch and its command end
-  (`core/approach/vision_nav/episode_latch.py`, `core/approach/vision_nav/runtime.py:194-201`), the NAV-exit terminal
+  (`core/approach/vision_nav/episode_latch.py`, `core/approach/vision_nav/runtime.py:194-201`), the NAV-exit result
   snapshot (`core/approach/nav_exit_cleanup.py`, `core/approach/navigation_dock_outcome.py`,
   `core/approach/vision_nav/dock_outcome.py`), the RESET → DOCKED redirect and the `DOCK_FAILED` row and status
   (`nx:68-102,105-122,138-142`). It reads no product state.
-- **Acquisition gates before NAV** (for example HITL step 25's visual lock, `docs/design/hitl_final_approach.md:508`):
+- **Acquisition gates before NAV** (for example HITL step 25's visual lock, `docs/design/hitl_guidance.md:508`):
   a core skill result, reported as `ReleaseOutcome.WAIT`, never a rule inside `DeliveryFlow`, so pickup gets it too.
 - **The geo-hold mechanism and its abort teardown;** only the resume and its log line move.
 - **The `AutoMissionResume` teardown and its AUTO write;** delivery only chooses when and to which waypoint.
@@ -402,7 +402,7 @@ only user-visible text that changes.
   patrol. Each new product adds its words.
 - Exact allow rows (path, word, count, reason): `mission_encoding.py` (the codec the GCS imports); until c9,
   `mission_metadata.py`; `core/approach/vision_nav/command_hold.py:32` (names the design file
-  `final_approach_delivery_fix`). A missing or stale row fails.
+  `guidance_delivery_fix`). A missing or stale row fails.
 - A synthetic self-test covers snake case, camel case, acronyms, strings, comments, an allow-row escape, and words that
   must pass ("deliver", "delivered", `AAS_DEL_*`).
 - It checks words, not meaning. Each commit's Codex review checks that no product rule hides behind a neutral name.
@@ -553,7 +553,7 @@ changes.
   `psd.dispatch` returns None and gains `resume_auto` and `logger` (7 → 9), handling results as v4.
 - Constructors: `nav_decision_composition.py:75-103`, `nav_poi_status_composition.py:47-87`,
   `nav_track_recovery_composition.py:36-48`. Rig: `self.poi_status._resume_auto`. Docstrings `rel:1,16`, `rej:30`.
-- `tests/modules/nav/test_final_approach_docked_flow.py` calls `NavStateDecision.advance` directly (`:96-128`) and
+- `tests/modules/nav/test_guidance_docked_flow.py` calls `NavStateDecision.advance` directly (`:96-128`) and
   asserts the phase, the "RESET: PASSED POI" status and the POI clear (`:165-168,219-222`), which c5 moves to the
   consumer. Its `decide()` helper (`:127-128`) now runs the real consumer: `NavigationDecision`'s outcome mapping in
   c5, `DeliveryFlow.decide` from c6 on. It returns `outcome is not ApproachOutcome.NONE`, which is exactly what
@@ -603,7 +603,7 @@ changes.
   loop.is_stopping()` (`nrc:69,111-112,194`): `loop` is assigned later, so the closure must look it up when it runs.
   `nrc` passes the finish's `run`; the call is shorter than the 11 lines it replaces.
 - Tests (path and constructor edits): `tests/modules/nav/test_nav_transition.py:13-14,111`,
-  `tests/modules/nav/test_docked_state.py:146,425-426,464`, `tests/modules/nav/test_final_approach_docked_flow.py:243`,
+  `tests/modules/nav/test_docked_state.py:146,425-426,464`, `tests/modules/nav/test_guidance_docked_flow.py:243`,
   `tests/modules/nav/test_missed_dock.py:393` (import) and `:229-232,436-440` (pass `completion.run` as
   `finish_sortie`).
 - New test (the failed path has no reset-once test): in `test_missed_dock.py`, the `_chain` harness with one reset
@@ -678,7 +678,7 @@ identity is re-baselined (`scripts/simtime_navigation_identity.py:11-18`).
   (material against the pinned base). Moved files count as new against the pinned base, so every definition must be fully annotated
   (`solid_architecture_guard.py:333-342,493-549`).
 - **Pure vision:** delivery reads only the mode, the next waypoint, the mission state, core's results and a
-  detection's offer position (outside the final approach). The hub flight uses GPS outside the final approach, which
+  detection's offer position (outside the guidance). The hub flight uses GPS outside the guidance, which
   the owner allows. The arming latch reads the armed bit and a param; neither feeds a command. The vision walk covers
   the delivery flow.
 - **Test edits:** about 68 path and constructor edits (c3-c8a; 8 of them in `test_missed_dock.py`), three data
@@ -732,7 +732,7 @@ identity is re-baselined (`scripts/simtime_navigation_identity.py:11-18`).
 - The operator fence on AUTO writes (todo 12); dock-role estimate limits (todo 56).
 - The latent `TypeError` at `fbn:55`, and the unused imports already in `nd` (`:6,8,11`).
 - Drafts owned by other chats that still say `missions/` (`docs/design/architecture_final.md:18`), and
-  `docs/design/hitl_final_approach.md:94,106`, which cite the restart and one-shot files c6 and c7 move; their owners
+  `docs/design/hitl_guidance.md:94,106`, which cite the restart and one-shot files c6 and c7 move; their owners
   update them.
 - Re-offering a failed dock's task to a peer (todo 75): swarm or product, when the owner rules.
 
@@ -778,7 +778,7 @@ choice out of the plugin (yes); Q4 arming as specified, built with pickup; Q5 a 
 13. **Lockstep identity for a pure move: settled 2026-10-19.** Two runs and a probe move on `869d5a4` gave
     `fbda9e41…`, and so did each commit's own run from c3 to c9 (see Commits). Each commit's own run stays the gate;
     one passing probe does not prove a later move keeps the digest.
-14. **HITL edits the same files.** `hitl_final_approach.md` steps 22, 23 and 25 change `sda`, `approach_planner.py`,
+14. **HITL edits the same files.** `hitl_guidance.md` steps 22, 23 and 25 change `sda`, `approach_planner.py`,
     `peer_orbit_plan.py` and `rel` (`:505-508`). Whichever lands second rebases, re-measures the `ApproachPlanner`
     rows and re-checks the cited lines.
 
@@ -787,7 +787,7 @@ v4's review history (five audits, Codex on v1, v3 and v4, the checker on v2) is 
 
 Codex on v5, round 1 ("ship with changes"; each point checked against the code):
 1. c3, c5 and c6 missed direct DOCKED test harnesses (`test_docked_state.py:265-282,325-348`,
-   `test_final_approach_docked_flow.py:96-128`). **Holds.** c3, c5 and c6 now name them; the docked-flow harness runs
+   `test_guidance_docked_flow.py:96-128`). **Holds.** c3, c5 and c6 now name them; the docked-flow harness runs
    the real outcome consumer, so its phase, status and POI-clear assertions keep checking behaviour. Also found while
    checking: `method_calls` would let a called `flow` Mock pass, so c6 uses `mock_calls`.
 2. c8a's "construction change only" did not fit the split interfaces. **Holds.** Each assertion moves to the owning

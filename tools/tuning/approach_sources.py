@@ -1,4 +1,4 @@
-"""One owner of each approach role at the data level, after the run (hitl_final_approach.md section 9, step 17).
+"""One owner of each approach role at the data level, after the run (hitl_guidance.md section 9, step 17).
 
 A process that came and went between the owner censuses (approach_owners.py) still shows here: Unreal took its pose
 from one stream on the run's port only and its gimbal from the emulator's one session, and the emulator took its

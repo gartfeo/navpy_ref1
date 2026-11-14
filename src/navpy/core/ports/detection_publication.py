@@ -14,7 +14,7 @@ class DetectionPublication:
 
     The envelope owns publication metadata and ordering. POIs are retained
     by reference because task-id allocation still belongs to the coordinator;
-    pure final approach converts the chosen POI to its own immutable,
+    pure guidance converts the chosen POI to its own immutable,
     truth-redacted observation before forming a command.
     """
 

@@ -1,4 +1,4 @@
-"""Observation cadence inside each final-approach window (annotation, no gate).
+"""Observation cadence inside each guidance window (annotation, no gate).
 
 Whole-run poll-gap medians hide the approach window, so cadence is measured
 per approach episode, all in companion source time (ATTITUDE time_boot, the
@@ -13,15 +13,15 @@ obs_ts domain):
 - observations: fresh rows keyed (epoch, obs_ts) with entry <= obs_ts <= exit,
   in arrival order. The epoch is (observation file, vision_nav generation).
   Arrival wall time associates rows with the episode, never measures a gap:
-  only rows that arrived between the episode's own DOCK_ARMED and terminal
+  only rows that arrived between the episode's own DOCK_ARMED and result
   rows belong to it. DOCK_ARMED carries the epoch wall time; the episode's
   other rows (local time of day) are placed by their offset from it, so the
   evaluator's timezone and midnight do not matter. An episode with no
-  terminal row before the next DOCK_ARMED, or a DOCK_ARMED without a wall
+  result row before the next DOCK_ARMED, or a DOCK_ARMED without a wall
   time (older logs), is reported without statistics. A repeated key counts once; a key not after the previous
   one is out_of_order and not used. In-window rows of two epochs are reported
   as ambiguous, not merged. A restart inside the window (another epoch
-  arriving after the episode's, or a terminal source time before the entry)
+  arriving after the episode's, or a result source time before the entry)
   ends the segment at its epoch's last observation, with no gap across it.
 
 Gaps include entry->first and last->exit. Nothing here touches a verdict or a
@@ -48,9 +48,9 @@ COVERAGE_GAP_BOUND_MS = 100.0
 # nominal 100 ms gap must not exceed the bound by float noise.
 _GAP_DECIMALS = 3
 _DISARMED_FIELDS = ("vehicle", "task", "dock", "episode", "source_ts")
-_TERMINAL_HINTS = {"EVENT:SNAP_COMPONENTS": "snap", "EVENT:ABORT": "abort"}
+_RESULT_HINTS = {"EVENT:SNAP_COMPONENTS": "snap", "EVENT:ABORT": "abort"}
 _DAY_S = 86400.0
-UNTERMINATED = "no terminal row before the next DOCK_ARMED"
+UNTERMINATED = "no result row before the next DOCK_ARMED"
 
 
 @dataclass(frozen=True)
@@ -61,7 +61,7 @@ class Window:
     entry_s: float | None
     exit_s: float | None
     ended_by: str
-    # Epoch wall times of the DOCK_ARMED and terminal rows; exit None = open.
+    # Epoch wall times of the DOCK_ARMED and result rows; exit None = open.
     entry_wall_s: float | None = None
     exit_wall_s: float | None = None
 
@@ -91,7 +91,7 @@ def cadence_annotation(log_dir: Path, sys_id: int) -> dict[str, Any]:
 
 
 def approach_windows(debug_csv: Path, log_end_s: float | None) -> list[Window]:
-    """Armed episodes in log order, each closed from its own terminal rows."""
+    """Armed episodes in log order, each closed from its own result rows."""
     blocks: list[dict[str, Any]] = []
     with debug_csv.open("r", encoding="utf-8", newline="") as handle:
         for line_number, row in enumerate(csv.reader(handle), start=1):
@@ -105,8 +105,8 @@ def approach_windows(debug_csv: Path, log_end_s: float | None) -> list[Window]:
                 docked = parse_docked(row, line_number)
                 if docked.identity == blocks[-1]["armed"].identity:
                     blocks[-1].setdefault("docked", (docked.aircraft_ts, docked.wall_s))
-            elif event in _TERMINAL_HINTS:
-                blocks[-1].setdefault("hint", _TERMINAL_HINTS[event])
+            elif event in _RESULT_HINTS:
+                blocks[-1].setdefault("hint", _RESULT_HINTS[event])
             elif event == "EVENT:DOCK_DISARMED":
                 if len(row) < 3:
                     raise ValueError(f"DOCK_DISARMED row {line_number} has fewer than 3 columns")

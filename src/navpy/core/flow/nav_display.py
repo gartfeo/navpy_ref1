@@ -45,7 +45,7 @@ _OUTCOME_SHIFT = 4
 
 @dataclass(frozen=True)
 class NavOutcome:
-    """A final approach's end: docked, or failed with its reason."""
+    """The end of guidance: docked, or failed with its reason."""
 
     docked: bool
     reason: Optional[str] = None
@@ -71,7 +71,7 @@ class NavDisplay:
 
 
 class NavOutcomeLatch:
-    """The last final-approach outcome; only the next one replaces it.
+    """The last guidance outcome; only the next one replaces it.
 
     The task reset never touches it, so it outlives DOCKED, the climb, a
     return to search, disarm and the next approach. Navigation thread only.

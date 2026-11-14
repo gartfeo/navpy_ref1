@@ -158,7 +158,7 @@ def _verdict(
             f"{one.MAX_MIDCOURSE_PITCH_STEP_DEG:.3f}deg"
         )
     if stability is not None:
-        # label, stability key, limit -- one row per final-approach alignment gate.
+        # label, stability key, limit -- one row per guidance alignment gate.
         alignment_limits = (
             ("body bearing", "alignment_bearing_mean_abs_deg",
              one.MAX_ALIGNMENT_MEAN_ABS_BEARING_DEG),
@@ -171,7 +171,7 @@ def _verdict(
             measured = stability[key]
             if measured > limit:
                 errors.append(
-                    f"final-approach {label} mean abs {measured:.3f}deg exceeds "
+                    f"guidance {label} mean abs {measured:.3f}deg exceeds "
                     f"{limit:.3f}deg"
                 )
     return {

@@ -1,4 +1,4 @@
-"""Pure Vision guard for the HITL contact channel (hitl_final_approach.md section 9, step 26).
+"""Pure Vision guard for the HITL contact channel (hitl_guidance.md section 9, step 26).
 
 The contact service holds the dock pose and the plant's true pose. navpy's side of the channel (plugins/contact) may
 only accept a contact for its armed episode: it reads no simulator module, no position and no pose, and no file of
@@ -27,7 +27,7 @@ TRUTH_ATTRIBUTES = frozenset({
 })
 GEOMETRY_WORDS = ("lat", "lon", "lng", "alt", "north", "east", "height", "position", "pose", "dist", "closest",
                   "range", "heading", "yaw")
-# The final-approach command path (as tests/guards/test_dock_contact_isolation.py names it) and the laws.
+# The guidance command path (as tests/guards/test_dock_contact_isolation.py names it) and the laws.
 COMMAND_PATH = (
     "src/navpy/core/ports/frame.py",
     "src/navpy/core/approach/vision_nav/frame_projection.py",

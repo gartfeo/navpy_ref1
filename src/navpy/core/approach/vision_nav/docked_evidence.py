@@ -3,7 +3,7 @@
 The contact latches on the telemetry thread, but command evidence is written
 by the command worker's ordered postprocess FIFO after it leaves the runtime
 session. Writing the DOCKED row directly could overtake an already-issued
-command's FINAL_APPROACH_CMD row. So the immutable contact event is staged
+command's GUIDANCE_CMD row. So the immutable contact event is staged
 here and taken by the worker as its next work item, ahead of any newer frame,
 which puts its row behind all earlier command evidence in the same FIFO. A
 phase reset before the worker took it records it inline, after the
@@ -17,19 +17,19 @@ from dataclasses import dataclass, field
 
 from navpy.core.approach.navigation_postprocess_dispatcher import PostprocessJob
 from navpy.core.approach.vision_nav.command_postprocess import (
-    FinalApproachPostprocessFence,
+    GuidancePostprocessFence,
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 
 
 @dataclass
-class FinalApproachDockedEvidenceWork:
+class GuidanceDockedEvidenceWork:
     """Worker-owned DOCKED evidence; holds one postprocess fence slot."""
 
     event: DockContactEvent
     _record: Callable[[DockContactEvent], None] = field(repr=False)
-    _fence: FinalApproachPostprocessFence | None = field(repr=False)
+    _fence: GuidancePostprocessFence | None = field(repr=False)
 
     def postprocess_job(self) -> PostprocessJob | None:
         if self._fence is None:
@@ -48,7 +48,7 @@ class FinalApproachDockedEvidenceWork:
             fence.finish()
 
 
-class FinalApproachDockedEvidence:
+class GuidanceDockedEvidence:
     """The episode's DOCK_ARMED row, then one staged DOCKED row.
 
     DOCK_ARMED is written at NAV entry, before any command row of the
@@ -59,7 +59,7 @@ class FinalApproachDockedEvidence:
         self,
         lock: rt.RLock,
         record: Callable[[DockContactEvent], None],
-        fence: FinalApproachPostprocessFence,
+        fence: GuidancePostprocessFence,
         record_armed: Callable[[DockContactIdentity, float | None], None],
         record_disarmed: Callable[[DockContactIdentity, float | None], None] = (
             lambda _identity, _source_s: None
@@ -95,14 +95,14 @@ class FinalApproachDockedEvidence:
         with self._lock:
             self._staged = event
 
-    def take_work(self) -> FinalApproachDockedEvidenceWork | None:
+    def take_work(self) -> GuidanceDockedEvidenceWork | None:
         """Worker: own the staged evidence and its fence slot."""
         with self._lock:
             event, self._staged = self._staged, None
             if event is None:
                 return None
             self._fence.begin()
-            return FinalApproachDockedEvidenceWork(event, self._record, self._fence)
+            return GuidanceDockedEvidenceWork(event, self._record, self._fence)
 
     def take_staged(self) -> DockContactEvent | None:
         """Reset: take evidence the worker never took (record after drain)."""
@@ -114,4 +114,4 @@ class FinalApproachDockedEvidence:
         self._record(event)
 
 
-__all__ = ["FinalApproachDockedEvidence", "FinalApproachDockedEvidenceWork"]
+__all__ = ["GuidanceDockedEvidence", "GuidanceDockedEvidenceWork"]

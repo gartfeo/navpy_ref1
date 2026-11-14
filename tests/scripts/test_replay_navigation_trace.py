@@ -94,7 +94,7 @@ def test_changed_live_diagnostic_aborts(capture, tmp_path):
     replay(peer, output)
     path = live / "navigation_debug.csv"
     with path.open("a") as stream:
-        stream.write("99.0,EVENT:FINAL_APPROACH_RESPONSE_STATE,corrupted=True\n")
+        stream.write("99.0,EVENT:GUIDANCE_RESPONSE_STATE,corrupted=True\n")
     with pytest.raises(ValueError, match="live row mismatch.*99.0"):
         verify_live_rows(live, output)
 
@@ -129,7 +129,7 @@ def test_offline_event_is_written_before_return(monkeypatch):
     logger = FullRateLogger(1, ConsoleLogger(CacheLogLevel.ERROR),
                            streams=streams.NavigationLogStreams(None, debug))
     try:
-        logger.log_event(LogEvent.FINAL_APPROACH_CMD, {"probe": "fenced"})
+        logger.log_event(LogEvent.GUIDANCE_CMD, {"probe": "fenced"})
         assert "probe=fenced" in debug.getvalue()
     finally:
         logger.close()

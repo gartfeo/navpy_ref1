@@ -1,4 +1,4 @@
-"""One-vehicle final-approach evidence analysis."""
+"""One-vehicle guidance evidence analysis."""
 
 from __future__ import annotations
 
@@ -9,24 +9,24 @@ from scripts.eval_gcs_demo_command_bounds import (
     VehicleCommandBounds,
     command_bounds_errors,
 )
-from scripts.eval_gcs_demo_constants import FINAL_APPROACH_ROLL_LIMIT_DEG
+from scripts.eval_gcs_demo_constants import GUIDANCE_ROLL_LIMIT_DEG
 from scripts.eval_gcs_demo_constants import SIM_SPEEDUP
 from scripts.eval_gcs_demo_evidence import (
     SNAP_WITHOUT_DOCKED,
     mission_navigation_segment,
-    parse_final_approach_episodes,
+    parse_guidance_episodes,
 )
 from scripts.eval_gcs_demo_gates import confirmation_image_errors, evidence_failure_errors, workflow_errors
 from scripts.eval_gcs_demo_metrics import (
-    final_approach_timing,
+    guidance_timing,
     score_achieved_roll,
-    score_final_approach_commands,
+    score_guidance_commands,
 )
 from scripts.eval_gcs_demo_recovery import INVALID, recovery_evidence, vehicle_verdict
 from scripts.eval_gcs_demo_models import (
     EpisodeMetrics,
     GateLimits,
-    FinalApproachEpisode,
+    GuidanceEpisode,
     VehicleReport,
     finite_number,
     positive_int,
@@ -37,7 +37,7 @@ from scripts.eval_gcs_demo_snap import (
     parse_compact_snap_distances,
     parse_debug_snap_distances,
 )
-from scripts.eval_gcs_demo_final_approach_gates import (
+from scripts.eval_gcs_demo_guidance_gates import (
     achieved_roll_errors,
     cadence_errors,
     roll_quality_errors,
@@ -96,7 +96,7 @@ def _truth_errors(
 
 def _command_errors(
     metrics: EpisodeMetrics,
-    episode: FinalApproachEpisode,
+    episode: GuidanceEpisode,
     limits: GateLimits,
     command_bounds: VehicleCommandBounds | None,
     *,
@@ -106,13 +106,13 @@ def _command_errors(
     errors: list[str] = []
     commands = list(episode.commands)
     roll_limit = (
-        FINAL_APPROACH_ROLL_LIMIT_DEG
+        GUIDANCE_ROLL_LIMIT_DEG
         if command_bounds is None
         else command_bounds.roll_limit_deg
     )
     try:
-        timing = final_approach_timing(commands, miss_allowed=miss_allowed)
-        score = score_final_approach_commands(
+        timing = guidance_timing(commands, miss_allowed=miss_allowed)
+        score = score_guidance_commands(
             commands,
             miss_allowed=miss_allowed,
             roll_limit_deg=roll_limit,
@@ -126,7 +126,7 @@ def _command_errors(
             significant_roll_deg=limits.roll_quality.significant_roll_deg,
         )
     except ValueError as error:
-        return [f"invalid final-approach command episode: {error}"]
+        return [f"invalid guidance command episode: {error}"]
     metrics.sample_count = score.sample_count
     metrics.median_wall_gap_s = timing.median_wall_gap_s
     metrics.max_wall_gap_s = timing.max_wall_gap_s
@@ -149,7 +149,7 @@ def _command_errors(
         ]
         if outside_roll:
             errors.append(
-                "final-approach roll command exceeds configured ROLL_LIMIT_DEG: "
+                "guidance roll command exceeds configured ROLL_LIMIT_DEG: "
                 f"{outside_roll}"
             )
     errors.extend(
@@ -207,7 +207,7 @@ def analyze_vehicle(
     try:
         navigation_text = paths["navigation"].read_text(encoding="utf-8", errors="replace")
     except OSError as error:    # unreadable evidence is not scored (Codex review of step 8, finding 5)
-        unreadable = [f"invalid final-approach evidence: {paths['navigation'].name}: {error}"]
+        unreadable = [f"invalid guidance evidence: {paths['navigation'].name}: {error}"]
         return VehicleReport(checked_sys_id, role, False, metrics, unreadable, verdict=INVALID)
     mission_text = mission_navigation_segment(navigation_text)
     # The evidence's own gates (navpy_recovery.md, step 8): any of them makes the vehicle invalid, not failed.
@@ -234,17 +234,17 @@ def analyze_vehicle(
         )
     )
     try:
-        episodes = parse_final_approach_episodes(
+        episodes = parse_guidance_episodes(
             paths["debug"], vehicle_id=checked_sys_id
         )
         compact_snaps = parse_compact_snap_distances(paths["compact"])
         debug_snaps = parse_debug_snap_distances(paths["debug"])
     except (OSError, UnicodeError, ValueError) as error:
-        errors.append(f"invalid final-approach evidence: {error}")
+        errors.append(f"invalid guidance evidence: {error}")
         return VehicleReport(checked_sys_id, role, False, metrics, errors, verdict=INVALID,
                              recoveries=list(recovery.events))
     if len(episodes) != 1:
-        errors.append(f"expected exactly one atomic final-approach command episode, found {len(episodes)}")
+        errors.append(f"expected exactly one atomic guidance command episode, found {len(episodes)}")
     # The docking gate, apart from the episode's command and SNAP checks.
     errors.extend(SNAP_WITHOUT_DOCKED for episode in episodes if not episode.docked)
     if episodes:

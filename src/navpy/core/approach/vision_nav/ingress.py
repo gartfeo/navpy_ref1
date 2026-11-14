@@ -8,47 +8,47 @@ from typing import Protocol
 
 from navpy.core.command.navigation_command_slot import NavigationCommandSlot
 from navpy.core.approach.vision_nav.command_freshness import (
-    FinalApproachCommandTiming,
+    GuidanceCommandTiming,
 )
 from navpy.core.approach.vision_nav.diagnostic_mailbox import (
-    FinalApproachDiagnosticMailbox,
+    GuidanceDiagnosticMailbox,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
+    GuidanceFrameProjector,
 )
-from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
+from navpy.core.approach.vision_nav.queued_frame import GuidanceQueuedFrame
 from navpy.core.approach.vision_nav.source_epoch import (
     FrameAdmission,
     SourceEpochLedger,
 )
 from navpy.core.approach.vision_nav.source_time_ports import (
     ObservationOutcome,
-    FinalApproachObservationSourceTimeObserver,
+    GuidanceObservationSourceTimeObserver,
 )
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 
-class FinalApproachIngressCommandReset(Protocol):
+class GuidanceIngressCommandReset(Protocol):
     def invalidate_commands(self) -> None: ...
 
 
 @dataclass(frozen=True)
-class FinalApproachIngressPorts:
+class GuidanceIngressPorts:
     lock: rt.RLock
     slot: NavigationCommandSlot
-    projector: FinalApproachFrameProjector
+    projector: GuidanceFrameProjector
     epochs: SourceEpochLedger
-    mailbox: FinalApproachDiagnosticMailbox
-    source_time: FinalApproachObservationSourceTimeObserver
-    command_reset: FinalApproachIngressCommandReset
+    mailbox: GuidanceDiagnosticMailbox
+    source_time: GuidanceObservationSourceTimeObserver
+    command_reset: GuidanceIngressCommandReset
 
 
-class FinalApproachIngress:
+class GuidanceIngress:
     """Never allow ``DetectedObject`` to cross into command work."""
 
-    def __init__(self, ports: FinalApproachIngressPorts) -> None:
+    def __init__(self, ports: GuidanceIngressPorts) -> None:
         self._ports = ports
 
     def nav(self, poi: DetectedObject) -> bool:
@@ -60,7 +60,7 @@ class FinalApproachIngress:
             poi.timing.source_receipt_timestamp_s
         )
         receipt_provider = poi.timing.source_receipt_now_s
-        timing = FinalApproachCommandTiming(
+        timing = GuidanceCommandTiming(
             source_timestamp_s=(
                 math.nan if source_timestamp_s is None else source_timestamp_s
             ),
@@ -99,7 +99,7 @@ class FinalApproachIngress:
         self,
         poi: DetectedObject,
         source_timestamp_s: float | None,
-        timing: FinalApproachCommandTiming,
+        timing: GuidanceCommandTiming,
     ) -> _Admission:
         ports = self._ports
         visual = poi.visual_detection()
@@ -120,10 +120,10 @@ class FinalApproachIngress:
         if admission is FrameAdmission.DUPLICATE:
             return _Admission(True, "duplicate", frame)
         token = ports.mailbox.put(poi, timing)
-        queued = FinalApproachQueuedFrame(frame, token)
+        queued = GuidanceQueuedFrame(frame, token)
         replaced = ports.slot.replace(queued)
         displaced = None
-        if isinstance(replaced, FinalApproachQueuedFrame):
+        if isinstance(replaced, GuidanceQueuedFrame):
             ports.mailbox.discard(replaced.diagnostic_token)
             displaced = replaced.frame
         ports.slot.signal_pending()
@@ -136,9 +136,9 @@ class _Admission:
 
     accepted: bool
     outcome: ObservationOutcome
-    frame: FinalApproachVisionFrame | None = None
+    frame: GuidanceVisionFrame | None = None
     # The queued frame this one replaced before the worker took it.
-    displaced: FinalApproachVisionFrame | None = None
+    displaced: GuidanceVisionFrame | None = None
 
 
 def _source_timestamp(value: object) -> float | None:
@@ -152,8 +152,8 @@ def _source_timestamp(value: object) -> float | None:
 
 
 __all__ = [
-    "FinalApproachIngress",
-    "FinalApproachIngressCommandReset",
-    "FinalApproachIngressPorts",
-    "FinalApproachQueuedFrame",
+    "GuidanceIngress",
+    "GuidanceIngressCommandReset",
+    "GuidanceIngressPorts",
+    "GuidanceQueuedFrame",
 ]

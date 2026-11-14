@@ -1,4 +1,4 @@
-"""Finite-SIYI pixel/camera loop used by final-approach certification tests."""
+"""Finite-SIYI pixel/camera loop used by guidance certification tests."""
 
 from __future__ import annotations
 
@@ -8,14 +8,14 @@ from dataclasses import dataclass, replace
 import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.ports.law_config import (
-    FixedFinalApproachLawConfigProvider,
-    FinalApproachLawConfig,
+    FixedGuidanceLawConfigProvider,
+    GuidanceLawConfig,
 )
 from navpy.plugins.laws.vision_pn.law import VisionNavLaw
 from navpy.core.perception.pointing.gimbal_rate_tracker import GimbalRateTracker
@@ -54,7 +54,7 @@ from scripts.vision_static_point_mass_types import (
 FRAME_WIDTH_PX = 2560.0
 FRAME_HEIGHT_PX = 1440.0
 CALIBRATION = PixelCalibration(2066.49, 2082.84, 1199.61, 810.24)
-PROJECTOR = FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True))
+PROJECTOR = GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True))
 TEST_AIRSPEED_MPS = 27.0
 
 
@@ -67,7 +67,7 @@ class SiyiCameraLoopResult:
 
 @dataclass(frozen=True)
 class _RenderedMeasurement:
-    frame: FinalApproachVisionFrame
+    frame: GuidanceVisionFrame
     gimbal_sample: GimbalAngularSample
 
 
@@ -128,12 +128,12 @@ def run_siyi_camera_loop() -> SiyiCameraLoopResult:
     # module's undelayed_truth_gyro docstring).
     with undelayed_truth_gyro():
         law = VisionNavLaw(
-            FixedFinalApproachLawConfigProvider(
-                FinalApproachLawConfig(-55.0, 30.0, 60.0, 0.5, None)
+            FixedGuidanceLawConfigProvider(
+                GuidanceLawConfig(-55.0, 30.0, 60.0, 0.5, None)
             )
         )
     law.seed(
-        FinalApproachVisionFrame(
+        GuidanceVisionFrame(
             "siyi-finite-camera",
             0,
             1,

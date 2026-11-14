@@ -2,7 +2,7 @@
 
 A board pose places the reference board's centre in the camera frame, in
 metres. It is acquisition evidence only (the orbit centre before NAV): it
-never enters the final-approach command record, `FinalApproachVisionFrame`.
+never enters the guidance command record, `GuidanceVisionFrame`.
 """
 
 from __future__ import annotations

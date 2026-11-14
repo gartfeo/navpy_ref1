@@ -8,7 +8,7 @@ from navpy.core.ports.detect_data import DetectedObject
 
 
 class ConfirmationReview:
-    """Issue review holds and metadata without polluting final approach."""
+    """Issue review holds and metadata without polluting guidance."""
 
     def __init__(
         self,

@@ -1,4 +1,4 @@
-"""The search scan's profile-defined pattern (HITL step 21, docs/design/hitl_final_approach.md section 9).
+"""The search scan's profile-defined pattern (HITL step 21, docs/design/hitl_guidance.md section 9).
 
 A raster of gimbal targets in the readback frame (yaw right-positive and pitch up-positive, relative to the
 aircraft body, as the SIYI 0x0D readback is in FOLLOW mode): each pitch row is swept from one yaw end to the other,

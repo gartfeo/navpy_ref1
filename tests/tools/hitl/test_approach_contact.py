@@ -1,8 +1,8 @@
-"""Isolated contact (hitl_final_approach.md section 9, step 26): only authenticated, run/vehicle/task/episode-bound
+"""Isolated contact (hitl_guidance.md section 9, step 26): only authenticated, run/vehicle/task/episode-bound
 contact events reach the episode latch, and none carries geometry.
 
 The contact service and navpy's HITL adapter talk through ``contact_rig.Rig`` (no sockets), with the real
-``FinalApproachDockContact`` and ``FinalApproachEpisodeLatch`` behind the adapter.
+``GuidanceDockContact`` and ``GuidanceEpisodeLatch`` behind the adapter.
 """
 from __future__ import annotations
 
@@ -138,7 +138,7 @@ def test_a_contact_after_nav_exit_is_refused():
             "board_time_us": 100_200_000}
     rig.episode.disarm()
     assert rig.sensor.receive(sign(body)) == "disarmed"
-    assert rig.terminal is None
+    assert rig.result is None
 
 
 def test_the_service_stops_judging_at_disarm():
@@ -154,7 +154,7 @@ def test_a_contact_after_an_abort_is_not_latched():
     assert rig.latch.latch_failure("deadline")
     rig.fly_past()
     assert rig.verdicts == [ACCEPTED]
-    assert not rig.docked and rig.terminal.value == "failed"
+    assert not rig.docked and rig.result.value == "failed"
     assert rig.episode.disarm() is None
 
 
@@ -261,7 +261,7 @@ def test_the_pass_stays_in_the_services_private_evidence_and_never_reaches_navpy
 
 
 def test_the_services_arm_evidence_names_navpys_identity_for_scoring():
-    """Step 27: the series report joins the contact to navpy's terminal episode through the arm's identity, which the
+    """Step 27: the series report joins the contact to navpy's result episode through the arm's identity, which the
     service logs on its own side (navpy's own task, dock uid and episode; never a coordinate)."""
     rig = _armed_rig()
     arm = [r for r in rig.records if r["event"] == "arm"][0]

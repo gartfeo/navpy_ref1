@@ -167,7 +167,7 @@ class TaskActor(ListenerAbc):
         docked: bool,
         display_bits: int = 0,
     ) -> None:
-        """Nav publishes a final approach or a dock (both BUSY) and its
+        """Nav publishes guidance or a dock (both BUSY) and its
         display bits (nav_display.py)."""
         self._participation.set_participation(approaching, docked, display_bits)
 

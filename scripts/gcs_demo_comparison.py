@@ -17,7 +17,7 @@ from scripts.gcs_demo_artifacts import (
 )
 from scripts.eval_gcs_demo_analysis import analyze_run
 from scripts.eval_gcs_demo_audit import load_approval_records
-from scripts.eval_gcs_demo_evidence import parse_final_approach_command_episodes
+from scripts.eval_gcs_demo_evidence import parse_guidance_command_episodes
 from scripts.eval_gcs_demo_models import GateLimits
 from scripts.eval_gcs_demo_scenario import DemoScenario, load_resolved_plan
 
@@ -26,7 +26,7 @@ LIMITATIONS = [
     "Recorded settings, resolved spots and command bounds are not all run inputs. "
     "Complete missions, EEPROM, firmware, dependencies, environment and fresh boot "
     "identity are not established by these artifacts.",
-    "Issued FINAL_APPROACH_CMD records are sampled by the wall-cadence logger. Equal "
+    "Issued GUIDANCE_CMD records are sampled by the wall-cadence logger. Equal "
     "records do not establish equality of every executed command or trajectory.",
     "Per-run scoring limits are not cross-run tolerances. Numerical differences "
     "are reported without a tolerance waiver; their causes require investigation.",
@@ -161,7 +161,7 @@ def read_run(run_dir: Path, scenario: DemoScenario) -> dict:
         result["wall_timestamps"] = {}
         for vehicle in plan.vehicles:
             try:
-                episodes = parse_final_approach_command_episodes(
+                episodes = parse_guidance_command_episodes(
                     run_dir / f"uav_{vehicle.sys_id}_navigation_debug.csv",
                     vehicle_id=vehicle.sys_id,
                 )

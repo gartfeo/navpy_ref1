@@ -31,7 +31,7 @@ from scripts.pixel_pn_case_manifest import (
     case_definition,
     definition_sha256,
 )
-from scripts.pixel_pn_final_approach_speed import FinalApproachSpeedPlan
+from scripts.pixel_pn_guidance_speed import GuidanceSpeedPlan
 
 from pymavlink import mavutil
 
@@ -117,7 +117,7 @@ def _stub_run_case(monkeypatch, tmp_path: Path) -> dict[str, object]:
     monkeypatch.setattr(
         pn, "_source_identity", lambda: {"sha256": "0" * 64, "files": 1}
     )
-    monkeypatch.setattr(pn, "final_approach_speed_plan", lambda *a, **k: None)
+    monkeypatch.setattr(pn, "guidance_speed_plan", lambda *a, **k: None)
     monkeypatch.setattr(pn, "write_case_manifest", lambda *a, **k: None)
     monkeypatch.setattr(
         pn, "_launch_child", lambda *a, **k: SimpleNamespace(poll=lambda: 0)
@@ -343,7 +343,7 @@ def test_run_case_names_only_a_traced_case(
     _stub_run_case(monkeypatch, tmp_path)
     monkeypatch.setattr(pn, "write_case_manifest", real_writer)
     monkeypatch.setattr(
-        pn, "final_approach_speed_plan", lambda *a, **k: FinalApproachSpeedPlan()
+        pn, "guidance_speed_plan", lambda *a, **k: GuidanceSpeedPlan()
     )
     monkeypatch.setattr(determinism_trace, "ENABLED", traced)
     args = pn._parser(scoring_policy=True).parse_args([])

@@ -204,7 +204,7 @@ def test_waiting_keeps_other_adverts(slot, advert, task_ids):
     assert slot.state() is SlotState.WAITING
 
 
-def test_waiting_drops_when_own_final_approach_starts(slot):
+def test_waiting_drops_when_own_guidance_starts(slot):
     held = _wait(slot)
 
     assert slot.set_participation(True, False) == held

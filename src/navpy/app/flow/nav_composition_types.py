@@ -5,8 +5,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Callable, Optional
 
-from navpy.core.approach.navigation_dock_outcome import FinalApproachDockOutcomeService
-from navpy.core.approach.navigation_final_approach import FinalApproachNavigationService
+from navpy.core.approach.navigation_dock_outcome import GuidanceDockOutcomeService
+from navpy.core.approach.navigation_guidance import GuidanceNavigationService
 from navpy.core.approach.navigation_source_dispatch import (
     BindSourceDispatch,
 )
@@ -24,8 +24,8 @@ from navpy.core.skills.confirm.confirmation_reporting import (
     ConfirmBlockedReporter,
     ConfirmDebugReporter,
 )
-from navpy.core.approach.final_approach_record_deadline import FinalApproachRecordDeadline
-from navpy.core.skills.confirm.final_approach_release_gate import FinalApproachReleaseGate
+from navpy.core.approach.guidance_record_deadline import GuidanceRecordDeadline
+from navpy.core.skills.confirm.guidance_release_gate import GuidanceReleaseGate
 from navpy.core.skills.confirm.detection_freshness import DetectionFreshnessPolicy
 from navpy.core.skills.confirm.acquisition_sequence import AcquisitionGate
 from navpy.core.flow.detection_snapshot import DetectionSnapshot
@@ -52,7 +52,7 @@ from navpy.core.flow.nav_state import (
     GeoHoldState,
     NavigationFailureLatch,
     NavPhaseState,
-    FinalApproachNavState,
+    GuidanceNavState,
 )
 from navpy.core.flow.nav_status import NavigationStatusReporter
 from navpy.core.flow.navigation_decision import NavigationDecision
@@ -63,10 +63,10 @@ from navpy.core.flow.recovery import RecoveryAction
 from navpy.core.review.confirmation_manager import ConfirmationManager
 from navpy.core.skills.confirm.poi_retry import PoiRetryState
 from navpy.products.delivery.poi_status_decision import ConfirmationStatusDecision
-from navpy.core.approach.final_approach_source_admission import FinalApproachSourceAdmission
-from navpy.core.approach.final_approach_source_session import FinalApproachSourceSession
-from navpy.core.approach.final_approach_publication_admission import (
-    FinalApproachPublicationAdmission,
+from navpy.core.approach.guidance_source_admission import GuidanceSourceAdmission
+from navpy.core.approach.guidance_source_session import GuidanceSourceSession
+from navpy.core.approach.guidance_publication_admission import (
+    GuidancePublicationAdmission,
 )
 from navpy.core.skills.acquire.vehicle_navigation import (
     LoiterRadiusLease,
@@ -80,8 +80,8 @@ from navpy.core.ports.detect_data import DetectedObject
 class NavCapabilities:
     """Only the focused navigation capabilities consumed by navigation."""
 
-    final_approach: FinalApproachNavigationService
-    dock_outcome: FinalApproachDockOutcomeService
+    guidance: GuidanceNavigationService
+    dock_outcome: GuidanceDockOutcomeService
     legacy_pois: LegacyDestinationResolver
     vehicle_commands: NavigationVehicleCommands
     init: Callable[[], None]
@@ -101,14 +101,14 @@ class NavStateOwnership:
     detections: DetectionSnapshot
     navigation_task: NavigationTaskState
     navigation_failures: NavigationFailureLatch
-    final_approach: FinalApproachNavState
+    guidance: GuidanceNavState
     geo_hold: GeoHoldState
     confirm: ConfirmGateState
     overrides: ConfirmOverrideInbox
     post_dock_climb: PostDockClimb
     #: Recovery's hold, read by the decision and the RESET hook (nav_recovery.py).
     recovery_hold: RecoveryHold = field(default_factory=RecoveryHold)
-    #: The final approach recovery's hold ended, until NAV entry starts a fresh one (nav_held_approach.py).
+    #: Recovery's guidance hold ended, until NAV entry starts a fresh one (nav_held_approach.py).
     held_approach: HeldApproach = field(default_factory=HeldApproach)
 
 
@@ -120,7 +120,7 @@ class PoiMissionOwnership:
     pass_tracker: LegacyPassTracker
     retry_state: PoiRetryState
     confirmation_manager: ConfirmationManager
-    source_session: FinalApproachSourceSession
+    source_session: GuidanceSourceSession
 
 
 @dataclass(frozen=True)
@@ -138,8 +138,8 @@ class DetectionReviewOwnership:
     """Detection admission, review policy, status, and network ownership."""
 
     network: NavNetworkRuntime
-    source: FinalApproachSourceAdmission
-    publication_admission: FinalApproachPublicationAdmission
+    source: GuidanceSourceAdmission
+    publication_admission: GuidancePublicationAdmission
     freshness: DetectionFreshnessPolicy
     retry: PoiRetryPolicy
     status: NavigationStatusReporter
@@ -184,8 +184,8 @@ class TrackRecoveryWorkflows:
 @dataclass(frozen=True)
 class ConfirmationAdmissionWorkflows:
     action: ConfirmationAction
-    release: FinalApproachReleaseGate
-    deadline: FinalApproachRecordDeadline
+    release: GuidanceReleaseGate
+    deadline: GuidanceRecordDeadline
     acquisition: AcquisitionGate
 
 
@@ -194,7 +194,7 @@ class ConfirmationWorkflows:
     reset: ResetWorkflows
     confirmation_action: ConfirmationAction
     poi_status: ConfirmationStatusDecision
-    deadline: FinalApproachRecordDeadline
+    deadline: GuidanceRecordDeadline
 
 
 @dataclass(frozen=True)

@@ -1,4 +1,4 @@
-"""Commissioning injector: delay or lose decoded frames in one SITL run (hitl_final_approach.md section 9, step 15).
+"""Commissioning injector: delay or lose decoded frames in one SITL run (hitl_guidance.md section 9, step 15).
 
 A bounded ``FrameCaptureBackend`` wrapper after decode. navpy's factory takes it as a dependency
 (``open_capture_backend(wrap=)``, encoded GStreamer sources only); product code never imports this module. The

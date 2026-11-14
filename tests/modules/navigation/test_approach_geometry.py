@@ -26,9 +26,9 @@ from navpy.core.skills.acquire.approach_planner import ApproachPlanner
 from navpy.core.skills.acquire.approach_strategy import ApproachKind, ApproachPlan
 from navpy.core.skills.acquire.orbit_geometry import OrbitNavigationLimits, r_nav_min
 from navpy.core.skills.acquire.orbit_radius_setting import (
-    FINAL_APPROACH_ORBIT_KEY,
-    final_approach_orbit_floor,
-    final_approach_orbit_setting,
+    GUIDANCE_ORBIT_KEY,
+    guidance_orbit_floor,
+    guidance_orbit_setting,
 )
 from navpy.core.skills.acquire.peer_orbit_plan import MIN_APPROACH_STANDOFF_M
 from tools.hitl import orbit_centre as oc
@@ -59,14 +59,14 @@ class _Log:
         self.warnings.append(message)
 
 
-def _planner(profile, *, lim_roll=45.0, min_pitch=-45.0, airspeed=24.0, final_approach=True):
+def _planner(profile, *, lim_roll=45.0, min_pitch=-45.0, airspeed=24.0, guidance=True):
     vehicle = SimpleNamespace(home_location=None, lim_roll=lim_roll, min_pitch=min_pitch, air_speed=airspeed)
     log = _Log()
 
     def camera_plan(poi, drone, mounts, **_):
         return ApproachPlan(kind=ApproachKind.ORBIT, approach_location=poi, offset_distance=0.0, orbit_radius=900.0)
 
-    planner = ApproachPlanner(vehicle, lambda: [], lambda: final_approach, profile, log, ApproachKind.ORBIT, 80.0,
+    planner = ApproachPlanner(vehicle, lambda: [], lambda: guidance, profile, log, ApproachKind.ORBIT, 80.0,
                               plan_offset=camera_plan)
     return planner, log
 
@@ -83,21 +83,21 @@ def test_non_hitl_profiles_keep_the_500_m_floor_unchanged():
     for name, profile in PROFILES.items():
         if name == op.HITL_PROFILE:
             continue
-        assert final_approach_orbit_setting(profile) is None, name
-        assert final_approach_orbit_floor(profile) == 500.0
+        assert guidance_orbit_setting(profile) is None, name
+        assert guidance_orbit_floor(profile) == 500.0
         planner, _ = _planner(profile)
         limits = OrbitNavigationLimits(24.0, 45.0, -45.0)
         assert _radius(planner) == r_nav_min(limits, 80.0, floor_m=500.0) == 500.0
 
 
 def test_only_hitl_profiles_carry_the_setting():
-    carriers = [name for name, profile in PROFILES.items() if FINAL_APPROACH_ORBIT_KEY in profile]
+    carriers = [name for name, profile in PROFILES.items() if GUIDANCE_ORBIT_KEY in profile]
     assert carriers == [op.HITL_PROFILE]
     assert all("hitl" in name for name in carriers)
 
 
 def test_the_hitl_profile_flies_its_explicit_radius():
-    assert final_approach_orbit_setting(HITL) == 300.0      # owner, 2026-11-05: at least 300 m for the approach
+    assert guidance_orbit_setting(HITL) == 300.0      # owner, 2026-11-05: at least 300 m for the approach
     planner, log = _planner(HITL)
     assert _radius(planner) == 300.0
     assert log.warnings == []
@@ -109,8 +109,8 @@ def test_the_setting_replaces_only_the_floor_and_a_wider_envelope_minimum_is_flo
     assert len(log.warnings) == 1 and "explicit radius 300m" in log.warnings[0]
 
 
-def test_without_a_final_approach_law_the_camera_plan_stays():
-    planner, _ = _planner(HITL, final_approach=False)
+def test_without_a_guidance_law_the_camera_plan_stays():
+    planner, _ = _planner(HITL, guidance=False)
     assert _radius(planner) == 900.0
 
 
@@ -120,7 +120,7 @@ def test_without_a_final_approach_law_the_camera_plan_stays():
 ])
 def test_a_malformed_setting_is_refused_when_the_planner_is_built(block):
     with pytest.raises(ValueError):
-        _planner({FINAL_APPROACH_ORBIT_KEY: block})
+        _planner({GUIDANCE_ORBIT_KEY: block})
 
 
 
@@ -278,7 +278,7 @@ def test_the_descent_check_agrees_with_the_planner_on_the_ground_ray_centre(plan
     lane height. The check passes descent exactly when the planner flies the setting."""
     plan = _plan(**plan_changes)
     assert oc.descent_height_m(plan) == plan.lane_height_m
-    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=plan.roll_limit_deg,
+    planner, log = _planner({GUIDANCE_ORBIT_KEY: {"radius_m": plan.radius_m}}, lim_roll=plan.roll_limit_deg,
                             min_pitch=plan.min_pitch_deg, airspeed=plan.airspeed_m_s)
     flown = _radius(planner, height=plan.lane_height_m)
     descent = _detail(plan, "descent")
@@ -294,7 +294,7 @@ def test_an_aircraft_bank_limit_under_the_nav_cap_sets_the_turn_term_as_in_the_p
     turn = next(r for r in sc.run_checks(plan) if r.name == "turn_radius")
     assert not turn.passed and turn.detail["bank_deg"] == 20.0
     assert turn.detail["required_m"] == pytest.approx(322.64, abs=0.01)
-    planner, log = _planner({FINAL_APPROACH_ORBIT_KEY: {"radius_m": 300.0}}, lim_roll=20.0)
+    planner, log = _planner({GUIDANCE_ORBIT_KEY: {"radius_m": 300.0}}, lim_roll=20.0)
     assert _radius(planner, height=plan.lane_height_m) == pytest.approx(322.64, abs=0.01) and len(log.warnings) == 1
     assert _failed(_plan(roll_limit_deg=0.0)) == {"turn_radius"}
 
@@ -341,7 +341,7 @@ def test_the_cli_passes_the_300_m_profile_with_the_whole_dock_detector(tmp_path,
     code, out = _cli(_inputs(tmp_path), capsys)
     assert code == 0 and out["feasible"] is True and len(out["checks"]) == len(sc.CHECKS)
     detector = next(c for c in out["checks"] if c["name"] == "detector")
-    assert detector["evidence"].startswith("hitl_final_approach.md step 23b")
+    assert detector["evidence"].startswith("hitl_guidance.md step 23b")
 
 
 @pytest.mark.parametrize("inputs, extra", [
@@ -363,7 +363,7 @@ def test_the_cli_refuses_unreadable_inputs(tmp_path, capsys):
     code, out = _cli(argv, capsys)
     assert code == 1 and "PTCH_LIM_MIN_DEG" in out["refused"]
     code, out = _cli(_inputs(tmp_path / "b") + ["--profile", "siyi_zr10"], capsys)
-    assert code == 1 and "final_approach_orbit" in out["refused"]
+    assert code == 1 and "guidance_orbit" in out["refused"]
     argv = _inputs(tmp_path / "c")
     code, out = _cli(argv[:1] + [str(tmp_path / "none")] + argv[2:], capsys)
     assert code == 1 and "refused" in out

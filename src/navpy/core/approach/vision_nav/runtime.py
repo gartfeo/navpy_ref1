@@ -1,4 +1,4 @@
-"""Small source-driven runtime for pure-vision final approach."""
+"""Small source-driven runtime for pure-vision guidance."""
 
 from __future__ import annotations
 
@@ -12,43 +12,43 @@ from navpy.core.command.navigation_command_slot import (
     NavigationCommandSlot,
 )
 from navpy.core.approach.vision_nav.command_executor import (
-    FinalApproachCommandExecutor,
-    FinalApproachCommandWork,
+    GuidanceCommandExecutor,
+    GuidanceCommandWork,
 )
 from navpy.core.approach.vision_nav.command_hold import (
-    FinalApproachCommandHoldIssuer,
-    FinalApproachHeldIssue,
+    GuidanceCommandHoldIssuer,
+    GuidanceHeldIssue,
 )
 from navpy.core.approach.vision_nav.command_liveness import (
-    FinalApproachCommandLiveness,
+    GuidanceCommandLiveness,
 )
 from navpy.core.approach.vision_nav.command_reset import (
-    FinalApproachCommandReset,
+    GuidanceCommandReset,
 )
-from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
+from navpy.core.approach.vision_nav.ingress import GuidanceIngress
 from navpy.core.approach.vision_nav.docked_evidence import (
-    FinalApproachDockedEvidence,
-    FinalApproachDockedEvidenceWork,
+    GuidanceDockedEvidence,
+    GuidanceDockedEvidenceWork,
 )
-from navpy.core.approach.vision_nav.episode_latch import FinalApproachEpisodeLatch
-from navpy.core.approach.vision_nav.queued_frame import FinalApproachQueuedFrame
-from navpy.core.approach.vision_nav.runtime_state import FinalApproachRuntimeStatus
+from navpy.core.approach.vision_nav.episode_latch import GuidanceEpisodeLatch
+from navpy.core.approach.vision_nav.queued_frame import GuidanceQueuedFrame
+from navpy.core.approach.vision_nav.runtime_state import GuidanceRuntimeStatus
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 
 
-class FinalApproachCommandWorkRuntime:
+class GuidanceCommandWorkRuntime:
     """Own command admission, leases, execution, and zero-order hold work."""
 
     def __init__(
         self,
         slot: NavigationCommandSlot,
-        ingress: FinalApproachIngress,
-        executor: FinalApproachCommandExecutor,
-        hold: FinalApproachCommandHoldIssuer,
-        docked_evidence: FinalApproachDockedEvidence,
+        ingress: GuidanceIngress,
+        executor: GuidanceCommandExecutor,
+        hold: GuidanceCommandHoldIssuer,
+        docked_evidence: GuidanceDockedEvidence,
     ) -> None:
         self._slot = slot
         self._ingress = ingress
@@ -78,52 +78,52 @@ class FinalApproachCommandWorkRuntime:
         if lease is None:
             return None
         if lease.payload is _HELD_COMMAND:
-            return FinalApproachHeldCommandWork(lease)
-        if not isinstance(lease.payload, FinalApproachQueuedFrame):
+            return GuidanceHeldCommandWork(lease)
+        if not isinstance(lease.payload, GuidanceQueuedFrame):
             self._slot.finish(lease)
             return None
         payload = lease.payload
-        return FinalApproachCommandWork(payload.frame, payload.diagnostic_token, lease)
+        return GuidanceCommandWork(payload.frame, payload.diagnostic_token, lease)
 
     def execute_work(self, work: _Work) -> CalcData | None:
-        if isinstance(work, FinalApproachDockedEvidenceWork):
+        if isinstance(work, GuidanceDockedEvidenceWork):
             return None
-        if isinstance(work, FinalApproachHeldCommandWork):
+        if isinstance(work, GuidanceHeldCommandWork):
             issue = self._slot.execute_if_current(
                 work.lease,
                 self._hold.issue,
             )
-            if not isinstance(issue, FinalApproachHeldIssue):
+            if not isinstance(issue, GuidanceHeldIssue):
                 return None
             self._hold.record(issue)
             return issue.command.calc_data()
         return self._executor.execute(work)
 
     def finish_work(self, work: _Work) -> None:
-        if isinstance(work, FinalApproachDockedEvidenceWork):
+        if isinstance(work, GuidanceDockedEvidenceWork):
             return
         self._slot.finish(work.lease)
 
     def postprocess_job(self, work: _Work) -> Callable[[], None] | None:
-        if isinstance(work, FinalApproachDockedEvidenceWork):
+        if isinstance(work, GuidanceDockedEvidenceWork):
             return work.postprocess_job()
-        if isinstance(work, FinalApproachCommandWork):
+        if isinstance(work, GuidanceCommandWork):
             return self._executor.postprocess_job(work)
         return None
 
 
-class FinalApproachSessionRuntime:
-    """Own final-approach lifecycle, source continuity, liveness, and status state."""
+class GuidanceSessionRuntime:
+    """Own guidance lifecycle, source continuity, liveness, and status state."""
 
     def __init__(
         self,
         lock: rt.RLock,
         epochs: SourceEpochLedger,
-        command_reset: FinalApproachCommandReset,
-        episode: FinalApproachEpisodeLatch,
-        status: FinalApproachRuntimeStatus,
-        liveness: FinalApproachCommandLiveness,
-        docked_evidence: FinalApproachDockedEvidence,
+        command_reset: GuidanceCommandReset,
+        episode: GuidanceEpisodeLatch,
+        status: GuidanceRuntimeStatus,
+        liveness: GuidanceCommandLiveness,
+        docked_evidence: GuidanceDockedEvidence,
     ) -> None:
         self._lock = lock
         self._epochs = epochs
@@ -185,9 +185,9 @@ class FinalApproachSessionRuntime:
         with self._lock:
             if not self._episode.latch_docked(event):
                 return False
-            # Terminal: nothing may actuate after docking (no held refresh,
+            # Result: nothing may actuate after docking (no held refresh,
             # no queued frame); the episode latch itself is kept.
-            self._command_reset.retire_after_terminal()
+            self._command_reset.retire_after_result()
             self._docked_evidence.stage(event)
             return True
 
@@ -197,7 +197,7 @@ class FinalApproachSessionRuntime:
         with self._lock:
             admitted = self._episode.latch_failure(reason)
             if admitted and self._episode.failure_ends_commands:
-                self._command_reset.retire_after_terminal()
+                self._command_reset.retire_after_result()
             return admitted
 
     def consume_missed_dock(self) -> bool:
@@ -209,12 +209,12 @@ class FinalApproachSessionRuntime:
 
 
 class VisionNavRuntime:
-    """Expose the two focused final-approach runtime capabilities."""
+    """Expose the two focused guidance runtime capabilities."""
 
     def __init__(
         self,
-        commands: FinalApproachCommandWorkRuntime,
-        session: FinalApproachSessionRuntime,
+        commands: GuidanceCommandWorkRuntime,
+        session: GuidanceSessionRuntime,
     ) -> None:
         self._commands = commands
         self._session = session
@@ -265,7 +265,7 @@ class VisionNavRuntime:
         return self._session.poi_passed_override()
 
     @property
-    def session(self) -> FinalApproachSessionRuntime:
+    def session(self) -> GuidanceSessionRuntime:
         """The lifecycle/status capability (episode latch, completion)."""
         return self._session
 
@@ -274,21 +274,21 @@ class VisionNavRuntime:
 
 
 @dataclass(frozen=True)
-class FinalApproachHeldCommandWork:
+class GuidanceHeldCommandWork:
     lease: NavigationCommandLease
 
 
 _HELD_COMMAND = object()
 _Work = Union[
-    FinalApproachCommandWork,
-    FinalApproachHeldCommandWork,
-    FinalApproachDockedEvidenceWork,
+    GuidanceCommandWork,
+    GuidanceHeldCommandWork,
+    GuidanceDockedEvidenceWork,
 ]
 
 
 __all__ = [
-    "FinalApproachCommandWorkRuntime",
-    "FinalApproachHeldCommandWork",
-    "FinalApproachSessionRuntime",
+    "GuidanceCommandWorkRuntime",
+    "GuidanceHeldCommandWork",
+    "GuidanceSessionRuntime",
     "VisionNavRuntime",
 ]

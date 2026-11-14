@@ -46,9 +46,9 @@ PEER_ASSIGNMENT_MARKERS: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("offer from an owner", re.compile(r"\bTask \d+ offered by owner \d+")),
     ("offer rejected", re.compile(r"\bTask \d+ from owner \d+ rejected:")),
     ("offer withdrawn", re.compile(r"\bTask \d+: owner \d+ no longer offers it")),
-    ("offer dropped on approach", re.compile(r"\bOwn final approach started; rejecting task \d+")),
+    ("offer dropped on approach", re.compile(r"\bOwn guidance started; rejecting task \d+")),
     ("offer re-advertised", re.compile(r"\bTask \d+ re-advertised by owner \d+")),
-    ("advert while busy", re.compile(r"\bBusy \(holding a task or flying a final approach\); not bidding")),
+    ("advert while busy", re.compile(r"\bBusy \(holding a task or in guidance\); not bidding")),
     ("advert without location", re.compile(r"\bLocation not set\. Cannot send available message")),
     ("first task offer", re.compile(r"\bTask offered: task_id=\d+")),  # task_rebroadcast.py
     ("advert with no task", re.compile(r"\bNo tasks can handle\b")),

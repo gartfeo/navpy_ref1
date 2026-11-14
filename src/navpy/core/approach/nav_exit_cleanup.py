@@ -7,7 +7,7 @@ from dataclasses import dataclass
 from typing import Optional, Protocol
 
 from navpy.core.approach.vision_nav.episode_latch import (
-    FinalApproachEpisodeTerminal,
+    GuidanceEpisodeResult,
 )
 from navpy.core.kernel.exception_groups import ExceptionGroup
 from navpy.core.kernel.logging.cache_logger import ILogger
@@ -18,20 +18,20 @@ from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
 class DockOutcomePort(Protocol):
     """How the armed episode ended (missed_dock.md); never a command input."""
 
-    def terminal(self) -> Optional[FinalApproachEpisodeTerminal]: ...
+    def result(self) -> Optional[GuidanceEpisodeResult]: ...
 
-    def record_failed(self, terminal: FinalApproachEpisodeTerminal, reason: str) -> None: ...
+    def record_failed(self, result: GuidanceEpisodeResult, reason: str) -> None: ...
 
 
 @dataclass(frozen=True)
 class NavExitCleanupPorts:
     disarm_dock_contact: Callable[[], Optional[DockContactEvent]]
-    close_final_approach_source: Callable[[], None]
+    close_guidance_source: Callable[[], None]
     navigation_reset: Callable[[], object]
     detector_stop: Callable[[], None]
-    # Its terminal is read before the reset clears it; None: no vision runtime.
+    # Its result is read before the reset clears it; None: no vision runtime.
     dock_outcome: Optional[DockOutcomePort] = None
-    #: The held episode's dock-contact end (FinalApproachDockContact.disarm_held); None: ``disarm_dock_contact``.
+    #: The held episode's dock-contact end (GuidanceDockContact.disarm_held); None: ``disarm_dock_contact``.
     disarm_held_dock_contact: Optional[Callable[[], Optional[DockContactEvent]]] = None
 
 
@@ -41,8 +41,8 @@ class NavCleanupResult:
     errors: tuple[Exception, ...]
     # The armed episode's own-dock contact, captured before the reset.
     own_dock_contact: DockContactEvent | None = None
-    # The armed episode's first terminal (missed_dock.md), before the reset.
-    dock_terminal: FinalApproachEpisodeTerminal | None = None
+    # The armed episode's first result (missed_dock.md), before the reset.
+    dock_result: GuidanceEpisodeResult | None = None
 
 
 class NavExitCleanup:
@@ -62,7 +62,7 @@ class NavExitCleanup:
         errors: list[Exception] = []
         snap = None
         contact = None
-        terminal = None
+        result = None
 
         try:
             contact = self._ports.disarm_dock_contact()
@@ -70,12 +70,12 @@ class NavExitCleanup:
             errors.append(error)
         try:
             outcome = self._ports.dock_outcome
-            terminal = None if outcome is None else outcome.terminal()
+            result = None if outcome is None else outcome.result()
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
         source_closed = False
         try:
-            self._ports.close_final_approach_source()
+            self._ports.close_guidance_source()
             source_closed = True
         except Exception as error:  # noqa: BLE001 - teardown transaction
             errors.append(error)
@@ -103,31 +103,31 @@ class NavExitCleanup:
             snap=snap,
             errors=tuple(errors),
             own_dock_contact=contact,
-            dock_terminal=terminal,
+            dock_result=result,
         )
 
     def end_episode(self) -> None:
-        """Recovery's hold ends the final-approach episode, without failure (nav_held_approach.py): the dock-contact
+        """Recovery's hold ends the guidance episode, without failure (nav_held_approach.py): the dock-contact
         episode, the source admission and the command session (``navigation_reset``: commands, liveness and the
         episode latch) end; tracking, zoom, the speedup and the task stay for the fresh episode."""
         errors: list[Exception] = []
         disarm = self._ports.disarm_held_dock_contact or self._ports.disarm_dock_contact
-        for step in (disarm, self._ports.close_final_approach_source, self._ports.navigation_reset):
+        for step in (disarm, self._ports.close_guidance_source, self._ports.navigation_reset):
             try:
                 step()
             except Exception as error:  # noqa: BLE001 - every step runs; the NAV loop fails the cycle on the group
                 errors.append(error)
         if errors:
-            raise ExceptionGroup("held final-approach episode did not end", errors)
+            raise ExceptionGroup("held guidance episode did not end", errors)
 
     def record_dock_failed(
         self,
-        terminal: FinalApproachEpisodeTerminal,
+        result: GuidanceEpisodeResult,
         reason: str,
     ) -> None:
         """The DOCK_FAILED row, once the NAV exit succeeded."""
         if self._ports.dock_outcome is not None:
-            self._ports.dock_outcome.record_failed(terminal, reason)
+            self._ports.dock_outcome.record_failed(result, reason)
 
 
 __all__ = [

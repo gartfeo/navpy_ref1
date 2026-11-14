@@ -153,12 +153,12 @@ def _wait_for_visual_confirmation(
         detection = source.latest_detection
         if (
             detection is not None
-            and navigation.final_approach.can_confirm_detection(detection)
-            and navigation.final_approach.record_confirmed_detection(detection)
+            and navigation.guidance.can_confirm_detection(detection)
+            and navigation.guidance.record_confirmed_detection(detection)
         ):
             return detection
         time.sleep(0.01)
-    raise TimeoutError("SIYI POI never entered final-approach command authority")
+    raise TimeoutError("SIYI POI never entered guidance command authority")
 
 
 def _initialize_confirmed_navigation(
@@ -166,7 +166,7 @@ def _initialize_confirmed_navigation(
     source: SiyiGeoPixelSource,
     timeout_s: float,
 ) -> DetectedObject:
-    """Reset final-approach state before recording the frame that seeds handoff."""
+    """Reset guidance state before recording the frame that seeds handoff."""
     navigation.init()
     return _wait_for_visual_confirmation(navigation, source, timeout_s)
 
@@ -211,7 +211,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
     cadence = None
     navigation = None
     source = None
-    final_approach_recorded = False
+    guidance_recorded = False
     trace = FlightControlTrace(options.result.parent / "flight_control_trace.csv")
     try:
         vehicle = create_vehicle(ConnArgs(args), logger)
@@ -234,12 +234,12 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             is_absolute=True,
         )
         def dispatch(poi_detection: DetectedObject) -> bool:
-            nonlocal final_approach_recorded
-            if not final_approach_recorded:
-                final_approach_recorded = navigation.final_approach.record_confirmed_detection(
+            nonlocal guidance_recorded
+            if not guidance_recorded:
+                guidance_recorded = navigation.guidance.record_confirmed_detection(
                     poi_detection
                 )
-                if not final_approach_recorded:
+                if not guidance_recorded:
                     return False
             return navigation.nav(poi_detection)
 
@@ -263,7 +263,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             min_pixels=get_min_pixels_for_class(assembly.profile, 0),
             dispatch=dispatch,
         )
-        navigation.bind_final_approach_source_dispatch(source.dispatch_available)
+        navigation.bind_guidance_source_dispatch(source.dispatch_available)
         spec.mount.start()
         tracker.start_geo_tracking(poi, assembly.geo_ref)
         source.start()
@@ -279,9 +279,9 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         if not vehicle.set_mode(FlightMode.GUIDED):
             raise RuntimeError("GUIDED mode request was rejected")
         _wait_for_mode(vehicle, FlightMode.GUIDED, 5.0)
-        dock_contact = HarnessDockContact(vehicle, poi, navigation.final_approach, logger)
+        dock_contact = HarnessDockContact(vehicle, poi, navigation.guidance, logger)
         dock_contact.arm(_initialize_confirmed_navigation(navigation, source, options.timeout))
-        final_approach_recorded = True
+        guidance_recorded = True
         source.activate()
         options.scoring_active.write_text("SIYI_PIXEL_NAV\n", encoding="utf-8")
         print("SIYI_PIXEL_NAV", flush=True)
@@ -289,7 +289,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         while time.monotonic() < deadline_s:
             navigation.raise_if_failed()
             trace.sample(vehicle)
-            if navigation.final_approach.poi_passed_override() is True:
+            if navigation.guidance.poi_passed_override() is True:
                 return _result_payload(True, navigation, source)
             time.sleep(0.01)
         return _result_payload(False, navigation, source)

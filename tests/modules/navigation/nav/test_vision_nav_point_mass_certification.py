@@ -1,4 +1,4 @@
-"""Ideal spherical-pixel final approach point-mass certification."""
+"""Ideal spherical-pixel guidance point-mass certification."""
 
 from __future__ import annotations
 
@@ -106,7 +106,7 @@ def test_navigation_only_variants_keep_strict_component_miss() -> None:
         assert miss.vertical_m < 0.02, case.name
 
 
-def test_final_approach_pn_does_not_claim_rear_hemisphere_acquisition() -> None:
+def test_guidance_pn_does_not_claim_rear_hemisphere_acquisition() -> None:
     """DIRECTLY ASTERN AND RADIALLY RECEDING, which is narrower than the name.
 
     This is not a statement about the rear hemisphere. The law acquires at 118

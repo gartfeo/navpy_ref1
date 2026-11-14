@@ -1,19 +1,19 @@
-"""Small read-only final-approach status owner."""
+"""Small read-only guidance status owner."""
 
 from __future__ import annotations
 
 import math
 
 from navpy.core.kernel import runtime_time as rt
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 
-class FinalApproachRuntimeStatus:
+class GuidanceRuntimeStatus:
     def __init__(self) -> None:
         self._lock = rt.Lock()
         self._last_body_bearing_deg: float | None = None
 
-    def record(self, frame: FinalApproachVisionFrame) -> None:
+    def record(self, frame: GuidanceVisionFrame) -> None:
         with self._lock:
             self._last_body_bearing_deg = math.degrees(
                 math.atan2(frame.body_y, frame.body_x)
@@ -28,4 +28,4 @@ class FinalApproachRuntimeStatus:
             return self._last_body_bearing_deg
 
 
-__all__ = ["FinalApproachRuntimeStatus"]
+__all__ = ["GuidanceRuntimeStatus"]

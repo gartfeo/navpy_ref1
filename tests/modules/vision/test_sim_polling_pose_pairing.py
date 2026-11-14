@@ -11,7 +11,7 @@ from unittest.mock import Mock, patch
 import pytest
 
 from navpy.core.approach.vision_nav.command_freshness import (
-    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+    GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
 )
 from navpy.core.kernel.attitude import Attitude
 from navpy.plugins.vehicle.ardupilot.pose_telemetry import (
@@ -536,7 +536,7 @@ def test_warns_once_when_unpaired_for_the_freshness_limit(
     unpaired_ms: int,
     warnings: int,
 ) -> None:
-    assert FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S == 1.0
+    assert GUIDANCE_COMMAND_MAX_SOURCE_AGE_S == 1.0
     warning = Mock()
     monitor = UnpairedPoseMonitor(warning)
 
@@ -723,7 +723,7 @@ def test_attitude_leading_every_poll_still_keeps_frames_fresh() -> None:
             assert read.sample is not None
             paired_boot_ms.append(whole_boot_ms(read.sample.time_boot_s))
             age_s = read.attitude_time_boot_s - read.sample.time_boot_s
-            assert age_s < FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S / 10.0
+            assert age_s < GUIDANCE_COMMAND_MAX_SOURCE_AGE_S / 10.0
     assert paired_boot_ms == sorted(paired_boot_ms)
 
 

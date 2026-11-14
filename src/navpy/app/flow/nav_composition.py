@@ -27,8 +27,8 @@ from navpy.app.flow.nav_foundation_composition import (
     compose_vehicle_approach_ownership,
 )
 from navpy.app.flow.nav_runtime_composition import compose_nav_application
-from navpy.app.flow.nav_final_approach_composition import (
-    compose_final_approach_workflows,
+from navpy.app.flow.nav_guidance_composition import (
+    compose_guidance_workflows,
 )
 from navpy.core.ports.dock_contact import DockContactSensor
 from navpy.core.flow.nav_recovery_ports import NavRecoveryLink
@@ -53,20 +53,20 @@ def create_nav_application(
 
     profile = vision_profile or {}
     navigation_capabilities = NavCapabilities(
-        final_approach=navigation.final_approach,
+        guidance=navigation.guidance,
         dock_outcome=navigation.dock_outcome,
         legacy_pois=navigation.legacy_pois,
         vehicle_commands=navigation.vehicle_commands,
         init=navigation.init,
         reset=navigation.reset,
-        pause=navigation.pause_final_approach,
+        pause=navigation.pause_guidance,
         nav=navigation.nav,
-        bind_source_dispatch=navigation.bind_final_approach_source_dispatch,
+        bind_source_dispatch=navigation.bind_guidance_source_dispatch,
         algorithm_info=lambda: navigation.algorithm_info,
     )
     state = compose_state_ownership(
         scheduler_cadence,
-        navigation.final_approach.latch_failure,
+        navigation.guidance.latch_failure,
         None if recovery_link is None else recovery_link.observe_mode,
     )
     metadata = read_mission_metadata(vehicle)
@@ -123,7 +123,7 @@ def create_nav_application(
         navigation_capabilities,
         mission_navigation,
     )
-    final_approach = compose_final_approach_workflows(
+    guidance = compose_guidance_workflows(
         vehicle,
         detection,
         args,
@@ -143,8 +143,8 @@ def create_nav_application(
         poi,
         approach,
         observation,
-        final_approach.admission,
-        final_approach.reset,
+        guidance.admission,
+        guidance.reset,
         navigation_capabilities,
         navigation_workflows.peer_task_priority,
         navigation_workflows.peer_reask,
@@ -175,7 +175,7 @@ def create_nav_application(
         confirmation,
         decision,
         navigation_capabilities,
-        final_approach.nav,
+        guidance.nav,
         dock_contact,
         recovery_link,
     )

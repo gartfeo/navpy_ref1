@@ -654,7 +654,7 @@ class TestFleetGate(unittest.TestCase):
         self.assertIn("SIM_RATE_HZ", names)
 
     def test_the_later_writers_are_included_in_the_conflict_set(self) -> None:
-        # sim_parameters() alone misses the SIM_CPA POI and the final_approach
+        # sim_parameters() alone misses the SIM_CPA POI and the guidance
         # step-down clock, which are written by other paths after boot.
         with patch.object(self.fleet, "sim_parameters", return_value=()), \
                 patch.object(self.fleet.preboot, "overrides", return_value={}), \

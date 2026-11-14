@@ -1,4 +1,4 @@
-"""A profile for a camera flown later (hitl_final_approach.md section 4, "Other cameras").
+"""A profile for a camera flown later (hitl_guidance.md section 4, "Other cameras").
 
 The 18x is a placeholder, not calibrated, and says so in `calibration`, so results from it are labelled.
 """

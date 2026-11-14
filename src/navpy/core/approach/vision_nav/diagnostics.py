@@ -1,4 +1,4 @@
-"""Post-fence final-approach diagnostics and compact navigation samples."""
+"""Post-fence guidance diagnostics and compact navigation samples."""
 
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ from navpy.core.kernel.attitude import Attitude
 from navpy.core.kernel.location import Location
 from navpy.core.perception.geo.geo_ref_calc import GeoRefCalc
 from navpy.core.approach.vision_nav.command_transaction import (
-    FinalApproachCommandOutcome,
-    FinalApproachCommandResult,
-    FinalApproachLawEvidence,
+    GuidanceCommandOutcome,
+    GuidanceCommandResult,
+    GuidanceLawEvidence,
 )
 from navpy.core.approach.vision_nav.diagnostic_capture import (
     body_bearing_deg,
@@ -28,52 +28,52 @@ from navpy.core.approach.vision_nav.diagnostic_capture import (
     law_evidence_payload,
     optional_float,
 )
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.core.ports.detect_data import DetectedObject
 from navpy.core.ports.dock_contact import DockContactEvent, DockContactIdentity
 
 
 @dataclass(frozen=True)
-class FinalApproachDiagnosticSnapshot:
+class GuidanceDiagnosticSnapshot:
     attitude: Attitude | None
     location: Location | None
 
 
 @dataclass(frozen=True)
-class FinalApproachCommandValues:
+class GuidanceCommandValues:
     roll_deg: float
     pitch_deg: float
     throttle: float | None
 
 
 @dataclass(frozen=True)
-class FinalApproachCommandDiagnostic:
+class GuidanceCommandDiagnostic:
     """Immutable command-time telemetry prepared for later formatting."""
 
-    frame: FinalApproachVisionFrame
-    command: FinalApproachCommandValues | None
-    outcome: FinalApproachCommandOutcome | None
+    frame: GuidanceVisionFrame
+    command: GuidanceCommandValues | None
+    outcome: GuidanceCommandOutcome | None
     missed: bool
-    snapshot: FinalApproachDiagnosticSnapshot | None
+    snapshot: GuidanceDiagnosticSnapshot | None
     poi_location: Location | None
     camera_location: Location | None
     x_error: float | None
     y_error: float | None
     camera_matrix: np.ndarray | None
     event_timestamp: str
-    law_evidence: FinalApproachLawEvidence | None
+    law_evidence: GuidanceLawEvidence | None
 
 
-class FinalApproachDiagnosticReader(Protocol):
-    def read(self) -> FinalApproachDiagnosticSnapshot: ...
+class GuidanceDiagnosticReader(Protocol):
+    def read(self) -> GuidanceDiagnosticSnapshot: ...
 
 
-class FinalApproachCommandDiagnostics(Protocol):
+class GuidanceCommandDiagnostics(Protocol):
     def capture(
         self,
-        frame: FinalApproachVisionFrame,
+        frame: GuidanceVisionFrame,
         poi: DetectedObject | None,
-        result: FinalApproachCommandResult | None,
+        result: GuidanceCommandResult | None,
     ) -> object: ...
 
     def record(
@@ -82,38 +82,38 @@ class FinalApproachCommandDiagnostics(Protocol):
     ) -> None: ...
 
 
-class NavigationFinalApproachDiagnostics:
+class NavigationGuidanceDiagnostics:
     """Snapshot mutable telemetry at issue time, then format it off-thread."""
 
     def __init__(
         self,
         logger: NavigationLogger,
-        reader: FinalApproachDiagnosticReader,
+        reader: GuidanceDiagnosticReader,
     ) -> None:
         self._logger = logger
         self._reader = reader
 
     def capture(
         self,
-        frame: FinalApproachVisionFrame,
+        frame: GuidanceVisionFrame,
         poi: DetectedObject | None,
-        result: FinalApproachCommandResult | None,
-    ) -> FinalApproachCommandDiagnostic:
+        result: GuidanceCommandResult | None,
+    ) -> GuidanceCommandDiagnostic:
         calc = None if result is None else result.calc_data
         poi_location = copy_location(debug_poi(poi))
         camera_location = copy_location(debug_camera(poi))
         needs_snapshot = calc is not None or (
             result is not None
-            and result.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED
+            and result.outcome is GuidanceCommandOutcome.AFT_SUPPRESSED
             and poi_location is not None
         )
         snapshot = self._reader.read() if needs_snapshot else None
-        return FinalApproachCommandDiagnostic(
+        return GuidanceCommandDiagnostic(
             frame=frame,
             command=(
                 None
                 if calc is None
-                else FinalApproachCommandValues(
+                else GuidanceCommandValues(
                     float(calc.cmd_roll),
                     float(calc.cmd_pitch),
                     None if calc.cmd_thr is None else float(calc.cmd_thr),
@@ -132,20 +132,20 @@ class NavigationFinalApproachDiagnostics:
         )
 
     def record(self, diagnostic: object) -> None:
-        if not isinstance(diagnostic, FinalApproachCommandDiagnostic):
-            raise TypeError("invalid final-approach command diagnostic")
-        if diagnostic.outcome is FinalApproachCommandOutcome.TERMINAL_SUPPRESSED:
+        if not isinstance(diagnostic, GuidanceCommandDiagnostic):
+            raise TypeError("invalid guidance command diagnostic")
+        if diagnostic.outcome is GuidanceCommandOutcome.EPISODE_ENDED:
             # The episode ended (docked or missed): no command row after it.
             return
         if diagnostic.command is None:
             self._record_event(diagnostic)
-            if diagnostic.outcome is FinalApproachCommandOutcome.AFT_SUPPRESSED:
+            if diagnostic.outcome is GuidanceCommandOutcome.AFT_SUPPRESSED:
                 self._sample_aft_frame(
                     diagnostic.poi_location,
                     diagnostic.snapshot,
                 )
             return
-        snapshot = diagnostic.snapshot or FinalApproachDiagnosticSnapshot(None, None)
+        snapshot = diagnostic.snapshot or GuidanceDiagnosticSnapshot(None, None)
         if self._record_compact(diagnostic, snapshot):
             self._record_event(diagnostic)
             self._record_law_evidence(diagnostic)
@@ -190,7 +190,7 @@ class NavigationFinalApproachDiagnostics:
     def _sample_aft_frame(
         self,
         poi_location: Location | None,
-        snapshot: FinalApproachDiagnosticSnapshot | None,
+        snapshot: GuidanceDiagnosticSnapshot | None,
     ) -> None:
         if poi_location is None or snapshot is None:
             return
@@ -198,12 +198,12 @@ class NavigationFinalApproachDiagnostics:
 
     def _record_event(
         self,
-        diagnostic: FinalApproachCommandDiagnostic,
+        diagnostic: GuidanceCommandDiagnostic,
     ) -> None:
         frame = diagnostic.frame
         command = diagnostic.command
         self._logger.log_event(
-            LogEvent.FINAL_APPROACH_CMD,
+            LogEvent.GUIDANCE_CMD,
             {
                 "source": frame.source_name,
                 "generation": frame.source_generation,
@@ -215,18 +215,18 @@ class NavigationFinalApproachDiagnostics:
                 "cmd_roll": "" if command is None else command.roll_deg,
                 "cmd_pitch": "" if command is None else command.pitch_deg,
                 "cmd_thr": "" if command is None else command.throttle,
-                "issued": diagnostic.outcome is FinalApproachCommandOutcome.ISSUED,
+                "issued": diagnostic.outcome is GuidanceCommandOutcome.ISSUED,
                 "missed": diagnostic.missed,
             },
             timestamp=diagnostic.event_timestamp,
         )
 
-    def _record_law_evidence(self, diagnostic: FinalApproachCommandDiagnostic) -> None:
+    def _record_law_evidence(self, diagnostic: GuidanceCommandDiagnostic) -> None:
         evidence = diagnostic.law_evidence
         if evidence is None:
             return
         self._logger.log_event(
-            LogEvent.FINAL_APPROACH_RESPONSE_STATE,
+            LogEvent.GUIDANCE_RESPONSE_STATE,
             {
                 "source": diagnostic.frame.source_name,
                 "obs_ts": diagnostic.frame.source_timestamp_s,
@@ -239,8 +239,8 @@ class NavigationFinalApproachDiagnostics:
 
     def _record_compact(
         self,
-        diagnostic: FinalApproachCommandDiagnostic,
-        snapshot: FinalApproachDiagnosticSnapshot,
+        diagnostic: GuidanceCommandDiagnostic,
+        snapshot: GuidanceDiagnosticSnapshot,
     ) -> bool:
         frame = diagnostic.frame
         poi_location = diagnostic.poi_location
@@ -275,11 +275,11 @@ class NavigationFinalApproachDiagnostics:
 
 
 def _copy_snapshot(
-    snapshot: FinalApproachDiagnosticSnapshot | None,
-) -> FinalApproachDiagnosticSnapshot | None:
+    snapshot: GuidanceDiagnosticSnapshot | None,
+) -> GuidanceDiagnosticSnapshot | None:
     if snapshot is None:
         return None
-    return FinalApproachDiagnosticSnapshot(
+    return GuidanceDiagnosticSnapshot(
         attitude=copy_attitude(snapshot.attitude),
         location=copy_location(snapshot.location),
     )
@@ -291,10 +291,10 @@ def _episode_payload(identity: DockContactIdentity, source_s: float | None) -> d
 
 
 __all__ = [
-    "NavigationFinalApproachDiagnostics",
-    "FinalApproachCommandDiagnostic",
-    "FinalApproachCommandValues",
-    "FinalApproachCommandDiagnostics",
-    "FinalApproachDiagnosticReader",
-    "FinalApproachDiagnosticSnapshot",
+    "NavigationGuidanceDiagnostics",
+    "GuidanceCommandDiagnostic",
+    "GuidanceCommandValues",
+    "GuidanceCommandDiagnostics",
+    "GuidanceDiagnosticReader",
+    "GuidanceDiagnosticSnapshot",
 ]

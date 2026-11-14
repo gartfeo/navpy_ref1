@@ -448,7 +448,7 @@ def _approach(board):
     ground = Location(40.2, 44.5, 0.0)
     plan = SimpleNamespace(orbit_radius=170.0)
     ports = SelfDetectedApproachPorts(
-        final_approach_active=lambda: True,
+        guidance_active=lambda: True,
         detector_is_simulation=lambda: False,
         ground_location=Mock(return_value=ground),
         current_relative=lambda: None,

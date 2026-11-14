@@ -12,12 +12,12 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from navpy.core.approach.vision_nav.command_freshness import (
-    FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S,
+    GUIDANCE_COMMAND_MAX_SOURCE_AGE_S,
 )
 from scripts.eval_gcs_demo_models import (
     DockArmed,
     DockedEvidence,
-    FinalApproachCommand,
+    GuidanceCommand,
 )
 from scripts.eval_gcs_demo_tokens import (
     canonical_integer as _integer,
@@ -41,11 +41,11 @@ _DOCK_ARMED_FIELDS = ("vehicle", "task", "dock", "episode")
 _DOCK_ARMED_SOURCE_FIELDS = (*_DOCK_ARMED_FIELDS, "source_ts")
 # Then the epoch wall time at NAV entry (the observation rows' clock).
 _DOCK_ARMED_WALL_FIELDS = (*_DOCK_ARMED_SOURCE_FIELDS, "wall_s")
-# A held command expires FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S of aircraft
+# A held command expires GUIDANCE_COMMAND_MAX_SOURCE_AGE_S of aircraft
 # time after its frame (command_freshness.py) and the approach then ends as
 # NAV_FAIL, so a genuine contact cannot come later than that after the last
 # commanded frame.
-DOCKED_AFTER_LAST_FRAME_MAX_S = FINAL_APPROACH_COMMAND_MAX_SOURCE_AGE_S
+DOCKED_AFTER_LAST_FRAME_MAX_S = GUIDANCE_COMMAND_MAX_SOURCE_AGE_S
 # The sim net radius (navpy.sim.world.dock_net_radius): contact is
 # strictly inside it, so a DOCKED row outside it contradicts its own decision.
 DOCK_NET_RADIUS_M = 0.5
@@ -153,13 +153,13 @@ def parse_dock_armed(row: list[str], line_number: int) -> DockArmed:
 def docked_errors(
     docked: DockedEvidence,
     armed: DockArmed | None,
-    current: list[FinalApproachCommand],
+    current: list[GuidanceCommand],
     vehicle_id: int | None,
     last_episode: int | None,
 ) -> str | None:
     """Why a DOCKED row does not count, or None when it does."""
     if not current:
-        return "DOCKED outside a final-approach episode"
+        return "DOCKED outside a guidance episode"
     if armed is None:
         return "DOCKED without a DOCK_ARMED row for its episode"
     if docked.identity != armed.identity:

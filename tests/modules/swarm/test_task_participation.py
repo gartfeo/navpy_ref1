@@ -215,7 +215,7 @@ def test_owner_applied_ack_assigns_and_is_logged(timers):
     helper.logger.info.assert_any_call("Task 10 assigned by owner 1")
 
 
-def test_own_final_approach_drops_waiting_and_rejects_it(timers):
+def test_own_guidance_drops_waiting_and_rejects_it(timers):
     helper = Helper()
     helper.request()
     helper.network.reset_mock()

@@ -7,8 +7,8 @@ import numpy as np
 
 from navpy.core.kernel.attitude import Attitude
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.perception.detection.confirmation_frame import (
     should_replace_center_gated_confirmation_frame,
@@ -339,7 +339,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
 
     def test_frame_time_pose_populates_provenance_and_optional_diagnostics(self):
         # A frame-time attitude sample must ride along on the detection so it can
-        # reach the certified body-fixed final-approach path: frame-time attitude (NOT
+        # reach the certified body-fixed guidance path: frame-time attitude (NOT
         # a conversion-time re-read), optional gyro diagnostics, atomic provenance,
         # per-stream timestamps.
         detector = self._make_detector()
@@ -413,7 +413,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         self.assertEqual(dt.timing.camera_frame_timestamp_s, 42.0)
         self.assertFalse(dt.geo.is_simulation)
 
-    def test_missing_frame_timestamp_remains_visible_but_final_approach_rejects(self):
+    def test_missing_frame_timestamp_remains_visible_but_guidance_rejects(self):
         detector = self._make_detector()
         trk = self._track(7, 320, 240, 80, 40, timestamp=42.0)
         association = self._association(
@@ -431,8 +431,8 @@ class TestDetectorPoiConversion(unittest.TestCase):
             dt.pose.status, "real_frame_capture_timestamp_unavailable",
         )
         self.assertIsNone(
-            FinalApproachFrameProjector(
-                FinalApproachProjectionConfig("ZYX", True)
+            GuidanceFrameProjector(
+                GuidanceProjectionConfig("ZYX", True)
             ).project(dt.visual_detection(), 0)
         )
 
@@ -561,8 +561,8 @@ class TestDetectorPoiConversion(unittest.TestCase):
         self.assertEqual(dt.pose.status, "real_frame_pose_unbracketed")
         self.assertAlmostEqual(dt.pose.pose_age_s, 0.01)
         self.assertIsNone(
-            FinalApproachFrameProjector(
-                FinalApproachProjectionConfig("ZYX", True)
+            GuidanceFrameProjector(
+                GuidanceProjectionConfig("ZYX", True)
             ).project(dt.visual_detection(), 0)
         )
 
@@ -692,7 +692,7 @@ class TestDetectorPoiConversion(unittest.TestCase):
         self.assertEqual(association.pose_status, "real_frame_zoom_skew")
         self.assertAlmostEqual(association.pose_age_s, 0.2)
 
-    def test_unproven_zoom_stays_visible_but_final_approach_rejects_it(self):
+    def test_unproven_zoom_stays_visible_but_guidance_rejects_it(self):
         detector = self._make_detector()
         detector.mount.frame_state = CameraMountFrameState(
             gimbal_data=GimbalData(att=Attitude(0, 0, 0)),
@@ -722,8 +722,8 @@ class TestDetectorPoiConversion(unittest.TestCase):
             "real_frame_zoom_timestamp_unavailable",
         )
         self.assertIsNone(
-            FinalApproachFrameProjector(
-                FinalApproachProjectionConfig("ZYX", True)
+            GuidanceFrameProjector(
+                GuidanceProjectionConfig("ZYX", True)
             ).project(pois[0].visual_detection(), 0)
         )
 

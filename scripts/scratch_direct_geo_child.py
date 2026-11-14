@@ -15,7 +15,7 @@ Measurement parity with direct_pixel_pn_child.py (per review):
 Differences (justified):
 - -udt true, --pitch-controller pn (the variable under test)
 - pass detection runs in this child instead of inside the vision runtime,
-  because the legacy runtime has no final-approach service (final_approach is None)
+  because the legacy runtime has no guidance service (guidance is None)
 
 WHAT AN A/B AGAINST direct_pixel_pn_child.py CANNOT SHOW.  The two children
 differ in at least FOUR variables at once, so no single-variable attribution is
@@ -27,13 +27,13 @@ available from the comparison:
    direct_pixel_pn_child.py:63-64
 3. state privileges -- the legacy path consumes truth POI location and
    vehicle location (src/navpy/core/approach/geo/legacy_destination_resolver.py:175-182)
-4. final-approach runtime -- the vision path runs the final-approach service; the legacy
+4. guidance runtime -- the vision path runs the guidance service; the legacy
    path has none (see the pass-detection note above)
 
 A sub-metre result from this child therefore proves ONE thing: the airframe,
 the ArduPilot attitude stack, and the mission geometry can fly that wind
 condition to sub-metre CPA.  It does NOT isolate the vision law's structure
-from the vision input path or the final-approach runtime, and must not be reported as
+from the vision input path or the guidance runtime, and must not be reported as
 if it did.  Isolating the law requires geo-derived LOS fed into the SAME vision
 law with the other three variables held fixed.
 """
@@ -251,7 +251,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
         )
 
         def dispatch(poi_detection: DetectedObject) -> bool:
-            # Legacy mode has no vision-nav confirm gate (final_approach is
+            # Legacy mode has no vision-nav confirm gate (guidance is
             # None).  Mirror the vision runtime's pass handling: aft frames
             # suppress commands; the nav loop exits once passed latches.
             if pass_gate.observe(poi_detection):
@@ -266,7 +266,7 @@ def run(options: argparse.Namespace) -> dict[str, object]:
             aircraft_degrees=geo_ref.degrees,
             dispatch=dispatch,
         )
-        navigation.bind_final_approach_source_dispatch(source.dispatch_available)
+        navigation.bind_guidance_source_dispatch(source.dispatch_available)
         source.start()
         navigation.start()
         print("DIRECT_PIXEL_READY", flush=True)

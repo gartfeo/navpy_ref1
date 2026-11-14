@@ -68,6 +68,6 @@ def test_observe_hands_each_confirm_record_to_the_floor(tmp_path, monkeypatch):
                                        3: RECORD_LINE + "\n"})
     group = type("Group", (), {"check": lambda self: None})()
     seen = []
-    assert stop.observe(board, group, out, 10 * stop.TERMINAL_POLL_S, seen.append) == stop.ENDED_BY_TERMINAL
+    assert stop.observe(board, group, out, 10 * stop.RESULT_POLL_S, seen.append) == stop.ENDED_BY_RESULT
     assert seen == [{"task": 3}]
     assert json.loads(RECORD_LINE.split(" ", 1)[1]) == DOCKED

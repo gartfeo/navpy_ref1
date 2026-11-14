@@ -1,4 +1,4 @@
-"""Pure Vision guard for the Unreal lens table (HITL stage 1 step 5, docs/design/hitl_final_approach.md section 9).
+"""Pure Vision guard for the Unreal lens table (HITL stage 1 step 5, docs/design/hitl_guidance.md section 9).
 
 The ZR10 emulator tells Unreal the true lens state (reading, the setting it was reached by, settled) so the camera
 renders the right reading_intrinsics row, and the camera logs which row each frame rendered with. That is simulator

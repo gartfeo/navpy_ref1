@@ -1,4 +1,4 @@
-"""Nav publishes whether it flies a final approach, the swarm's BUSY input."""
+"""Nav publishes whether it is in guidance, the swarm's BUSY input."""
 
 from unittest.mock import Mock, call
 
@@ -13,7 +13,7 @@ from navpy.core.flow.navigation_transition_handler import TransitionOutcome
 
 
 @pytest.mark.parametrize("phase", list(NavState))
-def test_only_a_committed_nav_phase_is_a_final_approach(phase):
+def test_only_a_committed_nav_phase_is_a_guidance(phase):
     assert is_approaching(phase) is (phase is NavState.NAV)
 
 

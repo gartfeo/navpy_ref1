@@ -1,6 +1,6 @@
-"""A final approach held by NAV recovery (docs/design/navpy_recovery.md; owner ruling 2026-11-09, "New approach").
+"""Guidance held by NAV recovery (docs/design/navpy_recovery.md; owner ruling 2026-11-09, "New approach").
 
-Recovery's hold mid-approach ends the in-flight final-approach episode without counting it as a failure: not
+Recovery's hold mid-approach ends the in-flight guidance episode without counting it as a failure: not
 DOCK_FAILED, no one-shot finish. When the approach goes on after the hold (recovery resumed in AUTO), NavPy starts a
 fresh one to the kept dock, with new source admission, command liveness and dock-contact episode; nothing latched by
 the held episode carries over.
@@ -49,7 +49,7 @@ class HeldApproach:
                 if self._end is not None:
                     self._end()
             except Exception as rollback:  # noqa: BLE001 - both are reported
-                raise ExceptionGroup("fresh final-approach entry and its rollback failed", [failure, rollback]) \
+                raise ExceptionGroup("fresh guidance entry and its rollback failed", [failure, rollback]) \
                     from None
             raise
 

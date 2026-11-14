@@ -1,4 +1,4 @@
-"""One approach run's score checks for the series report (hitl_final_approach.md section 9, step 27).
+"""One approach run's score checks for the series report (hitl_guidance.md section 9, step 27).
 
 Each check reads the run folder after every process stopped and returns its problems; a run counts only with none.
 Missing or over-budget evidence is a problem, never a skip. Truth (the board centre, the plant's path) is read only by
@@ -18,10 +18,10 @@ from tools.hitl.contact_scene import read_dock
 from tools.hitl.json_checks import RecordError
 from tools.tuning import approach_chain as chain, approach_contact as contact, approach_finish as finish
 from tools.tuning import approach_scenario as scenario_run
-from tools.tuning.approach_quiesce import ENDED_BY_TERMINAL
+from tools.tuning.approach_quiesce import ENDED_BY_RESULT
 from tools.tuning.approach_verdict import problems as run_problems
 
-DOCKED = "docked"                       # FinalApproachTerminal.DOCKED's value in navpy's terminal record
+DOCKED = "docked"                       # GuidanceResult.DOCKED's value in navpy's result record
 # navpy's own acquisition from the encoded stream: the real whole-dock detector (RF-DETR, step 23b) on the HITL
 # profile, with its weights, integration timing and the contact link. Any other detector or profile (sim, ideal_360,
 # raw frames) cannot substitute.
@@ -64,7 +64,7 @@ def command_check(run: dict, run_dir: Path) -> list[str]:
 
 def docked_check(run: dict, run_dir: Path) -> list[str]:
     outcome = run.get("outcome") or {}
-    if outcome.get("outcome") != DOCKED or outcome.get("ended_by") != ENDED_BY_TERMINAL:
+    if outcome.get("outcome") != DOCKED or outcome.get("ended_by") != ENDED_BY_RESULT:
         return [f"outcome {outcome.get('outcome')} ended by {outcome.get('ended_by')}, not docked by navpy's record"]
     return []
 
@@ -88,12 +88,12 @@ def contact_check(run: dict, run_dir: Path) -> list[str]:
     if contacts and arm is None:
         found.append("the contact names no arm the service saw")
     record = (run.get("outcome") or {}).get("navpy_record") or {}
-    terminal = (record.get("task"), record.get("dock"), record.get("episode"))
-    if terminal[2] is None:
-        found.append("navpy's terminal record names no episode")
-    elif arm is not None and (arm.get("task_id"), arm.get("dock_uid"), arm.get("episode")) != terminal:
+    result = (record.get("task"), record.get("dock"), record.get("episode"))
+    if result[2] is None:
+        found.append("navpy's result record names no episode")
+    elif arm is not None and (arm.get("task_id"), arm.get("dock_uid"), arm.get("episode")) != result:
         found.append(f"the contact's arm {(arm.get('task_id'), arm.get('dock_uid'), arm.get('episode'))} is not "
-                     f"navpy's terminal episode {terminal}")
+                     f"navpy's result episode {result}")
     return found
 
 

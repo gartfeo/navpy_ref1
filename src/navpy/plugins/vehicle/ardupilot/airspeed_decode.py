@@ -1,4 +1,4 @@
-"""AIRSPEED (295) packets on the shared bus (hitl_final_approach.md section 9, step 19).
+"""AIRSPEED (295) packets on the shared bus (hitl_guidance.md section 9, step 19).
 
 The bus decodes with pinned pymavlink's ``ardupilotmega`` dialect (navlink included), which has no
 AIRSPEED.  pymavlink hands such a packet over as ``MAVLink_unknown``: the original bytes, but no

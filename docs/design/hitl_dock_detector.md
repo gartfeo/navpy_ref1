@@ -1,6 +1,6 @@
 # HITL whole-dock detector (design v2.3, 2026-11-09)
 
-Status: approved by the owner 2026-11-08. Phase A is built as HITL step 23b (`hitl_final_approach.md` section 9,
+Status: approved by the owner 2026-11-08. Phase A is built as HITL step 23b (`hitl_guidance.md` section 9,
 its Built record holds what was built, measured and left open). It added one step to the HITL lean plan
 (revision 25edd29c; section 7).
 v2 applies Codex review round 1 (section 10), v2.1 round 2 (section 11). v2.2 applies the owner's answers of
@@ -12,7 +12,7 @@ v2.3 applies the owner's choice of 2026-11-09 (section 8 item 10): phase A's doc
 ## 1. Why
 
 HITL step 23 (PR #89, merged to main 2026-11-06) flies the owner's 300 m orbit
-(`final_approach_orbit.radius_m` in profile `siyi_zr10_hitl_encoded`). Its pre-series check refuses every series:
+(`guidance_orbit.radius_m` in profile `siyi_zr10_hitl_encoded`). Its pre-series check refuses every series:
 
 - ChArUco needs about 11.5 px per 40 cm square along the line of sight (dock4, `hitl_unreal_camera.md`). At 10x
   (fy 16812 on the 1920 x 1080 stream) and 80 m above the board that limits the slant to about 216 m. At 300 m
@@ -217,7 +217,7 @@ reported with 95 % intervals.
    zoom transitions and settling, the net clipped by the frame edge and partly hidden, loss and reacquisition.
    Report the longest valid-measurement gap, box-centre jumps at clipping, and frame capture-to-consumption age and
    queue depth (not only inference time), against the existing feasibility contract
-   (`hitl_final_approach.md` section 4, "Feasibility contract").
+   (`hitl_guidance.md` section 4, "Feasibility contract").
 5. **Inference time** per frame on the PC GPU for each tiling and crop (the Orin later, stage 2, where the
    TensorRT engines exist), against the stream rate.
 6. **Ground-ray error:** first-detection distance D and centre error against truth (scorer only), on SITL replays,

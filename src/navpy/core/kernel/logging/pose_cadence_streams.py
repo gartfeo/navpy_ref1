@@ -13,7 +13,7 @@ Event streams, keyed by ``(sys_id, stream)``:
 - ``telemetry_reject`` -- one row per autopilot-telemetry packet that
   ``_accept_telemetry_sample`` refused (foreign component / stale boot time),
   making the drop path countable instead of silent.
-- ``detector_pose`` -- source-pose admission and final-approach detector outcomes:
+- ``detector_pose`` -- source-pose admission and guidance detector outcomes:
   raw attitude boot time, accepted poses, emitted frames, explicit queue /
   reset / invalidation drops, missing timestamps, duplicates, and reordering.
   Only an actual frame publication is ``emitted``; its unchanged raw source
@@ -22,19 +22,19 @@ Event streams, keyed by ``(sys_id, stream)``:
   reads included (``sim.detection.detector_poll_timer``): work and thread-CPU
   time of one scope, requested and actual wait, stage costs and the previous
   iteration's residual. ``detector_pose`` rows skip polls that read nothing.
-- ``observation`` -- one row per detection delivered to final approach
+- ``observation`` -- one row per detection delivered to guidance
   (``runtime.nav``): the frame's source timestamp, the source clock's "now"
   read through the detection's own provider, and the hand-off ``outcome``
   (fresh / duplicate / regression / invalid_*) and the frame's source
-  ``epoch`` (the final-approach source generation, empty without a frame).
-- ``worker`` -- one row per final-approach command actually SENT
-  (``execute_final_approach_command``, every command -- not decimated like the
-  FINAL_APPROACH_CMD log event): raw observation source timestamp, matching source-
+  ``epoch`` (the guidance source generation, empty without a frame).
+- ``worker`` -- one row per guidance command actually SENT
+  (``execute_guidance_command``, every command -- not decimated like the
+  GUIDANCE_CMD log event): raw observation source timestamp, matching source-
   clock now, diagnostic execution time, and the compatibility marker
   ``measured``, and whether the 25 Hz tick used a ``fresh`` command or a
   zero-order ``held`` primitive command, plus ``work_cpu_ms`` (thread CPU time
   of the ``exec_ms`` scope) and the frame's source ``epoch``. The current
-  final-approach runtime does not issue predictions.
+  guidance runtime does not issue predictions.
 - ``frame_lineage`` -- what became of each fresh frame after the observation
   hop, keyed (``epoch``, ``frame_ts``): ``replaced`` in the newest-only slot
   before the worker took it, or the worker's ``consumed`` (issued) /
@@ -49,7 +49,7 @@ Event streams, keyed by ``(sys_id, stream)``:
 
 Emitted ``detector_pose`` rows carry an ``epoch`` too: the count of
 source-discontinuity publications drained before that frame, which matches
-the final-approach generation while every emitted discontinuity reaches it.
+the guidance generation while every emitted discontinuity reaches it.
 """
 
 HEADERS = {

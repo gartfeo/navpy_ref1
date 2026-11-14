@@ -86,11 +86,11 @@ class GimbalZoomController:
     def freeze_at_min(self) -> bool:
         with self._gate.lock:
             with self._fence.lock:
-                self._detection.final_approach_zoom_frozen_at_min = True
+                self._detection.guidance_zoom_frozen_at_min = True
             if self._fixed is not None:
                 if self._fixed.command_widest("freeze"):
                     return True
-                self._warn("final-approach fixed zoom freeze failed")
+                self._warn("guidance fixed zoom freeze failed")
                 return False
             tracker = self._trackers.zoom
             if tracker is None:
@@ -98,7 +98,7 @@ class GimbalZoomController:
             tracker.set_size_demand(False)
             if tracker.reset_to_min():
                 return True
-            self._warn("final-approach zoom freeze failed")
+            self._warn("guidance zoom freeze failed")
             return False
 
     def reset_to_min(self) -> bool:
@@ -119,13 +119,13 @@ class GimbalZoomController:
         self,
         poi: DetectedObject | None,
         cached_poi: DetectedObject | None,
-        final_approach_zoom_frozen: bool,
+        guidance_zoom_frozen: bool,
         pointing: GimbalTrackResult | None,
     ) -> DetectedObject | None:
         if self._fixed is not None:
-            return self._update_fixed(poi, cached_poi, final_approach_zoom_frozen, pointing)
+            return self._update_fixed(poi, cached_poi, guidance_zoom_frozen, pointing)
         tracker = self._trackers.zoom
-        if tracker is None or final_approach_zoom_frozen:
+        if tracker is None or guidance_zoom_frozen:
             return cached_poi
         if self._trackers.rate is None:
             cached_poi = poi if poi is not None else cached_poi

@@ -35,21 +35,21 @@ class OrbitMount(Protocol):
 
 
 # Vision-nav ORBIT floor, applied inside r_nav_min for the navigation-law
-# final approach (zoom mounts with orbit_limits, and the NavController final-approach override).
+# guidance (zoom mounts with orbit_limits, and the NavController guidance override).
 # The raw descent-feasibility minimum can fall to ~185-250 m at normal altitudes;
 # floor the orbit here so the tangential orbit-exit has enough run-in to finish
-# the roll-out BEFORE the final approach starts.
+# the roll-out BEFORE the guidance starts.
 #
 # 500 m (was 300 m): the extra ~200 m of run-in lets the orbit-exit bank settle
-# to wings-level before the final-approach descent, so the final-approach LOS is not corrupted
-# by residual roll. Live-confirmed (3-UAV eval): bank at the final-approach bearing
+# to wings-level before the guidance descent, so the guidance LOS is not corrupted
+# by residual roll. Live-confirmed (3-UAV eval): bank at the guidance bearing
 # zero-crossing fell from 33-40 deg at 300 m to <5 deg at 500 m, collapsing the
 # LATERAL miss from ~1 m to ~0.006 m. Camera is not the constraint: the
 # siyi_zr10 10x zoom holds the POI at ~48 px at 500 m (>>20 px confirm).
 #
 # NOTE (2026-07-14): 500 m does NOT on its own reach the <0.5 m 3D goal. Live
 # 500 m SNAP is 1.6-3.4 m, now VERTICAL-dominated (long ~2.4 m, vert ~2.3 m,
-# lat ~0). That vertical residual is a real-airframe final-approach-flare limit
+# lat ~0). That vertical residual is a real-airframe guidance-flare limit
 # (pitch/flight-path-response lag + TECS in the steep descent) that the offline
 # point-mass certs do NOT reproduce (they hit <0.05 m at both 300 m and 500 m);
 # the earlier "offline repro: 500 m -> 0.11 m" prediction was an artifact of
@@ -63,7 +63,7 @@ MIN_APPROACH_STANDOFF_M = 500.0
 # this"). Kept at 300 m: a fixed-camera mount confirms the POI at its 1x
 # MIN_CONFIRM_PIXELS slant (~426 m for class 0 at alt 100 m), which must NOT be
 # pushed out to the 500 m vision-nav approach floor above -- doing so would put
-# the POI beyond the fixed camera's confirm range. Only the navigation-law final approach
+# the POI beyond the fixed camera's confirm range. Only the navigation-law guidance
 # (zoom + orbit_limits) uses the larger MIN_APPROACH_STANDOFF_M.
 MIN_ACQUIRE_STANDOFF_M = 300.0
 _ORBIT_PIXEL_MARGIN = 0.9
@@ -88,7 +88,7 @@ def compute_orbit_plan(
 
     A zoom mount with ``orbit_limits`` uses the furthest standoff that still
     tracks reliably at 1x and reaches operator-identification size at maximum
-    zoom, floored by the final-approach descent-feasibility minimum::
+    zoom, floored by the guidance descent-feasibility minimum::
 
         orbit_slant  = min(fy_1x  * size / MIN_TRACK_PIXELS,
                            fy_max * size / recognition_px)
@@ -129,7 +129,7 @@ def _compute_zoom_navigation_orbit_plan(
     *,
     logger: logging.Logger,
 ) -> ApproachPlan:
-    """Size the furthest zoom orbit while respecting the final-approach floor."""
+    """Size the furthest zoom orbit while respecting the guidance floor."""
     nav_floor = r_nav_min(
         orbit_limits,
         alt,

@@ -1,4 +1,4 @@
-"""Plan/issue/commit final-approach command transaction."""
+"""Plan/issue/commit guidance command transaction."""
 
 from __future__ import annotations
 
@@ -8,17 +8,17 @@ from enum import Enum
 from typing import Protocol
 
 from navpy.core.approach.calc_data import CalcData
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 from navpy.plugins.laws.vision_pn.command_anchor import (
-    FinalApproachLimits,
+    GuidanceLimits,
     effective_limits,
 )
-from navpy.plugins.laws.vision_pn.law_plan import FinalApproachLawPlan
-from navpy.plugins.laws.vision_pn.law_plan import FinalApproachPlanOrigin
+from navpy.plugins.laws.vision_pn.law_plan import GuidanceLawPlan
+from navpy.plugins.laws.vision_pn.law_plan import GuidancePlanOrigin
 from navpy.core.approach.vision_nav.visual_pass import VisualPassPlan
 
 
-class FinalApproachAttitudeActuator(Protocol):
+class GuidanceAttitudeActuator(Protocol):
     def issue(
         self,
         roll_deg: float,
@@ -27,7 +27,7 @@ class FinalApproachAttitudeActuator(Protocol):
     ) -> None: ...
 
 
-class FinalApproachCommandLaw(Protocol):
+class GuidanceCommandLaw(Protocol):
     @property
     def pitch_time_constant_s(self) -> float | None: ...
 
@@ -37,18 +37,18 @@ class FinalApproachCommandLaw(Protocol):
     @property
     def pitch_limits_deg(self) -> tuple[float, float]: ...
 
-    def plan(self, frame: FinalApproachVisionFrame) -> FinalApproachLawPlan | None: ...
+    def plan(self, frame: GuidanceVisionFrame) -> GuidanceLawPlan | None: ...
 
-    def commit(self, plan: FinalApproachLawPlan) -> None: ...
+    def commit(self, plan: GuidanceLawPlan) -> None: ...
 
 
-class FinalApproachPassPolicy(Protocol):
-    def plan(self, frame: FinalApproachVisionFrame) -> VisualPassPlan: ...
+class GuidancePassPolicy(Protocol):
+    def plan(self, frame: GuidanceVisionFrame) -> VisualPassPlan: ...
 
     def commit(self, plan: VisualPassPlan) -> None: ...
 
 
-class FinalApproachEpisodeOutcome(Protocol):
+class GuidanceEpisodeOutcome(Protocol):
     @property
     def commands_ended(self) -> bool: ...
 
@@ -56,29 +56,29 @@ class FinalApproachEpisodeOutcome(Protocol):
 
 
 @dataclass(frozen=True)
-class FinalApproachCommandResult:
+class GuidanceCommandResult:
     calc_data: CalcData | None
-    outcome: "FinalApproachCommandOutcome"
+    outcome: "GuidanceCommandOutcome"
     missed: bool
-    evidence: "FinalApproachLawEvidence | None" = None
+    evidence: "GuidanceLawEvidence | None" = None
 
     @property
     def issued(self) -> bool:
-        return self.outcome is FinalApproachCommandOutcome.ISSUED
+        return self.outcome is GuidanceCommandOutcome.ISSUED
 
 
-class FinalApproachCommandOutcome(Enum):
+class GuidanceCommandOutcome(Enum):
     ISSUED = "issued"
     # An armed dock seen aft: no command; the second aft frame is the miss.
     AFT_SUPPRESSED = "aft_suppressed"
     LAW_UNAVAILABLE = "law_unavailable"
     # The episode already ended (docked or missed): no command, no row.
-    TERMINAL_SUPPRESSED = "terminal_suppressed"
+    EPISODE_ENDED = "episode_ended"
 
 
 @dataclass(frozen=True)
-class FinalApproachLawEvidence:
-    """Frame-local terms that completely explain one final-approach command."""
+class GuidanceLawEvidence:
+    """Frame-local terms that completely explain one guidance command."""
 
     control_bearing_deg: float
     lateral_rate_deg_s: float
@@ -95,16 +95,16 @@ class FinalApproachLawEvidence:
     # clipped to after the law's own structural caps narrowed it. Both, because
     # they differ: auditing against the configured values produced a standing
     # 10.0 deg "unexplained residual" on every run.
-    configured_limits: FinalApproachLimits
-    effective_limits: FinalApproachLimits
+    configured_limits: GuidanceLimits
+    effective_limits: GuidanceLimits
     raw_roll_deg: float
     raw_pitch_deg: float
     # Which branch ran, the anchor it integrated from, the interval and the
     # gains -- everything needed to reproduce the command.
-    origin: FinalApproachPlanOrigin
+    origin: GuidancePlanOrigin
 
 
-class FinalApproachCommandTransaction:
+class GuidanceCommandTransaction:
     """Mutate law/aft-gate state only at the command boundary.
 
     Runs under the runtime lock (slot lease), so it serializes with the
@@ -113,17 +113,17 @@ class FinalApproachCommandTransaction:
 
     def __init__(
         self,
-        law: FinalApproachCommandLaw,
-        visual_pass: FinalApproachPassPolicy,
-        actuator: FinalApproachAttitudeActuator,
-        episode: FinalApproachEpisodeOutcome,
+        law: GuidanceCommandLaw,
+        visual_pass: GuidancePassPolicy,
+        actuator: GuidanceAttitudeActuator,
+        episode: GuidanceEpisodeOutcome,
     ) -> None:
         self._law = law
         self._pass = visual_pass
         self._actuator = actuator
         self._episode = episode
 
-    def terminal_result(self) -> FinalApproachCommandResult | None:
+    def suppressed_result(self) -> GuidanceCommandResult | None:
         """The suppression result once the episode ended, before any check.
 
         The executor asks this before freshness, so a stale frame after
@@ -131,30 +131,30 @@ class FinalApproachCommandTransaction:
         """
         if not self._episode.commands_ended:
             return None
-        return FinalApproachCommandResult(
+        return GuidanceCommandResult(
             None,
-            FinalApproachCommandOutcome.TERMINAL_SUPPRESSED,
+            GuidanceCommandOutcome.EPISODE_ENDED,
             False,
         )
 
-    def execute(self, frame: FinalApproachVisionFrame) -> FinalApproachCommandResult:
-        terminal = self.terminal_result()
-        if terminal is not None:
-            return terminal
+    def execute(self, frame: GuidanceVisionFrame) -> GuidanceCommandResult:
+        result = self.suppressed_result()
+        if result is not None:
+            return result
         pass_plan = self._pass.plan(frame)
         if pass_plan.suppress_command:
             self._pass.commit(pass_plan)
             missed = pass_plan.next_state.missed and self._episode.latch_missed()
-            return FinalApproachCommandResult(
+            return GuidanceCommandResult(
                 None,
-                FinalApproachCommandOutcome.AFT_SUPPRESSED,
+                GuidanceCommandOutcome.AFT_SUPPRESSED,
                 missed,
             )
         law_plan = self._law.plan(frame)
         if law_plan is None:
-            return FinalApproachCommandResult(
+            return GuidanceCommandResult(
                 None,
-                FinalApproachCommandOutcome.LAW_UNAVAILABLE,
+                GuidanceCommandOutcome.LAW_UNAVAILABLE,
                 False,
             )
         command = law_plan.command
@@ -179,7 +179,7 @@ class FinalApproachCommandTransaction:
                 math.hypot(frame.control_x, frame.control_y),
             )
         )
-        return FinalApproachCommandResult(
+        return GuidanceCommandResult(
             CalcData(
                 yaw=math.degrees(math.atan2(frame.body_y, frame.body_x)),
                 pitch=control_elevation_deg,
@@ -187,9 +187,9 @@ class FinalApproachCommandTransaction:
                 cmd_pitch=command.cmd_pitch_deg,
                 cmd_thr=command.cmd_thr,
             ),
-            FinalApproachCommandOutcome.ISSUED,
+            GuidanceCommandOutcome.ISSUED,
             False,
-            FinalApproachLawEvidence(
+            GuidanceLawEvidence(
                 control_bearing_deg=control_bearing_deg,
                 lateral_rate_deg_s=math.degrees(
                     law_plan.lateral_rate.visual_rate_rad_s
@@ -210,7 +210,7 @@ class FinalApproachCommandTransaction:
                 control_elevation_deg=control_elevation_deg,
                 vertical_rate_deg_s=math.degrees(law_plan.rate.rate_rad_s),
                 pitch_time_constant_s=self._law.pitch_time_constant_s,
-                configured_limits=FinalApproachLimits(
+                configured_limits=GuidanceLimits(
                     self._law.roll_limit_deg,
                     self._law.pitch_limits_deg[0],
                     self._law.pitch_limits_deg[1],
@@ -224,12 +224,12 @@ class FinalApproachCommandTransaction:
 
 
 __all__ = [
-    "FinalApproachAttitudeActuator",
-    "FinalApproachCommandLaw",
-    "FinalApproachCommandOutcome",
-    "FinalApproachCommandResult",
-    "FinalApproachCommandTransaction",
-    "FinalApproachEpisodeOutcome",
-    "FinalApproachLawEvidence",
-    "FinalApproachPassPolicy",
+    "GuidanceAttitudeActuator",
+    "GuidanceCommandLaw",
+    "GuidanceCommandOutcome",
+    "GuidanceCommandResult",
+    "GuidanceCommandTransaction",
+    "GuidanceEpisodeOutcome",
+    "GuidanceLawEvidence",
+    "GuidancePassPolicy",
 ]

@@ -1,4 +1,4 @@
-"""The HITL contact channel's link file and navpy's UDP end (hitl_final_approach.md step 26).
+"""The HITL contact channel's link file and navpy's UDP end (hitl_guidance.md step 26).
 
 The link file is written per run by ``tools/hitl/contact_service.py link`` into the run's private folder: the run id
 and mode it belongs to, the run's random key and the two loopback endpoints. navpy and the service both read it; it

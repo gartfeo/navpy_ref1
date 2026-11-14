@@ -1,7 +1,7 @@
 # NavPy
 
 NavPy is a cooperative UAV swarm framework: autonomous navigation, fleet
-coordination, vision-based final approach, camera control, detection, logging
+coordination, vision-based guidance, camera control, detection, logging
 and network messaging for multi-UAV missions. The swarm core is the product and
 is mission-agnostic; mission functions are plug-and-play modules, so the same
 swarm serves factory and industrial survey/inspection, agricultural spraying,

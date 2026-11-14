@@ -120,7 +120,7 @@ class DetectionGeoDiagnostics:
     is_simulation: bool = False
     # Acquisition only (HITL step 22): the board pose from this frame's
     # corners and the camera location at its capture instant. Neither may
-    # reach the final-approach command record.
+    # reach the guidance command record.
     board_pose: BoardPoseResult | None = None
     capture_camera_location: Location | None = None
 

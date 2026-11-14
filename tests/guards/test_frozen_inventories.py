@@ -1,4 +1,4 @@
-"""Semantic guards for scheduler cadence and pure-vision final approach."""
+"""Semantic guards for scheduler cadence and pure-vision guidance."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ EXECUTOR = "src/navpy/core/approach/vision_nav/command_executor.py"
 SIM_ALIASES = frozenset({"SimTimebase", "sim_time", "sim_timebase"})
 SCANNED_ROOTS = ("src", "scripts", "tests", "tools")
 LEGACY_APIS = {"wall_period_for_sim_period", "loop_sim_speedup"}
-# The final-approach command core, one full path per file: the files do not
+# The guidance command core, one full path per file: the files do not
 # share one folder after the module separation, and a moved file must fail
 # here rather than drop out of a folder scan.
 VISION_FRAME = "src/navpy/core/ports/frame.py"
@@ -28,22 +28,22 @@ LAW = "src/navpy/plugins/laws/vision_pn/law.py"
 COMMAND_FRESHNESS = "src/navpy/core/approach/vision_nav/command_freshness.py"
 COMMAND_HOLD = "src/navpy/core/approach/vision_nav/command_hold.py"
 CORE = {
-    VISION_FRAME: "FinalApproachVisionFrame",
-    FRAME_PROJECTION: "FinalApproachFrameProjector",
+    VISION_FRAME: "GuidanceVisionFrame",
+    FRAME_PROJECTION: "GuidanceFrameProjector",
     "src/navpy/core/approach/vision_nav/source_epoch.py": "SourceEpochLedger",
     "src/navpy/core/approach/vision_nav/confirmation.py":
-        "FinalApproachConfirmation",
-    "src/navpy/core/approach/vision_nav/ingress.py": "FinalApproachIngress",
+        "GuidanceConfirmation",
+    "src/navpy/core/approach/vision_nav/ingress.py": "GuidanceIngress",
     "src/navpy/plugins/laws/vision_pn/rate_filter.py": "VerticalRateFilter",
     LAW: "VisionNavLaw",
     "src/navpy/core/approach/vision_nav/visual_pass.py": "VisualPassDetector",
     "src/navpy/core/approach/vision_nav/command_transaction.py":
-        "FinalApproachCommandTransaction",
+        "GuidanceCommandTransaction",
     LATERAL_RATE: "LateralRateFilter",
-    "src/navpy/core/ports/law_config.py": "FinalApproachLawConfig",
+    "src/navpy/core/ports/law_config.py": "GuidanceLawConfig",
     "src/navpy/plugins/laws/vision_pn/command_anchor.py":
-        "FinalApproachCommandAnchor",
-    "src/navpy/plugins/laws/vision_pn/law_plan.py": "FinalApproachLawPlan",
+        "GuidanceCommandAnchor",
+    "src/navpy/plugins/laws/vision_pn/law_plan.py": "GuidanceLawPlan",
 }
 # Callables (and clocks) the command core takes by injection: frozen, since
 # a zero-argument callable could carry a clock past every name-based rule.
@@ -394,13 +394,13 @@ def bad(cadence, frame, dt_s, speedup):
 """)
     assert len(_cadence_violations([("synthetic.py", bad)])) == 2
 
-def test_final_approach_scope_and_primitive_frame_cannot_disappear() -> None:
+def test_guidance_scope_and_primitive_frame_cannot_disappear() -> None:
     trees = {relative: _tree(relative) for relative in CORE}
     assert trees
     for relative, class_name in CORE.items():
         assert relative in trees
         assert _definition(trees[relative], class_name, ast.ClassDef) is not None, relative
-    frame = _definition(trees[VISION_FRAME], "FinalApproachVisionFrame", ast.ClassDef)
+    frame = _definition(trees[VISION_FRAME], "GuidanceVisionFrame", ast.ClassDef)
     fields = [
         (node.target.id, ast.unparse(node.annotation)) for node in frame.body
         if isinstance(node, ast.AnnAssign) and isinstance(node.target, ast.Name)
@@ -408,7 +408,7 @@ def test_final_approach_scope_and_primitive_frame_cannot_disappear() -> None:
     assert tuple(name for name, _ in fields) == FRAME_FIELDS
     assert {annotation for _, annotation in fields} <= {"str", "int", "float"}
 
-def test_final_approach_command_core_has_no_clock_or_forbidden_truth_inputs() -> None:
+def test_guidance_command_core_has_no_clock_or_forbidden_truth_inputs() -> None:
     clocks, inputs = [], []
     for relative in CORE:
         tree = _tree(relative)
@@ -417,14 +417,14 @@ def test_final_approach_command_core_has_no_clock_or_forbidden_truth_inputs() ->
         tree = _tree(relative)
         allowed = GYRO_RATE_ALLOWANCES.get(relative, frozenset())
         inputs += [f"{relative}:{hit}" for hit in _forbidden_inputs(tree, allowed)]
-    assert not clocks, "final-approach clock reads:\n  " + "\n  ".join(clocks)
-    assert not inputs, "forbidden final-approach inputs:\n  " + "\n  ".join(inputs)
+    assert not clocks, "guidance clock reads:\n  " + "\n  ".join(clocks)
+    assert not inputs, "forbidden guidance inputs:\n  " + "\n  ".join(inputs)
 
 
 def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
     tree = _tree(COMMAND_HOLD)
     freshness_tree = _tree(COMMAND_FRESHNESS)
-    owner = _definition(tree, "FinalApproachCommandHold", ast.ClassDef)
+    owner = _definition(tree, "GuidanceCommandHold", ast.ClassDef)
     issue = _definition(owner, "issue", ast.FunctionDef)
     freshness = _definition(freshness_tree, "_check_age", ast.FunctionDef)
     assert owner is not None and issue is not None and freshness is not None
@@ -432,7 +432,7 @@ def test_hold_wall_clock_is_execution_diagnostics_only() -> None:
     clocks = _calls(issue, "_monotonic_s")
     assert len(clocks) == 2
 
-def test_final_approach_guard_rejects_alias_clock_and_hidden_truth() -> None:
+def test_guidance_guard_rejects_alias_clock_and_hidden_truth() -> None:
     bad = ast.parse("""
 import time as hidden
 def decide(vehicle, frame, poi_range_m):
@@ -444,7 +444,7 @@ def decide(vehicle, frame, poi_range_m):
     found = {hit.split("@", 1)[0] for hit in _forbidden_inputs(bad)}
     assert {"heading", "ground_speed_ned", "poi_range_m"} <= found
 
-def test_final_approach_guard_rejects_captured_runtime_clocks() -> None:
+def test_guidance_guard_rejects_captured_runtime_clocks() -> None:
     captured = ast.parse(
         "from navpy.core.kernel import runtime_time as rt\n"
         "read_clock = rt.monotonic\n"
@@ -502,7 +502,7 @@ def test_final_approach_guard_rejects_captured_runtime_clocks() -> None:
     )
     assert [hit.split("@", 1)[0] for hit in _clock_hits(instance)] == ["api.port.monotonic", "rt", "read"]
 
-def test_final_approach_guard_rejects_the_port_as_a_value_and_reexports(monkeypatch) -> None:
+def test_guidance_guard_rejects_the_port_as_a_value_and_reexports(monkeypatch) -> None:
     helper = types.ModuleType("navpy._clock_reexport_probe")
     helper.clock_api = runtime_time
     monkeypatch.setitem(sys.modules, helper.__name__, helper)
@@ -521,7 +521,7 @@ def test_final_approach_guard_rejects_the_port_as_a_value_and_reexports(monkeypa
     assert sorted(int(hit.split("@", 1)[1]) for hit in _clock_hits(held)) == [5, 6, 7, 9]
 
 
-def test_final_approach_guard_rejects_an_injected_clock() -> None:
+def test_guidance_guard_rejects_an_injected_clock() -> None:
     injected = ast.parse(
         "class Law:\n"
         "    def __init__(self, clock):\n"
@@ -643,7 +643,7 @@ def test_gyro_rate_allowance_is_exact_and_file_scoped() -> None:
 def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
     """Wall and thread-CPU reads are execution diagnostics, never command inputs."""
     tree = _tree(EXECUTOR)
-    owner = _definition(tree, "FinalApproachCommandExecutor", ast.ClassDef)
+    owner = _definition(tree, "GuidanceCommandExecutor", ast.ClassDef)
     execute = _definition(owner, "execute", ast.FunctionDef)
     execute_current = _definition(owner, "_execute_current", ast.FunctionDef)
     recorder = _definition(owner, "_record_source_time", ast.FunctionDef)
@@ -706,7 +706,7 @@ def test_executor_perf_counter_is_deferred_diagnostics_only() -> None:
 def test_command_input_scan_catches_injected_poi_position(tmp_path) -> None:
     """Truth position added to a command-input file must not slip the scan.
 
-    Only `FinalApproachVisionFrame`'s field list is frozen name-by-name. Every other
+    Only `GuidanceVisionFrame`'s field list is frozen name-by-name. Every other
     command-input file is protected by token scanning alone, so a truth
     position spelled `poi_position` is exactly the shape a regression takes.
     Copy a real command-input file, splice the reference in, and re-run the
@@ -771,7 +771,7 @@ def test_truth_position_guard_spares_frame_local_and_lateral_names() -> None:
 def keep(frame, state, next_state, origin, lat_gyro_term):
     return (
         LAT_GYRO_TERM_ENV, LAT_GYRO_DELAY_ENV, resolve_lat_gyro_delay_s,
-        LateralRateState, VisualPassState, FinalApproachPlanOrigin, DetectedObject,
+        LateralRateState, VisualPassState, GuidancePlanOrigin, DetectedObject,
         frame.poi_passed_override, frame.pixel_position, frame.image_pos,
         frame.body_x, frame.control_y, frame.air_speed_mps,
         frame.aircraft_pitch_deg, frame.aircraft_roll_deg,

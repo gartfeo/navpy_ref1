@@ -1,7 +1,7 @@
 """The own companion's swarm node state, from its SWARM_HEARTBEAT.
 
 The beat's ``state`` says whether the companion can take part in task
-auctions (FREE) or holds a peer's task or flies a final approach (BUSY); see
+auctions (FREE) or holds a peer's task or is in guidance (BUSY); see
 docs/design/swarm-task-assignment-ack.md. Every companion's beat can reach
 every vehicle link, so only the own companion's counts. The newest beat by
 ``(boot, seq)`` wins, a new boot replaces the record, a beat from a boot it

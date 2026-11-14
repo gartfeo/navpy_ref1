@@ -86,10 +86,10 @@ def compose_mission_navigation_ownership(
     )
     mission_pass = MissionPassPolicy(
         MissionPassPorts(
-            final_approach_active=lambda: navigation.final_approach.is_active,
-            poi_passed_override=navigation.final_approach.poi_passed_override,
+            guidance_active=lambda: navigation.guidance.is_active,
+            poi_passed_override=navigation.guidance.poi_passed_override,
             last_visual_bearing_deg=(
-                navigation.final_approach.last_measured_lateral_bearing_deg
+                navigation.guidance.last_measured_lateral_bearing_deg
             ),
             current_absolute=lambda: vehicle.location(False),
             locked_poi_distance=navigation.legacy_pois.locked_distance,
@@ -210,7 +210,7 @@ def compose_navigation_task_workflows(
     )
     navigation_task_action = NavigationTaskAction(
         state.navigation_task,
-        state.final_approach,
+        state.guidance,
         poi.confirmation_manager,
         observation.retry,
         GeoReleasingTracking(
@@ -220,7 +220,7 @@ def compose_navigation_task_workflows(
         approach.speedup,
         peer_navigation,
         acquisition.task_start,
-        lambda: navigation.final_approach.is_active,
+        lambda: navigation.guidance.is_active,
         logger,
     )
     return NavigationTaskWorkflows(

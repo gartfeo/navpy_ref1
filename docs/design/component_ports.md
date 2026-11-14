@@ -51,7 +51,7 @@ flowchart LR
     DET[Detection] --> TRK["Tracking<br/>(ids, lock)"]
   end
   subgraph NAV[Navigation]
-    VF[VisionFrame] --> LAW[Final-approach law]
+    VF[VisionFrame] --> LAW[Guidance law]
   end
   subgraph SW[Swarm]
     CO[Coordinator] --- AL[Allocator]
@@ -80,7 +80,7 @@ flowchart LR
 | 3 | Gimbal | modes (stow, hold, geo-point, rate), zoom → readback at time t | fat `GimbalAbc` | SIYI mode numbers in navigation; 7 direct callers; readback taken at pairing, not capture (moving gimbal fails closed) |
 | 4 | Detection | frame + seq → boxes, class from a catalog, confidence | `FrameDetector` | dock-only classes; `Detection` lives in `yolo_detector.py`; 6 name checks |
 | 5 | Tracking | detections + capture time → stable-id tracks (measured or predicted) + locked POI | `TrackerBackend`, inner engine only | identity, lock and bridge are concrete; no capture time; the sim skips it |
-| 6 | Final-approach law | `VisionFrame` → plan (command, within limits, reason, evidence); plan, commit, reset | 3 implicit Protocols | PN-shaped plan; hardcoded in 5 places |
+| 6 | Guidance law | `VisionFrame` → plan (command, within limits, reason, evidence); plan, commit, reset | 3 implicit Protocols | PN-shaped plan; hardcoded in 5 places |
 | 7 | Swarm coordinator | fleet state, task offer/assign/release/handover → assignments | none; nav builds `TaskActor` (`core/swarm/nav_network.py:24,59`) | add the port; take task data, not `DetectedObject` |
 | 8 | Allocator | offers + costs → assignments | `TaskAssignmentPlanner` (Hungarian) | hardcoded (`core/swarm/task_actor.py:66`); CBBA replaces the coordinator, not this |
 | 9 | Link | messages ↔ bytes over a radio | `NetworkAbc` | codec inside the messages (pymavlink imports); RFD900 hardcoded; custom message ids need a custom ArduPilot build |

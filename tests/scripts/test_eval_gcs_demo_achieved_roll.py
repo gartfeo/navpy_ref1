@@ -31,7 +31,7 @@ def _response_rows(log_dir: Path) -> list[str]:
     return [
         line
         for line in _debug(log_dir).read_text(encoding="utf-8").splitlines()
-        if ",EVENT:FINAL_APPROACH_RESPONSE_STATE," in line
+        if ",EVENT:GUIDANCE_RESPONSE_STATE," in line
     ]
 
 

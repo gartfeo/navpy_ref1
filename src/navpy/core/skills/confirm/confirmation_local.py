@@ -1,4 +1,4 @@
-"""Local final-approach confirmation publication."""
+"""Local guidance confirmation publication."""
 
 from __future__ import annotations
 

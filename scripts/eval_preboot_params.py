@@ -104,8 +104,8 @@ def read_param_typed(
 
 # Written after boot by paths OUTSIDE the sim-parameter loop, so they do not
 # appear in sim_parameters(): the SIM_CPA stage configures its POI
-# (eval_sim_cpa_config.derive_params) and the final-approach step-down sets the clock
-# (pixel_pn_final_approach_speed).  Values are irrelevant here -- only the names.
+# (eval_sim_cpa_config.derive_params) and the guidance step-down sets the clock
+# (pixel_pn_guidance_speed).  Values are irrelevant here -- only the names.
 LATER_WRITERS: tuple[tuple[str, float], ...] = (
     ("SIM_CPA_LAT_HI", 0.0),
     ("SIM_CPA_LAT_LO", 0.0),

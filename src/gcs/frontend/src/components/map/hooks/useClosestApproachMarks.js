@@ -37,7 +37,7 @@ export function closestApproachLabel(record, t) {
 }
 
 /**
- * Sim only: each UAV's closest approach to its dock after a final approach
+ * Sim only: each UAV's closest approach to its dock after guidance
  * (docs/design/gcs_sim_closest_approach.md). `records` is the latest
  * `navpy_sim_status` list (null before the first one). Each record key is
  * consumed once, the first time a status shows it, and becomes a mark only if

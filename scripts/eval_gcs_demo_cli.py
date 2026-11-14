@@ -1,4 +1,4 @@
-"""CLI for the scenario-driven GCS final approach evaluator."""
+"""CLI for the scenario-driven GCS guidance evaluator."""
 
 from __future__ import annotations
 
@@ -39,7 +39,7 @@ def report_dict(report: RunReport) -> dict[str, JsonValue]:
 
 def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Exact source-driven GCS final-approach regression"
+        description="Exact source-driven GCS guidance regression"
     )
     parser.add_argument(
         "--scenario",

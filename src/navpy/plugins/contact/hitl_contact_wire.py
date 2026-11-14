@@ -1,4 +1,4 @@
-"""The HITL contact channel's datagrams (hitl_final_approach.md section 9, step 26).
+"""The HITL contact channel's datagrams (hitl_guidance.md section 9, step 26).
 
 Three kinds, each a JSON object with exactly its fields and an HMAC-SHA256 ``mac`` over the rest, keyed by the run's
 random key (the link file, ``hitl_contact_link_file.py``):

@@ -534,7 +534,7 @@ def _decision(
         clock_s=lambda: 0.0,
         clear_navigation_task=Mock(),
         request_guided=Mock(),
-        final_approach_active=lambda: True,
+        guidance_active=lambda: True,
         holding=lambda: holding,
         resume_granted=(lambda: hold.resumed) if hold is not None else (lambda: grant[0]),
         consume_resume=hold.consume_resume if hold is not None else consume,

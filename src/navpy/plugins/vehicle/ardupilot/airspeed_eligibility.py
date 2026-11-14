@@ -1,4 +1,4 @@
-"""Eligible airspeed: the only airspeed a HITL final-approach law may read (hitl_final_approach.md section 9, step 20).
+"""Eligible airspeed: the only airspeed a HITL guidance law may read (hitl_guidance.md section 9, step 20).
 
 The source is the own autopilot's selected pitot sensor, as AIRSPEED (295) reports it (decoded on the bus, step 19),
 together with SYS_STATUS's differential-pressure bits. VFR_HUD's airspeed (flight-summary telemetry, which ArduPilot

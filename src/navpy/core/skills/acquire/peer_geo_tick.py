@@ -1,4 +1,4 @@
-"""Non-final-approach peer geo pre-acquisition tick."""
+"""Non-guidance peer geo pre-acquisition tick."""
 
 from __future__ import annotations
 
@@ -27,7 +27,7 @@ class PeerGeoTick:
         geo_hold: GeoHoldState,
         pointing: DetectPointingPorts,
         acquisition: PeerGeoAcquisition,
-        final_approach_running: Callable[[], bool],
+        guidance_running: Callable[[], bool],
         current_location: Callable[[], Location | None],
         current_attitude: Callable[[], Attitude | None],
     ) -> None:
@@ -35,13 +35,13 @@ class PeerGeoTick:
         self._geo_hold = geo_hold
         self._pointing = pointing
         self._acquisition = acquisition
-        self._final_approach_running = final_approach_running
+        self._guidance_running = guidance_running
         self._current_location = current_location
         self._current_attitude = current_attitude
 
     def update(self) -> None:
         if (
-            self._final_approach_running()
+            self._guidance_running()
             or not self._navigation_task.peer_navigation
             or self._geo_hold.poi_location is None
             or self._pointing.is_detection_armed()

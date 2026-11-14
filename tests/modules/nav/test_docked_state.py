@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 
-from navpy.core.approach.dock_contact_episode import FinalApproachDockContact
+from navpy.core.approach.dock_contact_episode import GuidanceDockContact
 from navpy.core.approach.logs.navigation_snap_types import ClosestSnap
 from navpy.core.approach.nav_exit_cleanup import NavCleanupResult
 from navpy.core.flow.nav_constants import ALT_HYST
@@ -73,7 +73,7 @@ class _Sensor:
 def _episode(*, latch=True):
     sensor = _Sensor()
     poi = SimpleNamespace(identity=SimpleNamespace(obj_id=DOCK, task_id=10))
-    episode = FinalApproachDockContact(
+    episode = GuidanceDockContact(
         sensor, lambda: 1, lambda _identity, _s: True,
         lambda _event: latch, Mock(),
     )
@@ -131,8 +131,8 @@ def _exit(
 ):
     events: list = []
     navigation_task = NavigationTaskState(
-        final_approach_navigation_active=True,
-        final_approach_nav_completed=completed,
+        guidance_navigation_active=True,
+        guidance_nav_completed=completed,
     )
     cleanup = Mock()
     cleanup.run.return_value = NavCleanupResult(
@@ -263,7 +263,7 @@ class _Recovery:
         self.phase = NavPhaseState(state, state)
         self.climb = PostDockClimb(active=climb)
         self.ports = RecoveryPorts(
-            final_approach_active=lambda: True,  # always so in vision builds
+            guidance_active=lambda: True,  # always so in vision builds
             detector_stop=Mock(),
             current_relative=lambda: (
                 None if self.altitude is None
@@ -301,7 +301,7 @@ def test_cyclic_docked_waits_for_an_altitude():
     assert recovery.phase.current is NavState.DOCKED
 
 
-def test_post_dock_recovery_climbs_although_a_final_approach_is_active():
+def test_post_dock_recovery_climbs_although_a_guidance_is_active():
     recovery = _Recovery(NavState.RECOVERY, MIN_ALT - 1.0, climb=True)
 
     recovery.action.advance()
@@ -312,7 +312,7 @@ def test_post_dock_recovery_climbs_although_a_final_approach_is_active():
     assert recovery.phase.current is NavState.DETECT
 
 
-def test_any_other_recovery_keeps_todays_final_approach_behavior():
+def test_any_other_recovery_keeps_todays_guidance_behavior():
     recovery = _Recovery(NavState.RECOVERY, MIN_ALT - 1.0, climb=False)
 
     recovery.action.advance()
@@ -439,7 +439,7 @@ def _flow(*, oneshot: bool):
     cleanup = NavExitCleanup(
         NavExitCleanupPorts(
             disarm_dock_contact=lambda: events.append("contact off") or _contact(),
-            close_final_approach_source=offer_during_cleanup,
+            close_guidance_source=offer_during_cleanup,
             navigation_reset=lambda: events.append("fence") or ClosestSnap(dist=1.9),
             detector_stop=Mock(),
         ),
@@ -457,7 +457,7 @@ def _flow(*, oneshot: bool):
         Mock(),
     )
     # NAV_FAIL without completion evidence: no completion flag.
-    task = NavigationTaskState(final_approach_navigation_active=True)
+    task = NavigationTaskState(guidance_navigation_active=True)
     transition = NavTransition(
         Mock(), cleanup, Mock(), completion.run, task, lambda: oneshot,
         logger=Mock(),
@@ -506,7 +506,7 @@ def test_contact_dock_fences_cleans_once_then_commits_and_publishes_busy(oneshot
     disarm = ["disarm"] if oneshot else []
     assert flow.events == [
         "contact off",
-        ("offer", "flying a final approach"),  # still busy during cleanup
+        ("offer", "in guidance"),  # still busy during cleanup
         "fence",
         *disarm,
         "clear",

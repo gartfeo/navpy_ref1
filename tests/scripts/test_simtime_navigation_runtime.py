@@ -96,22 +96,22 @@ def test_drain_stops_admission_and_does_not_compute_discarded_commands() -> None
 
 def test_diagnostic_telemetry_and_roll_provider_do_not_change_commands(monkeypatch) -> None:
     from navpy.core.kernel.attitude import Attitude
-    from navpy.core.approach.vision_nav.diagnostics import FinalApproachDiagnosticSnapshot
+    from navpy.core.approach.vision_nav.diagnostics import GuidanceDiagnosticSnapshot
     from scripts import simtime_navigation_runtime as adapter
     baseline = replay((0.,))
-    compose = adapter.compose_final_approach_runtime
+    compose = adapter.compose_guidance_runtime
     samples = []
     class Reader:
         def read(self):
             samples.append(True)
-            return FinalApproachDiagnosticSnapshot(
+            return GuidanceDiagnosticSnapshot(
                 attitude=Attitude(35., 170., 27.),
                 location=Location(-35., -120., 9000., is_absolute=True))
     def with_telemetry(**kwargs):
         kwargs['aircraft_roll_deg'] = lambda: 27.
         kwargs['diagnostic_reader'] = Reader()
         return compose(**kwargs)
-    monkeypatch.setattr(adapter, 'compose_final_approach_runtime', with_telemetry)
+    monkeypatch.setattr(adapter, 'compose_guidance_runtime', with_telemetry)
     assert replay((0., .002, .004)) == baseline
     assert samples, 'diagnostic independence must exercise the actual diagnostic reader'
 

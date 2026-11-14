@@ -100,7 +100,7 @@ class RoutedPorts:
         self._framers: dict[tuple[Hashable, int, str], RouterFramer] = {}
         self._book = PacketBook()
         self._queues = ReplyQueues(manifest.sitl_devices)
-        #: This tick's participant-bound bytes and their fates (step 1 to step 2).
+        #: This tick's participant-bound bytes and their end states (step 1 to step 2).
         self._ledger = InboundLedger()
         self.tally = MavlinkTally((*manifest.sitl_devices, ROUTER_LINK))
         #: SITL-bound bytes, each counted once under the phase it was written in.

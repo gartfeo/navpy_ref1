@@ -1,4 +1,4 @@
-"""The scenario service: one seed's private dock pose, delivered only to its allowed consumers (hitl_final_approach.md
+"""The scenario service: one seed's private dock pose, delivered only to its allowed consumers (hitl_guidance.md
 section 9, stage 1 step 14, and the hard rule that simulator truth belongs to Unreal, contact and scoring).
 
 A series file, in the private folder, freezes a ten-run series: its seeds, the dock region, the dock's design size

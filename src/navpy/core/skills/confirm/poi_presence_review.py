@@ -1,4 +1,4 @@
-"""Fresh POI-presence and nonfinal_approach geo-hold review."""
+"""Fresh POI-presence and nonguidance geo-hold review."""
 
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ from navpy.core.ports.detect_data import DetectedObject
 
 @dataclass(frozen=True)
 class PoiPresencePorts:
-    final_approach_running: Callable[[], bool]
+    guidance_running: Callable[[], bool]
     absolute_location: Callable[[Location | None], Location | None]
 
 
@@ -53,7 +53,7 @@ class PoiPresenceReview:
         present = fresh is not None
         self._timing.update_loss_tracking(present)
         if (
-            not self._ports.final_approach_running()
+            not self._ports.guidance_running()
             and fresh is not None
             and fresh.geo.projected_poi_location is not None
         ):

@@ -1,4 +1,4 @@
-"""The publisher's video numbers of one approach run (hitl_final_approach.md section 9, step 8's done check, repeated
+"""The publisher's video numbers of one approach run (hitl_guidance.md section 9, step 8's done check, repeated
 by step 27's simple checks): every frame accounted for, a drained stream, bounded queues, the unique frame rate within
 2 % of the profile's rate and the mean bitrate within 10 % of its target.
 

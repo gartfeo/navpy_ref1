@@ -31,7 +31,7 @@ NavPy's phase, so 61 is closed by the phase; the slot keeps the task label.
 ## Design
 
 NavPy publishes two display values: the **current phase** and the **last
-outcome** of a final approach. Both go in the existing SWARM_HEARTBEAT state
+outcome** of guidance. Both go in the existing SWARM_HEARTBEAT state
 byte. The GCS shows the phase, and the outcome where the phase does not say
 more.
 
@@ -105,14 +105,14 @@ number):
 |---|---|---|
 | 0 | unknown (any reason not below) | |
 | 1 | nav_fail (no reason named) | `command_liveness.py:61`, `episode_latch.py:38` |
-| 2 | no_detection | `final_approach_command_dispatch.py:95` |
-| 3 | missed_dock | `final_approach_command_dispatch.py:105`, `episode_latch.py:35` |
-| 4 | navigation_rejected | `final_approach_command_dispatch.py:112` |
-| 5 | source_command_stale | `final_approach_command_dispatch.py:125` |
-| 6 | discontinuity_source_missing | `final_approach_publication_admission.py:99` |
-| 7 | final_approach_record_unavailable | `final_approach_record_deadline.py:44` |
-| 8 | source_event_active_poi_missing | `final_approach_source_event_handler.py:69` |
-| 9 | source_event_pump | `nav_final_approach_composition.py:239` |
+| 2 | no_detection | `guidance_command_dispatch.py:95` |
+| 3 | missed_dock | `guidance_command_dispatch.py:105`, `episode_latch.py:35` |
+| 4 | navigation_rejected | `guidance_command_dispatch.py:112` |
+| 5 | source_command_stale | `guidance_command_dispatch.py:125` |
+| 6 | discontinuity_source_missing | `guidance_publication_admission.py:99` |
+| 7 | guidance_record_unavailable | `guidance_record_deadline.py:44` |
+| 8 | source_event_active_poi_missing | `guidance_source_event_handler.py:69` |
+| 9 | source_event_pump | `nav_guidance_composition.py:239` |
 
 - The producers pass these names as constants from the table module, and a
   test checks every latching call site uses one. An unknown string encodes

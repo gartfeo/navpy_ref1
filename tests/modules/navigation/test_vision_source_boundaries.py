@@ -12,17 +12,17 @@ from navpy.core.approach.vision_nav import command_transaction
 from navpy.plugins.laws.vision_pn import law
 from navpy.plugins.laws.vision_pn import rate_filter
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
+    GuidanceFrameProjector,
 )
-from navpy.core.approach.vision_nav.ingress import FinalApproachIngress
-from navpy.core.approach.final_approach_source_contracts import NavSourceBatch
-from navpy.core.approach.final_approach_command_dispatch import (
-    FinalApproachCommandDispatch,
-    FinalApproachCommandPorts,
+from navpy.core.approach.vision_nav.ingress import GuidanceIngress
+from navpy.core.approach.guidance_source_contracts import NavSourceBatch
+from navpy.core.approach.guidance_command_dispatch import (
+    GuidanceCommandDispatch,
+    GuidanceCommandPorts,
 )
-from navpy.core.approach.final_approach_nav_workflow import (
-    FinalApproachNavPorts,
-    FinalApproachNavWorkflow,
+from navpy.core.approach.guidance_nav_workflow import (
+    GuidanceNavPorts,
+    GuidanceNavWorkflow,
 )
 
 
@@ -64,8 +64,8 @@ def test_command_core_has_no_forbidden_hardware_or_truth_sources():
 
 
 def test_aircraft_projection_helper_reads_pitch_roll_only():
-    source = inspect.getsource(FinalApproachFrameProjector.project)
-    names = _names_and_attrs(FinalApproachFrameProjector.project)
+    source = inspect.getsource(GuidanceFrameProjector.project)
+    names = _names_and_attrs(GuidanceFrameProjector.project)
     assert "aircraft_pitch_deg" in names
     assert "aircraft_roll_deg" in names
     assert "aircraft_yaw_deg" not in names
@@ -74,20 +74,20 @@ def test_aircraft_projection_helper_reads_pitch_roll_only():
 
 
 def test_ingress_delegates_all_rich_poi_reads_to_projector():
-    names = _names_and_attrs(FinalApproachIngress.nav)
+    names = _names_and_attrs(GuidanceIngress.nav)
     assert "g_data" not in names
     assert "uas_att" not in names
     assert "timestamp" not in names
 
 
 def test_nav_dispatch_has_no_gap_command_capability():
-    assert "nav_gap" not in FinalApproachCommandPorts.__dataclass_fields__
-    final_approach_nav_files = (
-        "src/navpy/core/approach/final_approach_command_dispatch.py",
-        "src/navpy/core/approach/final_approach_nav_workflow.py",
-        "src/navpy/core/approach/final_approach_source_admission.py",
+    assert "nav_gap" not in GuidanceCommandPorts.__dataclass_fields__
+    guidance_nav_files = (
+        "src/navpy/core/approach/guidance_command_dispatch.py",
+        "src/navpy/core/approach/guidance_nav_workflow.py",
+        "src/navpy/core/approach/guidance_source_admission.py",
     )
-    for relative in final_approach_nav_files:
+    for relative in guidance_nav_files:
         assert "nav_without_detection" not in Path(relative).read_text(
             encoding="utf-8"
         )
@@ -96,8 +96,8 @@ def test_nav_dispatch_has_no_gap_command_capability():
 def test_non_source_dispatch_passes_only_fresh_detection():
     fresh = MagicMock()
     nav = MagicMock(return_value=True)
-    commands = FinalApproachCommandDispatch(
-        FinalApproachCommandPorts(
+    commands = GuidanceCommandDispatch(
+        GuidanceCommandPorts(
             nav=nav,
             mark_failed=MagicMock(),
             logger=MagicMock(),
@@ -121,8 +121,8 @@ def test_source_driven_tick_without_event_waits_without_failure_or_command():
     commands = MagicMock()
     event_pump = MagicMock()
     event_pump.is_open = False
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
@@ -149,8 +149,8 @@ def test_mode_loss_closes_source_pump_before_requesting_guided_again():
     request_guided = MagicMock()
     pump = MagicMock()
     pump.is_open = True
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.AUTO,
@@ -182,8 +182,8 @@ def test_command_liveness_failure_stops_open_source_session():
     peers = MagicMock()
     pump = MagicMock()
     pump.is_open = True
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
@@ -212,14 +212,14 @@ def test_command_liveness_failure_stops_open_source_session():
 
 def test_empty_current_publication_fails_without_gap_or_confirmation_deferral():
     poi = MagicMock(task_id=1, obj_id=2)
-    ports = FinalApproachCommandPorts(
+    ports = GuidanceCommandPorts(
         nav=MagicMock(),
         mark_failed=MagicMock(),
         logger=MagicMock(),
     )
     source = MagicMock()
     source.source_event_poi.return_value = None
-    commands = FinalApproachCommandDispatch(ports, source)
+    commands = GuidanceCommandDispatch(ports, source)
     event = MagicMock()
     commands.dispatch(NavSourceBatch(True, event, (), False), None, poi)
     ports.mark_failed.assert_called_once_with("navigation_rejected")
@@ -246,8 +246,8 @@ def test_successful_vision_source_bootstrap_opens_exclusive_pump():
     pump.is_open = False
     pump.prepare.side_effect = lambda: order.append("prepare") or True
     pump.activate.side_effect = lambda: order.append("activate") or True
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
@@ -287,8 +287,8 @@ def test_polling_vision_dispatch_stays_on_worker_path_without_event_pump():
     record.commit.return_value = True
     pump = MagicMock()
     pump.is_open = False
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
@@ -327,8 +327,8 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
     record.commit.return_value = True
     pump = MagicMock()
     pump.is_open = False
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,
@@ -354,12 +354,12 @@ def test_source_driven_legacy_bootstrap_does_not_open_pump():
 
 def test_no_detection_is_always_a_failure_never_a_pass():
     """Losing the dock is never success: only dock contact completes."""
-    ports = FinalApproachCommandPorts(
+    ports = GuidanceCommandPorts(
         nav=MagicMock(),
         mark_failed=MagicMock(return_value=True),
         logger=MagicMock(),
     )
-    commands = FinalApproachCommandDispatch(ports, MagicMock())
+    commands = GuidanceCommandDispatch(ports, MagicMock())
     commands.mark_no_detection(MagicMock(task_id=1, obj_id=2))
 
     ports.mark_failed.assert_called_once_with("no_detection")
@@ -373,8 +373,8 @@ def test_missed_dock_ends_the_tick_as_nav_fail_before_any_source_work():
     commands = MagicMock()
     pump = MagicMock()
     pump.is_open = True
-    workflow = FinalApproachNavWorkflow(
-        FinalApproachNavPorts(
+    workflow = GuidanceNavWorkflow(
+        GuidanceNavPorts(
             vehicle_mode=lambda: __import__(
                 "navpy.core.ports.flight_mode", fromlist=["FlightMode"]
             ).FlightMode.GUIDED,

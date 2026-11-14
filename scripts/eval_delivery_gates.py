@@ -34,10 +34,10 @@ from scripts.eval_delivery_roles import HOME, OFFERER, WINNER, DeliveryRoles, re
 from scripts.eval_gcs_demo_assignment_lines import AssignmentLines, LogFormat, parse_assignment_lines
 from scripts.eval_gcs_demo_constants import backend_log_path
 from scripts.eval_gcs_demo_docked import DockFailedEvidence
-from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_final_approach_outcomes
+from scripts.eval_gcs_demo_evidence import mission_navigation_segment, parse_guidance_outcomes
 from scripts.eval_gcs_demo_gates import evidence_failure_errors
 from scripts.eval_gcs_demo_assignment_audit import AssignmentEvidence
-from scripts.eval_gcs_demo_models import FinalApproachEpisode
+from scripts.eval_gcs_demo_models import GuidanceEpisode
 from scripts.eval_gcs_demo_poi_binding import vehicle_poi_binding_errors
 from scripts.eval_gcs_demo_ports import JsonValue
 from scripts.eval_gcs_demo_scenario import DemoMissionPlan, DemoScenario
@@ -50,7 +50,7 @@ class DeliveryEvidence:
     expected: Mapping[str, JsonValue]
     docks: tuple[DockSpec, ...]
     texts: dict[int, str]  # full NavPy navigation logs
-    episodes: dict[int, list[FinalApproachEpisode]]
+    episodes: dict[int, list[GuidanceEpisode]]
     lines: AssignmentLines
     # The validated DOCK_FAILED rows of each UAV (missed_dock.md).
     failures: dict[int, list[DockFailedEvidence]] = field(default_factory=dict)
@@ -94,7 +94,7 @@ def load_delivery_evidence(
         for sys_id in sys_ids
     }
     outcomes = {
-        sys_id: parse_final_approach_outcomes(
+        sys_id: parse_guidance_outcomes(
             log_dir / f"uav_{sys_id}_navigation_debug.csv", vehicle_id=sys_id,
         )
         for sys_id in sys_ids
@@ -126,7 +126,7 @@ def _approved_at(approvals: Sequence[Mapping[str, JsonValue]], sys_id: int) -> t
 
 
 def docking_errors(
-    sys_id: int, text: str, episodes: list[FinalApproachEpisode],
+    sys_id: int, text: str, episodes: list[GuidanceEpisode],
     docks: Sequence[DockSpec], dock: int, approval: tuple[int, float] | None,
     failures: Sequence[DockFailedEvidence] = (),
 ) -> list[str]:
@@ -140,7 +140,7 @@ def docking_errors(
         for failed in failures
     ]
     if len(episodes) != 1:
-        return errors + [f"UAV {sys_id} has {len(episodes)} final-approach episodes, not one at {name}"]
+        return errors + [f"UAV {sys_id} has {len(episodes)} guidance episodes, not one at {name}"]
     episode = episodes[0]
     if {command.obj for command in episode.commands} != {dock}:
         errors.append(f"UAV {sys_id} approached dock ids {sorted({c.obj for c in episode.commands})}, not {name}")

@@ -4,7 +4,7 @@ A cached GPS position cannot hold the orbit; no path writes CONFIRMED while the 
 and a review under way is withdrawn when they are lost, so a late operator answer cannot confirm (a
 blip shorter than the frame gap loses neither the lock nor the answer: owner, 2026-11-07); a
 repeated frame does not keep the lock past the frame gap; a circle already flown cannot stall the
-own ORBIT; and compass heading poisoned at the real final-approach confirmation and law boundary
+own ORBIT; and compass heading poisoned at the real guidance confirmation and law boundary
 changes nothing that the gates or the law decide.
 """
 
@@ -16,18 +16,18 @@ import threading
 import pytest
 
 from navpy.core.approach.vision_nav.confirmation import (
-    FinalApproachConfirmation,
-    FinalApproachConfirmationPorts,
+    GuidanceConfirmation,
+    GuidanceConfirmationPorts,
 )
 from navpy.core.approach.vision_nav.frame_projection import (
-    FinalApproachFrameProjector,
-    FinalApproachProjectionConfig,
+    GuidanceFrameProjector,
+    GuidanceProjectionConfig,
 )
 from navpy.core.approach.vision_nav.source_epoch import SourceEpochLedger
 from navpy.core.flow.nav_state import NavState
 from navpy.core.kernel import runtime_time as rt
 from navpy.core.kernel.attitude import Attitude
-from navpy.core.ports.law_config import FinalApproachLawConfig, FixedFinalApproachLawConfigProvider
+from navpy.core.ports.law_config import GuidanceLawConfig, FixedGuidanceLawConfigProvider
 from navpy.core.review.confirmation_manager_state import ConfirmationManagerState
 from navpy.core.review.confirmation_registry_state import ConfirmationStatus
 from navpy.core.review.confirmation_round_transaction import ConfirmationResponseKind
@@ -307,15 +307,15 @@ def test_a_circle_already_flown_does_not_stall_the_own_orbit() -> None:
     assert entered is not None
 
 
-# --- P2: compass heading at the real final-approach confirmation and law boundary ------------------------------------
+# --- P2: compass heading at the real guidance confirmation and law boundary ------------------------------------
 
 def _confirmation():
-    return FinalApproachConfirmation(FinalApproachConfirmationPorts(
+    return GuidanceConfirmation(GuidanceConfirmationPorts(
         lock=threading.RLock(),
-        projector=FinalApproachFrameProjector(FinalApproachProjectionConfig("ZYX", True)),
+        projector=GuidanceFrameProjector(GuidanceProjectionConfig("ZYX", True)),
         epochs=SourceEpochLedger(),
-        law=VisionNavLaw(FixedFinalApproachLawConfigProvider(
-            FinalApproachLawConfig(-55.0, 20.0, 45.0, None, 0.0),
+        law=VisionNavLaw(FixedGuidanceLawConfigProvider(
+            GuidanceLawConfig(-55.0, 20.0, 45.0, None, 0.0),
         )),
     ))
 

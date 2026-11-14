@@ -12,14 +12,14 @@ from __future__ import annotations
 import math
 from dataclasses import dataclass, replace
 
-from navpy.core.ports.frame import FinalApproachVisionFrame
+from navpy.core.ports.frame import GuidanceVisionFrame
 
 # Arm only once the dock is clearly ahead: the frame-local LOS within this
 # angle of the nose. From the waiting circle the dock starts about 90 deg
 # abeam, so arming on any body_x > 0 let one small turn read as "ahead, then
 # behind" 630 m out (.logs/a1-measure-b, uav_1). 60 deg keeps the abeam start
 # 30 deg outside the cone, while a closing approach (LOS a few deg off the
-# nose in the a1 terminal phase) arms well inside it.
+# nose in the a1 closing phase) arms well inside it.
 PASS_ARM_MAX_OFF_NOSE_DEG = 60.0
 PASS_ARM_MIN_BODY_X = math.cos(math.radians(PASS_ARM_MAX_OFF_NOSE_DEG))
 
@@ -51,7 +51,7 @@ class VisualPassDetector:
     def reset(self) -> None:
         self._state = VisualPassState()
 
-    def plan(self, frame: FinalApproachVisionFrame) -> VisualPassPlan:
+    def plan(self, frame: GuidanceVisionFrame) -> VisualPassPlan:
         state = self._state
         key = frame.continuity_key
         if state.identity != key:

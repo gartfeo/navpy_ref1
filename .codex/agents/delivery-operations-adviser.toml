@@ -28,7 +28,7 @@ Use the existing navigation states without changing their values or transitions:
 - **ONHOLD** — Waiting for navigation work or completion handling.
 - **DETECT** — Searching for a suitable POI.
 - **CONFIRM** — POI review and confirmation handling.
-- **NAV** — Final approach toward the selected POI.
+- **NAV** — Guidance toward the selected POI.
 - **RESET** — Clearing task state for the next cycle.
 - **RECOVERY** — Handling navigation recovery.
 

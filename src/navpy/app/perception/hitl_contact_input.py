@@ -1,4 +1,4 @@
-"""``--hitl-contact``: the HITL runner's contact link for one navpy run (hitl_final_approach.md step 26).
+"""``--hitl-contact``: the HITL runner's contact link for one navpy run (hitl_guidance.md step 26).
 
 Only a pc-sitl run gets a contact sensor, and only through three gates, each refusing at startup:
 

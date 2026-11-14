@@ -31,7 +31,7 @@ from navpy.core.link.types import MsgType
 class SwarmNodeState(IntEnum):
     """Heartbeat state bit 0; ``from_code`` ignores the display bits 1-7.
 
-    BUSY: the node holds another UAV's task or flies a final approach.
+    BUSY: the node holds another UAV's task or is in guidance.
     """
 
     FREE = 0

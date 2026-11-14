@@ -12,7 +12,7 @@ snapshot like every gate: the hash-chained journal
 | Workflow ticks | NavPy lines as (tick, stream position) | the retained order |
 | Assignment | the journal's decoded message counts (with their source and target), NavPy lines | no peer relay, none of :data:`SLICE_FORBIDDEN_MESSAGES` but the owner's self-assignment, no peer marker |
 | Approval | the approvals and the journal | exactly one, for P, with the confirmation timing and the polling-schedule replay |
-| SNAP | NavPy lines and the outcome | the first SNAP line is at the mission terminal tick |
+| SNAP | NavPy lines and the outcome | the first SNAP line is at the mission result tick |
 | Pose cadence | ``source-time/*.csv`` | producer-named files, the owner's NavPy arrival streams, every file's tail flushed whole |
 
 The command-bound and cadence gates are the retained vehicle gates
@@ -194,9 +194,9 @@ def snap_errors(records: Sequence[Mapping], lines: Sequence[tuple[int, str]]) ->
     outcome = next((r for r in records if "outcome" in r), None)
     snap = next((k for k, line in lines if SNAP_MARKER in line), None)
     if outcome is None or snap is None:
-        return ["no SNAP at a mission terminal tick"]
-    if snap != outcome["terminal_tick"]:
-        return [f"first SNAP at tick {snap}, mission terminal tick {outcome['terminal_tick']}"]
+        return ["no SNAP at a mission result tick"]
+    if snap != outcome["result_tick"]:
+        return [f"first SNAP at tick {snap}, mission result tick {outcome['result_tick']}"]
     return []
 
 

@@ -4,7 +4,7 @@ Three scripted SITLs share the recorded serial-step clock; a hub (backend,
 ordinal N+1) and three rovers (NavPy-like, ordinals 1-3, spawned one at a
 time through the hub) run as real processes over NVPART01
 (``fleet_doubles``). ``lockstep_fleet.md``: Fleet barrier, Participants,
-Terminal tick.
+Result tick.
 """
 
 from __future__ import annotations
@@ -149,26 +149,26 @@ def test_k_t_is_the_latest_first_snap_of_the_expected_fleet(tmp_path):
     first = _end(coordinator)["first_snaps"]
     assert [ordinal for ordinal, _generation, _k in first] == list(ROVERS)
     assert {ordinal: k for ordinal, _generation, k in first} == operator.snaps
-    assert result.terminal_tick == max(k for *_rest, k in first) == operator.snaps[3]
+    assert result.result_tick == max(k for *_rest, k in first) == operator.snaps[3]
     assert operator.snaps[1] < operator.snaps[2] < operator.snaps[3]
     # A SNAP of rover 1 alone ended nothing: the mission ran on to the last one.
     phases = {r["k"]: r["phase"] for r in _ticks(coordinator)}
     assert phases[operator.snaps[1]] == phases[operator.snaps[2]] == "mission"
-    assert phases[result.terminal_tick] == "mission" and phases[result.terminal_tick + 1] == "finalization"
+    assert phases[result.result_tick] == "mission" and phases[result.result_tick + 1] == "finalization"
 
 
 def test_completion_wins_over_a_budget_expiring_in_the_same_tick(tmp_path):
     reference = _run(tmp_path, "reference")
-    k_t = reference[4].terminal_tick
+    k_t = reference[4].result_tick
     start = next(r["k"] for r in _ticks(reference[0]) if r["phase"] == "mission")
     times = dict(recorded_frames())
     budget = times[k_t] - times[start]  # the budget runs out exactly at k_T
     coordinator, *_rest, result = _run(tmp_path, "shared", plan=fleet_manifest(mission_budget_us=budget))
-    assert (result.outcome, result.terminal_tick) == ("ok", k_t)
+    assert (result.outcome, result.result_tick) == ("ok", k_t)
     assert not any("timeout" in r for r in coordinator.journal.records)
     early_budget = times[k_t - 1] - times[start]  # the budget runs out one tick before k_T
     early = _run(tmp_path, "early", plan=fleet_manifest(mission_budget_us=early_budget))[4]
-    assert (early.outcome, early.terminal_tick) == ("timeout", k_t - 1)
+    assert (early.outcome, early.result_tick) == ("timeout", k_t - 1)
 
 
 def test_an_unspawned_expected_companion_never_completes_the_mission(tmp_path):
@@ -193,7 +193,7 @@ def test_a_mission_budget_ends_an_incomplete_fleet_as_a_timeout(tmp_path):
     plan = fleet_manifest(rovers={3: {"snap_at_s": 1e9}}, mission_budget_us=1_500_000)
     coordinator, *_rest, result = _run(tmp_path, "run", plan=plan, give_up_at_us=3_600_000)
     assert result.outcome == "timeout"
-    assert {"timeout": "mission sim-time budget", "k": result.terminal_tick} in coordinator.journal.records
+    assert {"timeout": "mission sim-time budget", "k": result.result_tick} in coordinator.journal.records
 
 
 def test_a_late_latch_holds_admission(tmp_path):

@@ -8,7 +8,7 @@ from navpy.core.kernel.config.logger_args import LogStatusDest
 from navpy.core.kernel.logging.cache_logger import ILogger
 from navpy.core.skills.confirm.confirmation_policy import PoiRetryPolicy
 from navpy.core.flow.navigation_speedup import NavigationSpeedupLease
-from navpy.core.flow.nav_state import NavigationTaskState, FinalApproachNavState
+from navpy.core.flow.nav_state import NavigationTaskState, GuidanceNavState
 from navpy.core.skills.acquire.peer_navigation import PeerNavigationCoordinator
 from navpy.core.skills.confirm.acquisition_sequence import OrbitStart
 from navpy.core.review.confirmation_manager import ConfirmationManager
@@ -24,31 +24,31 @@ class NavigationTaskAction:
     def __init__(
         self,
         navigation_task: NavigationTaskState,
-        final_approach: FinalApproachNavState,
+        guidance: GuidanceNavState,
         confirmation_manager: ConfirmationManager,
         retry: PoiRetryPolicy,
         tracking: TrackingCommandPort,
         speedup: NavigationSpeedupLease,
         peer_navigation: PeerNavigationCoordinator,
         self_approach: OrbitStart,
-        final_approach_active: Callable[[], bool],
+        guidance_active: Callable[[], bool],
         logger: ILogger,
     ) -> None:
         self._navigation_task = navigation_task
-        self._final_approach = final_approach
+        self._guidance = guidance
         self._confirmation_manager = confirmation_manager
         self._retry = retry
         self._tracking = tracking
         self._speedup = speedup
         self._peer_navigation = peer_navigation
         self._self_approach = self_approach
-        self._final_approach_active = final_approach_active
+        self._guidance_active = guidance_active
         self._logger = logger
 
     def try_start(self, poi: DetectedObject) -> None:
         if (
             self._navigation_task.peer_navigation
-            and not self._final_approach_active()
+            and not self._guidance_active()
             and not self._peer_navigation.near_poi()
         ):
             return
@@ -84,8 +84,8 @@ class NavigationTaskAction:
             return False
         self._tracking.start_tracking(poi_id or poi.identity.obj_id)
         self._confirmation_manager.set_active_poi(poi)
-        self._final_approach.confirmed_recorded = False
-        self._final_approach.deferred_record_started_at = None
+        self._guidance.confirmed_recorded = False
+        self._guidance.deferred_record_started_at = None
         self._self_approach.prepare(poi)
         self._logger.info(
             f"POI: P{poi_id} (tracking obj_id={poi.identity.obj_id})",
